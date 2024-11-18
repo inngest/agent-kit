@@ -128,8 +128,10 @@ The following agents are available:
 Follow the set of instructions:
 
 <instructions>
-        Determine which agent to use to handle the user's request.  Respond with the agent's name within a <response> tag, using the appropriate tool.
+        Determine which agent to use to handle the user's request.  Respond with the agent's name within a <response> tag as content, and select the appropriate tool.
 </instructions>
     `
-  }
+  },
+
+  assistant: "<response>",
 });

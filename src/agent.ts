@@ -1,10 +1,12 @@
 import { Tool, CallLifecycle, CallLifecycleArgs } from "./types";
 import { Network } from "./network";
 import { InferenceResponse, Provider } from "./provider";
+import { Message } from "./state";
 
 export interface AgentConstructor {
   name: string;
   instructions: string | ((network?: Network) => string);
+  assistant?: string;
   tools?: Tool[];
   lifecycle?: AgentLifecycle;
 }
@@ -22,6 +24,12 @@ export class Agent {
    * instructions is the system prompt for the agent.
    */
   instructions: string | ((network?: Network) => string);
+
+  
+  /**
+   * Assistant is the assistent message used for completion, if any.
+   */
+  assistant?: string;
 
   /**
    * tools are a list of tools that this specific agent has access to.
@@ -42,6 +50,7 @@ export class Agent {
   constructor(opts: AgentConstructor) {
     this.name = opts.name;
     this.instructions = opts.instructions;
+    this.assistant = opts.assistant;
     this.tools = opts.tools;
     this.lifecycles = opts.lifecycle;
   }
@@ -65,15 +74,11 @@ export class Agent {
       this.lifecycles.before({ agent: this, network: network });
     }
 
-    // Add previous message from the network's history, if defined.
-    const messages = network ? network.state.history : [];
-    // Then, add our system prompt and optional user prompt.
-    messages.push({ role: "system", content: this.prompt(network) });
-    if (input.length > 0) {
-      messages.push({ role: "user", content: input });
-    }
-
-    const [output, raw] = await p.infer(this.name, messages, this.tools);
+    const [output, raw] = await p.infer(
+      this.name,
+      this.prompt(input, network),
+      this.tools || [],
+    );
 
     if (this.lifecycles) {
       this.lifecycles.after({ agent: this, network: network, result: raw });
@@ -83,12 +88,27 @@ export class Agent {
   }
 
   // prompt returns the prompt for running the agent.
-  private prompt(network?: Network) {
+  private formatInstructions(network?: Network) {
     if (typeof this.instructions === "string") {
       return this.instructions;
     }
     return this.instructions(network);
   }
+
+  private prompt(input: string, network?: Network): Message[] {
+    // Add previous message from the network's history, if defined.
+    const messages = network ? network.state.history : [];
+    // Then, add our system prompt and optional user prompt.
+    messages.push({ role: "system", content: this.formatInstructions(network) });
+    if (input.length > 0) {
+      messages.push({ role: "user", content: input });
+    }
+    if (!!this.assistant) {
+      messages.push({ role: "assistant", content: this.assistant });
+    }
+    return messages;
+  }
+
 }
 
 export interface AgentRunOptions {

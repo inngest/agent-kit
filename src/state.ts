@@ -1,7 +1,7 @@
 export interface Message {
   role: "system" | "user" | "assistant";
   content: string | Array<TextMessage>;
-  tools:  ToolMessage[];
+  tools?:  ToolMessage[];
   // TODO: Images and multi-modality.
 }
 
