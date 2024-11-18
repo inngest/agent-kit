@@ -69,11 +69,6 @@ export class Network {
 
     const [output, _raw] = await agent.run(input, { network: this });
 
-    // Add the output to messages.
-    for (const m of output) {
-      this.state.history.push(m);
-    }
-
     // TODO: Determine what course of action to do next.
 
     return output;
@@ -104,6 +99,10 @@ export const defaultRoutingAgent = new Agent({
         required: ["name"],
         additionalProperties: false
       },
+      handler: (input) => {
+        // TODO: Pass this to another agent?
+        console.log("HANDOFF", input.name, input);
+      },
     }
   ],
 
@@ -120,7 +119,7 @@ The following agents are available:
     return `
     <agent>
       <name>${a.name}</name>
-      <tools>${a.tools}</tools>
+      <tools>${JSON.stringify(Array.from(a.tools.values()))}</tools>
     </agent>`;
   })}
 </agents>
@@ -128,7 +127,7 @@ The following agents are available:
 Follow the set of instructions:
 
 <instructions>
-        Determine which agent to use to handle the user's request.  Respond with the agent's name within a <response> tag as content, and select the appropriate tool.
+  Think about the current history and status.  Determine which agent to use to handle the user's request.  Respond with the agent's name within a <response> tag as content, and select the appropriate tool.
 </instructions>
     `
   },

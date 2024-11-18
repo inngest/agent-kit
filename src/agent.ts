@@ -34,7 +34,7 @@ export class Agent {
   /**
    * tools are a list of tools that this specific agent has access to.
    */
-  tools: Tool[] | undefined;
+  tools: Map<string, Tool>;
 
   /**
    * lifecycles are programmatic hooks used to manage the agent.
@@ -51,8 +51,12 @@ export class Agent {
     this.name = opts.name;
     this.instructions = opts.instructions;
     this.assistant = opts.assistant;
-    this.tools = opts.tools;
+    this.tools = new Map();
     this.lifecycles = opts.lifecycle;
+
+    for (const tool of opts.tools || []) {
+      this.tools.set(tool.name, tool);
+    }
   }
 
   withProvider(provider: Provider): Agent {
@@ -77,12 +81,41 @@ export class Agent {
     const [output, raw] = await p.infer(
       this.name,
       this.prompt(input, network),
-      this.tools || [],
+      Array.from(this.tools.values()),
     );
 
     if (this.lifecycles) {
       this.lifecycles.after({ agent: this, network: network, result: raw });
     }
+
+    if (network) {
+      // Add the output to the networks history, if provided.
+      for (const m of output) {
+        network.state.history.push(m);
+      }
+    }
+
+    // If this includes tool use, call the tool. 
+    for (const msg of output) {
+      if (!Array.isArray(msg.tools)) {
+        continue
+      }
+      for (const tool of msg.tools) {
+        const found = this.tools.get(tool.name);
+        if (!found) {
+          throw new Error(`Inference requested a non-existent tool: ${tool.name}`)
+        }
+
+        // Call this tool.
+        const result = await found.handler(tool.input, this, network);
+        if (result === undefined) {
+          // This had no result, so we don't wnat to save it to the state.
+          continue
+        }
+        // TODO: Save result to output.
+      }
+    }
+
 
     return [output, raw];
   }
