@@ -26,12 +26,12 @@ export class Agent {
   /**
    * tools are a list of tools that this specific agent has access to.
    */
-  tools: Tool[];
+  tools: Tool[] | undefined;
 
   /**
    * lifecycles are programmatic hooks used to manage the agent.
    */
-  lifecycles: AgentLifecycle;
+  lifecycles: AgentLifecycle | undefined;
 
   /**
    * provider is the step caller to use for this agent.  This allows the agent
@@ -42,6 +42,8 @@ export class Agent {
   constructor(opts: AgentConstructor) {
     this.name = opts.name;
     this.instructions = opts.instructions;
+    this.tools = opts.tools;
+    this.lifecycles = opts.lifecycle;
   }
 
   withProvider(provider: Provider): Agent {
@@ -71,7 +73,7 @@ export class Agent {
       messages.push({ role: "user", content: input });
     }
 
-    const [output, raw] = await p.infer(this.name, messages);
+    const [output, raw] = await p.infer(this.name, messages, this.tools);
 
     if (this.lifecycles) {
       this.lifecycles.after({ agent: this, network: network, result: raw });

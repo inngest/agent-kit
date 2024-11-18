@@ -1,8 +1,11 @@
 import { Network } from "./network";
 import { Agent } from "./agent";
 
-// TODO
-export type Tool = any;   
+export type Tool = {
+  name: string;
+  description?: string;
+  parameters: any; // TODO: JSON Schema Type.
+};
 
 export interface CallLifecycleArgs {
   agent: Agent,

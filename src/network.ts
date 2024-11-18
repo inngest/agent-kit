@@ -87,6 +87,26 @@ export class Network {
 export const defaultRoutingAgent = new Agent({
   name: "Default routing agent",
 
+  tools: [
+    // This tool does nothing but ensure that the model responds with the
+    // agent name as valid JSON.
+    {
+      name: "select_agent",
+      description: "select an agent to handle the input, based off of the current conversation",
+      parameters: {
+        type: "object",
+        properties: {
+          name: {
+            type: "string",
+            description: "The name of the agent that should handle the request", 
+          },
+        },
+        required: ["name"],
+        additionalProperties: false
+      },
+    }
+  ],
+
   instructions: (network?: Network): string => {
     if (!network) {
       throw new Error("The routing agent can only be used within a network of agents");
@@ -108,9 +128,8 @@ The following agents are available:
 Follow the set of instructions:
 
 <instructions>
-        Determine which agent to use to handle the user's request.  Respond with the agent's name within a <response> tag.
+        Determine which agent to use to handle the user's request.  Respond with the agent's name within a <response> tag, using the appropriate tool.
 </instructions>
     `
   }
 });
-

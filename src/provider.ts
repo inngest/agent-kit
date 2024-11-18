@@ -1,5 +1,6 @@
 import { GetStepTools, Inngest } from "inngest";
 import { Message } from "./state";
+import { Tool } from "./types";
 
 export const openai = <TClient extends Inngest = Inngest>(model: string, step: GetStepTools<TClient>, opts?: { baseURL?: string, key?: string }) => {
   const base = opts?.baseURL || "https://api.openai.com/";
@@ -12,8 +13,8 @@ export const openai = <TClient extends Inngest = Inngest>(model: string, step: G
       url: base + "v1/chat/completions",
       authKey: opts?.key || process.env.OPENAI_API_KEY,
     },
-    requestParser: (input: Message[]) => {
-      return {
+    requestParser: (input: Message[], tools: Tool[]) => {
+      const request: any = {
         model,
         messages: input.map(m => {
           return {
@@ -22,7 +23,23 @@ export const openai = <TClient extends Inngest = Inngest>(model: string, step: G
             content: m.content,
           };
         }),
+      };
+
+      if (tools && tools.length > 0) {
+        request.tools = tools.map(t => {
+          return {
+            type: "function",
+            function: {
+              name: t.name,
+              description: t.description,
+              parameters: t.parameters,
+              strict: true, // XXX: allow overwriting?
+            },
+          };
+        });
       }
+
+      return request;
     },
     responseParser: (input: any): Message[] => {
       // TODO: Proper parsing.
@@ -60,20 +77,12 @@ export class Provider<TClient extends Inngest = Inngest> {
     this.responseParser = responseParser;
   }
 
-  async infer(stepID: string, input: Message[]): Promise<InferenceResponse> {
+  async infer(stepID: string, input: Message[], tools: Tool[]): Promise<InferenceResponse> {
     const result =  await this.step.ai.infer(stepID, {
       opts: this.#opts,
-      body: this.parseRequest(input),
+      body: this.requestParser(input, tools),
     });
-    return [this.parseResponse(result), result];
-  }
-
-  parseRequest(input: Message[]): { [key: string]: any } {
-    return this.requestParser(input);
-  }
-
-  parseResponse(output: any): Message[] {
-    return this.responseParser(output);
+    return [this.responseParser(result), result];
   }
 }
 
@@ -86,7 +95,7 @@ interface ProviderConstructor<TClient extends Inngest = Inngest> {
   responseParser: ResponseParser
 }
 
-type RequestParser = (state: Message[]) => { [key: string]: any };
+type RequestParser = (state: Message[], tools: Tool[]) => { [key: string]: any };
 
 type ResponseParser = (input: unknown) => Message[];
 
