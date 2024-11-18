@@ -1,0 +1,6 @@
+{
+	"dependencies": {
+		"express": "^4.21.1",
+		"inngest": "3.25.2-pr-747.18"
+	}
+}

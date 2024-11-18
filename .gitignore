@@ -1,0 +1,5 @@
+# Node packages
+node_modules
+
+# Nix
+/.direnv/
