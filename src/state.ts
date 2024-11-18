@@ -1,10 +1,12 @@
 export interface Message {
   role: "system" | "user" | "assistant";
-  content: string | Array<{ type: "text", text: string }>;
-    // { type: "image", source: { type: "base64", media_type: string, data: string } } |
-    // { type: "base64", media_type: string, data: string }
-    // TODO: Tools & normalization of OpenAI and Anthropic
+  content: string | Array<TextMessage>;
+  tools:  ToolMessage[];
+  // TODO: Images and multi-modality.
 }
+
+interface TextMessage { type: "text", text: string };
+interface ToolMessage { type: "tool", id: string; name: string; input: { [arg: string]: any } };
 
 export class State {
   public kv: {
