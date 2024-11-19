@@ -44,7 +44,8 @@ export const openai = <TClient extends Inngest = Inngest>(model: string, step: G
           return {
             role: m.role,
             // TODO: Proper content parsing.
-            content: m.content,
+            content: m.content || "",
+            // Tool calling
           };
         }),
       };
@@ -96,7 +97,16 @@ export const openai = <TClient extends Inngest = Inngest>(model: string, step: G
 }
 
 
-export type InferenceResponse<T = any> = [Message[], T];
+/**
+ * InferenceResponse is the response from a provider for an inference request.  This contains
+ * parsed messages and the raw result, with the type of the raw result depending on the provider's
+ * API repsonse.
+ *
+ */
+export type InferenceResponse<T = any> = {
+  output: Message[];
+  raw: T;
+};
 
 interface ProviderConstructor<TClient extends Inngest = Inngest> {
   opts: RequestOpts

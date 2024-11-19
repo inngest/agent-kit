@@ -1,10 +1,11 @@
-import { Tool, CallLifecycle, CallLifecycleArgs } from "./types";
+import { Tool, InferenceLifecycle, BaseLifecycleArgs } from "./types";
 import { Network } from "./network";
-import { InferenceResponse, Provider } from "./provider";
-import { Message } from "./state";
+import { Provider } from "./provider";
+import { Message, AgenticCall } from "./state";
 
 export interface AgentConstructor {
   name: string;
+  description?: string;
   instructions: string | ((network?: Network) => string);
   assistant?: string;
   tools?: Tool[];
@@ -21,6 +22,11 @@ export class Agent {
   name: string;
 
   /**
+   * description is the description of the agent.
+   */
+  description: string;
+
+  /**
    * instructions is the system prompt for the agent.
    */
   instructions: string | ((network?: Network) => string);
@@ -29,7 +35,7 @@ export class Agent {
   /**
    * Assistant is the assistent message used for completion, if any.
    */
-  assistant?: string;
+  assistant: string;
 
   /**
    * tools are a list of tools that this specific agent has access to.
@@ -49,8 +55,9 @@ export class Agent {
 
   constructor(opts: AgentConstructor) {
     this.name = opts.name;
+    this.description = opts.description || "";
     this.instructions = opts.instructions;
-    this.assistant = opts.assistant;
+    this.assistant = opts.assistant || "";
     this.tools = new Map();
     this.lifecycles = opts.lifecycle;
 
@@ -68,38 +75,57 @@ export class Agent {
    * Run runs an agent with the given user input, treated as a user message.  If the
    * input is an empty string, only the system prompt will execute.
    */
-  async run(input: string, { provider, network }: AgentRunOptions): Promise<InferenceResponse> {
-    const p = provider || this.provider;
+  async run(input: string, { provider, network }: AgentRunOptions): Promise<AgenticCall> {
+
+    const p = provider || this.provider || network?.defaultProvider;
     if (!p) {
       throw new Error("No step caller provided to agent");
     }
 
-    if (this.lifecycles) {
-      this.lifecycles.before({ agent: this, network: network });
+    let instructions = this.agentPrompt(input, network);
+
+    // TODO: History
+    // let history = network ? network.state.history : [];
+    let history: Message[] = [];
+
+    if (this.lifecycles?.before) {
+      const modified = await this.lifecycles.before({ agent: this, network, input, instructions, history });
+      instructions = modified.instructions;
+      history = modified.history;
     }
 
-    const [output, raw] = await p.infer(
+    let { output, raw } = await p.infer(
       this.name,
-      this.prompt(input, network),
+      instructions.concat(history),
       Array.from(this.tools.values()),
     );
 
-    if (this.lifecycles) {
-      this.lifecycles.after({ agent: this, network: network, result: raw });
+    // Now that we've made the call, we instantiate a new AgenticCall for lifecycles and history.
+    let call = new AgenticCall(this, input, instructions, instructions.concat(history), output, [], raw);
+    if (this.lifecycles?.afterInfer) {
+      call = await this.lifecycles.afterInfer({ agent: this, network, call });
+    }
+
+    // And ensure we invoke any call from the agent
+    call.toolCalls = await this.invokeTools(call.output, network);
+    if (this.lifecycles?.afterTools) {
+      call = await this.lifecycles.afterTools({ agent: this, network, call });
     }
 
     if (network) {
-      // Add the output to the networks history, if provided.
-      for (const m of output) {
-        network.state.history.push(m);
-      }
+      network.state.append(call);
     }
 
-    // If this includes tool use, call the tool. 
-    for (const msg of output) {
+    return call;
+  }
+
+  private async invokeTools(msgs: Message[], network?: Network): Promise<Message[]> {
+    const output: Message[] = [];
+    for (const msg of msgs) {
       if (!Array.isArray(msg.tools)) {
         continue
       }
+
       for (const tool of msg.tools) {
         const found = this.tools.get(tool.name);
         if (!found) {
@@ -112,33 +138,32 @@ export class Agent {
           // This had no result, so we don't wnat to save it to the state.
           continue
         }
-        // TODO: Save result to output.
+
+        // TODO: Push result to output messages.
       }
     }
 
-
-    return [output, raw];
+    return output;
   }
 
-  // prompt returns the prompt for running the agent.
-  private formatInstructions(network?: Network) {
-    if (typeof this.instructions === "string") {
-      return this.instructions;
-    }
-    return this.instructions(network);
-  }
+  private agentPrompt(input: string, network?: Network): Message[] {
+    // Prompt returns the full prompt for the current agent.  This does NOT include
+    // the existing network's state as part of the prompt.
+    // 
+    // Note that the agent's system message always comes first.
+    const messages: Message[] = [{
+      role: "system",
+      content: typeof this.instructions === "string" ? this.instructions : this.instructions(network),
+    }];
 
-  private prompt(input: string, network?: Network): Message[] {
-    // Add previous message from the network's history, if defined.
-    const messages = network ? network.state.history : [];
-    // Then, add our system prompt and optional user prompt.
-    messages.push({ role: "system", content: this.formatInstructions(network) });
     if (input.length > 0) {
       messages.push({ role: "user", content: input });
     }
-    if (!!this.assistant) {
+
+    if (this.assistant.length > 0) {
       messages.push({ role: "assistant", content: this.assistant });
     }
+
     return messages;
   }
 
@@ -149,6 +174,6 @@ export interface AgentRunOptions {
   network?: Network;
 }
 
-export interface AgentLifecycle extends CallLifecycle {
-  enabled: (args: CallLifecycleArgs) => Promise<boolean>
+export interface AgentLifecycle extends InferenceLifecycle {
+  enabled?: (args: BaseLifecycleArgs) => Promise<boolean>
 }

@@ -1,7 +1,9 @@
-import { CallLifecycle } from "./types";
+import { InferenceLifecycle } from "./types";
 import { Agent } from "./agent";
-import { Provider } from "./provider";
-import { State } from "./state";
+import { InferenceResponse, Provider } from "./provider";
+import { NetworkState, Message } from "./state";
+
+type Router = Agent | (({ network }: { network: Network }) => Promise<Agent | undefined>);
 
 /**
  * Network represents a network of agents.
@@ -12,7 +14,7 @@ export class Network {
   /**
    * state is the entire agent's state.
    */
-  state: State;
+  state: NetworkState;
 
   /**
    * defaultProvider is the default Provider to use with the network.  This will not override
@@ -27,12 +29,17 @@ export class Network {
    *   - Before agent calls
    *   - After agent calls
    */
-  lifecycles: CallLifecycle;
+  lifecycles?: InferenceLifecycle;
 
-  constructor({ agents, provider }: { agents: Agent[], provider: Provider }) {
+  private _stack: Array<() => Promise<InferenceResponse>>
+
+  private _counter = 0;
+
+  constructor({ agents, defaultProvider }: { agents: Agent[], defaultProvider: Provider }) {
     this.agents = new Map();
-    this.state = new State();
-    this.defaultProvider = provider
+    this.state = new NetworkState();
+    this.defaultProvider = defaultProvider
+    this._stack = [];
 
     for (let agent of agents) {
       this.agents.set(agent.name, agent);
@@ -42,7 +49,7 @@ export class Network {
   get availableAgents(): Array<Agent> {
     // Which agents are enabled?
     return Array.from(this.agents.values()).filter(function(a) {
-      return !a.lifecycles || a.lifecycles.enabled({ agent: a, network: this });
+      return !a.lifecycles?.enabled || a.lifecycles?.enabled({ agent: a, network: this });
     })
   }
 
@@ -54,9 +61,16 @@ export class Network {
   }
 
   /**
+   * Schedule is used to push an agent's run function onto the stack.
+   */
+  async schedule(f: () => Promise<InferenceResponse>) {
+    this._stack.push(f);
+  }
+
+  /**
    * run handles a given request using the network of agents.
    */
-  async run(input: string, defaultAgent?: Agent): Promise<any> {
+  async run(input: string, router?: Router): Promise<any> {
     const agents = this.availableAgents;
 
     if (agents.length === 0) {
@@ -65,13 +79,50 @@ export class Network {
 
     // If there's no default agent used to run the request, use our internal routing agent
     // which attempts to figure out the best agent to choose based off of the network.
-    const agent = defaultAgent || defaultRoutingAgent.withProvider(this.defaultProvider);
+    const agent = await this.getNextAgent(router);
+    if (!agent) {
+      // TODO: What data do we return?  What's the type here?
+      return;
+    }
 
-    const [output, _raw] = await agent.run(input, { network: this });
+    // Schedule the agent to run on our stack, then start popping off the stack.
+    this.schedule(async () => await agent.run(input, { network: this }));
+    while (this._stack.length > 0) {
+      const infer = this._stack.shift();
 
-    // TODO: Determine what course of action to do next.
+      if (!infer) {
+        // We're done.
+        return;
+      }
 
-    return output;
+      this._counter += 1;
+      const { output, raw, prompt } = await infer();
+
+      // TODO: Update history.
+
+      // TODO: Agents may schedule things onto the stack here, and we may have to also.
+      // Figure out what to do as a network of agents in the parent.
+      if (this._stack.length === 0) {
+
+        if (this._counter < 5) {
+          // TODO: Re-invoke the agent until we have a solution.
+          this.schedule(async () => await agent.run(input, { network: this }));
+          continue
+        }
+
+        return output
+      }
+    }
+  }
+
+  private async getNextAgent(router?: Router): Promise<Agent | undefined> {
+    if (!router) {
+      return defaultRoutingAgent.withProvider(this.defaultProvider);
+    }
+    if (router instanceof Agent) {
+      return router;
+    }
+    return await router({ network: this });
   }
 }
 
@@ -81,6 +132,46 @@ export class Network {
  */
 export const defaultRoutingAgent = new Agent({
   name: "Default routing agent",
+
+  lifecycle: {
+    state: async ({ network, input }): Promise<Message[]> => {
+      if ((network?.state?.history || []).length > 0) {
+        // This agent does not store anything in history if there's already items there.
+        return [];
+      }
+
+      // Store an initial prompt.
+      return [
+        {
+          role: "assistant",
+          content: `You are one of a network of agents working together to solve the given request:
+<request>${input}</request>.
+
+
+The following agents are currently available:
+
+<agents>
+  ${network?.availableAgents?.map(a => {
+    return `
+    <agent>
+      <name>${a.name}</name>
+      <description>${a.description}</description>
+    </agent>`;
+  }).join("\n")}
+</agents>
+
+Each agent will begin their response with their name in an <agent /> tag.  Think about your role
+carefully.
+
+Your aim is to thoroughly complete the request, thinking step by step.  Select one agent at a time based off
+of the current conversation.
+
+If the request has been solved, respond with one single tag, with the solution inside: <solution>$solution</solution>.
+`
+        }
+      ]
+    },
+  },
 
   tools: [
     // This tool does nothing but ensure that the model responds with the
@@ -99,9 +190,20 @@ export const defaultRoutingAgent = new Agent({
         required: ["name"],
         additionalProperties: false
       },
-      handler: (input) => {
-        // TODO: Pass this to another agent?
-        console.log("HANDOFF", input.name, input);
+      handler: async ({ name }, _agent, network) => {
+        if (!network) {
+          throw new Error("The routing agent can only be used within a network of agents");
+        }
+
+        const agent = network.agents.get(name);
+        if (agent === undefined) {
+          throw new Error(`The routing agent requested an agent that doesn't exist: ${name}`);
+        }
+
+        // Schedule another agent.
+        network.schedule(async () => {
+          return agent.run("", { network });
+        });
       },
     }
   ],
@@ -119,6 +221,7 @@ The following agents are available:
     return `
     <agent>
       <name>${a.name}</name>
+      <description>${a.description}</description>
       <tools>${JSON.stringify(Array.from(a.tools.values()))}</tools>
     </agent>`;
   })}
@@ -128,6 +231,10 @@ Follow the set of instructions:
 
 <instructions>
   Think about the current history and status.  Determine which agent to use to handle the user's request.  Respond with the agent's name within a <response> tag as content, and select the appropriate tool.
+
+  Your aim is to thoroughly complete the request, thinking step by step, choosing the right agent based off of the context.
+
+  If the request has been solved, respond with one single tag, with the solution inside: <solution>$solution</solution>
 </instructions>
     `
   },

@@ -1,5 +1,6 @@
 import { Network } from "./network";
 import { Agent } from "./agent";
+import { AgenticCall, Message } from "./state";
 
 export type Tool = {
   name: string;
@@ -14,15 +15,41 @@ export type Tool = {
   handler: (input: { [key: string]: any }, agent: Agent, network?: Network) => Promise<any>;
 };
 
-export interface CallLifecycleArgs {
+export interface BaseLifecycleArgs {
+  // Agent is the agent that made the call.
   agent: Agent,
   // Network represents the network that this agent or lifecycle belongs to.
   network?: Network;
 }
 
-export interface CallLifecycle {
-  // TODO: Types
-  before:  (args: CallLifecycleArgs) => Promise<any>
-  after:   (args: CallLifecycleArgs & { result: any }) => Promise<any>
+export interface ResultLifecycleArgs extends BaseLifecycleArgs {
+  call: AgenticCall;
 }
 
+export interface BeforeLifecycleArgs extends BaseLifecycleArgs {
+  // input is the user request for the entire agentic operation.
+  input?: string;
+  instructions: Message[];
+  history?: Message[];
+}
+
+export interface InferenceLifecycle {
+  /**
+   * Before allows you to intercept and modify the input prompt for a given agent,
+   * or prevent the agent from being called altogether by throwing an error.
+   *
+   * This receives the full agent prompt.  If this is a networked agent, the agent
+   * will also receive the network's history which will be concatenated to the end
+   * of the prompt when making the inference request.
+   *
+   */
+  before?: (args: BeforeLifecycleArgs) => Promise<{ instructions: Message[], history: Message[] }>
+
+  /**
+   * afterInfer is called after the inference call finishes, before any tools have been invoked.
+   * This allows you to moderate the response prior to running tools.
+   */
+  afterInfer?: (args: ResultLifecycleArgs) => Promise<AgenticCall>
+
+  afterTools?: (args: ResultLifecycleArgs) => Promise<AgenticCall>
+}
