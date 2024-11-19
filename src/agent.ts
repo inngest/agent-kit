@@ -85,8 +85,7 @@ export class Agent {
     let instructions = this.agentPrompt(input, network);
 
     // TODO: History
-    // let history = network ? network.state.history : [];
-    let history: Message[] = [];
+    let history = network ? network.state.history : [];
 
     if (this.lifecycles?.before) {
       const modified = await this.lifecycles.before({ agent: this, network, input, instructions, history });
@@ -105,9 +104,6 @@ export class Agent {
     if (this.lifecycles?.afterInfer) {
       call = await this.lifecycles.afterInfer({ agent: this, network, call });
     }
-
-    console.log("call", call);
-    console.log("output", output);
 
     // And ensure we invoke any call from the agent
     call.toolCalls = await this.invokeTools(call.output, network);

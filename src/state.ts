@@ -46,8 +46,16 @@ export class NetworkState {
     };
   }
 
-  get history() {
+  get calls() {
     return this._history.slice();
+  }
+
+
+  /**
+   * history returns the memory used for agentic calls based off of prior agentic calls.
+   */
+  get history(): Message[] {
+    return this._history.map(call => call.history()).flat()
   }
 
   append(call: AgenticCall) {
@@ -60,6 +68,15 @@ export class NetworkState {
  *
  */
 export class AgenticCall {
+
+  // toHistory is a function which formats this given call to history for future
+  // agentic calls.
+  //
+  // You can set a custom history adapter by calling .withFormatter() within
+  // lifecycles.  This allows you to change how future agentic calls interpret past
+  // agentic calls.
+  private _historyFormatter: (a: AgenticCall) => Message[];
+
   constructor(
     // agent represents the agent for this inference call.
     public agent: Agent,
@@ -85,4 +102,30 @@ export class AgenticCall {
     // depends on the agent's Provider. 
     public raw: string,
   ) {}
+
+  withFormatter(f: (a: AgenticCall) => Message[]) {
+    this._historyFormatter = f;
+  }
+
+  history(): Message[] {
+    if (this._historyFormatter) {
+      return this._historyFormatter(this);
+    }
+
+
+    // Return the default format, which turns all system prompts into assistant
+    // prompts.
+    const agent = this.agent;
+
+    const history: Message[] = this.instructions.map(function(msg) {
+      // Ensure that instructions are always as an assistant.
+      return {
+        ...msg,
+        role: "assistant",
+        content: `<agent>${agent.name}</agent>\n${msg.content}`,
+      };
+    });
+
+    return history.concat(this.output).concat(this.toolCalls);
+  }
 }
