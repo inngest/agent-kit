@@ -22,7 +22,7 @@ export class Provider<TClient extends Inngest = Inngest> {
       opts: this.#opts,
       body: this.requestParser(input, tools),
     });
-    return [this.responseParser(result), result];
+    return { output: this.responseParser(result), raw: result};
   }
 }
 

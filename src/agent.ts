@@ -106,14 +106,13 @@ export class Agent {
       call = await this.lifecycles.afterInfer({ agent: this, network, call });
     }
 
+    console.log("call", call);
+    console.log("output", output);
+
     // And ensure we invoke any call from the agent
     call.toolCalls = await this.invokeTools(call.output, network);
     if (this.lifecycles?.afterTools) {
       call = await this.lifecycles.afterTools({ agent: this, network, call });
-    }
-
-    if (network) {
-      network.state.append(call);
     }
 
     return call;
@@ -121,6 +120,7 @@ export class Agent {
 
   private async invokeTools(msgs: Message[], network?: Network): Promise<Message[]> {
     const output: Message[] = [];
+
     for (const msg of msgs) {
       if (!Array.isArray(msg.tools)) {
         continue
@@ -139,7 +139,14 @@ export class Agent {
           continue
         }
 
-        // TODO: Push result to output messages.
+        output.push({
+          role: "tool_result",
+          content: {
+            type: "tool_result",
+            id: tool.id,
+            content: result, // TODO: Properly type content.
+          },
+        });
       }
     }
 

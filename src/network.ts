@@ -1,7 +1,7 @@
 import { InferenceLifecycle } from "./types";
 import { Agent } from "./agent";
-import { InferenceResponse, Provider } from "./provider";
-import { NetworkState, Message } from "./state";
+import { Provider } from "./provider";
+import { NetworkState, Message, AgenticCall } from "./state";
 
 type Router = Agent | (({ network }: { network: Network }) => Promise<Agent | undefined>);
 
@@ -31,7 +31,7 @@ export class Network {
    */
   lifecycles?: InferenceLifecycle;
 
-  private _stack: Array<() => Promise<InferenceResponse>>
+  private _stack: Array<() => Promise<AgenticCall>>
 
   private _counter = 0;
 
@@ -63,7 +63,7 @@ export class Network {
   /**
    * Schedule is used to push an agent's run function onto the stack.
    */
-  async schedule(f: () => Promise<InferenceResponse>) {
+  async schedule(f: () => Promise<AgenticCall>) {
     this._stack.push(f);
   }
 
@@ -96,9 +96,10 @@ export class Network {
       }
 
       this._counter += 1;
-      const { output, raw, prompt } = await infer();
+      const call = await infer();
 
-      // TODO: Update history.
+      // Ensure that we store the call network history.
+      this.state.append(call);
 
       // TODO: Agents may schedule things onto the stack here, and we may have to also.
       // Figure out what to do as a network of agents in the parent.
@@ -110,7 +111,7 @@ export class Network {
           continue
         }
 
-        return output
+        return this;
       }
     }
   }
@@ -134,18 +135,23 @@ export const defaultRoutingAgent = new Agent({
   name: "Default routing agent",
 
   lifecycle: {
-    state: async ({ network, input }): Promise<Message[]> => {
+    afterTools: async ({ network, call }): Promise<AgenticCall> => {
+      // We never want to store this call's instructions in history.
+      call.instructions = [];
+      call.toolCalls = [];
+
       if ((network?.state?.history || []).length > 0) {
         // This agent does not store anything in history if there's already items there.
-        return [];
+        call.output = [];
+        return call;
       }
 
       // Store an initial prompt.
-      return [
+      call.output = [
         {
           role: "assistant",
           content: `You are one of a network of agents working together to solve the given request:
-<request>${input}</request>.
+<request>${call.input}</request>.
 
 
 The following agents are currently available:
@@ -170,6 +176,8 @@ If the request has been solved, respond with one single tag, with the solution i
 `
         }
       ]
+
+      return call;
     },
   },
 

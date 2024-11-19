@@ -1,14 +1,15 @@
 import { Agent } from "./agent";
 
 export interface Message {
-  role: "system" | "user" | "assistant";
-  content: string | Array<TextMessage>;
+  role: "system" | "user" | "assistant" | "tool_result";
+  content: string | Array<TextMessage> | ToolResult;
   tools?:  ToolMessage[];
   // TODO: Images and multi-modality.
 }
 
 interface TextMessage { type: "text", text: string };
-interface ToolMessage { type: "tool", id: string; name: string; input: { [arg: string]: any } };
+interface ToolMessage { type: "tool"; id: string, name: string, input: { [arg: string]: any } };
+interface ToolResult { type: "tool_result", id: string, content: any }; // TODO: Content types.
 
 /**
  * NetworkState stores state (history) for a given network of agents.  The state
