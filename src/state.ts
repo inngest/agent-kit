@@ -50,7 +50,6 @@ export class NetworkState {
     return this._history.slice();
   }
 
-
   /**
    * history returns the memory used for agentic calls based off of prior agentic calls.
    */

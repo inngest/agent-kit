@@ -3,7 +3,7 @@ import { Agent } from "./agent";
 import { Provider } from "./provider";
 import { NetworkState, Message, AgenticCall } from "./state";
 
-type Router = Agent | (({ network }: { network: Network }) => Promise<Agent | undefined>);
+type Router = Agent | (({ network, callCount }: { network: Network, callCount: number }) => Promise<Agent | undefined>);
 
 /**
  * Network represents a network of agents.
@@ -23,14 +23,6 @@ export class Network {
    */
   defaultProvider: Provider;
 
-  /**
-   * lifecycles are programmatic hooks used to manage the network of agents.  Network hooks
-   * include:
-   *   - Before agent calls
-   *   - After agent calls
-   */
-  lifecycles?: InferenceLifecycle;
-
   private _stack: Array<() => Promise<AgenticCall>>
 
   private _counter = 0;
@@ -46,11 +38,16 @@ export class Network {
     }
   }
 
-  get availableAgents(): Array<Agent> {
-    // Which agents are enabled?
-    return Array.from(this.agents.values()).filter(function(a) {
-      return !a.lifecycles?.enabled || a.lifecycles?.enabled({ agent: a, network: this });
-    })
+  async availableAgents(): Promise<Agent[]> {
+    const available: Agent[] = [];
+    const all = Array.from(this.agents.values());
+    for (const a of all) {
+      const enabled = a?.lifecycles?.enabled;
+      if (!enabled || await enabled({ agent: a, network: this })) {
+        available.push(a);
+      }
+    }
+    return available;
   }
 
   /**
@@ -68,10 +65,11 @@ export class Network {
   }
 
   /**
-   * run handles a given request using the network of agents.
+   * run handles a given request using the network of agents.  It is not concurrency-safe;
+   * you can only call run on a network once, as networks are stateful.
    */
   async run(input: string, router?: Router): Promise<any> {
-    const agents = this.availableAgents;
+    const agents = await this.availableAgents();
 
     if (agents.length === 0) {
       throw new Error("no agents enabled in network"); 
@@ -95,8 +93,8 @@ export class Network {
         return;
       }
 
-      this._counter += 1;
       const call = await infer();
+      this._counter += 1;
 
       // Ensure that we store the call network history.
       this.state.append(call);
@@ -123,7 +121,7 @@ export class Network {
     if (router instanceof Agent) {
       return router;
     }
-    return await router({ network: this });
+    return await router({ network: this, callCount: this._counter });
   }
 }
 
@@ -146,6 +144,8 @@ export const defaultRoutingAgent = new Agent({
         return call;
       }
 
+      const agents = await network?.availableAgents();
+
       // Store an initial prompt.
       call.output = [
         {
@@ -157,7 +157,7 @@ export const defaultRoutingAgent = new Agent({
 The following agents are currently available:
 
 <agents>
-  ${network?.availableAgents?.map(a => {
+  ${agents?.map(a => {
     return `
     <agent>
       <name>${a.name}</name>
@@ -212,20 +212,24 @@ If the request has been solved, respond with one single tag, with the solution i
         network.schedule(async () => {
           return agent.run("", { network });
         });
+
+        return agent.name;
       },
     }
   ],
 
-  instructions: (network?: Network): string => {
+  instructions: async (network?: Network): Promise<string> => {
     if (!network) {
       throw new Error("The routing agent can only be used within a network of agents");
     }
+
+    const agents = await network?.availableAgents();
 
     return `You are the orchestrator between a group of agents.  Each agent is suited for a set of specific tasks, and has a name, instructions, and a set of tools.
 
 The following agents are available:
 <agents>
-  ${network.availableAgents.map(a => {
+  ${agents.map(a => {
     return `
     <agent>
       <name>${a.name}</name>
@@ -246,6 +250,4 @@ Follow the set of instructions:
 </instructions>
     `
   },
-
-  assistant: "<response>",
 });

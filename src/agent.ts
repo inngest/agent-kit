@@ -1,4 +1,4 @@
-import { Tool, InferenceLifecycle, BaseLifecycleArgs } from "./types";
+import { Tool, InferenceLifecycle, BaseLifecycleArgs, ResultLifecycleArgs } from "./types";
 import { Network } from "./network";
 import { Provider } from "./provider";
 import { Message, AgenticCall } from "./state";
@@ -6,7 +6,7 @@ import { Message, AgenticCall } from "./state";
 export interface AgentConstructor {
   name: string;
   description?: string;
-  instructions: string | ((network?: Network) => string);
+  instructions: string | ((network?: Network) => string) | ((network?: Network) => Promise<string>);
   assistant?: string;
   tools?: Tool[];
   lifecycle?: AgentLifecycle;
@@ -29,7 +29,7 @@ export class Agent {
   /**
    * instructions is the system prompt for the agent.
    */
-  instructions: string | ((network?: Network) => string);
+  instructions: string | ((network?: Network) => string) | ((network?: Network) => Promise<string>);
 
   
   /**
@@ -76,19 +76,16 @@ export class Agent {
    * input is an empty string, only the system prompt will execute.
    */
   async run(input: string, { provider, network }: AgentRunOptions): Promise<AgenticCall> {
-
     const p = provider || this.provider || network?.defaultProvider;
     if (!p) {
       throw new Error("No step caller provided to agent");
     }
 
-    let instructions = this.agentPrompt(input, network);
-
-    // TODO: History
+    let instructions = await this.agentPrompt(input, network);
     let history = network ? network.state.history : [];
 
-    if (this.lifecycles?.before) {
-      const modified = await this.lifecycles.before({ agent: this, network, input, instructions, history });
+    if (this.lifecycles?.beforeInfer) {
+      const modified = await this.lifecycles.beforeInfer({ agent: this, network, input, instructions, history });
       instructions = modified.instructions;
       history = modified.history;
     }
@@ -106,7 +103,7 @@ export class Agent {
     }
 
     // And ensure we invoke any call from the agent
-    call.toolCalls = await this.invokeTools(call.output, network);
+    call.toolCalls = await this.invokeTools(call.output, p, network);
     if (this.lifecycles?.afterTools) {
       call = await this.lifecycles.afterTools({ agent: this, network, call });
     }
@@ -114,8 +111,9 @@ export class Agent {
     return call;
   }
 
-  private async invokeTools(msgs: Message[], network?: Network): Promise<Message[]> {
+  private async invokeTools(msgs: Message[], p: Provider, network?: Network): Promise<Message[]> {
     const output: Message[] = [];
+    const agent = this;
 
     for (const msg of msgs) {
       if (!Array.isArray(msg.tools)) {
@@ -129,7 +127,11 @@ export class Agent {
         }
 
         // Call this tool.
-        const result = await found.handler(tool.input, this, network);
+        //
+        // TODO: This should be wrapped in a step, but then `network.schedule` breaks, as `step.run`
+        // memoizes so agents aren't scheduled on their next loop.
+        const result = await found.handler(tool.input, agent, network);
+
         if (result === undefined) {
           // This had no result, so we don't wnat to save it to the state.
           continue
@@ -149,14 +151,14 @@ export class Agent {
     return output;
   }
 
-  private agentPrompt(input: string, network?: Network): Message[] {
+  private async agentPrompt(input: string, network?: Network): Promise<Message[]> {
     // Prompt returns the full prompt for the current agent.  This does NOT include
     // the existing network's state as part of the prompt.
     // 
     // Note that the agent's system message always comes first.
     const messages: Message[] = [{
       role: "system",
-      content: typeof this.instructions === "string" ? this.instructions : this.instructions(network),
+      content: typeof this.instructions === "string" ? this.instructions : await this.instructions(network),
     }];
 
     if (input.length > 0) {
@@ -179,4 +181,10 @@ export interface AgentRunOptions {
 
 export interface AgentLifecycle extends InferenceLifecycle {
   enabled?: (args: BaseLifecycleArgs) => Promise<boolean>
+
+  /**
+   * afterInfer is called after the inference call finishes, before any tools have been invoked.
+   * This allows you to moderate the response prior to running tools.
+   */
+  afterInfer?: (args: ResultLifecycleArgs) => Promise<AgenticCall>
 }

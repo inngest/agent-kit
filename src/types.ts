@@ -33,6 +33,9 @@ export interface BeforeLifecycleArgs extends BaseLifecycleArgs {
   history?: Message[];
 }
 
+/**
+ * InferenceLifecycle are lifecycle hooks shared between agents and networks.
+ */
 export interface InferenceLifecycle {
   /**
    * Before allows you to intercept and modify the input prompt for a given agent,
@@ -43,13 +46,7 @@ export interface InferenceLifecycle {
    * of the prompt when making the inference request.
    *
    */
-  before?: (args: BeforeLifecycleArgs) => Promise<{ instructions: Message[], history: Message[] }>
-
-  /**
-   * afterInfer is called after the inference call finishes, before any tools have been invoked.
-   * This allows you to moderate the response prior to running tools.
-   */
-  afterInfer?: (args: ResultLifecycleArgs) => Promise<AgenticCall>
+  beforeInfer?: (args: BeforeLifecycleArgs) => Promise<{ instructions: Message[], history: Message[] }>
 
   /**
    * afterTools is called after an agent invokes tools as specified by the inference call. The

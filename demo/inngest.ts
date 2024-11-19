@@ -28,7 +28,7 @@ export const fn = client.createFunction(
     // This uses the defaut agentic router to determine which agent to handle first.  You can
     // optinoally specifiy the agent that should execute first, and provide your own logic for
     // handling logic in between agent calls.
-    const result = await network.run(event.data.input, ({ network }) => {
+    const result = await network.run(event.data.input, ({ network, callCount }) => {
       return defaultRoutingAgent.withProvider(provider);
     });
 
@@ -39,34 +39,59 @@ export const fn = client.createFunction(
 const TestWritingAgent = new Agent({
   name: "Test writing agent",
   description: "Writes TypeScript tests based off of a given input.",
+
+  lifecycle: {
+    afterInfer: async ({ network, call }): AgenticCall => {
+      // Parse files from the call.
+      if (call.output.length !== 1) {
+        return call;
+      }
+
+      if (typeof call.output[0].content !== "string") {
+        return call;
+      }
+
+      // Does this contain a solution?
+      // TODO: Parse filenames out of content.
+
+      return call;
+    },
+  },
+
   instructions: `You are an expert TypeScript engineer who excels at test-driven-development. Your primary focus is to take system requirements and write unit tests for a set of functions.
 
-Think carefully about the request that the user is asking for. Make your tone concise and helpful.
+Think carefully about the request that the user is asking for. Do not respond with anything else other than the following XML tags:
 
-If you would like to write code, add all code within the following tags (replace $filename and $contents appropriately):
+- If you would like to write code, add all code within the following tags (replace $filename and $contents appropriately):
 
 <file name="$filename.ts">
     $contents
 </file>
-
-Once you are satisfied with the solution, wrap your answer with <solution>, including any <file> tags as necessary.
 `
 });
 
 const ExecutingAgent = new Agent({
   name: "Test execution agent",
   description: "Executes written TypeScript tests",
+
+  lifecycle: {
+    enabled: async ({ network }): Promise<boolean> => {
+      // Only allow executing of tests if there are files available.
+      return network?.state.kv.get("files") !== undefined;
+    }
+  },
+
   instructions: `You are an export TypeScript engineer that can execute commands, run tests, debug the output, and make modifications to code.
 
-Think carefully about the request that the user is asking for. Make your tone concise and helpful.
+Think carefully about the request that the user is asking for. Do not respond with anything else other than the following XML tags:
 
-If you would like to write code, add all code within the following tags (replace $filename and $contents appropriately):
+- If you would like to write code, add all code within the following tags (replace $filename and $contents appropriately):
 
 <file name="$filename.ts">
     $contents
 </file>
 
-If you would like to run commands, respond with the following tags:
+- If you would like to run commands, respond with the following tags:
 
 <command>
   $command
