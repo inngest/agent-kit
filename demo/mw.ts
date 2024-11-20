@@ -1,4 +1,8 @@
-import { Agent, agenticOpenAiProvider, Network } from "@inngest/agent-kit";
+import {
+  createAgent,
+  createAgenticOpenAiProvider,
+  createNetwork,
+} from "@inngest/agent-kit";
 import { InngestMiddleware, OpenAiModel } from "inngest";
 
 export const codeWritingAgentMiddleware = (
@@ -11,16 +15,18 @@ export const codeWritingAgentMiddleware = (
         onFunctionRun() {
           return {
             transformInput({ ctx: { step } }) {
+              const codeWritingNetwork = createNetwork({
+                agents: [CodeWritingAgent, ExecutingAgent],
+                maxIter: 4,
+                defaultProvider: createAgenticOpenAiProvider(
+                  step.ai.providers.openai({ model }),
+                  step,
+                ),
+              });
+
               return {
                 ctx: {
-                  codeWritingNetwork: new Network({
-                    agents: [CodeWritingAgent, ExecutingAgent],
-                    maxIter: 4,
-                    defaultProvider: agenticOpenAiProvider(
-                      step.ai.providers.openai({ model }),
-                      step,
-                    ),
-                  }),
+                  codeWritingNetwork,
                 },
               };
             },
@@ -31,7 +37,7 @@ export const codeWritingAgentMiddleware = (
   });
 };
 
-const CodeWritingAgent = new Agent({
+const CodeWritingAgent = createAgent({
   name: "Code writing agent",
   description: "Writes TypeScript code and tests based off of a given input.",
 
@@ -55,7 +61,7 @@ const CodeWritingAgent = new Agent({
    `,
 });
 
-const ExecutingAgent = new Agent({
+const ExecutingAgent = createAgent({
   name: "Test execution agent",
   description: "Executes written TypeScript tests",
 

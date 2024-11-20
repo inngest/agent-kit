@@ -6,6 +6,11 @@ import { MaybePromise } from "./util";
 /**
  * Network represents a network of agents.
  */
+export const createNetwork = (opts: Network.Constructor) => new Network(opts);
+
+/**
+ * Network represents a network of agents.
+ */
 export class Network {
   /**
    * agents are all publicly available agents in the netwrok
@@ -40,15 +45,7 @@ export class Network {
   // is okay;  we store all agents referenced in the router here.
   private _agents: Map<string, Agent>;
 
-  constructor({
-    agents,
-    defaultProvider,
-    maxIter,
-  }: {
-    agents: Agent[];
-    defaultProvider: AgenticProvider.Any;
-    maxIter?: number;
-  }) {
+  constructor({ agents, defaultProvider, maxIter }: Network.Constructor) {
     this.agents = new Map();
     this._agents = new Map();
     this.state = new NetworkState();
@@ -292,6 +289,12 @@ Follow the set of instructions:
 });
 
 export namespace Network {
+  export type Constructor = {
+    agents: Agent[];
+    defaultProvider: AgenticProvider.Any;
+    maxIter?: number;
+  };
+
   /**
    * Router defines how a network coordinates between many agents.  A router is a single
    * function that gets given the network, current state, future agentic calls, and the last

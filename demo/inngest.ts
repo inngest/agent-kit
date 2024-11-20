@@ -1,8 +1,8 @@
 import {
-  Agent,
-  agenticOpenAiProvider,
+  createAgent,
+  createAgenticOpenAiProvider,
+  createNetwork,
   defaultRoutingAgent,
-  Network,
 } from "@inngest/agent-kit";
 import { Inngest, openai } from "inngest";
 
@@ -12,7 +12,7 @@ export const fn = inngest.createFunction(
   { id: "agent" },
   { event: "agent/run" },
   async ({ event, step }) => {
-    const provider = agenticOpenAiProvider(
+    const provider = createAgenticOpenAiProvider(
       openai({ model: "gpt-3.5-turbo" }),
       step,
     );
@@ -23,7 +23,7 @@ export const fn = inngest.createFunction(
     // const { output, raw } = await CodeWritingAgent.run(event.data.input, { provider });
 
     // 2. Networks of agents
-    const network = new Network({
+    const network = createNetwork({
       agents: [CodeWritingAgent, ExecutingAgent],
       defaultProvider: provider,
       maxIter: 4,
@@ -44,7 +44,7 @@ export const fn = inngest.createFunction(
   },
 );
 
-const CodeWritingAgent = new Agent({
+const CodeWritingAgent = createAgent({
   name: "Code writing agent",
   description: "Writes TypeScript code and tests based off of a given input.",
 
@@ -68,7 +68,7 @@ Think carefully about the request that the user is asking for. Do not respond wi
 `,
 });
 
-const ExecutingAgent = new Agent({
+const ExecutingAgent = createAgent({
   name: "Test execution agent",
   description: "Executes written TypeScript tests",
 

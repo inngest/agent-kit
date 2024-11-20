@@ -8,6 +8,12 @@ import {
   Tool,
 } from "./types";
 import { MaybePromise } from "./util";
+
+/**
+ * Agent represents a single agent, responsible for a set of tasks.
+ */
+export const createAgent = (opts: Agent.Constructor) => new Agent(opts);
+
 /**
  * Agent represents a single agent, responsible for a set of tasks.
  */
