@@ -228,24 +228,6 @@ export const defaultRoutingAgent = new Agent({
       // We never want to store this call's instructions in history.
       call.withFormatter(call => { return []; });
       return call;
-
-      /*
-      call.instructions = [];
-      call.toolCalls = [];
-
-      if ((network?.state?.history || []).length > 0) {
-        // This agent does not store anything in history if there's already items there.
-        call.output = [];
-        return call;
-      }
-
-      const agents = await network?.availableAgents();
-
-      // Store an initial prompt.
-      call.output = []
-
-      return call;
-      */
     },
   },
 
