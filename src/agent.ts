@@ -6,7 +6,7 @@ import { Message, AgenticCall } from "./state";
 export interface AgentConstructor {
   name: string;
   description?: string;
-  instructions: string | ((network?: Network) => string) | ((network?: Network) => Promise<string>);
+  instructions: string | ((network?: Network) => Promise<string>);
   assistant?: string;
   tools?: Tool[];
   lifecycle?: AgentLifecycle;
@@ -29,7 +29,7 @@ export class Agent {
   /**
    * instructions is the system prompt for the agent.
    */
-  instructions: string | ((network?: Network) => string) | ((network?: Network) => Promise<string>);
+  instructions: string | ((network?: Network) => Promise<string>);
 
   
   /**

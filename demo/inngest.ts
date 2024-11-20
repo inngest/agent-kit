@@ -10,25 +10,23 @@ export const fn = client.createFunction(
 
     const provider = openai("gpt-4o-mini", step);
 
-
     // 1. Single agents
-
+    //
     // Run a single agent as a prompt without a network.
-    // const [output, raw] = await TestWritingAgent.run(event.data.input, { provider });
+    // const { output, raw } = await TestWritingAgent.run(event.data.input, { provider });
 
 
     // 2. Networks of agents
-
-    // Run a network of agents.
     const network = new Network({
       agents: [TestWritingAgent, ExecutingAgent],
       defaultProvider: provider,
+      maxIter: 2,
     });
 
     // This uses the defaut agentic router to determine which agent to handle first.  You can
     // optinoally specifiy the agent that should execute first, and provide your own logic for
     // handling logic in between agent calls.
-    const result = await network.run(event.data.input, ({ network, callCount }) => {
+    const result = await network.run(event.data.input, async ({ network, callCount }): Promise<Agent | undefined> => {
       return defaultRoutingAgent.withProvider(provider);
     });
 

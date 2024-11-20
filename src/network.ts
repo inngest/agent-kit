@@ -1,7 +1,6 @@
-import { InferenceLifecycle } from "./types";
 import { Agent } from "./agent";
 import { Provider } from "./provider";
-import { NetworkState, Message, AgenticCall } from "./state";
+import { NetworkState, AgenticCall } from "./state";
 
 type Router = Agent | (({ network, callCount }: { network: Network, callCount: number }) => Promise<Agent | undefined>);
 
@@ -27,10 +26,13 @@ export class Network {
 
   private _counter = 0;
 
-  constructor({ agents, defaultProvider }: { agents: Agent[], defaultProvider: Provider }) {
+  maxIter: number;
+
+  constructor({ agents, defaultProvider, maxIter }: { agents: Agent[], defaultProvider: Provider, maxIter?: number }) {
     this.agents = new Map();
     this.state = new NetworkState();
     this.defaultProvider = defaultProvider
+    this.maxIter = maxIter || 0;
     this._stack = [];
 
     for (let agent of agents) {
@@ -68,7 +70,7 @@ export class Network {
    * run handles a given request using the network of agents.  It is not concurrency-safe;
    * you can only call run on a network once, as networks are stateful.
    */
-  async run(input: string, router?: Router): Promise<any> {
+  async run(input: string, router?: Router): Promise<Network> {
     const agents = await this.availableAgents();
 
     if (agents.length === 0) {
@@ -79,39 +81,47 @@ export class Network {
     // which attempts to figure out the best agent to choose based off of the network.
     const agent = await this.getNextAgent(router);
     if (!agent) {
-      // TODO: What data do we return?  What's the type here?
-      return;
+      // TODO: If call count is 0, error.
+      return this;
     }
 
     // Schedule the agent to run on our stack, then start popping off the stack.
     this.schedule(async () => await agent.run(input, { network: this }));
-    while (this._stack.length > 0) {
+
+    while (this._stack.length > 0 && (this.maxIter === 0 || this._counter < this.maxIter)) {
       const infer = this._stack.shift();
 
       if (!infer) {
         // We're done.
-        return;
+        return this;
       }
 
       const call = await infer();
       this._counter += 1;
-
       // Ensure that we store the call network history.
       this.state.append(call);
 
-      // TODO: Agents may schedule things onto the stack here, and we may have to also.
-      // Figure out what to do as a network of agents in the parent.
-      if (this._stack.length === 0) {
+      // We already have more agents on the stack to call, so call them.
+      // TODO: This is wrong.  Should call router.
+      if (this._stack.length > 0) {
+        continue
+      }
 
-        if (this._counter < 5) {
-          // TODO: Re-invoke the agent until we have a solution.
-          this.schedule(async () => await agent.run(input, { network: this }));
-          continue
-        }
-
+      // Here we face a problem: what's the definition of done?   An agent may have just
+      // been called with part of the information to solve an input.  We may need to delegate
+      // to another agent.
+      //
+      // In this case, we defer to the router provided to give us next steps.  By default,
+      // this is an agentic router which takes the current state, agents, then figures out
+      // next steps.  This can, and often should, be custom code.
+      const agent = await this.getNextAgent(router);
+      if (!agent) {
         return this;
       }
+      this.schedule(async () => await agent.run(input, { network: this }));
     }
+
+    return this;
   }
 
   private async getNextAgent(router?: Router): Promise<Agent | undefined> {
@@ -246,7 +256,7 @@ Follow the set of instructions:
 
   Your aim is to thoroughly complete the request, thinking step by step, choosing the right agent based off of the context.
 
-  If the request has been solved, respond with one single tag, with the solution inside: <solution>$solution</solution>
+  If the request has been solved, respond with one single tag, with the answer inside: <answer>$answer</answer>
 </instructions>
     `
   },
