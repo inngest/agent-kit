@@ -1,44 +1,6 @@
 import { Agent } from "./agent";
-import { Provider } from "./provider";
+import { AgenticProvider } from "./provider";
 import { InferenceResult, NetworkState } from "./state";
-
-interface RouterArgs {
-  /**
-   * Network is the network that this router is coordinating.  Network
-   * state is accessible via `network.state`.
-   */
-  network: Network;
-
-  /**
-   * stack is an ordered array of agents that will be called next.
-   */
-  stack: Agent[];
-
-  /**
-   * callCount is the number of current agent invocations that the
-   * network has made.  This is a shorthand for `network.state.results.length`.
-   */
-  callCount: number;
-
-  /**
-   * lastResult is the last inference result that the network made.  This is
-   * a shorthand for `network.state.results.pop()`.
-   */
-  lastResult?: InferenceResult;
-}
-
-/**
- * Router defines how a network coordinates between many agents.  A router is a single
- * function that gets given the network, current state, future agentic calls, and the last
- * inference result from the network.
- *
- * You can choose to create semi-autonomous networks by writing standard deterministic code
- * to call agents based off of the current state.
- *
- * You can also choose to create fully autonomous agentic networks by calling a "routing agent",
- * which determines the best agent to call based off of current state.
- */
-type Router = Agent | ((args: RouterArgs) => Promise<Agent | undefined>);
 
 /**
  * Network represents a network of agents.
@@ -59,7 +21,7 @@ export class Network {
    * an agent's specific Provider if the agent already has a Provider defined
    * (eg. via withProvider or via its constructor).
    */
-  defaultProvider: Provider;
+  defaultProvider: AgenticProvider.Any;
 
   /**
    * maxIter is the maximum number of times the we can call agents before ending
@@ -83,7 +45,7 @@ export class Network {
     maxIter,
   }: {
     agents: Agent[];
-    defaultProvider: Provider;
+    defaultProvider: AgenticProvider.Any;
     maxIter?: number;
   }) {
     this.agents = new Map();
@@ -131,7 +93,7 @@ export class Network {
    * run handles a given request using the network of agents.  It is not concurrency-safe;
    * you can only call run on a network once, as networks are stateful.
    */
-  async run(input: string, router?: Router): Promise<Network> {
+  async run(input: string, router?: Network.Router): Promise<Network> {
     const agents = await this.availableAgents();
 
     if (agents.length === 0) {
@@ -188,7 +150,9 @@ export class Network {
     return this;
   }
 
-  private async getNextAgent(router?: Router): Promise<Agent | undefined> {
+  private async getNextAgent(
+    router?: Network.Router,
+  ): Promise<Agent | undefined> {
     if (!router) {
       return defaultRoutingAgent.withProvider(this.defaultProvider);
     }
@@ -325,3 +289,47 @@ Follow the set of instructions:
     `;
   },
 });
+
+export namespace Network {
+  /**
+   * Router defines how a network coordinates between many agents.  A router is a single
+   * function that gets given the network, current state, future agentic calls, and the last
+   * inference result from the network.
+   *
+   * You can choose to create semi-autonomous networks by writing standard deterministic code
+   * to call agents based off of the current state.
+   *
+   * You can also choose to create fully autonomous agentic networks by calling a "routing agent",
+   * which determines the best agent to call based off of current state.
+   */
+  export type Router =
+    | Agent
+    | ((args: Router.Args) => Promise<Agent | undefined>);
+
+  export namespace Router {
+    export interface Args {
+      /**
+       * Network is the network that this router is coordinating.  Network
+       * state is accessible via `network.state`.
+       */
+      network: Network;
+
+      /**
+       * stack is an ordered array of agents that will be called next.
+       */
+      stack: Agent[];
+
+      /**
+       * callCount is the number of current agent invocations that the
+       * network has made.  This is a shorthand for `network.state.results.length`.
+       */
+      callCount: number;
+
+      /**
+       * lastResult is the last inference result that the network made.  This is
+       * a shorthand for `network.state.results.pop()`.
+       */
+      lastResult?: InferenceResult;
+    }
+  }
+}

@@ -9,8 +9,8 @@ importers:
   .:
     dependencies:
       inngest:
-        specifier: 3.25.2-pr-747.18
-        version: 3.25.2-pr-747.18(express@4.21.1)(typescript@5.6.3)
+        specifier: 3.25.2-pr-747.37
+        version: 3.25.2-pr-747.37(express@4.21.1)(typescript@5.6.3)
     devDependencies:
       '@changesets/cli':
         specifier: ^2.27.10
@@ -682,8 +682,8 @@ packages:
   inherits@2.0.4:
     resolution: {integrity: sha512-k/vGaX4/Yla3WzyMCvTQOXYeIHvqOKtnqBduzTHpzpQZzAskKMhZ2K+EnBiSM9zGSoIFeMpXKxa4dYeZIQqewQ==}
 
-  inngest@3.25.2-pr-747.18:
-    resolution: {integrity: sha512-STwOJm7T5sTF6fMpJ0x77bOfxyeJuRZOEhYMkYN0A+ccN3+JaMF2t1aU3VyZhrANLthomVf7dxuylII8LDc92Q==}
+  inngest@3.25.2-pr-747.37:
+    resolution: {integrity: sha512-C4Sl8S8wmnViIE0Rjlziml7lhTuVgqIxB5/ZNZfVgW7qr7dVZDyKZ0AX9GWtyB1PkT8wgjS8gbudSSM/ct1M+g==}
     engines: {node: '>=14'}
     peerDependencies:
       '@sveltejs/kit': '>=1.27.3'
@@ -1997,7 +1997,7 @@ snapshots:
 
   inherits@2.0.4: {}
 
-  inngest@3.25.2-pr-747.18(express@4.21.1)(typescript@5.6.3):
+  inngest@3.25.2-pr-747.37(express@4.21.1)(typescript@5.6.3):
     dependencies:
       '@types/debug': 4.1.12
       canonicalize: 1.0.8

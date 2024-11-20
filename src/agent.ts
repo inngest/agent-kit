@@ -1,22 +1,12 @@
 import { Network } from "./network";
-import { Provider } from "./provider";
-import { InferenceResult, Message } from "./state";
+import { AgenticProvider } from "./provider";
+import { InferenceResult, InternalNetworkMessage } from "./state";
 import {
   BaseLifecycleArgs,
   InferenceLifecycle,
   ResultLifecycleArgs,
   Tool,
 } from "./types";
-
-export interface AgentConstructor {
-  name: string;
-  description?: string;
-  instructions: string | ((network?: Network) => Promise<string>);
-  assistant?: string;
-  tools?: Tool[];
-  lifecycle?: AgentLifecycle;
-}
-
 /**
  * Agent represents a single agent, responsible for a set of tasks.
  */
@@ -49,15 +39,15 @@ export class Agent {
   /**
    * lifecycles are programmatic hooks used to manage the agent.
    */
-  lifecycles: AgentLifecycle | undefined;
+  lifecycles: Agent.Lifecycle | undefined;
 
   /**
    * provider is the step caller to use for this agent.  This allows the agent
    * to use a specific model which may be different to other agents in the system
    */
-  provider: Provider | undefined;
+  provider: AgenticProvider.Any | undefined;
 
-  constructor(opts: AgentConstructor) {
+  constructor(opts: Agent.Constructor) {
     this.name = opts.name;
     this.description = opts.description || "";
     this.instructions = opts.instructions;
@@ -70,7 +60,7 @@ export class Agent {
     }
   }
 
-  withProvider(provider: Provider): Agent {
+  withProvider(provider: AgenticProvider.Any): Agent {
     this.provider = provider;
     return this; // for chaining
   }
@@ -81,7 +71,7 @@ export class Agent {
    */
   async run(
     input: string,
-    { provider, network }: AgentRunOptions,
+    { provider, network }: Agent.RunOptions,
   ): Promise<InferenceResult> {
     const p = provider || this.provider || network?.defaultProvider;
     if (!p) {
@@ -117,7 +107,7 @@ export class Agent {
       instructions.concat(history),
       output,
       [],
-      raw,
+      typeof raw === "string" ? raw : JSON.stringify(raw),
     );
     if (this.lifecycles?.afterInfer) {
       call = await this.lifecycles.afterInfer({ agent: this, network, call });
@@ -133,12 +123,11 @@ export class Agent {
   }
 
   private async invokeTools(
-    msgs: Message[],
-    p: Provider,
+    msgs: InternalNetworkMessage[],
+    p: AgenticProvider.Any,
     network?: Network,
-  ): Promise<Message[]> {
-    const output: Message[] = [];
-    const agent = this;
+  ): Promise<InternalNetworkMessage[]> {
+    const output: InternalNetworkMessage[] = [];
 
     for (const msg of msgs) {
       if (!Array.isArray(msg.tools)) {
@@ -157,7 +146,8 @@ export class Agent {
         //
         // TODO: This should be wrapped in a step, but then `network.schedule` breaks, as `step.run`
         // memoizes so agents aren't scheduled on their next loop.
-        const result = await found.handler(tool.input, agent, network);
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+        const result = await found.handler(tool.input, this, network);
 
         if (result === undefined) {
           // This had no result, so we don't wnat to save it to the state.
@@ -169,6 +159,7 @@ export class Agent {
           content: {
             type: "tool_result",
             id: tool.id,
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
             content: result, // TODO: Properly type content.
           },
         });
@@ -181,12 +172,12 @@ export class Agent {
   private async agentPrompt(
     input: string,
     network?: Network,
-  ): Promise<Message[]> {
+  ): Promise<InternalNetworkMessage[]> {
     // Prompt returns the full prompt for the current agent.  This does NOT include
     // the existing network's state as part of the prompt.
     //
     // Note that the agent's system message always comes first.
-    const messages: Message[] = [
+    const messages: InternalNetworkMessage[] = [
       {
         role: "system",
         content:
@@ -208,17 +199,28 @@ export class Agent {
   }
 }
 
-export interface AgentRunOptions {
-  provider?: Provider;
-  network?: Network;
-}
+export namespace Agent {
+  export interface Constructor {
+    name: string;
+    description?: string;
+    instructions: string | ((network?: Network) => Promise<string>);
+    assistant?: string;
+    tools?: Tool[];
+    lifecycle?: Lifecycle;
+  }
 
-export interface AgentLifecycle extends InferenceLifecycle {
-  enabled?: (args: BaseLifecycleArgs) => Promise<boolean>;
+  export interface RunOptions {
+    provider?: AgenticProvider.Any;
+    network?: Network;
+  }
 
-  /**
-   * afterInfer is called after the inference call finishes, before any tools have been invoked.
-   * This allows you to moderate the response prior to running tools.
-   */
-  afterInfer?: (args: ResultLifecycleArgs) => Promise<InferenceResult>;
+  export interface Lifecycle extends InferenceLifecycle {
+    enabled?: (args: BaseLifecycleArgs) => Promise<boolean>;
+
+    /**
+     * afterInfer is called after the inference call finishes, before any tools have been invoked.
+     * This allows you to moderate the response prior to running tools.
+     */
+    afterInfer?: (args: ResultLifecycleArgs) => Promise<InferenceResult>;
+  }
 }

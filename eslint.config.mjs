@@ -18,6 +18,7 @@ export default tseslint.config(
   eslintPluginPrettierRecommended,
   {
     rules: {
-    "prettier/prettier": "warn"
+    "prettier/prettier": "warn",
+    "@typescript-eslint/no-namespace": "off",
   }}
 );

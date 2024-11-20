@@ -1,25 +1,29 @@
+import { InferInput, OpenAiProvider } from "inngest";
 import { Agent } from "./agent";
 
-export interface Message {
+export interface InternalNetworkMessage {
   role: "system" | "user" | "assistant" | "tool_result";
   content: string | Array<TextMessage> | ToolResult;
   tools?: ToolMessage[];
   // TODO: Images and multi-modality.
 }
 
-interface TextMessage {
+export type OpenAiMessageType = InferInput<OpenAiProvider>["messages"][number];
+
+export interface TextMessage {
   type: "text";
   text: string;
 }
-interface ToolMessage {
+export interface ToolMessage {
   type: "tool";
   id: string;
   name: string;
-  input: { [arg: string]: any };
+  input: Record<string, unknown>;
 }
-interface ToolResult {
+export interface ToolResult {
   type: "tool_result";
   id: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   content: any;
 } // TODO: Content types.
 
@@ -32,11 +36,14 @@ interface ToolResult {
  */
 export class NetworkState {
   public kv: {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     set: (key: string, value: any) => void;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     get: (key: string) => any;
     delete: (key: string) => boolean;
   };
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private _kv: Map<string, any>;
 
   private _history: InferenceResult[];
@@ -46,10 +53,12 @@ export class NetworkState {
     this._kv = new Map();
 
     this.kv = {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       set: (key: string, value: any) => {
         this._kv.set(key, value);
       },
       get: (key: string) => {
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-return
         return this._kv.get(key);
       },
       delete: (key: string) => {
@@ -70,7 +79,7 @@ export class NetworkState {
    * history returns the memory used for agentic calls based off of prior agentic calls.
    *
    */
-  get history(): Message[] {
+  get history(): InternalNetworkMessage[] {
     return this._history.map((call) => call.history()).flat();
   }
 
@@ -90,7 +99,9 @@ export class InferenceResult {
   // You can set a custom history adapter by calling .withFormatter() within
   // lifecycles.  This allows you to change how future agentic calls interpret past
   // agentic calls.
-  private _historyFormatter: (a: InferenceResult) => Message[];
+  private _historyFormatter:
+    | ((a: InferenceResult) => InternalNetworkMessage[])
+    | undefined;
 
   constructor(
     // agent represents the agent for this inference call.
@@ -101,28 +112,28 @@ export class InferenceResult {
 
     // instructions represents the input instructions - without any additional history - as
     // created by the agent.
-    public instructions: Message[],
+    public instructions: InternalNetworkMessage[],
 
     // prompt represents the entire prompt sent to the inference call.  This includes instructions
     // and history from the current network state.
-    public prompt: Message[],
+    public prompt: InternalNetworkMessage[],
 
     // output represents the parsed output.
-    public output: Message[],
+    public output: InternalNetworkMessage[],
 
     // toolCalls represents output from any tools called by the agent.
-    public toolCalls: Message[],
+    public toolCalls: InternalNetworkMessage[],
 
     // raw represents the raw API response from the call.  This is a JSON string, and the format
     // depends on the agent's Provider.
     public raw: string,
   ) {}
 
-  withFormatter(f: (a: InferenceResult) => Message[]) {
+  withFormatter(f: (a: InferenceResult) => InternalNetworkMessage[]) {
     this._historyFormatter = f;
   }
 
-  history(): Message[] {
+  history(): InternalNetworkMessage[] {
     if (this._historyFormatter) {
       return this._historyFormatter(this);
     }
@@ -131,14 +142,26 @@ export class InferenceResult {
     // prompts.
     const agent = this.agent;
 
-    const history: Message[] = this.instructions.map(function (msg) {
-      // Ensure that instructions are always as an assistant.
-      return {
-        ...msg,
-        role: "assistant",
-        content: `<agent>${agent.name}</agent>\n${msg.content}`,
-      };
-    });
+    const history: InternalNetworkMessage[] = this.instructions.map(
+      function (msg) {
+        let content: string;
+        if (typeof msg.content === "string") {
+          content = msg.content;
+        } else if (Array.isArray(msg.content)) {
+          content = msg.content.map((m) => m.text).join("\n");
+        } else {
+          // TODO `anyany`
+          content = msg.content.content as string;
+        }
+
+        // Ensure that instructions are always as an assistant.
+        return {
+          ...msg,
+          role: "assistant",
+          content: `<agent>${agent.name}</agent>\n${content}`,
+        };
+      },
+    );
 
     return history.concat(this.output).concat(this.toolCalls);
   }

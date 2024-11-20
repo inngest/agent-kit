@@ -1,13 +1,12 @@
 import { Agent } from "./agent";
 import { Network } from "./network";
-import { InferenceResult, Message } from "./state";
+import { InferenceResult, InternalNetworkMessage } from "./state";
 import { MaybePromise } from "./util";
 
 export type Tool = {
   name: string;
   description?: string;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  parameters: any; // TODO: JSON Schema Type.
+  parameters: Record<string, unknown>; // TODO: JSON Schema Type.
 
   // TODO: Handler input types based off of JSON above.
   //
@@ -32,8 +31,8 @@ export interface ResultLifecycleArgs extends BaseLifecycleArgs {
 export interface BeforeLifecycleArgs extends BaseLifecycleArgs {
   // input is the user request for the entire agentic operation.
   input?: string;
-  instructions: Message[];
-  history?: Message[];
+  instructions: InternalNetworkMessage[];
+  history?: InternalNetworkMessage[];
 }
 
 /**
@@ -49,9 +48,10 @@ export interface InferenceLifecycle {
    * of the prompt when making the inference request.
    *
    */
-  beforeInfer?: (
-    args: BeforeLifecycleArgs,
-  ) => Promise<{ instructions: Message[]; history: Message[] }>;
+  beforeInfer?: (args: BeforeLifecycleArgs) => Promise<{
+    instructions: InternalNetworkMessage[];
+    history: InternalNetworkMessage[];
+  }>;
 
   /**
    * afterTools is called after an agent invokes tools as specified by the inference call. The

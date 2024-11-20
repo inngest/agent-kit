@@ -1,22 +1,28 @@
-import { GetStepTools, Inngest } from "inngest";
-import { Message, ToolMessage } from "./state";
-import { Tool } from "./types";
+import {
+  OpenAiProvider,
+  type GetStepTools,
+  type InferInput,
+  type InferOutput,
+  type Inngest,
+  type Provider as InngestAiProvider,
+} from "inngest";
+import { ToolMessage, type InternalNetworkMessage } from "./state";
+import { type Tool } from "./types";
 
-// TODO: Type the result based off of the provider type
-export class Provider<TClient extends Inngest = Inngest> {
-  #opts: RequestOpts;
+export class AgenticProvider<TInngestProvider extends InngestAiProvider> {
+  #provider: InngestAiProvider;
 
-  step: GetStepTools<TClient>;
-  requestParser: RequestParser;
-  responseParser: ResponseParser;
+  step: GetStepTools<Inngest.Any>;
+  requestParser: AgenticProvider.RequestParser<TInngestProvider>;
+  responseParser: AgenticProvider.ResponseParser<TInngestProvider>;
 
   constructor({
-    opts,
+    provider,
     step,
     requestParser,
     responseParser,
-  }: ProviderConstructor<TClient>) {
-    this.#opts = opts;
+  }: AgenticProvider.Constructor<TInngestProvider>) {
+    this.#provider = provider;
     this.step = step;
     this.requestParser = requestParser;
     this.responseParser = responseParser;
@@ -24,55 +30,42 @@ export class Provider<TClient extends Inngest = Inngest> {
 
   async infer(
     stepID: string,
-    input: Message[],
+    input: InternalNetworkMessage[],
     tools: Tool[],
-  ): Promise<InferenceResponse> {
-    const result = await this.step.ai.infer(stepID, {
-      opts: this.#opts,
+  ): Promise<AgenticProvider.InferenceResponse> {
+    const result = (await this.step.ai.infer(stepID, {
+      provider: this.#provider,
       body: this.requestParser(input, tools),
-    });
+    })) as InferOutput<TInngestProvider>;
+
     return { output: this.responseParser(result), raw: result };
   }
 }
 
-export const openai = <TClient extends Inngest = Inngest>(
-  model: string,
-  step: GetStepTools<TClient>,
-  opts?: { baseURL?: string; key?: string },
+export const agenticOpenAiProvider = <TInngestProvider extends OpenAiProvider>(
+  provider: TInngestProvider,
+  step: GetStepTools<Inngest.Any>,
 ) => {
-  const base = opts?.baseURL || "https://api.openai.com/";
-
-  return new Provider({
+  return new AgenticProvider({
+    provider,
     step,
-    opts: {
-      model,
-      format: "openai-chat",
-      url: base + "v1/chat/completions",
-      authKey: opts?.key || process.env.OPENAI_API_KEY,
-    },
-    requestParser: (input: Message[], tools: Tool[]) => {
-      const request: any = {
-        model,
-        messages: input.map((m) => {
+    requestParser: (messages, tools) => {
+      const request: InferInput<TInngestProvider> = {
+        messages: messages.map((m) => {
           return {
             role: m.role,
-            // TODO: Proper content parsing.
-            content: m.content || "",
-            // Tool calling
+            content: m.content,
           };
-        }),
+        }) as InferInput<TInngestProvider>["messages"],
       };
 
-      if (tools && tools.length > 0) {
+      if (tools?.length) {
         request.tools = tools.map((t) => {
           return {
-            type: "function",
-            function: {
-              name: t.name,
-              description: t.description,
-              parameters: t.parameters,
-              strict: true, // XXX: allow overwriting?
-            },
+            name: t.name,
+            description: t.description,
+            parameters: t.parameters,
+            strict: true, // XXX: allow overwriting?
           };
         });
       }
@@ -80,68 +73,66 @@ export const openai = <TClient extends Inngest = Inngest>(
       return request;
     },
 
-    responseParser: (input: any): Message[] => {
-      // TODO: Proper parsing.
-      const choices = input?.choices || [];
-      if (choices.length === 0) {
-        return [];
-      }
-
-      // TODO: openai typing
-      return choices
-        .map((c: any) => {
-          if (!c.message) {
-            return undefined;
+    responseParser: (
+      input: InferOutput<TInngestProvider>,
+    ): InternalNetworkMessage[] => {
+      return (input?.choices ?? []).reduce<InternalNetworkMessage[]>(
+        (acc, choice) => {
+          if (!choice.message) {
+            return acc;
           }
-          return {
-            role: c.message.role,
-            content: c.message.content,
-            tools: (c.message.tool_calls || []).map(
-              (tool: any): ToolMessage => {
-                return {
-                  type: "tool",
-                  id: tool.id,
-                  name: tool.function.name,
-                  input: JSON.parse(tool.function.arguments || "{}"),
-                };
-              },
-            ),
-          };
-        })
-        .filter(Boolean);
+
+          return [
+            ...acc,
+            {
+              role: choice.message.role,
+              content: choice.message.content,
+              tools: (choice.message.tool_calls ?? []).map<ToolMessage>(
+                (tool) => {
+                  return {
+                    type: "tool",
+                    id: tool.id,
+                    name: tool.function.name,
+                    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+                    input: JSON.parse(tool.function.arguments || "{}"),
+                  };
+                },
+              ),
+            } as InternalNetworkMessage,
+          ];
+        },
+        [],
+      );
     },
   });
 };
 
-/**
- * InferenceResponse is the response from a provider for an inference request.  This contains
- * parsed messages and the raw result, with the type of the raw result depending on the provider's
- * API repsonse.
- *
- */
-export type InferenceResponse<T = any> = {
-  output: Message[];
-  raw: T;
-};
+export namespace AgenticProvider {
+  export type Any = AgenticProvider<InngestAiProvider>;
 
-interface ProviderConstructor<TClient extends Inngest = Inngest> {
-  opts: RequestOpts;
-  step: GetStepTools<TClient>;
-  requestParser: RequestParser;
-  responseParser: ResponseParser;
-}
+  /**
+   * InferenceResponse is the response from a provider for an inference request.
+   * This contains parsed messages and the raw result, with the type of the raw
+   * result depending on the provider's API repsonse.
+   */
+  export type InferenceResponse<T = unknown> = {
+    output: InternalNetworkMessage[];
+    raw: T;
+  };
 
-type RequestParser = (
-  state: Message[],
-  tools: Tool[],
-) => { [key: string]: any };
+  export interface Constructor<TInngestProvider extends InngestAiProvider> {
+    provider: TInngestProvider;
+    step: GetStepTools<Inngest.Any>;
+    requestParser: RequestParser<TInngestProvider>;
+    responseParser: ResponseParser<TInngestProvider>;
+  }
 
-type ResponseParser = (input: unknown) => Message[];
+  export type RequestParser<TInngestProvider extends InngestAiProvider> = (
+    state: InternalNetworkMessage[],
+    tools: Tool[],
+  ) => InferInput<TInngestProvider>;
 
-interface RequestOpts {
-  model: string;
-  url: string;
-  auth: string;
-  format: string;
-  headers: { [header: string]: string };
+  export type ResponseParser<TInngestProvider extends InngestAiProvider> = (
+    output: InferOutput<TInngestProvider>,
+  ) => InternalNetworkMessage[];
 }
