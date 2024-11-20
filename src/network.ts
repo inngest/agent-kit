@@ -1,6 +1,6 @@
 import { Agent } from "./agent";
 import { Provider } from "./provider";
-import { NetworkState, InferenceResult } from "./state";
+import { InferenceResult, NetworkState } from "./state";
 
 interface RouterArgs {
   /**
@@ -77,15 +77,23 @@ export class Network {
   // is okay;  we store all agents referenced in the router here.
   private _agents: Map<string, agent>;
 
-  constructor({ agents, defaultProvider, maxIter }: { agents: Agent[], defaultProvider: Provider, maxIter?: number }) {
+  constructor({
+    agents,
+    defaultProvider,
+    maxIter,
+  }: {
+    agents: Agent[];
+    defaultProvider: Provider;
+    maxIter?: number;
+  }) {
     this.agents = new Map();
     this._agents = new Map();
     this.state = new NetworkState();
-    this.defaultProvider = defaultProvider
+    this.defaultProvider = defaultProvider;
     this.maxIter = maxIter || 0;
     this._stack = [];
 
-    for (let agent of agents) {
+    for (const agent of agents) {
       // Store all agents publicly visible.
       this.agents.set(agent.name, agent);
       // Store an internal map of all agents referenced.
@@ -98,7 +106,7 @@ export class Network {
     const all = Array.from(this.agents.values());
     for (const a of all) {
       const enabled = a?.lifecycles?.enabled;
-      if (!enabled || await enabled({ agent: a, network: this })) {
+      if (!enabled || (await enabled({ agent: a, network: this }))) {
         available.push(a);
       }
     }
@@ -127,7 +135,7 @@ export class Network {
     const agents = await this.availableAgents();
 
     if (agents.length === 0) {
-      throw new Error("no agents enabled in network"); 
+      throw new Error("no agents enabled in network");
     }
 
     // If there's no default agent used to run the request, use our internal routing agent
@@ -141,13 +149,16 @@ export class Network {
     // Schedule the agent to run on our stack, then start popping off the stack.
     this.schedule(agent.name);
 
-    while (this._stack.length > 0 && (this.maxIter === 0 || this._counter < this.maxIter)) {
+    while (
+      this._stack.length > 0 &&
+      (this.maxIter === 0 || this._counter < this.maxIter)
+    ) {
       // XXX: It would be possible to parallel call these agents here by fetching the entire
       // stack, parallel running, then awaiting the responses.   However, this confuses history
       // and we'll take our time to introduce parallelisation after the foundations are set.
 
       // Fetch the agent we need to call next off of the stack.
-      const agentName = this._stack.shift()
+      const agentName = this._stack.shift();
       // Grab agents from the private map, as this may have been introduced in the router.
       const agent = agentName && this._agents.get(agentName);
       if (!agent) {
@@ -185,10 +196,10 @@ export class Network {
       return router;
     }
 
-    const stack: Agent[] = this._stack.map(name => {
-      const agent = this._agents.get(name)
+    const stack: Agent[] = this._stack.map((name) => {
+      const agent = this._agents.get(name);
       if (!agent) {
-        throw new Error(`unknown agent in the network stack: ${name}`)
+        throw new Error(`unknown agent in the network stack: ${name}`);
       }
       return agent;
     });
@@ -221,12 +232,15 @@ export class Network {
  */
 export const defaultRoutingAgent = new Agent({
   name: "Default routing agent",
-  description: "Selects which agents to work on based off of the current prompt and input.",
+  description:
+    "Selects which agents to work on based off of the current prompt and input.",
 
   lifecycle: {
     afterTools: async ({ network, call }): Promise<InferenceResult> => {
       // We never want to store this call's instructions in history.
-      call.withFormatter(call => { return []; });
+      call.withFormatter((call) => {
+        return [];
+      });
       return call;
     },
   },
@@ -236,26 +250,31 @@ export const defaultRoutingAgent = new Agent({
     // agent name as valid JSON.
     {
       name: "select_agent",
-      description: "select an agent to handle the input, based off of the current conversation",
+      description:
+        "select an agent to handle the input, based off of the current conversation",
       parameters: {
         type: "object",
         properties: {
           name: {
             type: "string",
-            description: "The name of the agent that should handle the request", 
+            description: "The name of the agent that should handle the request",
           },
         },
         required: ["name"],
-        additionalProperties: false
+        additionalProperties: false,
       },
       handler: async ({ name }, _agent, network) => {
         if (!network) {
-          throw new Error("The routing agent can only be used within a network of agents");
+          throw new Error(
+            "The routing agent can only be used within a network of agents",
+          );
         }
 
         const agent = network.agents.get(name);
         if (agent === undefined) {
-          throw new Error(`The routing agent requested an agent that doesn't exist: ${name}`);
+          throw new Error(
+            `The routing agent requested an agent that doesn't exist: ${name}`,
+          );
         }
 
         // Schedule another agent.
@@ -263,12 +282,14 @@ export const defaultRoutingAgent = new Agent({
 
         return agent.name;
       },
-    }
+    },
   ],
 
   instructions: async (network?: Network): Promise<string> => {
     if (!network) {
-      throw new Error("The routing agent can only be used within a network of agents");
+      throw new Error(
+        "The routing agent can only be used within a network of agents",
+      );
     }
 
     const agents = await network?.availableAgents();
@@ -277,7 +298,7 @@ export const defaultRoutingAgent = new Agent({
 
 The following agents are available:
 <agents>
-  ${agents.map(a => {
+  ${agents.map((a) => {
     return `
     <agent>
       <name>${a.name}</name>
@@ -296,6 +317,6 @@ Follow the set of instructions:
 
   If the request has been solved, respond with one single tag, with the answer inside: <answer>$answer</answer>
 </instructions>
-    `
+    `;
   },
 });

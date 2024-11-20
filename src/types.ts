@@ -1,5 +1,5 @@
-import { Network } from "./network";
 import { Agent } from "./agent";
+import { Network } from "./network";
 import { InferenceResult, Message } from "./state";
 
 export type Tool = {
@@ -12,12 +12,16 @@ export type Tool = {
   // Handlers get their input arguments from inference calls, and can also access
   // the current agent and network.  This allows tools to reference and schedule
   // future work via the network, if necessary.
-  handler: (input: { [key: string]: any }, agent: Agent, network?: Network) => Promise<any>;
+  handler: (
+    input: { [key: string]: any },
+    agent: Agent,
+    network?: Network
+  ) => Promise<any>;
 };
 
 export interface BaseLifecycleArgs {
   // Agent is the agent that made the call.
-  agent: Agent,
+  agent: Agent;
   // Network represents the network that this agent or lifecycle belongs to.
   network?: Network;
 }
@@ -46,12 +50,14 @@ export interface InferenceLifecycle {
    * of the prompt when making the inference request.
    *
    */
-  beforeInfer?: (args: BeforeLifecycleArgs) => Promise<{ instructions: Message[], history: Message[] }>
+  beforeInfer?: (
+    args: BeforeLifecycleArgs
+  ) => Promise<{ instructions: Message[]; history: Message[] }>;
 
   /**
    * afterTools is called after an agent invokes tools as specified by the inference call. The
    * returned InferenceResult will be saved to network history, if the agent is part of the network.
    *
    */
-  afterTools?: (args: ResultLifecycleArgs) => Promise<InferenceResult>
+  afterTools?: (args: ResultLifecycleArgs) => Promise<InferenceResult>;
 }

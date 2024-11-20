@@ -3,13 +3,25 @@ import { Agent } from "./agent";
 export interface Message {
   role: "system" | "user" | "assistant" | "tool_result";
   content: string | Array<TextMessage> | ToolResult;
-  tools?:  ToolMessage[];
+  tools?: ToolMessage[];
   // TODO: Images and multi-modality.
 }
 
-interface TextMessage { type: "text", text: string };
-interface ToolMessage { type: "tool"; id: string, name: string, input: { [arg: string]: any } };
-interface ToolResult { type: "tool_result", id: string, content: any }; // TODO: Content types.
+interface TextMessage {
+  type: "text";
+  text: string;
+}
+interface ToolMessage {
+  type: "tool";
+  id: string;
+  name: string;
+  input: { [arg: string]: any };
+}
+interface ToolResult {
+  type: "tool_result";
+  id: string;
+  content: any;
+} // TODO: Content types.
 
 /**
  * NetworkState stores state (history) for a given network of agents.  The state
@@ -59,7 +71,7 @@ export class NetworkState {
    *
    */
   get history(): Message[] {
-    return this._history.map(call => call.history()).flat()
+    return this._history.map((call) => call.history()).flat();
   }
 
   append(call: InferenceResult) {
@@ -102,7 +114,7 @@ export class InferenceResult {
     public toolCalls: Message[],
 
     // raw represents the raw API response from the call.  This is a JSON string, and the format
-    // depends on the agent's Provider. 
+    // depends on the agent's Provider.
     public raw: string,
   ) {}
 
@@ -119,7 +131,7 @@ export class InferenceResult {
     // prompts.
     const agent = this.agent;
 
-    const history: Message[] = this.instructions.map(function(msg) {
+    const history: Message[] = this.instructions.map(function (msg) {
       // Ensure that instructions are always as an assistant.
       return {
         ...msg,

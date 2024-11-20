@@ -4,29 +4,42 @@ import { Tool } from "./types";
 
 // TODO: Type the result based off of the provider type
 export class Provider<TClient extends Inngest = Inngest> {
-  #opts: RequestOpts
+  #opts: RequestOpts;
 
-  step: GetStepTools<TClient>
-  requestParser: RequestParser
-  responseParser: ResponseParser
+  step: GetStepTools<TClient>;
+  requestParser: RequestParser;
+  responseParser: ResponseParser;
 
-  constructor({ opts, step, requestParser, responseParser }: ProviderConstructor<TClient>) {
-    this.#opts = opts
+  constructor({
+    opts,
+    step,
+    requestParser,
+    responseParser,
+  }: ProviderConstructor<TClient>) {
+    this.#opts = opts;
     this.step = step;
     this.requestParser = requestParser;
     this.responseParser = responseParser;
   }
 
-  async infer(stepID: string, input: Message[], tools: Tool[]): Promise<InferenceResponse> {
-    const result =  await this.step.ai.infer(stepID, {
+  async infer(
+    stepID: string,
+    input: Message[],
+    tools: Tool[],
+  ): Promise<InferenceResponse> {
+    const result = await this.step.ai.infer(stepID, {
       opts: this.#opts,
       body: this.requestParser(input, tools),
     });
-    return { output: this.responseParser(result), raw: result};
+    return { output: this.responseParser(result), raw: result };
   }
 }
 
-export const openai = <TClient extends Inngest = Inngest>(model: string, step: GetStepTools<TClient>, opts?: { baseURL?: string, key?: string }) => {
+export const openai = <TClient extends Inngest = Inngest>(
+  model: string,
+  step: GetStepTools<TClient>,
+  opts?: { baseURL?: string; key?: string },
+) => {
   const base = opts?.baseURL || "https://api.openai.com/";
 
   return new Provider({
@@ -40,7 +53,7 @@ export const openai = <TClient extends Inngest = Inngest>(model: string, step: G
     requestParser: (input: Message[], tools: Tool[]) => {
       const request: any = {
         model,
-        messages: input.map(m => {
+        messages: input.map((m) => {
           return {
             role: m.role,
             // TODO: Proper content parsing.
@@ -51,7 +64,7 @@ export const openai = <TClient extends Inngest = Inngest>(model: string, step: G
       };
 
       if (tools && tools.length > 0) {
-        request.tools = tools.map(t => {
+        request.tools = tools.map((t) => {
           return {
             type: "function",
             function: {
@@ -75,27 +88,30 @@ export const openai = <TClient extends Inngest = Inngest>(model: string, step: G
       }
 
       // TODO: openai typing
-      return choices.map((c: any) => {
-        if (!c.message) {
-          return undefined;
-        }
-        return {
-          role: c.message.role,
-          content: c.message.content,
-          tools: (c.message.tool_calls || []).map((tool: any): ToolMessage => {
-            return {
-              type: "tool",
-              id: tool.id,
-              name: tool.function.name,
-              input: JSON.parse(tool.function.arguments || "{}"),
-            };
-          }),
-        }
-      }).filter(Boolean);
+      return choices
+        .map((c: any) => {
+          if (!c.message) {
+            return undefined;
+          }
+          return {
+            role: c.message.role,
+            content: c.message.content,
+            tools: (c.message.tool_calls || []).map(
+              (tool: any): ToolMessage => {
+                return {
+                  type: "tool",
+                  id: tool.id,
+                  name: tool.function.name,
+                  input: JSON.parse(tool.function.arguments || "{}"),
+                };
+              },
+            ),
+          };
+        })
+        .filter(Boolean);
     },
   });
-}
-
+};
 
 /**
  * InferenceResponse is the response from a provider for an inference request.  This contains
@@ -109,21 +125,23 @@ export type InferenceResponse<T = any> = {
 };
 
 interface ProviderConstructor<TClient extends Inngest = Inngest> {
-  opts: RequestOpts
-  step: GetStepTools<TClient>
-  requestParser: RequestParser
-  responseParser: ResponseParser
+  opts: RequestOpts;
+  step: GetStepTools<TClient>;
+  requestParser: RequestParser;
+  responseParser: ResponseParser;
 }
 
-type RequestParser = (state: Message[], tools: Tool[]) => { [key: string]: any };
+type RequestParser = (
+  state: Message[],
+  tools: Tool[],
+) => { [key: string]: any };
 
 type ResponseParser = (input: unknown) => Message[];
 
 interface RequestOpts {
-  model: string
-  url: string
-  auth: string
-  format: string
-  headers: { [header: string]: string }
-};
-
+  model: string;
+  url: string;
+  auth: string;
+  format: string;
+  headers: { [header: string]: string };
+}
