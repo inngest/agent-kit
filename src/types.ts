@@ -6,6 +6,7 @@ import { MaybePromise } from "./util";
 export type Tool = {
   name: string;
   description?: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   parameters: any; // TODO: JSON Schema Type.
 
   // TODO: Handler input types based off of JSON above.
@@ -13,6 +14,7 @@ export type Tool = {
   // Handlers get their input arguments from inference calls, and can also access
   // the current agent and network.  This allows tools to reference and schedule
   // future work via the network, if necessary.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   handler: (input: Record<string, any>, agent: Agent, network?: Network) => any;
 };
 
@@ -48,7 +50,7 @@ export interface InferenceLifecycle {
    *
    */
   beforeInfer?: (
-    args: BeforeLifecycleArgs
+    args: BeforeLifecycleArgs,
   ) => Promise<{ instructions: Message[]; history: Message[] }>;
 
   /**
