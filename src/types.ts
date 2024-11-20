@@ -48,7 +48,7 @@ export interface InferenceLifecycle {
    * of the prompt when making the inference request.
    *
    */
-  beforeInfer?: (args: BeforeLifecycleArgs) => Promise<{
+  beforeInfer?: (args: BeforeLifecycleArgs) => MaybePromise<{
     instructions: InternalNetworkMessage[];
     history: InternalNetworkMessage[];
   }>;

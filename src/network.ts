@@ -1,6 +1,7 @@
 import { Agent } from "./agent";
 import { AgenticProvider } from "./provider";
 import { InferenceResult, NetworkState } from "./state";
+import { MaybePromise } from "./util";
 
 /**
  * Network represents a network of agents.
@@ -304,7 +305,7 @@ export namespace Network {
    */
   export type Router =
     | Agent
-    | ((args: Router.Args) => Promise<Agent | undefined>);
+    | ((args: Router.Args) => MaybePromise<Agent | undefined>);
 
   export namespace Router {
     export interface Args {

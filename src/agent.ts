@@ -7,6 +7,7 @@ import {
   ResultLifecycleArgs,
   Tool,
 } from "./types";
+import { MaybePromise } from "./util";
 /**
  * Agent represents a single agent, responsible for a set of tasks.
  */
@@ -24,7 +25,7 @@ export class Agent {
   /**
    * instructions is the system prompt for the agent.
    */
-  instructions: string | ((network?: Network) => Promise<string>);
+  instructions: string | ((network?: Network) => MaybePromise<string>);
 
   /**
    * Assistant is the assistent message used for completion, if any.
@@ -203,7 +204,7 @@ export namespace Agent {
   export interface Constructor {
     name: string;
     description?: string;
-    instructions: string | ((network?: Network) => Promise<string>);
+    instructions: string | ((network?: Network) => MaybePromise<string>);
     assistant?: string;
     tools?: Tool[];
     lifecycle?: Lifecycle;
@@ -215,12 +216,12 @@ export namespace Agent {
   }
 
   export interface Lifecycle extends InferenceLifecycle {
-    enabled?: (args: BaseLifecycleArgs) => Promise<boolean>;
+    enabled?: (args: BaseLifecycleArgs) => MaybePromise<boolean>;
 
     /**
      * afterInfer is called after the inference call finishes, before any tools have been invoked.
      * This allows you to moderate the response prior to running tools.
      */
-    afterInfer?: (args: ResultLifecycleArgs) => Promise<InferenceResult>;
+    afterInfer?: (args: ResultLifecycleArgs) => MaybePromise<InferenceResult>;
   }
 }

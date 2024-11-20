@@ -8,6 +8,9 @@
     "build": "rm -rf dist && tsc",
     "lint": "eslint ."
   },
+  "files": [
+    "dist"
+  ],
   "homepage": "https://github.com/inngest/agentkit",
   "repository": {
     "type": "git",
