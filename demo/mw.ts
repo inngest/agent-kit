@@ -3,14 +3,14 @@ import {
   createAgenticOpenAiProvider,
   createNetwork,
 } from "@inngest/agent-kit";
-import { InngestMiddleware, OpenAiModel } from "inngest";
+import { InngestMiddleware, openai, type OpenAiProviderOptions } from "inngest";
 
-export const codeWritingAgentMiddleware = (
-  model: OpenAiModel = "gpt-3.5-turbo",
-) => {
+export const codeWritingAgentMiddleware = (opts: OpenAiProviderOptions) => {
   return new InngestMiddleware({
     name: "Code Writing Agent Middleware",
     init() {
+      const provider = openai(opts);
+
       return {
         onFunctionRun() {
           return {
@@ -18,10 +18,10 @@ export const codeWritingAgentMiddleware = (
               const codeWritingNetwork = createNetwork({
                 agents: [CodeWritingAgent, ExecutingAgent],
                 maxIter: 4,
-                defaultProvider: createAgenticOpenAiProvider(
-                  step.ai.providers.openai({ model }),
+                defaultProvider: createAgenticOpenAiProvider({
+                  provider,
                   step,
-                ),
+                }),
               });
 
               return {

@@ -44,10 +44,13 @@ export class AgenticProvider<TInngestProvider extends InngestAiProvider> {
 
 export const createAgenticOpenAiProvider = <
   TInngestProvider extends OpenAiProvider,
->(
-  provider: TInngestProvider,
-  step: GetStepTools<Inngest.Any>,
-) => {
+>({
+  provider,
+  step,
+}: {
+  provider: TInngestProvider;
+  step: GetStepTools<Inngest.Any>;
+}) => {
   return new AgenticProvider({
     provider,
     step,

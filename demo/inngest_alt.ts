@@ -4,7 +4,7 @@ import { codeWritingAgentMiddleware } from "./mw";
 
 export const inngest = new Inngest({
   id: "agents",
-  middleware: [codeWritingAgentMiddleware("gpt-3.5-turbo")],
+  middleware: [codeWritingAgentMiddleware({ model: "gpt-3.5-turbo" })],
 });
 
 export const fn = inngest.createFunction(

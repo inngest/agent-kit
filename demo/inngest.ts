@@ -12,10 +12,10 @@ export const fn = inngest.createFunction(
   { id: "agent" },
   { event: "agent/run" },
   async ({ event, step }) => {
-    const provider = createAgenticOpenAiProvider(
-      openai({ model: "gpt-3.5-turbo" }),
+    const provider = createAgenticOpenAiProvider({
+      provider: openai({ model: "gpt-3.5-turbo" }),
       step,
-    );
+    });
 
     // 1. Single agents
     //
