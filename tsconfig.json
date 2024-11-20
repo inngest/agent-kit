@@ -1,15 +1,14 @@
 {
   "compilerOptions": {
     "target": "es2017",
-    //     "jsx": "react-jsx",
-    //     "lib": ["ES2021"],
+    "lib": ["ES2021", "DOM"],
     "module": "commonjs",
     "declaration": true,
     "declarationMap": true,
     "sourceMap": true,
     "rootDir": "./src",
     "outDir": "./dist",
-    "types": [],
+    "types": ["node"],
     "moduleResolution": "node",
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,

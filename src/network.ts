@@ -75,7 +75,7 @@ export class Network {
   // _agents atores all egents.  note that you may not include eg. the defaultRoutingAgent within
   // the network constructor, and you may return an agent in the router that's not included.  This
   // is okay;  we store all agents referenced in the router here.
-  private _agents: Map<string, agent>;
+  private _agents: Map<string, Agent>;
 
   constructor({
     agents,
@@ -236,11 +236,10 @@ export const defaultRoutingAgent = new Agent({
     "Selects which agents to work on based off of the current prompt and input.",
 
   lifecycle: {
-    afterTools: async ({ network, call }): Promise<InferenceResult> => {
+    afterTools: ({ call }) => {
       // We never want to store this call's instructions in history.
-      call.withFormatter((call) => {
-        return [];
-      });
+      call.withFormatter(() => []);
+
       return call;
     },
   },
@@ -263,11 +262,15 @@ export const defaultRoutingAgent = new Agent({
         required: ["name"],
         additionalProperties: false,
       },
-      handler: async ({ name }, _agent, network) => {
+      handler: ({ name }, _agent, network) => {
         if (!network) {
           throw new Error(
             "The routing agent can only be used within a network of agents",
           );
+        }
+
+        if (typeof name !== "string") {
+          throw new Error("The routing agent requested an invalid agent");
         }
 
         const agent = network.agents.get(name);
@@ -298,14 +301,16 @@ export const defaultRoutingAgent = new Agent({
 
 The following agents are available:
 <agents>
-  ${agents.map((a) => {
-    return `
+  ${agents
+    .map((a) => {
+      return `
     <agent>
       <name>${a.name}</name>
       <description>${a.description}</description>
       <tools>${JSON.stringify(Array.from(a.tools.values()))}</tools>
     </agent>`;
-  })}
+    })
+    .join("\n")}
 </agents>
 
 Follow the set of instructions:

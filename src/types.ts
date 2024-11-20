@@ -1,6 +1,7 @@
 import { Agent } from "./agent";
 import { Network } from "./network";
 import { InferenceResult, Message } from "./state";
+import { MaybePromise } from "./util";
 
 export type Tool = {
   name: string;
@@ -12,11 +13,7 @@ export type Tool = {
   // Handlers get their input arguments from inference calls, and can also access
   // the current agent and network.  This allows tools to reference and schedule
   // future work via the network, if necessary.
-  handler: (
-    input: { [key: string]: any },
-    agent: Agent,
-    network?: Network
-  ) => Promise<any>;
+  handler: (input: Record<string, any>, agent: Agent, network?: Network) => any;
 };
 
 export interface BaseLifecycleArgs {
@@ -59,5 +56,5 @@ export interface InferenceLifecycle {
    * returned InferenceResult will be saved to network history, if the agent is part of the network.
    *
    */
-  afterTools?: (args: ResultLifecycleArgs) => Promise<InferenceResult>;
+  afterTools?: (args: ResultLifecycleArgs) => MaybePromise<InferenceResult>;
 }
