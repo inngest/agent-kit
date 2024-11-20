@@ -1,0 +1,85 @@
+import { Agent, agenticOpenAiProvider, Network } from "@inngest/agent-kit";
+import { InngestMiddleware, OpenAiModel } from "inngest";
+
+export const codeWritingAgentMiddleware = (
+  model: OpenAiModel = "gpt-3.5-turbo",
+) => {
+  return new InngestMiddleware({
+    name: "Code Writing Agent Middleware",
+    init() {
+      return {
+        onFunctionRun() {
+          return {
+            transformInput({ ctx: { step } }) {
+              return {
+                ctx: {
+                  codeWritingNetwork: new Network({
+                    agents: [CodeWritingAgent, ExecutingAgent],
+                    maxIter: 4,
+                    defaultProvider: agenticOpenAiProvider(
+                      step.ai.providers.openai({ model }),
+                      step,
+                    ),
+                  }),
+                },
+              };
+            },
+          };
+        },
+      };
+    },
+  });
+};
+
+const CodeWritingAgent = new Agent({
+  name: "Code writing agent",
+  description: "Writes TypeScript code and tests based off of a given input.",
+
+  lifecycle: {
+    afterInfer: ({ call }) => {
+      // Does this contain a solution?
+      // TODO: Parse filenames out of content.
+      return call;
+    },
+  },
+
+  instructions: `You are an expert TypeScript engineer who excels at test-driven-development. Your primary focus is to take system requirements and write unit tests for a set of functions.
+
+   Think carefully about the request that the user is asking for. Do not respond with anything else other than the following XML tags:
+
+   - If you would like to write code, add all code within the following tags (replace $filename and $contents appropriately):
+
+   <file name="$filename.ts">
+       $contents
+   </file>
+   `,
+});
+
+const ExecutingAgent = new Agent({
+  name: "Test execution agent",
+  description: "Executes written TypeScript tests",
+
+  lifecycle: {
+    enabled: ({ network }) => {
+      // Only allow executing of tests if there are files available.
+      return network?.state.kv.get("files") !== undefined;
+    },
+  },
+
+  instructions: `You are an export TypeScript engineer that can execute commands, run tests, debug the output, and make modifications to code.
+
+   Think carefully about the request that the user is asking for. Do not respond with anything else other than the following XML tags:
+
+   - If you would like to write code, add all code within the following tags (replace $filename and $contents appropriately):
+
+   <file name="$filename.ts">
+       $contents
+   </file>
+
+   - If you would like to run commands, respond with the following tags:
+
+   <command>
+     $command
+   </command>
+   `,
+});

@@ -6,9 +6,9 @@ import {
 } from "@inngest/agent-kit";
 import { Inngest, openai } from "inngest";
 
-export const client = new Inngest({ id: "agents" });
+export const inngest = new Inngest({ id: "agents" });
 
-export const fn = client.createFunction(
+export const fn = inngest.createFunction(
   { id: "agent" },
   { event: "agent/run" },
   async ({ event, step }) => {
