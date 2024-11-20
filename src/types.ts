@@ -1,6 +1,6 @@
 import { Network } from "./network";
 import { Agent } from "./agent";
-import { AgenticCall, Message } from "./state";
+import { InferenceResult, Message } from "./state";
 
 export type Tool = {
   name: string;
@@ -23,7 +23,7 @@ export interface BaseLifecycleArgs {
 }
 
 export interface ResultLifecycleArgs extends BaseLifecycleArgs {
-  call: AgenticCall;
+  call: InferenceResult;
 }
 
 export interface BeforeLifecycleArgs extends BaseLifecycleArgs {
@@ -50,8 +50,8 @@ export interface InferenceLifecycle {
 
   /**
    * afterTools is called after an agent invokes tools as specified by the inference call. The
-   * returned AgenticCall will be saved to network history, if the agent is part of the network.
+   * returned InferenceResult will be saved to network history, if the agent is part of the network.
    *
    */
-  afterTools?: (args: ResultLifecycleArgs) => Promise<AgenticCall>
+  afterTools?: (args: ResultLifecycleArgs) => Promise<InferenceResult>
 }

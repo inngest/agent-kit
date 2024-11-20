@@ -27,7 +27,7 @@ export class NetworkState {
 
   private _kv: Map<string, any>;
 
-  private _history: AgenticCall[];
+  private _history: InferenceResult[];
 
   constructor() {
     this._history = [];
@@ -46,35 +46,39 @@ export class NetworkState {
     };
   }
 
-  get calls() {
+  /**
+   * Results retursn a new array containing all past inference results in the network.
+   * This array is safe to modify.
+   */
+  get results() {
     return this._history.slice();
   }
 
   /**
    * history returns the memory used for agentic calls based off of prior agentic calls.
+   *
    */
   get history(): Message[] {
     return this._history.map(call => call.history()).flat()
   }
 
-  append(call: AgenticCall) {
+  append(call: InferenceResult) {
     this._history.push(call);
   }
 }
 
 /**
- * AgenticCall represents a single agentic call as part of the network state.
+ * InferenceResult represents a single agentic call as part of the network state.
  *
  */
-export class AgenticCall {
-
+export class InferenceResult {
   // toHistory is a function which formats this given call to history for future
   // agentic calls.
   //
   // You can set a custom history adapter by calling .withFormatter() within
   // lifecycles.  This allows you to change how future agentic calls interpret past
   // agentic calls.
-  private _historyFormatter: (a: AgenticCall) => Message[];
+  private _historyFormatter: (a: InferenceResult) => Message[];
 
   constructor(
     // agent represents the agent for this inference call.
@@ -97,12 +101,16 @@ export class AgenticCall {
     // toolCalls represents output from any tools called by the agent.
     public toolCalls: Message[],
 
+    // scheduledAgents are a list of agent names that should be scheduled after this agent
+    // finishes.  This is onyl used in network requests.
+    public scheduledAgents: string[],
+
     // raw represents the raw API response from the call.  This is a JSON string, and the format
     // depends on the agent's Provider. 
     public raw: string,
   ) {}
 
-  withFormatter(f: (a: AgenticCall) => Message[]) {
+  withFormatter(f: (a: InferenceResult) => Message[]) {
     this._historyFormatter = f;
   }
 
@@ -110,7 +118,6 @@ export class AgenticCall {
     if (this._historyFormatter) {
       return this._historyFormatter(this);
     }
-
 
     // Return the default format, which turns all system prompts into assistant
     // prompts.

@@ -1,7 +1,7 @@
 import { Tool, InferenceLifecycle, BaseLifecycleArgs, ResultLifecycleArgs } from "./types";
 import { Network } from "./network";
 import { Provider } from "./provider";
-import { Message, AgenticCall } from "./state";
+import { Message, InferenceResult } from "./state";
 
 export interface AgentConstructor {
   name: string;
@@ -75,7 +75,7 @@ export class Agent {
    * Run runs an agent with the given user input, treated as a user message.  If the
    * input is an empty string, only the system prompt will execute.
    */
-  async run(input: string, { provider, network }: AgentRunOptions): Promise<AgenticCall> {
+  async run(input: string, { provider, network }: AgentRunOptions): Promise<InferenceResult> {
     const p = provider || this.provider || network?.defaultProvider;
     if (!p) {
       throw new Error("No step caller provided to agent");
@@ -96,8 +96,8 @@ export class Agent {
       Array.from(this.tools.values()),
     );
 
-    // Now that we've made the call, we instantiate a new AgenticCall for lifecycles and history.
-    let call = new AgenticCall(this, input, instructions, instructions.concat(history), output, [], raw);
+    // Now that we've made the call, we instantiate a new InferenceResult for lifecycles and history.
+    let call = new InferenceResult(this, input, instructions, instructions.concat(history), output, [], raw);
     if (this.lifecycles?.afterInfer) {
       call = await this.lifecycles.afterInfer({ agent: this, network, call });
     }
@@ -186,5 +186,5 @@ export interface AgentLifecycle extends InferenceLifecycle {
    * afterInfer is called after the inference call finishes, before any tools have been invoked.
    * This allows you to moderate the response prior to running tools.
    */
-  afterInfer?: (args: ResultLifecycleArgs) => Promise<AgenticCall>
+  afterInfer?: (args: ResultLifecycleArgs) => Promise<InferenceResult>
 }

@@ -1,13 +1,52 @@
 import { Agent } from "./agent";
 import { Provider } from "./provider";
-import { NetworkState, AgenticCall } from "./state";
+import { NetworkState, InferenceResult } from "./state";
 
-type Router = Agent | (({ network, callCount }: { network: Network, callCount: number }) => Promise<Agent | undefined>);
+interface RouterArgs {
+  /**
+   * Network is the network that this router is coordinating.  Network
+   * state is accessible via `network.state`.
+   */
+  network: Network;
+
+  /**
+   * stack is an ordered array of agents that will be called next.
+   */
+  stack: Agent[];
+
+  /**
+   * callCount is the number of current agent invocations that the
+   * network has made.  This is a shorthand for `network.state.results.length`.
+   */
+  callCount: number;
+
+  /**
+   * lastResult is the last inference result that the network made.  This is
+   * a shorthand for `network.state.results.pop()`.
+   */
+  lastResult?: InferenceResult;
+}
+
+/**
+ * Router defines how a network coordinates between many agents.  A router is a single
+ * function that gets given the network, current state, future agentic calls, and the last
+ * inference result from the network.
+ *
+ * You can choose to create semi-autonomous networks by writing standard deterministic code
+ * to call agents based off of the current state.
+ *
+ * You can also choose to create fully autonomous agentic networks by calling a "routing agent",
+ * which determines the best agent to call based off of current state.
+ */
+type Router = Agent | ((args: RouterArgs) => Promise<Agent | undefined>);
 
 /**
  * Network represents a network of agents.
  */
 export class Network {
+  /**
+   * agents are all publicly available agents in the netwrok
+   */
   agents: Map<string, Agent>;
 
   /**
@@ -22,21 +61,35 @@ export class Network {
    */
   defaultProvider: Provider;
 
-  private _stack: Array<() => Promise<AgenticCall>>
+  /**
+   * maxIter is the maximum number of times the we can call agents before ending
+   * the network's run loop.
+   */
+  maxIter: number;
+
+  // _stack is an array of strings, each representing an agent name to call.
+  private _stack: string[];
 
   private _counter = 0;
 
-  maxIter: number;
+  // _agents atores all egents.  note that you may not include eg. the defaultRoutingAgent within
+  // the network constructor, and you may return an agent in the router that's not included.  This
+  // is okay;  we store all agents referenced in the router here.
+  private _agents: Map<string, agent>;
 
   constructor({ agents, defaultProvider, maxIter }: { agents: Agent[], defaultProvider: Provider, maxIter?: number }) {
     this.agents = new Map();
+    this._agents = new Map();
     this.state = new NetworkState();
     this.defaultProvider = defaultProvider
     this.maxIter = maxIter || 0;
     this._stack = [];
 
     for (let agent of agents) {
+      // Store all agents publicly visible.
       this.agents.set(agent.name, agent);
+      // Store an internal map of all agents referenced.
+      this._agents.set(agent.name, agent);
     }
   }
 
@@ -62,8 +115,8 @@ export class Network {
   /**
    * Schedule is used to push an agent's run function onto the stack.
    */
-  async schedule(f: () => Promise<AgenticCall>) {
-    this._stack.push(f);
+  schedule(agentName: string) {
+    this._stack.push(agentName);
   }
 
   /**
@@ -86,26 +139,27 @@ export class Network {
     }
 
     // Schedule the agent to run on our stack, then start popping off the stack.
-    this.schedule(async () => await agent.run(input, { network: this }));
+    this.schedule(agent.name);
 
     while (this._stack.length > 0 && (this.maxIter === 0 || this._counter < this.maxIter)) {
-      const infer = this._stack.shift();
+      // XXX: It would be possible to parallel call these agents here by fetching the entire
+      // stack, parallel running, then awaiting the responses.   However, this confuses history
+      // and we'll take our time to introduce parallelisation after the foundations are set.
 
-      if (!infer) {
+      // Fetch the agent we need to call next off of the stack.
+      const agentName = this._stack.shift()
+      // Grab agents from the private map, as this may have been introduced in the router.
+      const agent = agentName && this._agents.get(agentName);
+      if (!agent) {
         // We're done.
         return this;
       }
 
-      const call = await infer();
+      const call = await agent.run(input, { network: this });
       this._counter += 1;
+
       // Ensure that we store the call network history.
       this.state.append(call);
-
-      // We already have more agents on the stack to call, so call them.
-      // TODO: This is wrong.  Should call router.
-      if (this._stack.length > 0) {
-        continue
-      }
 
       // Here we face a problem: what's the definition of done?   An agent may have just
       // been called with part of the information to solve an input.  We may need to delegate
@@ -114,11 +168,10 @@ export class Network {
       // In this case, we defer to the router provided to give us next steps.  By default,
       // this is an agentic router which takes the current state, agents, then figures out
       // next steps.  This can, and often should, be custom code.
-      const agent = await this.getNextAgent(router);
-      if (!agent) {
-        return this;
+      const next = await this.getNextAgent(router);
+      if (next) {
+        this.schedule(next.name);
       }
-      this.schedule(async () => await agent.run(input, { network: this }));
     }
 
     return this;
@@ -131,7 +184,34 @@ export class Network {
     if (router instanceof Agent) {
       return router;
     }
-    return await router({ network: this, callCount: this._counter });
+
+    const stack: Agent[] = this._stack.map(name => {
+      const agent = this._agents.get(name)
+      if (!agent) {
+        throw new Error(`unknown agent in the network stack: ${name}`)
+      }
+      return agent;
+    });
+
+    const agent = await router({
+      network: this,
+      stack,
+      lastResult: this.state.results.pop(),
+      callCount: this._counter,
+    });
+
+    if (!agent) {
+      return;
+    }
+
+    // Ensure this agent is part of the network.  If not, we're going to automatically
+    // add it.
+    if (!this._agents.has(agent.name)) {
+      // XXX: Add a warning here.
+      this._agents.set(agent.name, agent);
+    }
+
+    return agent;
   }
 }
 
@@ -141,10 +221,15 @@ export class Network {
  */
 export const defaultRoutingAgent = new Agent({
   name: "Default routing agent",
+  description: "Selects which agents to work on based off of the current prompt and input.",
 
   lifecycle: {
-    afterTools: async ({ network, call }): Promise<AgenticCall> => {
+    afterTools: async ({ network, call }): Promise<InferenceResult> => {
       // We never want to store this call's instructions in history.
+      call.withFormatter(call => { return []; });
+      return call;
+
+      /*
       call.instructions = [];
       call.toolCalls = [];
 
@@ -157,37 +242,10 @@ export const defaultRoutingAgent = new Agent({
       const agents = await network?.availableAgents();
 
       // Store an initial prompt.
-      call.output = [
-        {
-          role: "assistant",
-          content: `You are one of a network of agents working together to solve the given request:
-<request>${call.input}</request>.
-
-
-The following agents are currently available:
-
-<agents>
-  ${agents?.map(a => {
-    return `
-    <agent>
-      <name>${a.name}</name>
-      <description>${a.description}</description>
-    </agent>`;
-  }).join("\n")}
-</agents>
-
-Each agent will begin their response with their name in an <agent /> tag.  Think about your role
-carefully.
-
-Your aim is to thoroughly complete the request, thinking step by step.  Select one agent at a time based off
-of the current conversation.
-
-If the request has been solved, respond with one single tag, with the solution inside: <solution>$solution</solution>.
-`
-        }
-      ]
+      call.output = []
 
       return call;
+      */
     },
   },
 
@@ -219,9 +277,7 @@ If the request has been solved, respond with one single tag, with the solution i
         }
 
         // Schedule another agent.
-        network.schedule(async () => {
-          return agent.run("", { network });
-        });
+        network.schedule(agent.name);
 
         return agent.name;
       },

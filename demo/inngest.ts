@@ -1,5 +1,5 @@
 import { Inngest } from "inngest";
-import { Agent, defaultRoutingAgent, Network, openai } from "../src/index";
+import { Agent, defaultRoutingAgent, Network, InferenceResult, openai } from "../src/index";
 
 export const client = new Inngest({ id: "agents" });
 
@@ -13,20 +13,20 @@ export const fn = client.createFunction(
     // 1. Single agents
     //
     // Run a single agent as a prompt without a network.
-    // const { output, raw } = await TestWritingAgent.run(event.data.input, { provider });
+    // const { output, raw } = await CodeWritingAgent.run(event.data.input, { provider });
 
 
     // 2. Networks of agents
     const network = new Network({
-      agents: [TestWritingAgent, ExecutingAgent],
+      agents: [CodeWritingAgent, ExecutingAgent],
       defaultProvider: provider,
-      maxIter: 2,
+      maxIter: 4,
     });
 
     // This uses the defaut agentic router to determine which agent to handle first.  You can
     // optinoally specifiy the agent that should execute first, and provide your own logic for
     // handling logic in between agent calls.
-    const result = await network.run(event.data.input, async ({ network, callCount }): Promise<Agent | undefined> => {
+    const result = await network.run(event.data.input, async (args): Promise<Agent | undefined> => {
       return defaultRoutingAgent.withProvider(provider);
     });
 
@@ -34,12 +34,12 @@ export const fn = client.createFunction(
   },
 );
 
-const TestWritingAgent = new Agent({
-  name: "Test writing agent",
-  description: "Writes TypeScript tests based off of a given input.",
+const CodeWritingAgent = new Agent({
+  name: "Code writing agent",
+  description: "Writes TypeScript code and tests based off of a given input.",
 
   lifecycle: {
-    afterInfer: async ({ network, call }): AgenticCall => {
+    afterInfer: async ({ network, call }): InferenceResult => {
       // Parse files from the call.
       if (call.output.length !== 1) {
         return call;
@@ -50,7 +50,7 @@ const TestWritingAgent = new Agent({
       }
 
       // Does this contain a solution?
-      // TODO: Parse filenames out of content.
+      // TODO: Parse filenames out ofontent.
 
       return call;
     },
