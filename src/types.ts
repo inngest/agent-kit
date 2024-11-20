@@ -1,23 +1,25 @@
-import { Network } from "./network";
 import { Agent } from "./agent";
-import { InferenceResult, Message } from "./state";
+import { Network } from "./network";
+import { InferenceResult, InternalNetworkMessage } from "./state";
+import { MaybePromise } from "./util";
 
 export type Tool = {
   name: string;
   description?: string;
-  parameters: any; // TODO: JSON Schema Type.
+  parameters: Record<string, unknown>; // TODO: JSON Schema Type.
 
   // TODO: Handler input types based off of JSON above.
   //
   // Handlers get their input arguments from inference calls, and can also access
   // the current agent and network.  This allows tools to reference and schedule
   // future work via the network, if necessary.
-  handler: (input: { [key: string]: any }, agent: Agent, network?: Network) => Promise<any>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  handler: (input: Record<string, any>, agent: Agent, network?: Network) => any;
 };
 
 export interface BaseLifecycleArgs {
   // Agent is the agent that made the call.
-  agent: Agent,
+  agent: Agent;
   // Network represents the network that this agent or lifecycle belongs to.
   network?: Network;
 }
@@ -29,8 +31,8 @@ export interface ResultLifecycleArgs extends BaseLifecycleArgs {
 export interface BeforeLifecycleArgs extends BaseLifecycleArgs {
   // input is the user request for the entire agentic operation.
   input?: string;
-  instructions: Message[];
-  history?: Message[];
+  instructions: InternalNetworkMessage[];
+  history?: InternalNetworkMessage[];
 }
 
 /**
@@ -46,12 +48,15 @@ export interface InferenceLifecycle {
    * of the prompt when making the inference request.
    *
    */
-  beforeInfer?: (args: BeforeLifecycleArgs) => Promise<{ instructions: Message[], history: Message[] }>
+  beforeInfer?: (args: BeforeLifecycleArgs) => MaybePromise<{
+    instructions: InternalNetworkMessage[];
+    history: InternalNetworkMessage[];
+  }>;
 
   /**
    * afterTools is called after an agent invokes tools as specified by the inference call. The
    * returned InferenceResult will be saved to network history, if the agent is part of the network.
    *
    */
-  afterTools?: (args: ResultLifecycleArgs) => Promise<InferenceResult>
+  afterTools?: (args: ResultLifecycleArgs) => MaybePromise<InferenceResult>;
 }

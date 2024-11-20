@@ -1,44 +1,12 @@
 import { Agent } from "./agent";
-import { Provider } from "./provider";
-import { NetworkState, InferenceResult } from "./state";
-
-interface RouterArgs {
-  /**
-   * Network is the network that this router is coordinating.  Network
-   * state is accessible via `network.state`.
-   */
-  network: Network;
-
-  /**
-   * stack is an ordered array of agents that will be called next.
-   */
-  stack: Agent[];
-
-  /**
-   * callCount is the number of current agent invocations that the
-   * network has made.  This is a shorthand for `network.state.results.length`.
-   */
-  callCount: number;
-
-  /**
-   * lastResult is the last inference result that the network made.  This is
-   * a shorthand for `network.state.results.pop()`.
-   */
-  lastResult?: InferenceResult;
-}
+import { AgenticProvider } from "./provider";
+import { InferenceResult, NetworkState } from "./state";
+import { MaybePromise } from "./util";
 
 /**
- * Router defines how a network coordinates between many agents.  A router is a single
- * function that gets given the network, current state, future agentic calls, and the last
- * inference result from the network.
- *
- * You can choose to create semi-autonomous networks by writing standard deterministic code
- * to call agents based off of the current state.
- *
- * You can also choose to create fully autonomous agentic networks by calling a "routing agent",
- * which determines the best agent to call based off of current state.
+ * Network represents a network of agents.
  */
-type Router = Agent | ((args: RouterArgs) => Promise<Agent | undefined>);
+export const createNetwork = (opts: Network.Constructor) => new Network(opts);
 
 /**
  * Network represents a network of agents.
@@ -59,7 +27,7 @@ export class Network {
    * an agent's specific Provider if the agent already has a Provider defined
    * (eg. via withProvider or via its constructor).
    */
-  defaultProvider: Provider;
+  defaultProvider: AgenticProvider.Any;
 
   /**
    * maxIter is the maximum number of times the we can call agents before ending
@@ -75,17 +43,17 @@ export class Network {
   // _agents atores all egents.  note that you may not include eg. the defaultRoutingAgent within
   // the network constructor, and you may return an agent in the router that's not included.  This
   // is okay;  we store all agents referenced in the router here.
-  private _agents: Map<string, agent>;
+  private _agents: Map<string, Agent>;
 
-  constructor({ agents, defaultProvider, maxIter }: { agents: Agent[], defaultProvider: Provider, maxIter?: number }) {
+  constructor({ agents, defaultProvider, maxIter }: Network.Constructor) {
     this.agents = new Map();
     this._agents = new Map();
     this.state = new NetworkState();
-    this.defaultProvider = defaultProvider
+    this.defaultProvider = defaultProvider;
     this.maxIter = maxIter || 0;
     this._stack = [];
 
-    for (let agent of agents) {
+    for (const agent of agents) {
       // Store all agents publicly visible.
       this.agents.set(agent.name, agent);
       // Store an internal map of all agents referenced.
@@ -98,7 +66,7 @@ export class Network {
     const all = Array.from(this.agents.values());
     for (const a of all) {
       const enabled = a?.lifecycles?.enabled;
-      if (!enabled || await enabled({ agent: a, network: this })) {
+      if (!enabled || (await enabled({ agent: a, network: this }))) {
         available.push(a);
       }
     }
@@ -123,11 +91,11 @@ export class Network {
    * run handles a given request using the network of agents.  It is not concurrency-safe;
    * you can only call run on a network once, as networks are stateful.
    */
-  async run(input: string, router?: Router): Promise<Network> {
+  async run(input: string, router?: Network.Router): Promise<Network> {
     const agents = await this.availableAgents();
 
     if (agents.length === 0) {
-      throw new Error("no agents enabled in network"); 
+      throw new Error("no agents enabled in network");
     }
 
     // If there's no default agent used to run the request, use our internal routing agent
@@ -141,13 +109,16 @@ export class Network {
     // Schedule the agent to run on our stack, then start popping off the stack.
     this.schedule(agent.name);
 
-    while (this._stack.length > 0 && (this.maxIter === 0 || this._counter < this.maxIter)) {
+    while (
+      this._stack.length > 0 &&
+      (this.maxIter === 0 || this._counter < this.maxIter)
+    ) {
       // XXX: It would be possible to parallel call these agents here by fetching the entire
       // stack, parallel running, then awaiting the responses.   However, this confuses history
       // and we'll take our time to introduce parallelisation after the foundations are set.
 
       // Fetch the agent we need to call next off of the stack.
-      const agentName = this._stack.shift()
+      const agentName = this._stack.shift();
       // Grab agents from the private map, as this may have been introduced in the router.
       const agent = agentName && this._agents.get(agentName);
       if (!agent) {
@@ -177,7 +148,9 @@ export class Network {
     return this;
   }
 
-  private async getNextAgent(router?: Router): Promise<Agent | undefined> {
+  private async getNextAgent(
+    router?: Network.Router,
+  ): Promise<Agent | undefined> {
     if (!router) {
       return defaultRoutingAgent.withProvider(this.defaultProvider);
     }
@@ -185,10 +158,10 @@ export class Network {
       return router;
     }
 
-    const stack: Agent[] = this._stack.map(name => {
-      const agent = this._agents.get(name)
+    const stack: Agent[] = this._stack.map((name) => {
+      const agent = this._agents.get(name);
       if (!agent) {
-        throw new Error(`unknown agent in the network stack: ${name}`)
+        throw new Error(`unknown agent in the network stack: ${name}`);
       }
       return agent;
     });
@@ -221,12 +194,14 @@ export class Network {
  */
 export const defaultRoutingAgent = new Agent({
   name: "Default routing agent",
-  description: "Selects which agents to work on based off of the current prompt and input.",
+  description:
+    "Selects which agents to work on based off of the current prompt and input.",
 
   lifecycle: {
-    afterTools: async ({ network, call }): Promise<InferenceResult> => {
+    afterTools: ({ call }) => {
       // We never want to store this call's instructions in history.
-      call.withFormatter(call => { return []; });
+      call.withFormatter(() => []);
+
       return call;
     },
   },
@@ -236,26 +211,35 @@ export const defaultRoutingAgent = new Agent({
     // agent name as valid JSON.
     {
       name: "select_agent",
-      description: "select an agent to handle the input, based off of the current conversation",
+      description:
+        "select an agent to handle the input, based off of the current conversation",
       parameters: {
         type: "object",
         properties: {
           name: {
             type: "string",
-            description: "The name of the agent that should handle the request", 
+            description: "The name of the agent that should handle the request",
           },
         },
         required: ["name"],
-        additionalProperties: false
+        additionalProperties: false,
       },
-      handler: async ({ name }, _agent, network) => {
+      handler: ({ name }, _agent, network) => {
         if (!network) {
-          throw new Error("The routing agent can only be used within a network of agents");
+          throw new Error(
+            "The routing agent can only be used within a network of agents",
+          );
+        }
+
+        if (typeof name !== "string") {
+          throw new Error("The routing agent requested an invalid agent");
         }
 
         const agent = network.agents.get(name);
         if (agent === undefined) {
-          throw new Error(`The routing agent requested an agent that doesn't exist: ${name}`);
+          throw new Error(
+            `The routing agent requested an agent that doesn't exist: ${name}`,
+          );
         }
 
         // Schedule another agent.
@@ -263,12 +247,14 @@ export const defaultRoutingAgent = new Agent({
 
         return agent.name;
       },
-    }
+    },
   ],
 
   instructions: async (network?: Network): Promise<string> => {
     if (!network) {
-      throw new Error("The routing agent can only be used within a network of agents");
+      throw new Error(
+        "The routing agent can only be used within a network of agents",
+      );
     }
 
     const agents = await network?.availableAgents();
@@ -277,14 +263,16 @@ export const defaultRoutingAgent = new Agent({
 
 The following agents are available:
 <agents>
-  ${agents.map(a => {
-    return `
+  ${agents
+    .map((a) => {
+      return `
     <agent>
       <name>${a.name}</name>
       <description>${a.description}</description>
       <tools>${JSON.stringify(Array.from(a.tools.values()))}</tools>
     </agent>`;
-  })}
+    })
+    .join("\n")}
 </agents>
 
 Follow the set of instructions:
@@ -296,6 +284,56 @@ Follow the set of instructions:
 
   If the request has been solved, respond with one single tag, with the answer inside: <answer>$answer</answer>
 </instructions>
-    `
+    `;
   },
 });
+
+export namespace Network {
+  export type Constructor = {
+    agents: Agent[];
+    defaultProvider: AgenticProvider.Any;
+    maxIter?: number;
+  };
+
+  /**
+   * Router defines how a network coordinates between many agents.  A router is a single
+   * function that gets given the network, current state, future agentic calls, and the last
+   * inference result from the network.
+   *
+   * You can choose to create semi-autonomous networks by writing standard deterministic code
+   * to call agents based off of the current state.
+   *
+   * You can also choose to create fully autonomous agentic networks by calling a "routing agent",
+   * which determines the best agent to call based off of current state.
+   */
+  export type Router =
+    | Agent
+    | ((args: Router.Args) => MaybePromise<Agent | undefined>);
+
+  export namespace Router {
+    export interface Args {
+      /**
+       * Network is the network that this router is coordinating.  Network
+       * state is accessible via `network.state`.
+       */
+      network: Network;
+
+      /**
+       * stack is an ordered array of agents that will be called next.
+       */
+      stack: Agent[];
+
+      /**
+       * callCount is the number of current agent invocations that the
+       * network has made.  This is a shorthand for `network.state.results.length`.
+       */
+      callCount: number;
+
+      /**
+       * lastResult is the last inference result that the network made.  This is
+       * a shorthand for `network.state.results.pop()`.
+       */
+      lastResult?: InferenceResult;
+    }
+  }
+}
