@@ -101,10 +101,6 @@ export class InferenceResult {
     // toolCalls represents output from any tools called by the agent.
     public toolCalls: Message[],
 
-    // scheduledAgents are a list of agent names that should be scheduled after this agent
-    // finishes.  This is onyl used in network requests.
-    public scheduledAgents: string[],
-
     // raw represents the raw API response from the call.  This is a JSON string, and the format
     // depends on the agent's Provider. 
     public raw: string,
