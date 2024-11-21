@@ -18,7 +18,12 @@ export default tseslint.config(
   eslintPluginPrettierRecommended,
   {
     rules: {
-    "prettier/prettier": "warn",
-    "@typescript-eslint/no-namespace": "off",
-  }}
+      "prettier/prettier": "warn",
+      "@typescript-eslint/no-namespace": "off",
+      "@typescript-eslint/consistent-type-imports": [
+        "error",
+        { fixStyle: "inline-type-imports" },
+      ],
+    },
+  }
 );

@@ -1,14 +1,14 @@
 import {
-  OpenAiProvider,
   type GetStepTools,
   type InferInput,
   type InferOutput,
   type Inngest,
   type Provider as InngestAiProvider,
+  type OpenAiProvider,
 } from "inngest";
-import { ToolMessage, type InternalNetworkMessage } from "./state";
+import { zodToJsonSchema } from "openai-zod-to-json-schema";
+import { type InternalNetworkMessage, type ToolMessage } from "./state";
 import { type Tool } from "./types";
-import { zodToJsonSchema } from 'openai-zod-to-json-schema'
 
 export class AgenticProvider<TInngestProvider extends InngestAiProvider> {
   #provider: InngestAiProvider;
@@ -68,13 +68,10 @@ export const createAgenticOpenAiProvider = <
       if (tools?.length) {
         request.tools = tools.map((t) => {
           return {
-            type: "function",
-            function: {
-              name: t.name,
-              description: t.description,
-              parameters: zodToJsonSchema(t.parameters),
-              strict: true,
-            },
+            name: t.name,
+            description: t.description,
+            parameters: zodToJsonSchema(t.parameters),
+            strict: true,
           };
         });
       }

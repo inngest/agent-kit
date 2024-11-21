@@ -1,21 +1,21 @@
-import { z } from "zod";
-import { Network } from "./network";
-import { AgenticProvider } from "./provider";
-import { InferenceResult, InternalNetworkMessage } from "./state";
+import { type z } from "zod";
+import { type Network } from "./network";
+import { type AgenticProvider } from "./provider";
+import { InferenceResult, type InternalNetworkMessage } from "./state";
 import {
-  BaseLifecycleArgs,
-  BeforeLifecycleArgs,
-  ResultLifecycleArgs,
-  Tool,
+  type BaseLifecycleArgs,
+  type BeforeLifecycleArgs,
+  type ResultLifecycleArgs,
+  type Tool,
 } from "./types";
-import { MaybePromise } from "./util";
+import { type MaybePromise } from "./util";
 
 /**
  * createTool is a helper that properly types the input argument for a handler
  * based off of the Zod parameter types.
  */
-export const createTypedTool = <T extends z.ZodTypeAny>(t: Tool<T>): Tool<T> => t;
-
+export const createTypedTool = <T extends z.ZodTypeAny>(t: Tool<T>): Tool<T> =>
+  t;
 
 /**
  * Agent represents a single agent, responsible for a set of tasks.
@@ -126,7 +126,11 @@ export class Agent {
       typeof raw === "string" ? raw : JSON.stringify(raw),
     );
     if (this.lifecycles?.onResponse) {
-      result = await this.lifecycles.onResponse({ agent: this, network, result });
+      result = await this.lifecycles.onResponse({
+        agent: this,
+        network,
+        result,
+      });
     }
 
     // And ensure we invoke any call from the agent
@@ -163,7 +167,11 @@ export class Agent {
         // TODO: This should be wrapped in a step, but then `network.schedule` breaks, as `step.run`
         // memoizes so agents aren't scheduled on their next loop.
         // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-        const result = await found.handler(tool.input, { agent: this, network, step: p.step });
+        const result = await found.handler(tool.input, {
+          agent: this,
+          network,
+          step: p.step,
+        });
 
         if (result === undefined) {
           // This had no result, so we don't wnat to save it to the state.

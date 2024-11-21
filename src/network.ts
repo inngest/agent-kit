@@ -1,7 +1,7 @@
 import { Agent } from "./agent";
-import { AgenticProvider } from "./provider";
-import { InferenceResult, NetworkState } from "./state";
-import { MaybePromise } from "./util";
+import { type AgenticProvider } from "./provider";
+import { type InferenceResult, NetworkState } from "./state";
+import { type MaybePromise } from "./util";
 
 /**
  * Network represents a network of agents.
@@ -152,13 +152,15 @@ export class Network {
     router?: Network.Router,
   ): Promise<Agent | undefined> {
     const defaultProvider = this.defaultProvider;
-    if (!router && !defaultProvider) {
-      throw new Error("No router or provider defined in network.  You must pass a router or a default provider to use the built-in agentic router.");
-    }
-    if (!router && defaultProvider) {
+    if (!router) {
+      if (!defaultProvider) {
+        throw new Error(
+          "No router or provider defined in network.  You must pass a router or a default provider to use the built-in agentic router.",
+        );
+      }
+
       return defaultRoutingAgent.withProvider(defaultProvider);
-    }
-    if (router instanceof Agent) {
+    } else if (router instanceof Agent) {
       return router;
     }
 
@@ -202,11 +204,11 @@ export const defaultRoutingAgent = new Agent({
     "Selects which agents to work on based off of the current prompt and input.",
 
   lifecycle: {
-    afterTools: ({ call }) => {
+    onFinish: ({ result }) => {
       // We never want to store this call's instructions in history.
-      call.withFormatter(() => []);
+      result.withFormatter(() => []);
 
-      return call;
+      return result;
     },
   },
 
@@ -228,23 +230,23 @@ export const defaultRoutingAgent = new Agent({
         required: ["name"],
         additionalProperties: false,
       },
-      handler: ({ name }, _agent, network) => {
+      handler: (input, { agent, network }) => {
         if (!network) {
           throw new Error(
             "The routing agent can only be used within a network of agents",
           );
         }
 
-        if (typeof name !== "string") {
-          throw new Error("The routing agent requested an invalid agent");
-        }
+        // if (typeof name !== "string") {
+        //   throw new Error("The routing agent requested an invalid agent");
+        // }
 
-        const agent = network.agents.get(name);
-        if (agent === undefined) {
-          throw new Error(
-            `The routing agent requested an agent that doesn't exist: ${name}`,
-          );
-        }
+        // const agent = network.agents.get(name);
+        // if (agent === undefined) {
+        //   throw new Error(
+        //     `The routing agent requested an agent that doesn't exist: ${name}`,
+        //   );
+        // }
 
         // Schedule another agent.
         network.schedule(agent.name);

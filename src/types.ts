@@ -1,14 +1,12 @@
-import { z } from "zod";
-import {
-  type GetStepTools,
-  type Inngest,
-} from "inngest";
-import { Agent } from "./agent";
-import { Network } from "./network";
-import { InferenceResult, InternalNetworkMessage } from "./state";
-import { MaybePromise } from "./util";
+import { type GetStepTools, type Inngest } from "inngest";
+import { type z } from "zod";
+import { type Agent } from "./agent";
+import { type Network } from "./network";
+import { type InferenceResult, type InternalNetworkMessage } from "./state";
+import { type MaybePromise } from "./util";
 
-export type Tool<T extends z.ZodTypeAny> = {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type Tool<T extends z.ZodSchema<any> = z.ZodSchema<any>> = {
   name: string;
   description?: string;
   parameters: T;
@@ -19,14 +17,14 @@ export type Tool<T extends z.ZodTypeAny> = {
   // the current agent and network.  This allows tools to reference and schedule
   // future work via the network, if necessary.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  handler: (input: z.infer<T>, opts: ToolHandlerArgs) => Promise<any>;
+  handler: (input: z.infer<T>, opts: ToolHandlerArgs) => MaybePromise<any>;
 };
 
 export type ToolHandlerArgs = {
   agent: Agent;
   network?: Network;
   step: GetStepTools<Inngest.Any>;
-}
+};
 
 export interface BaseLifecycleArgs {
   // Agent is the agent that made the call.

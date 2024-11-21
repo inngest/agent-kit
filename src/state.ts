@@ -1,5 +1,5 @@
-import { InferInput, OpenAiProvider } from "inngest";
-import { Agent } from "./agent";
+import { type InferInput, type OpenAiProvider } from "inngest";
+import { type Agent } from "./agent";
 
 export interface InternalNetworkMessage {
   role: "system" | "user" | "assistant" | "tool_result";
@@ -142,26 +142,24 @@ export class InferenceResult {
     // prompts.
     const agent = this.agent;
 
-    const history: InternalNetworkMessage[] = this.system.map(
-      function (msg) {
-        let content: string;
-        if (typeof msg.content === "string") {
-          content = msg.content;
-        } else if (Array.isArray(msg.content)) {
-          content = msg.content.map((m) => m.text).join("\n");
-        } else {
-          // TODO `anyany`
-          content = msg.content.content as string;
-        }
+    const history: InternalNetworkMessage[] = this.system.map(function (msg) {
+      let content: string;
+      if (typeof msg.content === "string") {
+        content = msg.content;
+      } else if (Array.isArray(msg.content)) {
+        content = msg.content.map((m) => m.text).join("\n");
+      } else {
+        // TODO `anyany`
+        content = msg.content.content as string;
+      }
 
-        // Ensure that system prompts are always as an assistant in history
-        return {
-          ...msg,
-          role: "assistant",
-          content: `<agent>${agent.name}</agent>\n${content}`,
-        };
-      },
-    );
+      // Ensure that system prompts are always as an assistant in history
+      return {
+        ...msg,
+        role: "assistant",
+        content: `<agent>${agent.name}</agent>\n${content}`,
+      };
+    });
 
     return history.concat(this.output).concat(this.toolCalls);
   }
