@@ -1,5 +1,5 @@
-import { InferInput, OpenAiProvider } from "inngest";
-import { Agent } from "./agent";
+import { type InferInput, type OpenAiProvider } from "inngest";
+import { type Agent } from "./agent";
 
 export interface InternalNetworkMessage {
   role: "system" | "user" | "assistant" | "tool_result";
@@ -31,16 +31,17 @@ export interface ToolResult {
  * NetworkState stores state (history) for a given network of agents.  The state
  * includes key-values, plus a stack of all agentic calls.
  *
- * From this, the chat history can be reconstructed (and manipulated) for each subsequent
- * agentic call.
+ * From this, the chat history can be reconstructed (and manipulated) for each
+ * subsequent agentic call.
  */
 export class NetworkState {
   public kv: {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    set: (key: string, value: any) => void;
+    set: <T = any>(key: string, value: T) => void;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    get: (key: string) => any;
+    get: <T = any>(key: string) => T | undefined;
     delete: (key: string) => boolean;
+    has: (key: string) => boolean;
   };
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -64,19 +65,23 @@ export class NetworkState {
       delete: (key: string) => {
         return this._kv.delete(key);
       },
+      has: (key: string) => {
+        return this._kv.has(key);
+      },
     };
   }
 
   /**
-   * Results retursn a new array containing all past inference results in the network.
-   * This array is safe to modify.
+   * Results retursn a new array containing all past inference results in the
+   * network. This array is safe to modify.
    */
   get results() {
     return this._history.slice();
   }
 
   /**
-   * history returns the memory used for agentic calls based off of prior agentic calls.
+   * history returns the memory used for agentic calls based off of prior
+   * agentic calls.
    *
    */
   get history(): InternalNetworkMessage[] {
@@ -89,7 +94,8 @@ export class NetworkState {
 }
 
 /**
- * InferenceResult represents a single agentic call as part of the network state.
+ * InferenceResult represents a single agentic call as part of the network
+ * state.
  *
  */
 export class InferenceResult {
@@ -97,8 +103,8 @@ export class InferenceResult {
   // agentic calls.
   //
   // You can set a custom history adapter by calling .withFormatter() within
-  // lifecycles.  This allows you to change how future agentic calls interpret past
-  // agentic calls.
+  // lifecycles.  This allows you to change how future agentic calls interpret
+  // past agentic calls.
   private _historyFormatter:
     | ((a: InferenceResult) => InternalNetworkMessage[])
     | undefined;
@@ -110,12 +116,12 @@ export class InferenceResult {
     // input represents the input passed into the agent's run method.
     public input: string,
 
-    // instructions represents the input instructions - without any additional history - as
-    // created by the agent.
-    public instructions: InternalNetworkMessage[],
+    // system represents the input instructions - without any additional history
+    // - as created by the agent.
+    public system: InternalNetworkMessage[],
 
-    // prompt represents the entire prompt sent to the inference call.  This includes instructions
-    // and history from the current network state.
+    // prompt represents the entire prompt sent to the inference call.  This
+    // includes instructions and history from the current network state.
     public prompt: InternalNetworkMessage[],
 
     // output represents the parsed output.
@@ -124,8 +130,8 @@ export class InferenceResult {
     // toolCalls represents output from any tools called by the agent.
     public toolCalls: InternalNetworkMessage[],
 
-    // raw represents the raw API response from the call.  This is a JSON string, and the format
-    // depends on the agent's Provider.
+    // raw represents the raw API response from the call.  This is a JSON
+    // string, and the format depends on the agent's Provider.
     public raw: string,
   ) {}
 
@@ -142,26 +148,24 @@ export class InferenceResult {
     // prompts.
     const agent = this.agent;
 
-    const history: InternalNetworkMessage[] = this.instructions.map(
-      function (msg) {
-        let content: string;
-        if (typeof msg.content === "string") {
-          content = msg.content;
-        } else if (Array.isArray(msg.content)) {
-          content = msg.content.map((m) => m.text).join("\n");
-        } else {
-          // TODO `anyany`
-          content = msg.content.content as string;
-        }
+    const history: InternalNetworkMessage[] = this.system.map(function (msg) {
+      let content: string;
+      if (typeof msg.content === "string") {
+        content = msg.content;
+      } else if (Array.isArray(msg.content)) {
+        content = msg.content.map((m) => m.text).join("\n");
+      } else {
+        // TODO `anyany`
+        content = msg.content.content as string;
+      }
 
-        // Ensure that instructions are always as an assistant.
-        return {
-          ...msg,
-          role: "assistant",
-          content: `<agent>${agent.name}</agent>\n${content}`,
-        };
-      },
-    );
+      // Ensure that system prompts are always as an assistant in history
+      return {
+        ...msg,
+        role: "assistant",
+        content: `<agent>${agent.name}</agent>\n${content}`,
+      };
+    });
 
     return history.concat(this.output).concat(this.toolCalls);
   }

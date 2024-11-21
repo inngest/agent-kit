@@ -1,12 +1,13 @@
 import {
-  OpenAiProvider,
   type GetStepTools,
   type InferInput,
   type InferOutput,
   type Inngest,
   type Provider as InngestAiProvider,
+  type OpenAiProvider,
 } from "inngest";
-import { ToolMessage, type InternalNetworkMessage } from "./state";
+import { zodToJsonSchema } from "openai-zod-to-json-schema";
+import { type InternalNetworkMessage, type ToolMessage } from "./state";
 import { type Tool } from "./types";
 
 export class AgenticProvider<TInngestProvider extends InngestAiProvider> {
@@ -31,7 +32,7 @@ export class AgenticProvider<TInngestProvider extends InngestAiProvider> {
   async infer(
     stepID: string,
     input: InternalNetworkMessage[],
-    tools: Tool[],
+    tools: Tool.Any[],
   ): Promise<AgenticProvider.InferenceResponse> {
     const result = (await this.step.ai.infer(stepID, {
       provider: this.#provider,
@@ -69,8 +70,8 @@ export const createAgenticOpenAiProvider = <
           return {
             name: t.name,
             description: t.description,
-            parameters: t.parameters,
-            strict: true, // XXX: allow overwriting?
+            parameters: zodToJsonSchema(t.parameters),
+            strict: true,
           };
         });
       }
@@ -134,7 +135,7 @@ export namespace AgenticProvider {
 
   export type RequestParser<TInngestProvider extends InngestAiProvider> = (
     state: InternalNetworkMessage[],
-    tools: Tool[],
+    tools: Tool.Any[],
   ) => InferInput<TInngestProvider>;
 
   export type ResponseParser<TInngestProvider extends InngestAiProvider> = (
