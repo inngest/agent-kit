@@ -8,6 +8,7 @@ import {
 } from "inngest";
 import { ToolMessage, type InternalNetworkMessage } from "./state";
 import { type Tool } from "./types";
+import { zodToJsonSchema } from 'openai-zod-to-json-schema'
 
 export class AgenticProvider<TInngestProvider extends InngestAiProvider> {
   #provider: InngestAiProvider;
@@ -67,10 +68,13 @@ export const createAgenticOpenAiProvider = <
       if (tools?.length) {
         request.tools = tools.map((t) => {
           return {
-            name: t.name,
-            description: t.description,
-            parameters: t.parameters,
-            strict: true, // XXX: allow overwriting?
+            type: "function",
+            function: {
+              name: t.name,
+              description: t.description,
+              parameters: zodToJsonSchema(t.parameters),
+              strict: true,
+            },
           };
         });
       }
