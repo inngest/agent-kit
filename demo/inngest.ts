@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import {
   createAgent,
   createAgenticOpenAiProvider,
@@ -22,7 +23,7 @@ export const inngest = new Inngest({
 export const fn = inngest.createFunction(
   { id: "agent" },
   { event: "agent/run" },
-  async ({ event, step, realtime }) => {
+  async ({ event, step }) => {
     const provider = createAgenticOpenAiProvider({
       provider: openai({ model: "gpt-4" }),
       step,
@@ -54,22 +55,14 @@ export const fn = inngest.createFunction(
     // This uses the defaut agentic router to determine which agent to handle first.  You can
     // optinoally specifiy the agent that should execute first, and provide your own logic for
     // handling logic in between agent calls.
-    const result = await network.run(
-      event.data.input,
-      ({ network, stream }) => {
-        // If an agent is a streaming agent, this will be called...
-        for (const part of stream) {
-          realtime(part);
-        }
+    const result = await network.run(event.data.input, ({ network }) => {
+      if (network.state.kv.has("files")) {
+        // Okay, we have some files.  Did an agent run tests?
+        return executingAgent;
+      }
 
-        if (network.state.kv.has("files")) {
-          // Okay, we have some files.  Did an agent run tests?
-          return executingAgent;
-        }
-
-        return defaultRoutingAgent.withProvider(provider);
-      },
-    );
+      return defaultRoutingAgent.withProvider(provider);
+    });
 
     return result;
   },
