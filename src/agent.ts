@@ -58,7 +58,8 @@ export class Agent {
 
   /**
    * provider is the step caller to use for this agent.  This allows the agent
-   * to use a specific model which may be different to other agents in the system
+   * to use a specific model which may be different to other agents in the
+   * system
    */
   provider: AgenticProvider.Any | undefined;
 
@@ -82,8 +83,8 @@ export class Agent {
   }
 
   /**
-   * Run runs an agent with the given user input, treated as a user message.  If the
-   * input is an empty string, only the system prompt will execute.
+   * Run runs an agent with the given user input, treated as a user message.  If
+   * the input is an empty string, only the system prompt will execute.
    */
   async run(
     input: string,
@@ -115,7 +116,8 @@ export class Agent {
       Array.from(this.tools.values()),
     );
 
-    // Now that we've made the call, we instantiate a new InferenceResult for lifecycles and history.
+    // Now that we've made the call, we instantiate a new InferenceResult for
+    // lifecycles and history.
     let result = new InferenceResult(
       this,
       input,
@@ -164,8 +166,9 @@ export class Agent {
 
         // Call this tool.
         //
-        // TODO: This should be wrapped in a step, but then `network.schedule` breaks, as `step.run`
-        // memoizes so agents aren't scheduled on their next loop.
+        // TODO: This should be wrapped in a step, but then `network.schedule`
+        // breaks, as `step.run` memoizes so agents aren't scheduled on their
+        // next loop.
         // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
         const result = await found.handler(tool.input, {
           agent: this,
@@ -197,8 +200,8 @@ export class Agent {
     input: string,
     network?: Network,
   ): Promise<InternalNetworkMessage[]> {
-    // Prompt returns the full prompt for the current agent.  This does NOT include
-    // the existing network's state as part of the prompt.
+    // Prompt returns the full prompt for the current agent.  This does NOT
+    // include the existing network's state as part of the prompt.
     //
     // Note that the agent's system message always comes first.
     const messages: InternalNetworkMessage[] = [
@@ -247,12 +250,13 @@ export namespace Agent {
     enabled?: (args: BaseLifecycleArgs) => MaybePromise<boolean>;
 
     /**
-     * onStart allows you to intercept and modify the input prompt for a given agent,
-     * or prevent the agent from being called altogether by throwing an error.
+     * onStart allows you to intercept and modify the input prompt for a given
+     * agent, or prevent the agent from being called altogether by throwing an
+     * error.
      *
-     * This receives the full agent prompt.  If this is a networked agent, the agent
-     * will also receive the network's history which will be concatenated to the end
-     * of the prompt when making the inference request.
+     * This receives the full agent prompt.  If this is a networked agent, the
+     * agent will also receive the network's history which will be concatenated
+     * to the end of the prompt when making the inference request.
      *
      */
     onStart?: (args: BeforeLifecycleArgs) => MaybePromise<{
@@ -261,15 +265,16 @@ export namespace Agent {
     }>;
 
     /**
-     * onResponse is called after the inference call finishes, before any tools have been invoked.
-     * This allows you to moderate the response prior to running tools.
+     * onResponse is called after the inference call finishes, before any tools
+     * have been invoked. This allows you to moderate the response prior to
+     * running tools.
      */
     onResponse?: (args: ResultLifecycleArgs) => MaybePromise<InferenceResult>;
 
     /**
-     * onFinish is called with a finalized InferenceResult, including any tool call results.
-     * The returned InferenceResult will be saved to network history, if the agent is part
-     * of the network.
+     * onFinish is called with a finalized InferenceResult, including any tool
+     * call results. The returned InferenceResult will be saved to network
+     * history, if the agent is part of the network.
      *
      */
     onFinish?: (args: ResultLifecycleArgs) => MaybePromise<InferenceResult>;

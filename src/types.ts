@@ -13,9 +13,9 @@ export type Tool<T extends z.ZodSchema<any> = z.ZodSchema<any>> = {
 
   // TODO: Handler input types based off of JSON above.
   //
-  // Handlers get their input arguments from inference calls, and can also access
-  // the current agent and network.  This allows tools to reference and schedule
-  // future work via the network, if necessary.
+  // Handlers get their input arguments from inference calls, and can also
+  // access the current agent and network.  This allows tools to reference and
+  // schedule future work via the network, if necessary.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   handler: (input: z.infer<T>, opts: ToolHandlerArgs) => MaybePromise<any>;
 };
