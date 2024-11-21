@@ -31,8 +31,8 @@ export interface ToolResult {
  * NetworkState stores state (history) for a given network of agents.  The state
  * includes key-values, plus a stack of all agentic calls.
  *
- * From this, the chat history can be reconstructed (and manipulated) for each subsequent
- * agentic call.
+ * From this, the chat history can be reconstructed (and manipulated) for each
+ * subsequent agentic call.
  */
 export class NetworkState {
   public kv: {
@@ -68,15 +68,16 @@ export class NetworkState {
   }
 
   /**
-   * Results retursn a new array containing all past inference results in the network.
-   * This array is safe to modify.
+   * Results retursn a new array containing all past inference results in the
+   * network. This array is safe to modify.
    */
   get results() {
     return this._history.slice();
   }
 
   /**
-   * history returns the memory used for agentic calls based off of prior agentic calls.
+   * history returns the memory used for agentic calls based off of prior
+   * agentic calls.
    *
    */
   get history(): InternalNetworkMessage[] {
@@ -89,7 +90,8 @@ export class NetworkState {
 }
 
 /**
- * InferenceResult represents a single agentic call as part of the network state.
+ * InferenceResult represents a single agentic call as part of the network
+ * state.
  *
  */
 export class InferenceResult {
@@ -97,8 +99,8 @@ export class InferenceResult {
   // agentic calls.
   //
   // You can set a custom history adapter by calling .withFormatter() within
-  // lifecycles.  This allows you to change how future agentic calls interpret past
-  // agentic calls.
+  // lifecycles.  This allows you to change how future agentic calls interpret
+  // past agentic calls.
   private _historyFormatter:
     | ((a: InferenceResult) => InternalNetworkMessage[])
     | undefined;
@@ -110,12 +112,12 @@ export class InferenceResult {
     // input represents the input passed into the agent's run method.
     public input: string,
 
-    // system represents the input instructions - without any additional history - as
-    // created by the agent.
+    // system represents the input instructions - without any additional history
+    // - as created by the agent.
     public system: InternalNetworkMessage[],
 
-    // prompt represents the entire prompt sent to the inference call.  This includes instructions
-    // and history from the current network state.
+    // prompt represents the entire prompt sent to the inference call.  This
+    // includes instructions and history from the current network state.
     public prompt: InternalNetworkMessage[],
 
     // output represents the parsed output.
@@ -124,8 +126,8 @@ export class InferenceResult {
     // toolCalls represents output from any tools called by the agent.
     public toolCalls: InternalNetworkMessage[],
 
-    // raw represents the raw API response from the call.  This is a JSON string, and the format
-    // depends on the agent's Provider.
+    // raw represents the raw API response from the call.  This is a JSON
+    // string, and the format depends on the agent's Provider.
     public raw: string,
   ) {}
 
