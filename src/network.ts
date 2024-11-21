@@ -27,7 +27,7 @@ export class Network {
    * an agent's specific Provider if the agent already has a Provider defined
    * (eg. via withProvider or via its constructor).
    */
-  defaultProvider: AgenticProvider.Any;
+  defaultProvider?: AgenticProvider.Any;
 
   /**
    * maxIter is the maximum number of times the we can call agents before ending
@@ -151,8 +151,12 @@ export class Network {
   private async getNextAgent(
     router?: Network.Router,
   ): Promise<Agent | undefined> {
-    if (!router) {
-      return defaultRoutingAgent.withProvider(this.defaultProvider);
+    const defaultProvider = this.defaultProvider;
+    if (!router && !defaultProvider) {
+      throw new Error("No router or provider defined in network.  You must pass a router or a default provider to use the built-in agentic router.");
+    }
+    if (!router && defaultProvider) {
+      return defaultRoutingAgent.withProvider(defaultProvider);
     }
     if (router instanceof Agent) {
       return router;
@@ -250,7 +254,7 @@ export const defaultRoutingAgent = new Agent({
     },
   ],
 
-  instructions: async (network?: Network): Promise<string> => {
+  system: async (network?: Network): Promise<string> => {
     if (!network) {
       throw new Error(
         "The routing agent can only be used within a network of agents",
@@ -291,7 +295,7 @@ Follow the set of instructions:
 export namespace Network {
   export type Constructor = {
     agents: Agent[];
-    defaultProvider: AgenticProvider.Any;
+    defaultProvider?: AgenticProvider.Any;
     maxIter?: number;
   };
 
