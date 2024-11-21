@@ -5,11 +5,13 @@ import {
 } from "@inngest/agent-kit";
 import { InngestMiddleware, openai, type OpenAiProviderOptions } from "inngest";
 
-export const codeWritingAgentMiddleware = (opts: OpenAiProviderOptions) => {
+export const codeWritingNetworkMiddleware = (
+  defaultProviderOptions: OpenAiProviderOptions,
+) => {
   return new InngestMiddleware({
     name: "Code Writing Agent Middleware",
     init() {
-      const provider = openai(opts);
+      const provider = openai(defaultProviderOptions);
 
       return {
         onFunctionRun() {
@@ -26,7 +28,15 @@ export const codeWritingAgentMiddleware = (opts: OpenAiProviderOptions) => {
 
               return {
                 ctx: {
-                  codeWritingNetwork,
+                  ai: {
+                    agents: {
+                      codeWritingAgent,
+                      executingAgent,
+                    },
+                    networks: {
+                      codeWritingNetwork,
+                    },
+                  },
                 },
               };
             },
