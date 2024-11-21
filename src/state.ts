@@ -110,9 +110,9 @@ export class InferenceResult {
     // input represents the input passed into the agent's run method.
     public input: string,
 
-    // instructions represents the input instructions - without any additional history - as
+    // system represents the input instructions - without any additional history - as
     // created by the agent.
-    public instructions: InternalNetworkMessage[],
+    public system: InternalNetworkMessage[],
 
     // prompt represents the entire prompt sent to the inference call.  This includes instructions
     // and history from the current network state.
@@ -142,7 +142,7 @@ export class InferenceResult {
     // prompts.
     const agent = this.agent;
 
-    const history: InternalNetworkMessage[] = this.instructions.map(
+    const history: InternalNetworkMessage[] = this.system.map(
       function (msg) {
         let content: string;
         if (typeof msg.content === "string") {
@@ -154,7 +154,7 @@ export class InferenceResult {
           content = msg.content.content as string;
         }
 
-        // Ensure that instructions are always as an assistant.
+        // Ensure that system prompts are always as an assistant in history
         return {
           ...msg,
           role: "assistant",
