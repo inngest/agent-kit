@@ -1,13 +1,21 @@
+import { z } from "zod";
 import { Network } from "./network";
 import { AgenticProvider } from "./provider";
 import { InferenceResult, InternalNetworkMessage } from "./state";
 import {
   BaseLifecycleArgs,
-  InferenceLifecycle,
+  BeforeLifecycleArgs,
   ResultLifecycleArgs,
   Tool,
 } from "./types";
 import { MaybePromise } from "./util";
+
+/**
+ * createTool is a helper that properly types the input argument for a handler
+ * based off of the Zod parameter types.
+ */
+export const createTypedTool = <T extends z.ZodTypeAny>(t: Tool<T>): Tool<T> => t;
+
 
 /**
  * Agent represents a single agent, responsible for a set of tasks.
@@ -29,9 +37,9 @@ export class Agent {
   description: string;
 
   /**
-   * instructions is the system prompt for the agent.
+   * system is the system prompt for the agent.
    */
-  instructions: string | ((network?: Network) => MaybePromise<string>);
+  system: string | ((network?: Network) => MaybePromise<string>);
 
   /**
    * Assistant is the assistent message used for completion, if any.
@@ -41,7 +49,7 @@ export class Agent {
   /**
    * tools are a list of tools that this specific agent has access to.
    */
-  tools: Map<string, Tool>;
+  tools: Map<string, Tool<z.ZodTypeAny>>;
 
   /**
    * lifecycles are programmatic hooks used to manage the agent.
@@ -57,10 +65,11 @@ export class Agent {
   constructor(opts: Agent.Constructor) {
     this.name = opts.name;
     this.description = opts.description || "";
-    this.instructions = opts.instructions;
+    this.system = opts.system;
     this.assistant = opts.assistant || "";
     this.tools = new Map();
     this.lifecycles = opts.lifecycle;
+    this.provider = opts.provider;
 
     for (const tool of opts.tools || []) {
       this.tools.set(tool.name, tool);
@@ -78,55 +87,55 @@ export class Agent {
    */
   async run(
     input: string,
-    { provider, network }: Agent.RunOptions,
+    { provider, network }: Agent.RunOptions | undefined = {},
   ): Promise<InferenceResult> {
     const p = provider || this.provider || network?.defaultProvider;
     if (!p) {
       throw new Error("No step caller provided to agent");
     }
 
-    let instructions = await this.agentPrompt(input, network);
+    let system = await this.agentPrompt(input, network);
     let history = network ? network.state.history : [];
 
-    if (this.lifecycles?.beforeInfer) {
-      const modified = await this.lifecycles.beforeInfer({
+    if (this.lifecycles?.onStart) {
+      const modified = await this.lifecycles.onStart({
         agent: this,
         network,
         input,
-        instructions,
+        system,
         history,
       });
-      instructions = modified.instructions;
+      system = modified.system;
       history = modified.history;
     }
 
     const { output, raw } = await p.infer(
       this.name,
-      instructions.concat(history),
+      system.concat(history),
       Array.from(this.tools.values()),
     );
 
     // Now that we've made the call, we instantiate a new InferenceResult for lifecycles and history.
-    let call = new InferenceResult(
+    let result = new InferenceResult(
       this,
       input,
-      instructions,
-      instructions.concat(history),
+      system,
+      system.concat(history),
       output,
       [],
       typeof raw === "string" ? raw : JSON.stringify(raw),
     );
-    if (this.lifecycles?.afterInfer) {
-      call = await this.lifecycles.afterInfer({ agent: this, network, call });
+    if (this.lifecycles?.onResponse) {
+      result = await this.lifecycles.onResponse({ agent: this, network, result });
     }
 
     // And ensure we invoke any call from the agent
-    call.toolCalls = await this.invokeTools(call.output, p, network);
-    if (this.lifecycles?.afterTools) {
-      call = await this.lifecycles.afterTools({ agent: this, network, call });
+    result.toolCalls = await this.invokeTools(result.output, p, network);
+    if (this.lifecycles?.onFinish) {
+      result = await this.lifecycles.onFinish({ agent: this, network, result });
     }
 
-    return call;
+    return result;
   }
 
   private async invokeTools(
@@ -154,7 +163,7 @@ export class Agent {
         // TODO: This should be wrapped in a step, but then `network.schedule` breaks, as `step.run`
         // memoizes so agents aren't scheduled on their next loop.
         // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-        const result = await found.handler(tool.input, this, network);
+        const result = await found.handler(tool.input, { agent: this, network, step: p.step });
 
         if (result === undefined) {
           // This had no result, so we don't wnat to save it to the state.
@@ -188,9 +197,9 @@ export class Agent {
       {
         role: "system",
         content:
-          typeof this.instructions === "string"
-            ? this.instructions
-            : await this.instructions(network),
+          typeof this.system === "string"
+            ? this.system
+            : await this.system(network),
       },
     ];
 
@@ -210,10 +219,11 @@ export namespace Agent {
   export interface Constructor {
     name: string;
     description?: string;
-    instructions: string | ((network?: Network) => MaybePromise<string>);
+    system: string | ((network?: Network) => MaybePromise<string>);
     assistant?: string;
-    tools?: Tool[];
+    tools?: Tool<z.infer<z.ZodTypeAny>>[];
     lifecycle?: Lifecycle;
+    provider?: AgenticProvider.Any;
   }
 
   export interface RunOptions {
@@ -221,13 +231,39 @@ export namespace Agent {
     network?: Network;
   }
 
-  export interface Lifecycle extends InferenceLifecycle {
+  export interface Lifecycle {
+    /**
+     * enabled selectively enables or disables this agent based off of network
+     * state.  If this function is not provided, the agent is always enabled.
+     */
     enabled?: (args: BaseLifecycleArgs) => MaybePromise<boolean>;
 
     /**
-     * afterInfer is called after the inference call finishes, before any tools have been invoked.
+     * onStart allows you to intercept and modify the input prompt for a given agent,
+     * or prevent the agent from being called altogether by throwing an error.
+     *
+     * This receives the full agent prompt.  If this is a networked agent, the agent
+     * will also receive the network's history which will be concatenated to the end
+     * of the prompt when making the inference request.
+     *
+     */
+    onStart?: (args: BeforeLifecycleArgs) => MaybePromise<{
+      system: InternalNetworkMessage[];
+      history: InternalNetworkMessage[];
+    }>;
+
+    /**
+     * onResponse is called after the inference call finishes, before any tools have been invoked.
      * This allows you to moderate the response prior to running tools.
      */
-    afterInfer?: (args: ResultLifecycleArgs) => MaybePromise<InferenceResult>;
+    onResponse?: (args: ResultLifecycleArgs) => MaybePromise<InferenceResult>;
+
+    /**
+     * onFinish is called with a finalized InferenceResult, including any tool call results.
+     * The returned InferenceResult will be saved to network history, if the agent is part
+     * of the network.
+     *
+     */
+    onFinish?: (args: ResultLifecycleArgs) => MaybePromise<InferenceResult>;
   }
 }

@@ -37,6 +37,9 @@
   },
   "dependencies": {
     "inngest": "3.25.2-pr-747.37"
+    "inngest": "3.25.2-pr-747.37",
+    "openai-zod-to-json-schema": "^1.0.3",
+    "zod": "^3.23.8"
   },
   "packageManager": "pnpm@9.14.2",
   "devDependencies": {
