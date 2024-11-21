@@ -1,4 +1,5 @@
-import { Agent } from "./agent";
+import { z } from "zod";
+import { Agent, createTypedTool } from "./agent";
 import { type AgenticProvider } from "./provider";
 import { type InferenceResult, NetworkState } from "./state";
 import { type MaybePromise } from "./util";
@@ -221,21 +222,17 @@ export const defaultRoutingAgent = new Agent({
   tools: [
     // This tool does nothing but ensure that the model responds with the
     // agent name as valid JSON.
-    {
+    createTypedTool({
       name: "select_agent",
       description:
         "select an agent to handle the input, based off of the current conversation",
-      parameters: {
-        type: "object",
-        properties: {
-          name: {
-            type: "string",
-            description: "The name of the agent that should handle the request",
-          },
-        },
-        required: ["name"],
-        additionalProperties: false,
-      },
+      parameters: z
+        .object({
+          name: z
+            .string()
+            .describe("The name of the agent that should handle the request"),
+        })
+        .strict(),
       handler: (input, { agent, network }) => {
         if (!network) {
           throw new Error(
@@ -259,7 +256,7 @@ export const defaultRoutingAgent = new Agent({
 
         return agent.name;
       },
-    },
+    }),
   ],
 
   system: async (network?: Network): Promise<string> => {

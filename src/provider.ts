@@ -32,7 +32,7 @@ export class AgenticProvider<TInngestProvider extends InngestAiProvider> {
   async infer(
     stepID: string,
     input: InternalNetworkMessage[],
-    tools: Tool[],
+    tools: Tool.Any[],
   ): Promise<AgenticProvider.InferenceResponse> {
     const result = (await this.step.ai.infer(stepID, {
       provider: this.#provider,
@@ -135,7 +135,7 @@ export namespace AgenticProvider {
 
   export type RequestParser<TInngestProvider extends InngestAiProvider> = (
     state: InternalNetworkMessage[],
-    tools: Tool[],
+    tools: Tool.Any[],
   ) => InferInput<TInngestProvider>;
 
   export type ResponseParser<TInngestProvider extends InngestAiProvider> = (

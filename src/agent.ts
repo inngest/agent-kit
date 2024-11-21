@@ -1,4 +1,3 @@
-import { type z } from "zod";
 import { type Network } from "./network";
 import { type AgenticProvider } from "./provider";
 import { InferenceResult, type InternalNetworkMessage } from "./state";
@@ -8,14 +7,13 @@ import {
   type ResultLifecycleArgs,
   type Tool,
 } from "./types";
-import { type MaybePromise } from "./util";
+import { type AnyZodType, type MaybePromise } from "./util";
 
 /**
  * createTool is a helper that properly types the input argument for a handler
  * based off of the Zod parameter types.
  */
-export const createTypedTool = <T extends z.ZodTypeAny>(t: Tool<T>): Tool<T> =>
-  t;
+export const createTypedTool = <T extends AnyZodType>(t: Tool<T>): Tool<T> => t;
 
 /**
  * Agent represents a single agent, responsible for a set of tasks.
@@ -49,7 +47,7 @@ export class Agent {
   /**
    * tools are a list of tools that this specific agent has access to.
    */
-  tools: Map<string, Tool<z.ZodTypeAny>>;
+  tools: Map<string, Tool.Any>;
 
   /**
    * lifecycles are programmatic hooks used to manage the agent.
@@ -232,7 +230,7 @@ export namespace Agent {
     description?: string;
     system: string | ((network?: Network) => MaybePromise<string>);
     assistant?: string;
-    tools?: Tool<z.infer<z.ZodTypeAny>>[];
+    tools?: Tool.Any[];
     lifecycle?: Lifecycle;
     provider?: AgenticProvider.Any;
   }
