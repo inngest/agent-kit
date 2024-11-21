@@ -16,7 +16,7 @@ export const codeWritingAgentMiddleware = (opts: OpenAiProviderOptions) => {
           return {
             transformInput({ ctx: { step } }) {
               const codeWritingNetwork = createNetwork({
-                agents: [CodeWritingAgent, ExecutingAgent],
+                agents: [codeWritingAgent, executingAgent],
                 maxIter: 4,
                 defaultProvider: createAgenticOpenAiProvider({
                   provider,
@@ -37,19 +37,19 @@ export const codeWritingAgentMiddleware = (opts: OpenAiProviderOptions) => {
   });
 };
 
-const CodeWritingAgent = createAgent({
+const codeWritingAgent = createAgent({
   name: "Code writing agent",
   description: "Writes TypeScript code and tests based off of a given input.",
 
   lifecycle: {
-    afterInfer: ({ call }) => {
+    onResponse: ({ result }) => {
       // Does this contain a solution?
       // TODO: Parse filenames out of content.
-      return call;
+      return result;
     },
   },
 
-  instructions: `You are an expert TypeScript engineer who excels at test-driven-development. Your primary focus is to take system requirements and write unit tests for a set of functions.
+  system: `You are an expert TypeScript engineer who excels at test-driven-development. Your primary focus is to take system requirements and write unit tests for a set of functions.
 
    Think carefully about the request that the user is asking for. Do not respond with anything else other than the following XML tags:
 
@@ -61,7 +61,7 @@ const CodeWritingAgent = createAgent({
    `,
 });
 
-const ExecutingAgent = createAgent({
+const executingAgent = createAgent({
   name: "Test execution agent",
   description: "Executes written TypeScript tests",
 
@@ -72,7 +72,7 @@ const ExecutingAgent = createAgent({
     },
   },
 
-  instructions: `You are an export TypeScript engineer that can execute commands, run tests, debug the output, and make modifications to code.
+  system: `You are an export TypeScript engineer that can execute commands, run tests, debug the output, and make modifications to code.
 
    Think carefully about the request that the user is asking for. Do not respond with anything else other than the following XML tags:
 

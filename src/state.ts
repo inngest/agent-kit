@@ -37,10 +37,11 @@ export interface ToolResult {
 export class NetworkState {
   public kv: {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    set: (key: string, value: any) => void;
+    set: <T = any>(key: string, value: T) => void;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    get: (key: string) => any;
+    get: <T = any>(key: string) => T | undefined;
     delete: (key: string) => boolean;
+    has: (key: string) => boolean;
   };
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -63,6 +64,9 @@ export class NetworkState {
       },
       delete: (key: string) => {
         return this._kv.delete(key);
+      },
+      has: (key: string) => {
+        return this._kv.has(key);
       },
     };
   }
