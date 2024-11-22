@@ -16,10 +16,10 @@ orchestration, state, or infrastructure.
 A networked agent:
 ```ts
 // Create a network of agents with separate tasks and instructions
-// to solve // a specific task.
-const network = new Network({
+// to solve a specific task.
+const network = createNetwork({
   agents: [navigator, classifier, summarizer],
-  defaultModel: openai({ model: "gpt-4o", step }),
+  defaultModel: agenticOpenai({ model: "gpt-4o", step }),
 })
 
 const input = `Classify then summarize the latest 10 blog posts
@@ -34,10 +34,10 @@ const result = await network.run(input, ({ network }) => {
 
 A simple agent:
 ```ts
-const writer = new Agent({
+const writer = createAgent({
   name: "writer",
   system: "You are an expert writer.  You write readable, concise, simple content.",
-  model: openai({ model: "gpt-4o", step }),
+  model: agenticOpenai({ model: "gpt-4o", step }),
 });
 
 const { output } = await writer.run(
@@ -60,8 +60,8 @@ The full Agent kit documentation is available
 [here](https://www.inngest.com/docs/agent-kit/overview). You can also jump to
 specific guides and references:
 
-- [Agents and Tools](https://website-git-feat-ai-docs-post-inngest.vercel.app/docs/agent-kit/ai-agents-tools)
-- [Network, state, and routing](https://website-git-feat-ai-docs-post-inngest.vercel.app/docs/agent-kit/ai-agent-network-state-routing)
+- [Agents and Tools](https://www.inngest.com/docs/agent-kit/ai-agents-tools)
+- [Network, state, and routing](https://www.inngest.com/docs/agent-kit/ai-agent-network-state-routing)
 
 ## Examples
 
