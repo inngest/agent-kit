@@ -5,11 +5,23 @@ import { AgenticModel } from "../model";
 export namespace AgenticOpenAiModel {
   export interface Options<TAiAdapter extends OpenAi.AiModel>
     extends Omit<OpenAi.AiModelOptions, "model"> {
+    /**
+     * The OpenAI model to use.
+     */
     model: OpenAi.AiModelOptions["model"] | TAiAdapter;
+
+    /**
+     * The step tools to use internally within this model.
+     */
     step: GetStepTools<Inngest.Any>;
   }
 }
 
+/**
+ * Create an agentic OpenAI model using the OpenAI chat format.
+ *
+ * By default it targets the `https://api.openai.com/v1/` base URL.
+ */
 export const agenticOpenai = <TAiAdapter extends OpenAi.AiModel>({
   step,
   ...modelOptions
