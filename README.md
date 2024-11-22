@@ -25,7 +25,7 @@ const network = new Network({
 const input = `Classify then summarize the latest 10 blog posts
   on https://www.deeplearning.ai/blog/`
 
-const result = await network.run(, ({ network }) => {
+const result = await network.run(input, ({ network }) => {
   // Use an agent which figures out the specific agent to call
   // based off of the network's history.
   return defaultRoutingAgent;
