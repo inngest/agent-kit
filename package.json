@@ -12,10 +12,10 @@
   "files": [
     "dist"
   ],
-  "homepage": "https://github.com/inngest/agentkit",
+  "homepage": "https://github.com/inngest/agent-kit",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/inngest/agentkit.git"
+    "url": "git+https://github.com/inngest/agent-kit.git"
   },
   "keywords": [
     "inngest",
