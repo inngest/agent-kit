@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import {
   createAgent,
-  createAgenticOpenAiProvider,
+  createAgenticOpenAiModel,
   createNetwork,
   createTypedTool,
   defaultRoutingAgent,
@@ -24,8 +24,8 @@ export const fn = inngest.createFunction(
   { id: "agent" },
   { event: "agent/run" },
   async ({ event, step }) => {
-    const provider = createAgenticOpenAiProvider({
-      provider: openai({ model: "gpt-4" }),
+    const model = createAgenticOpenAiModel({
+      model: openai({ model: "gpt-4" }),
       step,
     });
 
@@ -33,21 +33,21 @@ export const fn = inngest.createFunction(
     //
     // Run a single agent as a prompt without a network.
     const { output, raw } = await codeWritingAgent.run(event.data.input, {
-      provider,
+      model,
     });
 
     // 2. Networks of agents
-    const cheapProvider = createAgenticOpenAiProvider({
-      provider: openai({ model: "gpt-3.5-turbo" }),
+    const cheapModel = createAgenticOpenAiModel({
+      model: openai({ model: "gpt-3.5-turbo" }),
       step,
     });
 
     const network = createNetwork({
       agents: [
-        codeWritingAgent.withProvider(provider),
-        executingAgent.withProvider(cheapProvider),
+        codeWritingAgent.withModel(model),
+        executingAgent.withModel(cheapModel),
       ],
-      defaultProvider: provider,
+      defaultModel: model,
       maxIter: 4,
     });
     // code -> executing -> code
@@ -61,7 +61,7 @@ export const fn = inngest.createFunction(
         return executingAgent;
       }
 
-      return defaultRoutingAgent.withProvider(provider);
+      return defaultRoutingAgent.withModel(model);
     });
 
     return result;
