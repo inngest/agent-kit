@@ -1,12 +1,12 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import {
+  agenticOpenai,
   createAgent,
-  createAgenticOpenAiModel,
   createNetwork,
   createTypedTool,
   defaultRoutingAgent,
 } from "@inngest/agent-kit";
-import { EventSchemas, Inngest, openai } from "inngest";
+import { EventSchemas, Inngest } from "inngest";
 import { z } from "zod";
 
 export const inngest = new Inngest({
@@ -24,10 +24,7 @@ export const fn = inngest.createFunction(
   { id: "agent" },
   { event: "agent/run" },
   async ({ event, step }) => {
-    const model = createAgenticOpenAiModel({
-      model: openai({ model: "gpt-4" }),
-      step,
-    });
+    const model = agenticOpenai({ model: "gpt-4", step });
 
     // 1. Single agents
     //
@@ -37,10 +34,7 @@ export const fn = inngest.createFunction(
     });
 
     // 2. Networks of agents
-    const cheapModel = createAgenticOpenAiModel({
-      model: openai({ model: "gpt-3.5-turbo" }),
-      step,
-    });
+    const cheapModel = agenticOpenai({ model: "gpt-3.5-turbo", step });
 
     const network = createNetwork({
       agents: [
