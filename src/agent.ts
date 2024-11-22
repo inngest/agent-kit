@@ -1,4 +1,6 @@
-import { type AgenticModel } from "./model";
+import { type AiAdapter } from "inngest";
+import { adapters } from "./adapters";
+import { AgenticModel } from "./model";
 import { type Network } from "./network";
 import { InferenceResult, type InternalNetworkMessage } from "./state";
 import {
@@ -59,7 +61,7 @@ export class Agent {
    * to use a specific model which may be different to other agents in the
    * system
    */
-  model: AgenticModel.Any | undefined;
+  model: AiAdapter | undefined;
 
   constructor(opts: Agent.Constructor) {
     this.name = opts.name;
@@ -68,16 +70,39 @@ export class Agent {
     this.assistant = opts.assistant || "";
     this.tools = new Map();
     this.lifecycles = opts.lifecycle;
-    this.model = opts.model;
+
+    if (opts.model) {
+      this.withModel(opts.model);
+    }
 
     for (const tool of opts.tools || []) {
       this.tools.set(tool.name, tool);
     }
   }
 
-  withModel(model: AgenticModel.Any): Agent {
+  withModel(model: AiAdapter): Agent {
     this.model = model;
     return this; // for chaining
+  }
+
+  get #agenticModel(): AgenticModel.Any {
+    if (!this.model) {
+      throw new Error("No model provided to agent");
+    }
+
+    const adapter = adapters[this.model.format];
+    if (!adapter) {
+      throw new Error(
+        `No adapter found for model format: ${this.model.format}`,
+      );
+    }
+
+    return new AgenticModel({
+      model: this.model,
+      requestParser: adapter.request,
+      responseParser: adapter.response,
+      step: getViaHooks(),
+    });
   }
 
   /**
@@ -86,12 +111,14 @@ export class Agent {
    */
   async run(
     input: string,
-    { model, network }: Agent.RunOptions | undefined = {},
+    { model: overrideModel, network }: Agent.RunOptions | undefined = {},
   ): Promise<InferenceResult> {
-    const p = model || this.model || network?.defaultModel;
-    if (!p) {
+    const model = overrideModel || this.model || network?.defaultModel;
+    if (!model) {
       throw new Error("No step caller provided to agent");
     }
+
+    const p = this.#agenticModel;
 
     let system = await this.agentPrompt(input, network);
     let history = network ? network.state.history : [];
@@ -232,11 +259,11 @@ export namespace Agent {
     assistant?: string;
     tools?: Tool.Any[];
     lifecycle?: Lifecycle;
-    model?: AgenticModel.Any;
+    model?: AiAdapter;
   }
 
   export interface RunOptions {
-    model?: AgenticModel.Any;
+    model?: AiAdapter;
     network?: Network;
   }
 

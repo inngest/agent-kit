@@ -1,6 +1,6 @@
+import { type AiAdapter } from "inngest";
 import { z } from "zod";
 import { Agent, createTypedTool } from "./agent";
-import { type AgenticModel } from "./model";
 import { type InferenceResult, NetworkState } from "./state";
 import { type MaybePromise } from "./util";
 
@@ -28,7 +28,7 @@ export class Network {
    * override an agent's specific model if the agent already has a model defined
    * (eg. via withModel or via its constructor).
    */
-  defaultModel?: AgenticModel.Any;
+  defaultModel?: AiAdapter;
 
   /**
    * maxIter is the maximum number of times the we can call agents before ending
@@ -300,7 +300,7 @@ Follow the set of instructions:
 export namespace Network {
   export type Constructor = {
     agents: Agent[];
-    defaultModel?: AgenticModel.Any;
+    defaultModel?: AiAdapter;
     maxIter?: number;
   };
 
