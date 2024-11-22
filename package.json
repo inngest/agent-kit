@@ -6,7 +6,8 @@
   "scripts": {
     "changeset": "changeset",
     "build": "rm -rf dist && tsc",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "release": "pnpm run build && changeset publish"
   },
   "files": [
     "dist"
