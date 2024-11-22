@@ -1,4 +1,4 @@
-import { type InferInput, type OpenAiProvider } from "inngest";
+import { type AiAdapter, type OpenAi } from "inngest";
 import { type Agent } from "./agent";
 
 export interface InternalNetworkMessage {
@@ -8,7 +8,8 @@ export interface InternalNetworkMessage {
   // TODO: Images and multi-modality.
 }
 
-export type OpenAiMessageType = InferInput<OpenAiProvider>["messages"][number];
+export type OpenAiMessageType =
+  AiAdapter.Input<OpenAi.AiModel>["messages"][number];
 
 export interface TextMessage {
   type: "text";
@@ -131,7 +132,7 @@ export class InferenceResult {
     public toolCalls: InternalNetworkMessage[],
 
     // raw represents the raw API response from the call.  This is a JSON
-    // string, and the format depends on the agent's Provider.
+    // string, and the format depends on the agent's model.
     public raw: string,
   ) {}
 

@@ -1,5 +1,5 @@
+import { type AgenticModel } from "./model";
 import { type Network } from "./network";
-import { type AgenticProvider } from "./provider";
 import { InferenceResult, type InternalNetworkMessage } from "./state";
 import {
   type BaseLifecycleArgs,
@@ -55,11 +55,11 @@ export class Agent {
   lifecycles: Agent.Lifecycle | undefined;
 
   /**
-   * provider is the step caller to use for this agent.  This allows the agent
+   * model is the step caller to use for this agent.  This allows the agent
    * to use a specific model which may be different to other agents in the
    * system
    */
-  provider: AgenticProvider.Any | undefined;
+  model: AgenticModel.Any | undefined;
 
   constructor(opts: Agent.Constructor) {
     this.name = opts.name;
@@ -68,15 +68,15 @@ export class Agent {
     this.assistant = opts.assistant || "";
     this.tools = new Map();
     this.lifecycles = opts.lifecycle;
-    this.provider = opts.provider;
+    this.model = opts.model;
 
     for (const tool of opts.tools || []) {
       this.tools.set(tool.name, tool);
     }
   }
 
-  withProvider(provider: AgenticProvider.Any): Agent {
-    this.provider = provider;
+  withModel(model: AgenticModel.Any): Agent {
+    this.model = model;
     return this; // for chaining
   }
 
@@ -86,9 +86,9 @@ export class Agent {
    */
   async run(
     input: string,
-    { provider, network }: Agent.RunOptions | undefined = {},
+    { model, network }: Agent.RunOptions | undefined = {},
   ): Promise<InferenceResult> {
-    const p = provider || this.provider || network?.defaultProvider;
+    const p = model || this.model || network?.defaultModel;
     if (!p) {
       throw new Error("No step caller provided to agent");
     }
@@ -144,7 +144,7 @@ export class Agent {
 
   private async invokeTools(
     msgs: InternalNetworkMessage[],
-    p: AgenticProvider.Any,
+    p: AgenticModel.Any,
     network?: Network,
   ): Promise<InternalNetworkMessage[]> {
     const output: InternalNetworkMessage[] = [];
@@ -232,11 +232,11 @@ export namespace Agent {
     assistant?: string;
     tools?: Tool.Any[];
     lifecycle?: Lifecycle;
-    provider?: AgenticProvider.Any;
+    model?: AgenticModel.Any;
   }
 
   export interface RunOptions {
-    provider?: AgenticProvider.Any;
+    model?: AgenticModel.Any;
     network?: Network;
   }
 

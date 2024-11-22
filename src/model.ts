@@ -1,29 +1,27 @@
 import {
+  type AiAdapter,
   type GetStepTools,
-  type InferInput,
-  type InferOutput,
   type Inngest,
-  type Provider as InngestAiProvider,
-  type OpenAiProvider,
+  type OpenAi,
 } from "inngest";
 import { zodToJsonSchema } from "openai-zod-to-json-schema";
 import { type InternalNetworkMessage, type ToolMessage } from "./state";
 import { type Tool } from "./types";
 
-export class AgenticProvider<TInngestProvider extends InngestAiProvider> {
-  #provider: InngestAiProvider;
+export class AgenticModel<TAiAdapter extends AiAdapter> {
+  #model: TAiAdapter;
 
   step: GetStepTools<Inngest.Any>;
-  requestParser: AgenticProvider.RequestParser<TInngestProvider>;
-  responseParser: AgenticProvider.ResponseParser<TInngestProvider>;
+  requestParser: AgenticModel.RequestParser<TAiAdapter>;
+  responseParser: AgenticModel.ResponseParser<TAiAdapter>;
 
   constructor({
-    provider,
+    model,
     step,
     requestParser,
     responseParser,
-  }: AgenticProvider.Constructor<TInngestProvider>) {
-    this.#provider = provider;
+  }: AgenticModel.Constructor<TAiAdapter>) {
+    this.#model = model;
     this.step = step;
     this.requestParser = requestParser;
     this.responseParser = responseParser;
@@ -33,36 +31,34 @@ export class AgenticProvider<TInngestProvider extends InngestAiProvider> {
     stepID: string,
     input: InternalNetworkMessage[],
     tools: Tool.Any[],
-  ): Promise<AgenticProvider.InferenceResponse> {
+  ): Promise<AgenticModel.InferenceResponse> {
     const result = (await this.step.ai.infer(stepID, {
-      provider: this.#provider,
+      model: this.#model,
       body: this.requestParser(input, tools),
-    })) as InferOutput<TInngestProvider>;
+    })) as AiAdapter.Input<TAiAdapter>;
 
     return { output: this.responseParser(result), raw: result };
   }
 }
 
-export const createAgenticOpenAiProvider = <
-  TInngestProvider extends OpenAiProvider,
->({
-  provider,
+export const createAgenticOpenAiModel = <TAiAdapter extends OpenAi.AiModel>({
+  model,
   step,
 }: {
-  provider: TInngestProvider;
+  model: TAiAdapter;
   step: GetStepTools<Inngest.Any>;
 }) => {
-  return new AgenticProvider({
-    provider,
+  return new AgenticModel({
+    model,
     step,
     requestParser: (messages, tools) => {
-      const request: InferInput<TInngestProvider> = {
+      const request: AiAdapter.Input<TAiAdapter> = {
         messages: messages.map((m) => {
           return {
             role: m.role,
             content: m.content,
           };
-        }) as InferInput<TInngestProvider>["messages"],
+        }) as AiAdapter.Input<TAiAdapter>["messages"],
       };
 
       if (tools?.length) {
@@ -80,7 +76,7 @@ export const createAgenticOpenAiProvider = <
     },
 
     responseParser: (
-      input: InferOutput<TInngestProvider>,
+      input: AiAdapter.Output<TAiAdapter>,
     ): InternalNetworkMessage[] => {
       return (input?.choices ?? []).reduce<InternalNetworkMessage[]>(
         (acc, choice) => {
@@ -113,32 +109,32 @@ export const createAgenticOpenAiProvider = <
   });
 };
 
-export namespace AgenticProvider {
-  export type Any = AgenticProvider<InngestAiProvider>;
+export namespace AgenticModel {
+  export type Any = AgenticModel<AiAdapter>;
 
   /**
-   * InferenceResponse is the response from a provider for an inference request.
+   * InferenceResponse is the response from a model for an inference request.
    * This contains parsed messages and the raw result, with the type of the raw
-   * result depending on the provider's API repsonse.
+   * result depending on the model's API repsonse.
    */
   export type InferenceResponse<T = unknown> = {
     output: InternalNetworkMessage[];
     raw: T;
   };
 
-  export interface Constructor<TInngestProvider extends InngestAiProvider> {
-    provider: TInngestProvider;
+  export interface Constructor<TAiAdapter extends AiAdapter> {
+    model: TAiAdapter;
     step: GetStepTools<Inngest.Any>;
-    requestParser: RequestParser<TInngestProvider>;
-    responseParser: ResponseParser<TInngestProvider>;
+    requestParser: RequestParser<TAiAdapter>;
+    responseParser: ResponseParser<TAiAdapter>;
   }
 
-  export type RequestParser<TInngestProvider extends InngestAiProvider> = (
+  export type RequestParser<TAiAdapter extends AiAdapter> = (
     state: InternalNetworkMessage[],
     tools: Tool.Any[],
-  ) => InferInput<TInngestProvider>;
+  ) => AiAdapter.Input<TAiAdapter>;
 
-  export type ResponseParser<TInngestProvider extends InngestAiProvider> = (
-    output: InferOutput<TInngestProvider>,
+  export type ResponseParser<TAiAdapter extends AiAdapter> = (
+    output: AiAdapter.Output<TAiAdapter>,
   ) => InternalNetworkMessage[];
 }

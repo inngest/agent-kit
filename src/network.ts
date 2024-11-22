@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { Agent, createTypedTool } from "./agent";
-import { type AgenticProvider } from "./provider";
+import { type AgenticModel } from "./model";
 import { type InferenceResult, NetworkState } from "./state";
 import { type MaybePromise } from "./util";
 
@@ -24,11 +24,11 @@ export class Network {
   state: NetworkState;
 
   /**
-   * defaultProvider is the default Provider to use with the network.  This will
-   * not override an agent's specific Provider if the agent already has a
-   * Provider defined (eg. via withProvider or via its constructor).
+   * defaultModel is the default model to use with the network.  This will not
+   * override an agent's specific model if the agent already has a model defined
+   * (eg. via withModel or via its constructor).
    */
-  defaultProvider?: AgenticProvider.Any;
+  defaultModel?: AgenticModel.Any;
 
   /**
    * maxIter is the maximum number of times the we can call agents before ending
@@ -47,11 +47,11 @@ export class Network {
   // agents referenced in the router here.
   private _agents: Map<string, Agent>;
 
-  constructor({ agents, defaultProvider, maxIter }: Network.Constructor) {
+  constructor({ agents, defaultModel, maxIter }: Network.Constructor) {
     this.agents = new Map();
     this._agents = new Map();
     this.state = new NetworkState();
-    this.defaultProvider = defaultProvider;
+    this.defaultModel = defaultModel;
     this.maxIter = maxIter || 0;
     this._stack = [];
 
@@ -158,15 +158,15 @@ export class Network {
   private async getNextAgent(
     router?: Network.Router,
   ): Promise<Agent | undefined> {
-    const defaultProvider = this.defaultProvider;
+    const defaultModel = this.defaultModel;
     if (!router) {
-      if (!defaultProvider) {
+      if (!defaultModel) {
         throw new Error(
-          "No router or provider defined in network.  You must pass a router or a default provider to use the built-in agentic router.",
+          "No router or model defined in network.  You must pass a router or a default model to use the built-in agentic router.",
         );
       }
 
-      return defaultRoutingAgent.withProvider(defaultProvider);
+      return defaultRoutingAgent.withModel(defaultModel);
     } else if (router instanceof Agent) {
       return router;
     }
@@ -300,7 +300,7 @@ Follow the set of instructions:
 export namespace Network {
   export type Constructor = {
     agents: Agent[];
-    defaultProvider?: AgenticProvider.Any;
+    defaultModel?: AgenticModel.Any;
     maxIter?: number;
   };
 

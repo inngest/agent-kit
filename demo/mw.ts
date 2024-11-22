@@ -1,17 +1,17 @@
 import {
   createAgent,
-  createAgenticOpenAiProvider,
+  createAgenticOpenAiModel,
   createNetwork,
 } from "@inngest/agent-kit";
-import { InngestMiddleware, openai, type OpenAiProviderOptions } from "inngest";
+import { InngestMiddleware, openai, type OpenAi } from "inngest";
 
 export const codeWritingNetworkMiddleware = (
-  defaultProviderOptions: OpenAiProviderOptions,
+  defaultModelOptions: OpenAi.AiModelOptions,
 ) => {
   return new InngestMiddleware({
     name: "Code Writing Agent Middleware",
     init() {
-      const provider = openai(defaultProviderOptions);
+      const model = openai(defaultModelOptions);
 
       return {
         onFunctionRun() {
@@ -20,8 +20,8 @@ export const codeWritingNetworkMiddleware = (
               const codeWritingNetwork = createNetwork({
                 agents: [codeWritingAgent, executingAgent],
                 maxIter: 4,
-                defaultProvider: createAgenticOpenAiProvider({
-                  provider,
+                defaultModel: createAgenticOpenAiModel({
+                  model,
                   step,
                 }),
               });
