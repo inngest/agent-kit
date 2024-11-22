@@ -1,11 +1,5 @@
-import {
-  type AiAdapter,
-  type GetStepTools,
-  type Inngest,
-  type OpenAi,
-} from "inngest";
-import { zodToJsonSchema } from "openai-zod-to-json-schema";
-import { type InternalNetworkMessage, type ToolMessage } from "./state";
+import { type AiAdapter, type GetStepTools, type Inngest } from "inngest";
+import { type InternalNetworkMessage } from "./state";
 import { type Tool } from "./types";
 
 export class AgenticModel<TAiAdapter extends AiAdapter> {
@@ -40,74 +34,6 @@ export class AgenticModel<TAiAdapter extends AiAdapter> {
     return { output: this.responseParser(result), raw: result };
   }
 }
-
-export const createAgenticOpenAiModel = <TAiAdapter extends OpenAi.AiModel>({
-  model,
-  step,
-}: {
-  model: TAiAdapter;
-  step: GetStepTools<Inngest.Any>;
-}) => {
-  return new AgenticModel({
-    model,
-    step,
-    requestParser: (messages, tools) => {
-      const request: AiAdapter.Input<TAiAdapter> = {
-        messages: messages.map((m) => {
-          return {
-            role: m.role,
-            content: m.content,
-          };
-        }) as AiAdapter.Input<TAiAdapter>["messages"],
-      };
-
-      if (tools?.length) {
-        request.tools = tools.map((t) => {
-          return {
-            name: t.name,
-            description: t.description,
-            parameters: zodToJsonSchema(t.parameters),
-            strict: true,
-          };
-        });
-      }
-
-      return request;
-    },
-
-    responseParser: (
-      input: AiAdapter.Output<TAiAdapter>,
-    ): InternalNetworkMessage[] => {
-      return (input?.choices ?? []).reduce<InternalNetworkMessage[]>(
-        (acc, choice) => {
-          if (!choice.message) {
-            return acc;
-          }
-
-          return [
-            ...acc,
-            {
-              role: choice.message.role,
-              content: choice.message.content,
-              tools: (choice.message.tool_calls ?? []).map<ToolMessage>(
-                (tool) => {
-                  return {
-                    type: "tool",
-                    id: tool.id,
-                    name: tool.function.name,
-                    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-                    input: JSON.parse(tool.function.arguments || "{}"),
-                  };
-                },
-              ),
-            } as InternalNetworkMessage,
-          ];
-        },
-        [],
-      );
-    },
-  });
-};
 
 export namespace AgenticModel {
   export type Any = AgenticModel<AiAdapter>;
