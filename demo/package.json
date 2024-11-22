@@ -9,9 +9,9 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
-    "@inngest/agent-kit": "file:../inngest-agent-kit-0.0.0.tgz",
+    "@inngest/agent-kit": "~0.0.1",
     "express": "^4.21.1",
-    "inngest": "^3.26.2-pr-754.0"
+    "inngest": "^3.26.2"
   },
   "devDependencies": {
     "@types/express": "^5.0.0",
