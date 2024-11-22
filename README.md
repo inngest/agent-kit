@@ -10,7 +10,7 @@
 
 # AgentKit
 
-AgentKit is a framework for creating and orchestrating AI Agents, from single model inference calls to multi-agent systems which use tools. Designed with orchestration at it’s core, AgentKit enables developers to build, test, and deploy reliable AI applications at scale.
+AgentKit is a framework for creating and orchestrating AI Agents, from single model inference calls to multi-agent systems that use tools. Designed with orchestration at it’s core, AgentKit enables developers to build, test, and deploy reliable AI applications at scale.
 
 - [Overview](#overview)
 - [Installation](#installation)
