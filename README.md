@@ -13,6 +13,39 @@ at scale — from single model calls to multi-agent workflows that use tools.
 Using the SDK lets you focus on AI code instead of technical details like
 orchestration, state, or infrastructure.
 
+A networked agent:
+```ts
+// Create a network of agents with separate tasks and instructions
+// to solve // a specific task.
+const network = new Network({
+  agents: [navigator, classifier, summarizer],
+  defaultModel: openai({ model: "gpt-4o", step }),
+})
+
+const input = `Classify then summarize the latest 10 blog posts
+  on https://www.deeplearning.ai/blog/`
+
+const result = await network.run(, ({ network }) => {
+  // Use an agent which figures out the specific agent to call
+  // based off of the network's history.
+  return defaultRoutingAgent;
+});
+```
+
+A simple agent:
+```ts
+const writer = new Agent({
+  name: "writer",
+  system: "You are an expert writer.  You write readable, concise, simple content.",
+  model: openai({ model: "gpt-4o", step }),
+});
+
+const { output } = await writer.run(
+  "Describe the ideas behind the given input into clear topics, and explain any insight: " +
+  `<content>${content}</content>`
+);
+```
+
 ## Installation
 
 Agent kit requires the [Inngest TypeScript SDK](https://github.com/inngest/inngest-js) as a dependency. You can install both via `npm` or similar:
