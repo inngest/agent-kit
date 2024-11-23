@@ -1,5 +1,11 @@
 # @inngest/agent-kit
 
+## 0.0.3
+
+### Patch Changes
+
+- 146d976: Fix README links and code examples
+
 ## 0.0.2
 
 ### Patch Changes
