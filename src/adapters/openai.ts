@@ -28,10 +28,13 @@ export const requestParser: AgenticModel.RequestParser<OpenAi.AiModel> = (
   if (tools?.length) {
     request.tools = tools.map((t) => {
       return {
-        name: t.name,
-        description: t.description,
-        parameters: zodToJsonSchema(t.parameters),
-        strict: true,
+        type: "function",
+        function: {
+          name: t.name,
+          description: t.description,
+          parameters: zodToJsonSchema(t.parameters),
+          strict: true,
+        },
       };
     });
   }
