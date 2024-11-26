@@ -1,3 +1,5 @@
+# ![AgentKit by Inngest](./.github/logo.png)
+
 <p align="center">
     <a href="https://www.inngest.com/docs/agent-kit/overview?ref=github-agent-kit-readme">Documentation</a>
     <span>&nbsp;·&nbsp;</span>
@@ -6,24 +8,29 @@
     <a href="https://www.inngest.com/discord">Community</a>
 </p>
 
-# Agent kit
+# AgentKit
 
-`@inngest/agent-kit` lets developers build, test, and deploy reliable AI applications
-at scale — from single model calls to multi-agent workflows that use tools.
-Using the SDK lets you focus on AI code instead of technical details like
-orchestration, state, or infrastructure.
+AgentKit is a framework for creating and orchestrating AI Agents, from single model inference calls to multi-agent systems that use tools. Designed with orchestration at it’s core, AgentKit enables developers to build, test, and deploy reliable AI applications at scale.
+
+- [Overview](#overview)
+- [Installation](#installation)
+- [Documentation](#documentation)
+- [Examples](#examples)
+
+## Overview
 
 A networked agent:
+
 ```ts
 // Create a network of agents with separate tasks and instructions
 // to solve a specific task.
 const network = createNetwork({
   agents: [navigator, classifier, summarizer],
   defaultModel: agenticOpenai({ model: "gpt-4o", step }),
-})
+});
 
 const input = `Classify then summarize the latest 10 blog posts
-  on https://www.deeplearning.ai/blog/`
+  on https://www.deeplearning.ai/blog/`;
 
 const result = await network.run(input, ({ network }) => {
   // Use an agent which figures out the specific agent to call
@@ -33,16 +40,18 @@ const result = await network.run(input, ({ network }) => {
 ```
 
 A simple agent:
+
 ```ts
 const writer = createAgent({
   name: "writer",
-  system: "You are an expert writer.  You write readable, concise, simple content.",
+  system:
+    "You are an expert writer.  You write readable, concise, simple content.",
   model: agenticOpenai({ model: "gpt-4o", step }),
 });
 
 const { output } = await writer.run(
   "Describe the ideas behind the given input into clear topics, and explain any insight: " +
-  `<content>${content}</content>`
+    `<content>${content}</content>`,
 );
 ```
 

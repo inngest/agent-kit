@@ -1,6 +1,6 @@
 {
   "name": "@inngest/agent-kit",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "",
   "main": "dist/index.js",
   "scripts": {
@@ -37,7 +37,7 @@
     }
   },
   "dependencies": {
-    "inngest": "3.26.3-pr-756.1",
+    "inngest": "^3.26.3",
     "openai-zod-to-json-schema": "^1.0.3",
     "zod": "^3.23.8"
   },
