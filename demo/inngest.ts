@@ -47,7 +47,7 @@ export const fn = inngest.createFunction(
     // code -> executing -> code
 
     // This uses the defaut agentic router to determine which agent to handle first.  You can
-    // optinoally specifiy the agent that should execute first, and provide your own logic for
+    // optionally specifiy the agent that should execute first, and provide your own logic for
     // handling logic in between agent calls.
     const result = await network.run(event.data.input, ({ network }) => {
       if (network.state.kv.has("files")) {
@@ -85,7 +85,7 @@ const codeWritingAgent = createAgent({
       return systemPrompt;
     }
 
-    // There are files present in the network's state, so add them to the promp to help
+    // There are files present in the network's state, so add them to the prompt to help
     // provide previous context automatically.
     let prompt = systemPrompt + "The following code already exists:";
     for (const [name, contents] of Object.entries(files)) {
