@@ -12,11 +12,12 @@ import { type InternalNetworkMessage, type ToolMessage } from "../state";
 /**
  * Parse a request from internal network messages to an OpenAI input.
  */
-export const requestParser: AgenticModel.RequestParser<OpenAi.AiModel> = (
+export const requestParser: AgenticModel.RequestParser<OpenAi.AiModel> = ({
+  model,
   messages,
   tools,
-) => {
-  const request: AiAdapter.Input<OpenAi.AiModel> = {
+}) => {
+  const body: AiAdapter.Input<OpenAi.AiModel> = {
     messages: messages.map((m) => {
       return {
         role: m.role,
@@ -26,7 +27,7 @@ export const requestParser: AgenticModel.RequestParser<OpenAi.AiModel> = (
   };
 
   if (tools?.length) {
-    request.tools = tools.map((t) => {
+    body.tools = tools.map((t) => {
       return {
         type: "function",
         function: {
@@ -39,16 +40,20 @@ export const requestParser: AgenticModel.RequestParser<OpenAi.AiModel> = (
     });
   }
 
-  return request;
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${model.authKey}`,
+  };
+
+  return { body, headers };
 };
 
 /**
  * Parse a response from OpenAI output to internal network messages.
  */
-export const responseParser: AgenticModel.ResponseParser<OpenAi.AiModel> = (
-  input,
-) => {
-  return (input?.choices ?? []).reduce<InternalNetworkMessage[]>(
+export const responseParser: AgenticModel.ResponseParser<OpenAi.AiModel> = ({
+  output,
+}) => {
+  return (output?.choices ?? []).reduce<InternalNetworkMessage[]>(
     (acc, choice) => {
       if (!choice.message) {
         return acc;

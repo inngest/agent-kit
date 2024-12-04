@@ -1,6 +1,7 @@
 import { type AiAdapter } from "inngest";
 import { z } from "zod";
 import { Agent, createTypedTool } from "./agent";
+import { type AgenticModel } from "./model";
 import { type InferenceResult, NetworkState } from "./state";
 import { type MaybePromise } from "./util";
 
@@ -30,11 +31,15 @@ export class Network {
    */
   defaultModel?: AiAdapter;
 
+  router?: Network.Router;
+
   /**
    * maxIter is the maximum number of times the we can call agents before ending
    * the network's run loop.
    */
   maxIter: number;
+
+  inferOverride: AgenticModel.Infer<AgenticModel.Any> | undefined;
 
   // _stack is an array of strings, each representing an agent name to call.
   private _stack: string[];
@@ -47,13 +52,14 @@ export class Network {
   // agents referenced in the router here.
   private _agents: Map<string, Agent>;
 
-  constructor({ agents, defaultModel, maxIter }: Network.Constructor) {
+  constructor({ agents, defaultModel, maxIter, router }: Network.Constructor) {
     this.agents = new Map();
     this._agents = new Map();
     this.state = new NetworkState();
     this.defaultModel = defaultModel;
     this.maxIter = maxIter || 0;
     this._stack = [];
+    this.router = router;
 
     for (const agent of agents) {
       // Store all agents publicly visible.
@@ -75,6 +81,16 @@ export class Network {
     return available;
   }
 
+  overrideInfer(fn: AgenticModel.Infer<AgenticModel.Any> | undefined): this {
+    this.inferOverride = fn;
+
+    this._agents.forEach((agent) => {
+      agent.overrideInfer(fn);
+    });
+
+    return this;
+  }
+
   /**
    * addAgent adds a new agent to the network.
    */
@@ -94,7 +110,10 @@ export class Network {
    * concurrency-safe; you can only call run on a network once, as networks are
    * stateful.
    */
-  async run(input: string, router?: Network.Router): Promise<Network> {
+  async run(
+    input: string,
+    router: Network.Router | undefined = this.router,
+  ): Promise<Network> {
     const agents = await this.availableAgents();
 
     if (agents.length === 0) {
@@ -156,7 +175,7 @@ export class Network {
   }
 
   private async getNextAgent(
-    router?: Network.Router,
+    router: Network.Router | undefined = this.router,
   ): Promise<Agent | undefined> {
     const defaultModel = this.defaultModel;
     if (!router) {
@@ -166,7 +185,7 @@ export class Network {
         );
       }
 
-      return defaultRoutingAgent.withModel(defaultModel);
+      return defaultRoutingAgent.withModel(defaultModel, this.inferOverride);
     } else if (router instanceof Agent) {
       return router;
     }
@@ -302,6 +321,7 @@ export namespace Network {
     agents: Agent[];
     defaultModel?: AiAdapter;
     maxIter?: number;
+    router?: Network.Router;
   };
 
   /**

@@ -63,6 +63,8 @@ export class Agent {
    */
   model: AiAdapter | undefined;
 
+  inferOverride: AgenticModel.Infer<AgenticModel.Any> | undefined;
+
   constructor(opts: Agent.Constructor) {
     this.name = opts.name;
     this.description = opts.description || "";
@@ -72,7 +74,7 @@ export class Agent {
     this.lifecycles = opts.lifecycle;
 
     if (opts.model) {
-      this.withModel(opts.model);
+      this.withModel(opts.model, opts.inferOverride);
     }
 
     for (const tool of opts.tools || []) {
@@ -80,9 +82,14 @@ export class Agent {
     }
   }
 
-  withModel(model: AiAdapter): Agent {
+  withModel(
+    model: AiAdapter,
+    inferOverride?: AgenticModel.Infer<AgenticModel.Any>,
+  ): this {
     this.model = model;
-    return this; // for chaining
+    this.inferOverride = inferOverride;
+
+    return this;
   }
 
   get #agenticModel(): AgenticModel.Any {
@@ -101,8 +108,16 @@ export class Agent {
       model: this.model,
       requestParser: adapter.request,
       responseParser: adapter.response,
-      step: getViaHooks(),
-    });
+      // step: getViaHooks(),
+    }).overrideInfer(this.inferOverride);
+  }
+
+  public overrideInfer(
+    fn: AgenticModel.Infer<AgenticModel.Any> | undefined,
+  ): this {
+    this.inferOverride = fn;
+
+    return this;
   }
 
   /**
@@ -198,7 +213,7 @@ export class Agent {
         const result = await found.handler(tool.input, {
           agent: this,
           network,
-          step: p.step,
+          // step: p.step,
         });
 
         if (result === undefined) {
@@ -260,6 +275,7 @@ export namespace Agent {
     tools?: Tool.Any[];
     lifecycle?: Lifecycle;
     model?: AiAdapter;
+    inferOverride?: AgenticModel.Infer<AgenticModel.Any>;
   }
 
   export interface RunOptions {

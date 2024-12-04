@@ -9,7 +9,7 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
-    "@inngest/agent-kit": "~0.0.1",
+    "@inngest/agent-kit": "file:../inngest-agent-kit-0.0.3.tgz",
     "express": "^4.21.1",
     "inngest": "^3.26.2"
   },

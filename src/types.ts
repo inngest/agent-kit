@@ -1,4 +1,3 @@
-import { type GetStepTools, type Inngest } from "inngest";
 import { type output as ZodOutput } from "zod";
 import { type Agent } from "./agent";
 import { type Network } from "./network";
@@ -26,7 +25,7 @@ export namespace Tool {
 export type ToolHandlerArgs = {
   agent: Agent;
   network?: Network;
-  step: GetStepTools<Inngest.Any>;
+  // step: GetStepTools<Inngest.Any>;
 };
 
 export interface BaseLifecycleArgs {

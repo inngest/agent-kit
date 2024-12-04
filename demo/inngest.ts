@@ -8,59 +8,6 @@ import {
 import { EventSchemas, Inngest, openai } from "inngest";
 import { z } from "zod";
 
-export const inngest = new Inngest({
-  id: "agents",
-  schemas: new EventSchemas().fromZod({
-    "agent/run": {
-      data: z.object({
-        input: z.string(),
-      }),
-    },
-  }),
-});
-
-export const fn = inngest.createFunction(
-  { id: "agent" },
-  { event: "agent/run" },
-  async ({ event }) => {
-    const model = openai({ model: "gpt-4" });
-
-    // 1. Single agents
-    //
-    // Run a single agent as a prompt without a network.
-    const { output, raw } = await codeWritingAgent.run(event.data.input, {
-      model,
-    });
-
-    // 2. Networks of agents
-    const cheapModel = openai({ model: "gpt-3.5-turbo" });
-
-    const network = createNetwork({
-      agents: [
-        codeWritingAgent.withModel(model),
-        executingAgent.withModel(cheapModel),
-      ],
-      defaultModel: model,
-      maxIter: 4,
-    });
-    // code -> executing -> code
-
-    // This uses the defaut agentic router to determine which agent to handle first.  You can
-    // optinoally specifiy the agent that should execute first, and provide your own logic for
-    // handling logic in between agent calls.
-    const result = await network.run(event.data.input, ({ network }) => {
-      if (network.state.kv.has("files")) {
-        // Okay, we have some files.  Did an agent run tests?
-        return executingAgent;
-      }
-
-      return defaultRoutingAgent.withModel(model);
-    });
-
-    return result;
-  },
-);
-
 const systemPrompt =
   "You are an expert TypeScript programmer.  Given a set of asks, think step-by-step to plan clean, " +
   "idiomatic TypeScript code, with comments and tests as necessary.";
@@ -159,3 +106,117 @@ Think carefully about the request that the user is asking for. Do not respond wi
 </command>
 `,
 });
+
+/**
+ * ============================================================================
+ *
+ * WITHOUT INNGEST
+ *
+ * ============================================================================
+ */
+
+void (async () => {
+  const model = openai({ model: "gpt-4" });
+
+  // 1. Single agents
+  //
+  // Run a single agent as a prompt without a network.
+  const { output, raw } = await codeWritingAgent.run("yerp", {
+    model,
+  });
+
+  // 2. Networks of agents
+  const cheapModel = openai({ model: "gpt-3.5-turbo" });
+
+  const network = createNetwork({
+    agents: [
+      codeWritingAgent.withModel(model),
+      executingAgent.withModel(cheapModel),
+    ],
+    defaultModel: model,
+    maxIter: 4,
+    router: ({ network }) => {
+      if (network.state.kv.has("files")) {
+        // Okay, we have some files.  Did an agent run tests?
+        return executingAgent;
+      }
+
+      return defaultRoutingAgent.withModel(model);
+    },
+  });
+  // code -> executing -> code
+
+  // This uses the defaut agentic router to determine which agent to handle first.  You can
+  // optinoally specifiy the agent that should execute first, and provide your own logic for
+  // handling logic in between agent calls.
+  const result = await network.run("yerp");
+
+  return result;
+})();
+
+/**
+ * ============================================================================
+ *
+ * WITH INNGEST
+ *
+ * ============================================================================
+ */
+
+export const inngest = new Inngest({
+  id: "agents",
+  schemas: new EventSchemas().fromZod({
+    "agent/run": {
+      data: z.object({
+        input: z.string(),
+      }),
+    },
+  }),
+});
+
+export const fn = inngest.createFunction(
+  { id: "agent" },
+  { event: "agent/run" },
+  async ({ event }) => {
+    const model = openai({ model: "gpt-4" });
+
+    // 1. Single agents
+    //
+    // Run a single agent as a prompt without a network.
+    const { output, raw } = await codeWritingAgent.run(event.data.input, {
+      model,
+    });
+
+    // 2. Networks of agents
+    const cheapModel = openai({ model: "gpt-3.5-turbo" });
+
+    const network = createNetwork({
+      agents: [codeWritingAgent, executingAgent.withModel(cheapModel)],
+      defaultModel: model,
+      maxIter: 4,
+      router: ({ network }) => {
+        if (network.state.kv.has("files")) {
+          // Okay, we have some files.  Did an agent run tests?
+          return executingAgent;
+        }
+
+        return defaultRoutingAgent.withModel(model);
+      },
+    });
+    // code -> executing -> code
+
+    // This uses the defaut agentic router to determine which agent to handle first.  You can
+    // optinoally specifiy the agent that should execute first, and provide your own logic for
+    // handling logic in between agent calls.
+    const result = await network.run(event.data.input);
+
+    return result;
+  },
+);
+
+// Overriding infer on a network would mean changing the behaviour of all
+// agents, plus the routing agent.
+network.overrideInfer();
+
+// Overriding infer on an agent would mean changing the behaviour of a single
+// agent.
+codeWritingAgent.overrideInfer();
