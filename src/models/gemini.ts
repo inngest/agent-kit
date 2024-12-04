@@ -1,4 +1,9 @@
-import { gemini as igemini, type Gemini, type GetStepTools, type Inngest } from "inngest";
+import {
+  gemini as igemini,
+  type Gemini,
+  type GetStepTools,
+  type Inngest,
+} from "inngest";
 import { requestParser, responseParser } from "../adapters/openai";
 import { AgenticModel } from "../model";
 

@@ -2,7 +2,7 @@ import {
   anthropic as ianthropic,
   type GetStepTools,
   type Inngest,
-  type Anthropic
+  type Anthropic,
 } from "inngest";
 import { requestParser, responseParser } from "../adapters/anthropic";
 import { AgenticModel } from "../model";

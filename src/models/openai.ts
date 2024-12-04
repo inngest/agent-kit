@@ -1,4 +1,9 @@
-import { openai as iopenai, type GetStepTools, type Inngest, type OpenAi } from "inngest";
+import {
+  openai as iopenai,
+  type GetStepTools,
+  type Inngest,
+  type OpenAi,
+} from "inngest";
 import { requestParser, responseParser } from "../adapters/openai";
 import { AgenticModel } from "../model";
 

@@ -36,7 +36,7 @@ export class AgenticModel<TAiAdapter extends AiAdapter> {
 }
 
 export namespace AgenticModel {
-  export type Any = AgenticModel<any>;
+  export type Any = AgenticModel<AiAdapter>;
 
   /**
    * InferenceResponse is the response from a model for an inference request.
