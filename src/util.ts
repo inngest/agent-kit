@@ -14,3 +14,15 @@ export type MaybePromise<T> = T | Promise<T>;
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type AnyZodType = ZodType<any>;
+
+/**
+ * Given an unknown value, return a string representation of the error if it is
+ * an error, otherwise return the stringified value.
+ */
+export const stringifyError = (e: unknown): string => {
+  if (e instanceof Error) {
+    return e.message;
+  }
+
+  return String(e);
+};

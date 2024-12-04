@@ -109,16 +109,23 @@ export class Agent {
       history = modified.history;
     }
 
-    let hasMoreActions = true
+    let hasMoreActions = true;
 
     do {
-      const inference = await this.performInference(input, p, history, system, network);
+      const inference = await this.performInference(
+        input,
+        p,
+        history,
+        system,
+        network,
+      );
 
-      hasMoreActions = this.tools.size > 0 && (inference.output[inference.output.length - 1]!).stop_reason !== 'stop';
+      hasMoreActions =
+        this.tools.size > 0 &&
+        inference.output[inference.output.length - 1]!.stop_reason !== "stop";
       result = inference;
       history = [...inference.output];
-
-    } while (hasMoreActions)
+    } while (hasMoreActions);
 
     if (this.lifecycles?.onFinish) {
       result = await this.lifecycles.onFinish({ agent: this, network, result });
@@ -134,8 +141,6 @@ export class Agent {
     system: InternalNetworkMessage[],
     network?: Network,
   ): Promise<InferenceResult> {
-    
-
     const { output, raw } = await p.infer(
       this.name,
       system.concat(history),
@@ -162,13 +167,13 @@ export class Agent {
     }
 
     // And ensure we invoke any call from the agent
-    const toolCallOutput = await this.invokeTools(result.output, p, network)
+    const toolCallOutput = await this.invokeTools(result.output, p, network);
     // if a tool was called, we add it to the history/messages
     if (toolCallOutput.length > 0) {
       result.output = result.output.concat(toolCallOutput);
     }
 
-    return result
+    return result;
   }
 
   private async invokeTools(
@@ -207,13 +212,16 @@ export class Agent {
 
         output.push({
           role: "tool_result",
-          tools: [{
-            type: "tool",
-            id: tool.id,
-            name: tool.name,
-            input: tool.input.arguments as any,
-          }],
-          content: !!result ? result : `${tool.name} successfully executed`
+          tools: [
+            {
+              type: "tool",
+              id: tool.id,
+              name: tool.name,
+              input: tool.input.arguments as Record<string, unknown>,
+            },
+          ],
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+          content: result ? result : `${tool.name} successfully executed`,
         });
       }
     }
