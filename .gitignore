@@ -1,6 +1,7 @@
 # Built files
 dist
 *.tgz
+.eslintcache
 
 # Node packages
 node_modules
