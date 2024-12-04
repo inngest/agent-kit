@@ -13,6 +13,7 @@ import { type InternalNetworkMessage, type ToolMessage } from "../state";
  * Parse a request from internal network messages to an OpenAI input.
  */
 export const requestParser: AgenticModel.RequestParser<OpenAi.AiModel> = (
+  model,
   messages,
   tools,
 ) => {

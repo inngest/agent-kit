@@ -1,4 +1,4 @@
-import { openai, type GetStepTools, type Inngest, type OpenAi } from "inngest";
+import { openai as iopenai, type GetStepTools, type Inngest, type OpenAi } from "inngest";
 import { requestParser, responseParser } from "../adapters/openai";
 import { AgenticModel } from "../model";
 
@@ -22,13 +22,13 @@ export namespace AgenticOpenAiModel {
  *
  * By default it targets the `https://api.openai.com/v1/` base URL.
  */
-export const agenticOpenai = <TAiAdapter extends OpenAi.AiModel>({
+export const openai = <TAiAdapter extends OpenAi.AiModel>({
   step,
   ...modelOptions
 }: AgenticOpenAiModel.Options<TAiAdapter>) => {
   const model =
     typeof modelOptions.model === "string"
-      ? openai({ ...modelOptions, model: modelOptions.model })
+      ? iopenai({ ...modelOptions, model: modelOptions.model })
       : modelOptions.model;
 
   return new AgenticModel({

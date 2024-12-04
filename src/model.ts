@@ -28,7 +28,7 @@ export class AgenticModel<TAiAdapter extends AiAdapter> {
   ): Promise<AgenticModel.InferenceResponse> {
     const result = (await this.step.ai.infer(stepID, {
       model: this.#model,
-      body: this.requestParser(input, tools),
+      body: this.requestParser(this.#model, input, tools),
     })) as AiAdapter.Input<TAiAdapter>;
 
     return { output: this.responseParser(result), raw: result };
@@ -36,7 +36,7 @@ export class AgenticModel<TAiAdapter extends AiAdapter> {
 }
 
 export namespace AgenticModel {
-  export type Any = AgenticModel<AiAdapter>;
+  export type Any = AgenticModel<any>;
 
   /**
    * InferenceResponse is the response from a model for an inference request.
@@ -56,6 +56,7 @@ export namespace AgenticModel {
   }
 
   export type RequestParser<TAiAdapter extends AiAdapter> = (
+    model: TAiAdapter,
     state: InternalNetworkMessage[],
     tools: Tool.Any[],
   ) => AiAdapter.Input<TAiAdapter>;
