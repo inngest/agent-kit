@@ -4,7 +4,11 @@ export interface InternalNetworkMessage {
   role: "system" | "user" | "assistant" | "tool_result";
   content: string | Array<TextMessage> | ToolResult;
   tools?: ToolMessage[];
-  // TODO: Images and multi-modality.
+  // Anthropic:
+  // stop_reason: "end_turn" | "max_tokens" | "stop_sequence" | "tool_use" | null;
+  // OpenAI:
+  // finish_reason: 'stop' | 'length' | 'tool_calls' | 'content_filter' | 'function_call' | null;
+  stop_reason?: 'tool' | 'stop';
 }
 
 export interface TextMessage {

@@ -93,8 +93,9 @@ export class Agent {
       throw new Error("No step caller provided to agent");
     }
 
-    let system = await this.agentPrompt(input, network);
     let history = network ? network.state.history : [];
+    let system = await this.agentPrompt(input, network);
+    let result: InferenceResult;
 
     if (this.lifecycles?.onStart) {
       const modified = await this.lifecycles.onStart({
@@ -107,6 +108,33 @@ export class Agent {
       system = modified.system;
       history = modified.history;
     }
+
+    let hasMoreActions = true
+
+    do {
+      const inference = await this.performInference(input, p, history, system, network);
+
+      hasMoreActions = this.tools.size > 0 && (inference.output[inference.output.length - 1]!).stop_reason !== 'stop';
+      result = inference;
+      history = [...inference.output];
+
+    } while (hasMoreActions)
+
+    if (this.lifecycles?.onFinish) {
+      result = await this.lifecycles.onFinish({ agent: this, network, result });
+    }
+
+    return result;
+  }
+
+  private async performInference(
+    input: string,
+    p: AgenticModel.Any,
+    history: InternalNetworkMessage[],
+    system: InternalNetworkMessage[],
+    network?: Network,
+  ): Promise<InferenceResult> {
+    
 
     const { output, raw } = await p.infer(
       this.name,
@@ -134,12 +162,13 @@ export class Agent {
     }
 
     // And ensure we invoke any call from the agent
-    result.toolCalls = await this.invokeTools(result.output, p, network);
-    if (this.lifecycles?.onFinish) {
-      result = await this.lifecycles.onFinish({ agent: this, network, result });
+    const toolCallOutput = await this.invokeTools(result.output, p, network)
+    // if a tool was called, we add it to the history/messages
+    if (toolCallOutput.length > 0) {
+      result.output = result.output.concat(toolCallOutput);
     }
 
-    return result;
+    return result
   }
 
   private async invokeTools(
@@ -174,19 +203,17 @@ export class Agent {
           step: p.step,
         });
 
-        if (result === undefined) {
-          // This had no result, so we don't wnat to save it to the state.
-          continue;
-        }
+        // TODO: handle error and send them back to the LLM
 
         output.push({
           role: "tool_result",
-          content: {
-            type: "tool_result",
+          tools: [{
+            type: "tool",
             id: tool.id,
-            // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-            content: result, // TODO: Properly type content.
-          },
+            name: tool.name,
+            input: tool.input.arguments as any,
+          }],
+          content: !!result ? result : `${tool.name} successfully executed`
         });
       }
     }

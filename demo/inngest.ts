@@ -5,6 +5,7 @@ import {
   createNetwork,
   createTypedTool,
   defaultRoutingAgent,
+  openai,
 } from "../src/index";
 import { EventSchemas, Inngest } from "inngest";
 import { z } from "zod";
@@ -24,7 +25,7 @@ export const fn = inngest.createFunction(
   { id: "agent" },
   { event: "agent/run" },
   async ({ event, step }) => {
-    const model = anthropic({ model: "claude-3-5-haiku-latest", max_tokens: 1024, step });
+    const model = openai({ model: "gpt-4", step });
 
     // 1. Single agents
     //
@@ -33,36 +34,35 @@ export const fn = inngest.createFunction(
       model,
     });
 
-    // 2. A network of agents that works together
+    // // 2. A network of agents that works together
 
-    const network = createNetwork({
-      agents: [
-        codeWritingAgent.withModel(model),
-        executingAgent.withModel(model),
-      ],
-      defaultModel: model,
-      maxIter: 4,
-    });
+    // const network = createNetwork({
+    //   agents: [
+    //     codeWritingAgent.withModel(model),
+    //     executingAgent.withModel(model),
+    //   ],
+    //   defaultModel: model,
+    //   maxIter: 4,
+    // });
 
-    // This uses the defaut agentic router to determine which agent to handle first.  You can
-    // optionally specifiy the agent that should execute first, and provide your own logic for
-    // handling logic in between agent calls.
-    const result = await network.run(event.data.input, ({ network }) => {
-      if (network.state.kv.has("files")) {
-        // Okay, we have some files.  Did an agent run tests?
-        return executingAgent;
-      }
+    // // This uses the defaut agentic router to determine which agent to handle first.  You can
+    // // optionally specifiy the agent that should execute first, and provide your own logic for
+    // // handling logic in between agent calls.
+    // const result = await network.run(event.data.input, ({ network }) => {
+    //   if (network.state.kv.has("files")) {
+    //     // Okay, we have some files.  Did an agent run tests?
+    //     return executingAgent;
+    //   }
 
-      return defaultRoutingAgent.withModel(model);
-    });
+    //   return defaultRoutingAgent.withModel(model);
+    // });
 
-    return result;
+    return output;
   },
 );
 
 const systemPrompt =
-  "You are an expert TypeScript programmer.  Given a set of asks, think step-by-step to plan clean, " +
-  "idiomatic TypeScript code, with comments and tests as necessary.";
+  "You are an expert TypeScript programmer.";
 
 const codeWritingAgent = createAgent({
   name: "Code writer",
