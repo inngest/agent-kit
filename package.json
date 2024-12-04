@@ -38,7 +38,7 @@
     }
   },
   "dependencies": {
-    "inngest": "3.27.1-pr-764.1",
+    "inngest": "3.27.1",
     "openai-zod-to-json-schema": "^1.0.3",
     "zod": "^3.23.8"
   },
