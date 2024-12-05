@@ -132,7 +132,9 @@ export class Network {
         return this;
       }
 
-      const call = await agent.run(input, { network: this });
+      // We force Agent to emit structured output in case of the use of tools by
+      // setting maxIter to 0.
+      const call = await agent.run(input, { network: this, maxIter: 0 });
       this._counter += 1;
 
       // Ensure that we store the call network history.
@@ -233,23 +235,23 @@ export const defaultRoutingAgent = new Agent({
             .describe("The name of the agent that should handle the request"),
         })
         .strict(),
-      handler: (input, { agent, network }) => {
+      handler: ({ name }, { network }) => {
         if (!network) {
           throw new Error(
             "The routing agent can only be used within a network of agents",
           );
         }
 
-        // if (typeof name !== "string") {
-        //   throw new Error("The routing agent requested an invalid agent");
-        // }
+        if (typeof name !== "string") {
+          throw new Error("The routing agent requested an invalid agent");
+        }
 
-        // const agent = network.agents.get(name);
-        // if (agent === undefined) {
-        //   throw new Error(
-        //     `The routing agent requested an agent that doesn't exist: ${name}`,
-        //   );
-        // }
+        const agent = network.agents.get(name);
+        if (agent === undefined) {
+          throw new Error(
+            `The routing agent requested an agent that doesn't exist: ${name}`,
+          );
+        }
 
         // Schedule another agent.
         network.schedule(agent.name);

@@ -86,7 +86,11 @@ export class Agent {
    */
   async run(
     input: string,
-    { model, network }: Agent.RunOptions | undefined = {},
+    {
+      model,
+      network,
+      maxIter = this.tools.size + 1,
+    }: Agent.RunOptions | undefined = {},
   ): Promise<InferenceResult> {
     const p = model || this.model || network?.defaultModel;
     if (!p) {
@@ -110,7 +114,7 @@ export class Agent {
     }
 
     let hasMoreActions = true;
-
+    let iter = 0;
     do {
       const inference = await this.performInference(
         input,
@@ -125,7 +129,8 @@ export class Agent {
         inference.output[inference.output.length - 1]!.stop_reason !== "stop";
       result = inference;
       history = [...inference.output];
-    } while (hasMoreActions);
+      iter++;
+    } while (hasMoreActions && iter < maxIter);
 
     if (this.lifecycles?.onFinish) {
       result = await this.lifecycles.onFinish({ agent: this, network, result });
@@ -273,6 +278,7 @@ export namespace Agent {
   export interface RunOptions {
     model?: AgenticModel.Any;
     network?: Network;
+    maxIter?: number;
   }
 
   export interface Lifecycle {
