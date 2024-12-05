@@ -10,9 +10,15 @@ import { type AgenticModel } from "../model";
 import { stringifyError } from "../util";
 import { type InternalNetworkMessage, type ToolMessage } from "../state";
 
-// Helper to parse JSON that may contain backticks:
-// Example:
-// "{\n  \"files\": [\n    {\n      \"filename\": \"fibo.ts\",\n      \"content\": `\nfunction fibonacci(n: number): number {\n  if (n < 2) {\n    return n;\n  } else {\n    return fibonacci(n - 1) + fibonacci(n - 2);\n  }\n}\n\nexport default fibonacci;\n`\n    }\n  ]\n}"
+/**
+ * Parse the given `str` `string` as JSON, also handling backticks, a common
+ * OpenAI quirk.
+ *
+ * @example Input
+ * ```
+ * "{\n  \"files\": [\n    {\n      \"filename\": \"fibo.ts\",\n      \"content\": `\nfunction fibonacci(n: number): number {\n  if (n < 2) {\n    return n;\n  } else {\n    return fibonacci(n - 1) + fibonacci(n - 2);\n  }\n}\n\nexport default fibonacci;\n`\n    }\n  ]\n}"
+ * ```
+ */
 const safeParseOpenAIJson = (str: string): unknown => {
   // Remove any leading/trailing quotes if present
   const trimmed = str.replace(/^["']|["']$/g, "");
@@ -36,26 +42,45 @@ const safeParseOpenAIJson = (str: string): unknown => {
   }
 };
 
-// TODO: move to another file?
-const StateRoleToOpenAiRole = {
-  system: "system",
-  user: "user",
-  assistant: "assistant",
-  tool_result: "tool",
-} as const;
-
-const StateStopReasonToOpenAiStopReason = {
+const StateStopReasonToOpenAiStopReason: Record<string, string> = {
   tool: "tool_calls",
   stop: "stop",
-} as const;
+};
 
-const OpenAiStopReasonToStateStopReason = {
+const OpenAiStopReasonToStateStopReason: Record<string, string> = {
   tool_calls: "tool",
   stop: "stop",
   length: "stop",
   content_filter: "stop",
   function_call: "tool",
-} as const;
+};
+
+const reqMsgRoleHandlers: Record<
+  InternalNetworkMessage["role"],
+  (
+    internalMessage: InternalNetworkMessage,
+  ) => Partial<AiAdapter.Input<OpenAi.AiModel>["messages"][number]>
+> = {
+  system: () => ({ role: "system" }),
+  user: () => ({ role: "user" }),
+  assistant: (m) => ({
+    role: "assistant",
+    tool_calls: m.tools
+      ? m.tools?.map((tool) => ({
+          id: tool.id,
+          type: "function",
+          function: {
+            name: tool.name,
+            arguments: JSON.stringify(tool.input),
+          },
+        }))
+      : undefined,
+  }),
+  tool_result: (m) => ({
+    role: "tool",
+    tool_call_id: m.tools?.[0]?.id,
+  }),
+};
 
 /**
  * Parse a request from internal network messages to an OpenAI input.
@@ -67,27 +92,16 @@ export const requestParser: AgenticModel.RequestParser<OpenAi.AiModel> = (
 ) => {
   const request: AiAdapter.Input<OpenAi.AiModel> = {
     messages: messages.map((m) => {
-      const role = StateRoleToOpenAiRole[m.role];
-      return {
+      const baseMsg = {
         ...(m.stop_reason
           ? { finish_reason: StateStopReasonToOpenAiStopReason[m.stop_reason] }
           : {}),
-        role,
         content: m.content,
-        // NOTE: this is very ugly, we need to better handle different shape of messages
-        // TODO: refactor + unit tests
-        tool_call_id: role === "tool" ? m.tools?.[0]?.id : undefined,
-        tool_calls:
-          role === "assistant" && !!m.tools
-            ? m.tools?.map((tool) => ({
-                id: tool.id,
-                type: "function",
-                function: {
-                  name: tool.name,
-                  arguments: JSON.stringify(tool.input),
-                },
-              }))
-            : undefined,
+      };
+
+      return {
+        ...baseMsg,
+        ...reqMsgRoleHandlers[m.role](m),
       };
     }) as AiAdapter.Input<OpenAi.AiModel>["messages"],
   };
@@ -125,25 +139,15 @@ export const responseParser: AgenticModel.ResponseParser<OpenAi.AiModel> = (
         return acc;
       }
 
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access
-      const finishReason = (choice as any).finish_reason;
       const stopReason =
-        OpenAiStopReasonToStateStopReason[
-          finishReason as keyof typeof OpenAiStopReasonToStateStopReason
-        ];
+        OpenAiStopReasonToStateStopReason[choice.finish_reason ?? ""];
 
       return [
         ...acc,
         {
           role: choice.message.role,
           content: choice.message.content,
-          // NOTE: this is very ugly, we need to better handle different shape of messages
-          // TODO: refactor + unit tests
-          ...(finishReason
-            ? {
-                stop_reason: stopReason,
-              }
-            : {}),
+          ...(stopReason ? { stop_reason: stopReason } : {}),
           tools: (choice.message.tool_calls ?? []).map<ToolMessage>((tool) => {
             return {
               type: "function",
