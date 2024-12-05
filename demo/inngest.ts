@@ -25,44 +25,43 @@ export const fn = inngest.createFunction(
   { id: "agent" },
   { event: "agent/run" },
   async ({ event, step }) => {
-    const model = openai({ model: "gpt-4", step });
+    const model = openai({ model: "gpt-4", step }) as any;
 
-    // 1. Single agents
-    //
+    //  1. Single agent
+    
     // Run a single agent as a prompt without a network.
-    const { output, raw } = await codeWritingAgent.run(event.data.input, {
+    await codeWritingAgent.run(event.data.input, {
       model,
     });
 
-    // // 2. A network of agents that works together
+    //  2. A network of agents that works together
+    const network = createNetwork({
+      agents: [
+        codeWritingAgent.withModel(model),
+        executingAgent.withModel(model),
+      ],
+      defaultModel: model,
+      maxIter: 4,
+    });
 
-    // const network = createNetwork({
-    //   agents: [
-    //     codeWritingAgent.withModel(model),
-    //     executingAgent.withModel(model),
-    //   ],
-    //   defaultModel: model,
-    //   maxIter: 4,
-    // });
+    // This uses the defaut agentic router to determine which agent to handle first.  You can
+    // optionally specifiy the agent that should execute first, and provide your own logic for
+    // handling logic in between agent calls.
+    const result = await network.run(event.data.input, ({ network }) => {
+      if (network.state.kv.has("files")) {
+        // Okay, we have some files.  Did an agent run tests?
+        return executingAgent;
+      }
 
-    // // This uses the defaut agentic router to determine which agent to handle first.  You can
-    // // optionally specifiy the agent that should execute first, and provide your own logic for
-    // // handling logic in between agent calls.
-    // const result = await network.run(event.data.input, ({ network }) => {
-    //   if (network.state.kv.has("files")) {
-    //     // Okay, we have some files.  Did an agent run tests?
-    //     return executingAgent;
-    //   }
+      return defaultRoutingAgent.withModel(model);
+    });
 
-    //   return defaultRoutingAgent.withModel(model);
-    // });
-
-    return output;
+    return result;
   },
 );
 
 const systemPrompt =
-  "You are an expert TypeScript programmer.";
+  "You are an expert TypeScript programmer.  You can create files with idiomatic TypeScript code, with comments and associated tests.";
 
 const codeWritingAgent = createAgent({
   name: "Code writer",
@@ -100,8 +99,8 @@ const codeWritingAgent = createAgent({
     //   "- If you would like to write code, add all code within the following tags (replace $filename and $contents appropriately):" +
     //   "  <file name='$filename.ts'>$contents</file>";
     createTypedTool({
-      name: "write_files",
-      description: "Write code with the given filenames",
+      name: "create_files",
+      description: "Create files with the given filenames and contents",
       parameters: z
         .object({
           files: z.array(
@@ -141,7 +140,7 @@ const executingAgent = createAgent({
     },
   },
 
-  system: `You are an export TypeScript engineer that can execute commands, run tests, debug the output, and make modifications to code.
+  system: `You are an expert TypeScript engineer that can execute commands, run tests, debug the output, and make modifications to code.
 
 Think carefully about the request that the user is asking for. Do not respond with anything else other than the following XML tags:
 
