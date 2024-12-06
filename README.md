@@ -26,7 +26,7 @@ A networked agent:
 // to solve a specific task.
 const network = createNetwork({
   agents: [navigator, classifier, summarizer],
-  defaultModel: agenticOpenai({ model: "gpt-4o", step }),
+  defaultModel: openai({ model: "gpt-4o", step }),
 });
 
 const input = `Classify then summarize the latest 10 blog posts
@@ -46,7 +46,7 @@ const writer = createAgent({
   name: "writer",
   system:
     "You are an expert writer.  You write readable, concise, simple content.",
-  model: agenticOpenai({ model: "gpt-4o", step }),
+  model: openai({ model: "gpt-4o", step }),
 });
 
 const { output } = await writer.run(
