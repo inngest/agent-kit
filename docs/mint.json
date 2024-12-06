@@ -7,7 +7,7 @@
   },
   "favicon": "/brand/favicon-june-2024-dark.png",
   "colors": {
-    "primary": "#027A48",
+    "primary": "#075d5d",
     "light": "#027A48",
     "dark": "#027A48",
     "anchors": {
@@ -67,8 +67,8 @@
         "concepts/agents",
         "concepts/tools",
         "concepts/networks",
-        "concepts/routing",
-        "concepts/network-state",
+        "concepts/state",
+        "concepts/routers",
         "concepts/models"
       ]
     },

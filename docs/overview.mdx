@@ -16,7 +16,7 @@ AgentKit provides primitives that are designed to be easily composable, but very
 
 ![A diagram with the components of AgentKit in an AgentKit Network](/graphics/system.svg)
 
-AgentKit enables developers to compose simple single-agent systems or entire _systems of agents_ in which multiple agents can work together. **Agents** are combined into "**Networks**" which include a **Router** to determine which Agent should be called. They system's memory is recorded as **Network state** which can be used by the Router, Agents or **Tools**, which can be used to enable the Agents' **Models** to perform tasks.
+AgentKit enables developers to compose simple single-agent systems or entire _systems of agents_ in which multiple agents can work together. **Agents** are combined into "**Networks**" which include a **Router** to determine which Agent should be called. They system's memory is recorded as Network **State** which can be used by the Router, Agents or **Tools**, which can be used to enable the Agents' **Models** to perform tasks.
 
 The entire system is orchestration-aware and allows for customization at runtime for dynamic, powerful AI workflows and agentic systems. Here is what a simple Network looks like in code:
 
@@ -57,13 +57,13 @@ A network is a group of agents which can work together using shared state to sol
 
 [Learn more about networks](/concepts/networks)
 
-### Network state
+### State
 
 In a network, there's typically more than one inference call. The network stores state, which includes the _memory_ of all past inference calls and a key-value store for _facts, thoughts, and observations_ returned in each call. State allows you to transfer reasoning from one agent to another during _routing_, and allows you to complete complex tasks.
 
-[Learn more about network state](/concepts/network-state)
+[Learn more about state](/concepts/state)
 
-### Network Routers
+### Routers
 
 A network calls different agents, many times, in a loop. The router helps determine which agent should be called next, based off of the current network state, the input, and the available agents. Examples of routers are:
 

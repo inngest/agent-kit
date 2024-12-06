@@ -7,7 +7,7 @@ iconType: 'regular'
 
 Agents are the core of AgentKit. Agents are _stateless_ entities with a defined goal and an optional set of [Tools](/concepts/tools) that can be used to accomplish a goal.
 
-Agents can be called individually or, more powerfully, composed into a [Network](/concepts/networks) with multiple agents that can work together with persisted [state](/concepts/network-state).
+Agents can be called individually or, more powerfully, composed into a [Network](/concepts/networks) with multiple agents that can work together with persisted [State](/concepts/state).
 
 At the most basic level, an Agent is a wrapper around a specific provider's [model](/concepts/models), OpenAI gpt-4 for example, and a set of of [tools](/concepts/tools).
 
@@ -30,6 +30,12 @@ const codeWriterAgent = createAgent({
 });
 ```
 
+<Tip>
+  While `system` prompts can be static strings, they are more powerful when they
+  are [dynamic system prompts](#dynamic-system-prompts) defined as callbacks
+  that can add additional context at runtime.
+</Tip>
+
 Any Agent can be called using `run()` with a user prompt. This performs an inference call to the model with the system prompt as the first message and the input as the user message.
 
 ```ts
@@ -40,7 +46,10 @@ console.log(output);
 // [{ role: 'assistant', content: 'function removeUnecessaryWhitespace(...' }]
 ```
 
-While `system` prompts can be static strings, they are more powerful when they are [dynamic system prompts](#dynamic-system-prompts) defined as callbacks that can add additional context at runtime.
+<Tip>
+  When including your Agent in a Network, a `description` is required. Learn
+  more about [using Agents in Networks here](#using-agents-in-networks).
+</Tip>
 
 {/* TODO - Compare to OpenAI sdk call */}
 {/* TODO - When combined with Inngest's step.ai...expand */}
@@ -123,14 +132,14 @@ Agents themselves are relatively simple. When you call `run()`, there are severa
 
 Agent lifecycle hooks can be used to intercept and modify how an Agent works enabling dynamic control over the system. As mentioned in the "[How Agents work](#how-agents-work)" section, there are a few lifecycle hooks that can be defined on the Agent's `lifecycle` options object.
 
-- Dynamically alter prompts using [Network state](/concepts/network-state) or the Network's history.
+- Dynamically alter prompts using Network [State](/concepts/state) or the Network's history.
 - Parse output of model after an inference call.
 
 Learn more about lifecycle hooks and how to define them in [this reference](/reference/create-agent#lifecycle).
 
 ## System prompts
 
-An Agent's system prompt can be defined as a string or an async callback. When Agents are part of a [Network](/concepts/networks), the [Network state](/concepts/network-state) is passed as an argument to create dynamic prompts, or instructions, based on history or the outputs of other Agents.
+An Agent's system prompt can be defined as a string or an async callback. When Agents are part of a [Network](/concepts/networks), the Network [State](/concepts/state) is passed as an argument to create dynamic prompts, or instructions, based on history or the outputs of other Agents.
 
 ### Dynamic system prompts
 
@@ -175,15 +184,15 @@ Agents may also just have static system prompts which are more useful for simple
 const codeWriterAgent = createAgent({
   name: 'Copy editor',
   system:
-    `You are an expert copy editor. Given a draft article, you provide actionable improvements for ` +
-    `spelling, grammar, punctuation, and formatting.`,
+    `You are an expert copy editor. Given a draft article, you provide ` +
+    `actionable improvements for spelling, grammar, punctuation, and formatting.`,
   model: openai('gpt-3.5-turbo'),
 });
 ```
 
 ## Using Agents in Networks
 
-Agents are the most powerful when combined into [Networks](/concepts/networks). Networks include [state](/concepts/network-state) and [routing](/concepts/routing) to create stateful workflows that can enable Agents to work together to accomplish larger goals.
+Agents are the most powerful when combined into [Networks](/concepts/networks). Networks include [state](/concepts/state) and [routers](/concepts/routers) to create stateful workflows that can enable Agents to work together to accomplish larger goals.
 
 ### Agent descriptions
 

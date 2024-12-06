@@ -32,7 +32,7 @@ const listChargesTool = createTypedTool({
       lte: z.string().date(),
     }),
   }),
-  handler: async (output, { network, agent, step }) => {
+  handler: async ({ userId, created }, { network, agent, step }) => {
     // output is strongly typed to match the parameter type.
     return [{...}]
   },
