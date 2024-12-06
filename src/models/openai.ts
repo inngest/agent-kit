@@ -1,11 +1,7 @@
-import {
-  openai as iopenai,
-  type GetStepTools,
-  type Inngest,
-  type OpenAi,
-} from "inngest";
+import { openai as iopenai, type OpenAi } from "inngest";
 import { requestParser, responseParser } from "../adapters/openai";
 import { AgenticModel } from "../model";
+import { type AnyStepTools } from "../types";
 
 export namespace AgenticOpenAiModel {
   export interface Options<TAiAdapter extends OpenAi.AiModel>
@@ -18,7 +14,7 @@ export namespace AgenticOpenAiModel {
     /**
      * The step tools to use internally within this model.
      */
-    step: GetStepTools<Inngest.Any>;
+    step: AnyStepTools;
   }
 }
 

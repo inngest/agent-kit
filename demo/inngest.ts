@@ -25,7 +25,7 @@ export const fn = inngest.createFunction(
   { id: "agent" },
   { event: "agent/run" },
   async ({ event, step }) => {
-    const model = openai({ model: "gpt-4", step }) as any;
+    const model = openai({ model: "gpt-4", step });
 
     //  1. Single agent
     

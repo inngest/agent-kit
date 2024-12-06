@@ -3,7 +3,12 @@ import { type output as ZodOutput } from "zod";
 import { type Agent } from "./agent";
 import { type Network } from "./network";
 import { type InferenceResult, type InternalNetworkMessage } from "./state";
-import { type AnyZodType, type MaybePromise } from "./util";
+import {
+  type GenericizeFunctionsInObject,
+  type AnyZodType,
+  type MaybePromise,
+  type SimplifyDeep,
+} from "./util";
 
 export type Tool<T extends AnyZodType> = {
   name: string;
@@ -46,3 +51,15 @@ export interface BeforeLifecycleArgs extends BaseLifecycleArgs {
   system: InternalNetworkMessage[];
   history?: InternalNetworkMessage[];
 }
+
+/**
+ * Represents step tooling from an Inngest client, purposefully genericized to
+ * allow for more flexible usage.
+ *
+ * Prefer use of `GetStepTools` in most cases, especially when you have access
+ * to a client.
+ */
+export type AnyStepTools = SimplifyDeep<
+  GenericizeFunctionsInObject<GetStepTools<Inngest.Any>>
+> &
+  Record<string, unknown>;
