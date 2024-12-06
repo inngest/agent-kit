@@ -1,6 +1,10 @@
 import { type AgenticModel } from "./model";
 import { type Network } from "./network";
-import { InferenceResult, type InternalNetworkMessage } from "./state";
+import {
+  type State,
+  InferenceResult,
+  type InternalNetworkMessage,
+} from "./state";
 import {
   type BaseLifecycleArgs,
   type BeforeLifecycleArgs,
@@ -86,14 +90,22 @@ export class Agent {
    */
   async run(
     input: string,
-    { model, network, maxIter = 0 }: Agent.RunOptions | undefined = {},
+    {
+      model,
+      network,
+      state: inputState,
+      maxIter = 0,
+    }: Agent.RunOptions | undefined = {},
   ): Promise<InferenceResult> {
     const p = model || this.model || network?.defaultModel;
     if (!p) {
       throw new Error("No step caller provided to agent");
     }
 
-    let history = network ? network.state.format() : [];
+    // input state always overrides the network state.
+    const state = inputState || network?.state;
+
+    let history = state ? state.format() : [];
     let prompt = await this.agentPrompt(input, network);
     let result = new InferenceResult(this, input, prompt, history, [], [], "");
     let hasMoreActions = true;
@@ -282,6 +294,12 @@ export namespace Agent {
   export interface RunOptions {
     model?: AgenticModel.Any;
     network?: Network;
+    /**
+     * State allows you to pass custom state into a single agent run call.  This should only
+     * be provided if you are running agents outside of a network.  Networks automatically
+     * supply their own state.
+     */
+    state?: State;
     maxIter?: number;
   }
 

@@ -47,10 +47,15 @@ export class Network {
   // agents referenced in the router here.
   private _agents: Map<string, Agent>;
 
-  constructor({ agents, defaultModel, maxIter }: Network.Constructor) {
+  constructor({
+    agents,
+    defaultModel,
+    maxIter,
+    state = new State(),
+  }: Network.Constructor) {
     this.agents = new Map();
     this._agents = new Map();
-    this.state = new State();
+    this.state = state;
     this.defaultModel = defaultModel;
     this.maxIter = maxIter || 0;
     this._stack = [];
@@ -304,6 +309,9 @@ export namespace Network {
     agents: Agent[];
     defaultModel?: AgenticModel.Any;
     maxIter?: number;
+    // state is any pre-existing network state to use in this Network instance.  By
+    // default, new state is created without any history for every Network.
+    state?: State;
   };
 
   /**
