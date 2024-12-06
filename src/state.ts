@@ -1,4 +1,3 @@
-import { type AiAdapter, type OpenAi } from "inngest";
 import { type Agent } from "./agent";
 
 export interface InternalNetworkMessage {
@@ -7,9 +6,6 @@ export interface InternalNetworkMessage {
   tools?: ToolMessage[];
   // TODO: Images and multi-modality.
 }
-
-export type OpenAiMessageType =
-  AiAdapter.Input<OpenAi.AiModel>["messages"][number];
 
 export interface TextMessage {
   type: "text";
@@ -29,13 +25,13 @@ export interface ToolResult {
 } // TODO: Content types.
 
 /**
- * NetworkState stores state (history) for a given network of agents.  The state
+ * State stores state (history) for a given network of agents.  The state
  * includes key-values, plus a stack of all agentic calls.
  *
  * From this, the chat history can be reconstructed (and manipulated) for each
  * subsequent agentic call.
  */
-export class NetworkState {
+export class State {
   public kv: {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     set: <T = any>(key: string, value: T) => void;

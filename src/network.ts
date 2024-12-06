@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { Agent, createTypedTool } from "./agent";
 import { type AgenticModel } from "./model";
-import { type InferenceResult, NetworkState } from "./state";
+import { type InferenceResult, State } from "./state";
 import { type MaybePromise } from "./util";
 
 /**
@@ -21,7 +21,7 @@ export class Network {
   /**
    * state is the entire agent's state.
    */
-  state: NetworkState;
+  state: State;
 
   /**
    * defaultModel is the default model to use with the network.  This will not
@@ -50,7 +50,7 @@ export class Network {
   constructor({ agents, defaultModel, maxIter }: Network.Constructor) {
     this.agents = new Map();
     this._agents = new Map();
-    this.state = new NetworkState();
+    this.state = new State();
     this.defaultModel = defaultModel;
     this.maxIter = maxIter || 0;
     this._stack = [];
