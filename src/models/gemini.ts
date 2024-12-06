@@ -1,4 +1,9 @@
-import { gemini, type Gemini, type GetStepTools, type Inngest } from "inngest";
+import {
+  gemini as igemini,
+  type Gemini,
+  type GetStepTools,
+  type Inngest,
+} from "inngest";
 import { requestParser, responseParser } from "../adapters/openai";
 import { AgenticModel } from "../model";
 
@@ -23,13 +28,13 @@ export namespace AgenticGeminiModel {
  * By default it targets the `https://generativelanguage.googleapis.com/v1beta/`
  * base URL.
  */
-export const agenticGemini = <TAiAdapter extends Gemini.AiModel>({
+export const gemini = <TAiAdapter extends Gemini.AiModel>({
   step,
   ...modelOptions
 }: AgenticGeminiModel.Options<TAiAdapter>) => {
   const model =
     typeof modelOptions.model === "string"
-      ? gemini({ ...modelOptions, model: modelOptions.model })
+      ? igemini({ ...modelOptions, model: modelOptions.model })
       : modelOptions.model;
 
   return new AgenticModel({

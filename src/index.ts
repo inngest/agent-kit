@@ -9,3 +9,4 @@ export * from "./util";
 // Models
 export * from "./models/gemini";
 export * from "./models/openai";
+export * from "./models/anthropic";

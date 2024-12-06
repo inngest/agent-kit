@@ -1,11 +1,11 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import {
-  agenticOpenai,
+  anthropic,
   createAgent,
   createNetwork,
   createTypedTool,
   defaultRoutingAgent,
-} from "@inngest/agent-kit";
+} from "../src/index";
 import { EventSchemas, Inngest } from "inngest";
 import { z } from "zod";
 
@@ -24,7 +24,7 @@ export const fn = inngest.createFunction(
   { id: "agent" },
   { event: "agent/run" },
   async ({ event, step }) => {
-    const model = agenticOpenai({ model: "gpt-4", step });
+    const model = anthropic({ model: "claude-3-5-haiku-latest", max_tokens: 1024, step });
 
     // 1. Single agents
     //
@@ -33,18 +33,16 @@ export const fn = inngest.createFunction(
       model,
     });
 
-    // 2. Networks of agents
-    const cheapModel = agenticOpenai({ model: "gpt-3.5-turbo", step });
+    // 2. A network of agents that works together
 
     const network = createNetwork({
       agents: [
         codeWritingAgent.withModel(model),
-        executingAgent.withModel(cheapModel),
+        executingAgent.withModel(model),
       ],
       defaultModel: model,
       maxIter: 4,
     });
-    // code -> executing -> code
 
     // This uses the defaut agentic router to determine which agent to handle first.  You can
     // optionally specifiy the agent that should execute first, and provide your own logic for
