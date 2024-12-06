@@ -3,8 +3,9 @@ import {
   anthropic,
   createAgent,
   createNetwork,
-  createTypedTool,
+  createTool,
   defaultRoutingAgent,
+  openai,
 } from "../src/index";
 import { EventSchemas, Inngest } from "inngest";
 import { z } from "zod";
@@ -24,17 +25,16 @@ export const fn = inngest.createFunction(
   { id: "agent" },
   { event: "agent/run" },
   async ({ event, step }) => {
-    const model = anthropic({ model: "claude-3-5-haiku-latest", max_tokens: 1024, step });
+    const model = openai({ model: "gpt-4", step });
 
-    // 1. Single agents
-    //
+    //  1. Single agent
+    
     // Run a single agent as a prompt without a network.
-    const { output, raw } = await codeWritingAgent.run(event.data.input, {
+    await codeWritingAgent.run(event.data.input, {
       model,
     });
 
-    // 2. A network of agents that works together
-
+    //  2. A network of agents that works together
     const network = createNetwork({
       agents: [
         codeWritingAgent.withModel(model),
@@ -61,8 +61,7 @@ export const fn = inngest.createFunction(
 );
 
 const systemPrompt =
-  "You are an expert TypeScript programmer.  Given a set of asks, think step-by-step to plan clean, " +
-  "idiomatic TypeScript code, with comments and tests as necessary.";
+  "You are an expert TypeScript programmer.  You can create files with idiomatic TypeScript code, with comments and associated tests.";
 
 const codeWritingAgent = createAgent({
   name: "Code writer",
@@ -99,9 +98,9 @@ const codeWritingAgent = createAgent({
     //   "Do not respond with anything else other than the following XML tags:" +
     //   "- If you would like to write code, add all code within the following tags (replace $filename and $contents appropriately):" +
     //   "  <file name='$filename.ts'>$contents</file>";
-    createTypedTool({
-      name: "write_files",
-      description: "Write code with the given filenames",
+    createTool({
+      name: "create_files",
+      description: "Create files with the given filenames and contents",
       parameters: z
         .object({
           files: z.array(
@@ -141,7 +140,7 @@ const executingAgent = createAgent({
     },
   },
 
-  system: `You are an export TypeScript engineer that can execute commands, run tests, debug the output, and make modifications to code.
+  system: `You are an expert TypeScript engineer that can execute commands, run tests, debug the output, and make modifications to code.
 
 Think carefully about the request that the user is asking for. Do not respond with anything else other than the following XML tags:
 

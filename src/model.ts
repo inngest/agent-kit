@@ -2,7 +2,7 @@ import { type AiAdapter, type GetStepTools, type Inngest } from "inngest";
 import { type InternalNetworkMessage } from "./state";
 import { type Tool } from "./types";
 
-export class AgenticModel<TAiAdapter extends AiAdapter> {
+export class AgenticModel<TAiAdapter extends AiAdapter.Any> {
   #model: TAiAdapter;
 
   step: GetStepTools<Inngest.Any>;
@@ -36,7 +36,7 @@ export class AgenticModel<TAiAdapter extends AiAdapter> {
 }
 
 export namespace AgenticModel {
-  export type Any = AgenticModel<AiAdapter>;
+  export type Any = AgenticModel<AiAdapter.Any>;
 
   /**
    * InferenceResponse is the response from a model for an inference request.
@@ -48,20 +48,20 @@ export namespace AgenticModel {
     raw: T;
   };
 
-  export interface Constructor<TAiAdapter extends AiAdapter> {
+  export interface Constructor<TAiAdapter extends AiAdapter.Any> {
     model: TAiAdapter;
     step: GetStepTools<Inngest.Any>;
     requestParser: RequestParser<TAiAdapter>;
     responseParser: ResponseParser<TAiAdapter>;
   }
 
-  export type RequestParser<TAiAdapter extends AiAdapter> = (
+  export type RequestParser<TAiAdapter extends AiAdapter.Any> = (
     model: TAiAdapter,
     state: InternalNetworkMessage[],
     tools: Tool.Any[],
   ) => AiAdapter.Input<TAiAdapter>;
 
-  export type ResponseParser<TAiAdapter extends AiAdapter> = (
+  export type ResponseParser<TAiAdapter extends AiAdapter.Any> = (
     output: AiAdapter.Output<TAiAdapter>,
   ) => InternalNetworkMessage[];
 }

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { Agent, createTypedTool } from "./agent";
+import { Agent, createTool } from "./agent";
 import { type AgenticModel } from "./model";
 import { type InferenceResult, State } from "./state";
 import { type MaybePromise } from "./util";
@@ -47,10 +47,15 @@ export class Network {
   // agents referenced in the router here.
   private _agents: Map<string, Agent>;
 
-  constructor({ agents, defaultModel, maxIter }: Network.Constructor) {
+  constructor({
+    agents,
+    defaultModel,
+    maxIter,
+    state = new State(),
+  }: Network.Constructor) {
     this.agents = new Map();
     this._agents = new Map();
-    this.state = new State();
+    this.state = state;
     this.defaultModel = defaultModel;
     this.maxIter = maxIter || 0;
     this._stack = [];
@@ -132,7 +137,9 @@ export class Network {
         return this;
       }
 
-      const call = await agent.run(input, { network: this });
+      // We force Agent to emit structured output in case of the use of tools by
+      // setting maxIter to 0.
+      const call = await agent.run(input, { network: this, maxIter: 0 });
       this._counter += 1;
 
       // Ensure that we store the call network history.
@@ -222,7 +229,7 @@ export const defaultRoutingAgent = new Agent({
   tools: [
     // This tool does nothing but ensure that the model responds with the
     // agent name as valid JSON.
-    createTypedTool({
+    createTool({
       name: "select_agent",
       description:
         "select an agent to handle the input, based off of the current conversation",
@@ -233,23 +240,23 @@ export const defaultRoutingAgent = new Agent({
             .describe("The name of the agent that should handle the request"),
         })
         .strict(),
-      handler: (input, { agent, network }) => {
+      handler: ({ name }, { network }) => {
         if (!network) {
           throw new Error(
             "The routing agent can only be used within a network of agents",
           );
         }
 
-        // if (typeof name !== "string") {
-        //   throw new Error("The routing agent requested an invalid agent");
-        // }
+        if (typeof name !== "string") {
+          throw new Error("The routing agent requested an invalid agent");
+        }
 
-        // const agent = network.agents.get(name);
-        // if (agent === undefined) {
-        //   throw new Error(
-        //     `The routing agent requested an agent that doesn't exist: ${name}`,
-        //   );
-        // }
+        const agent = network.agents.get(name);
+        if (agent === undefined) {
+          throw new Error(
+            `The routing agent requested an agent that doesn't exist: ${name}`,
+          );
+        }
 
         // Schedule another agent.
         network.schedule(agent.name);
@@ -302,6 +309,9 @@ export namespace Network {
     agents: Agent[];
     defaultModel?: AgenticModel.Any;
     maxIter?: number;
+    // state is any pre-existing network state to use in this Network instance.  By
+    // default, new state is created without any history for every Network.
+    state?: State;
   };
 
   /**

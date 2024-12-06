@@ -1,6 +1,10 @@
 import { type AgenticModel } from "./model";
 import { type Network } from "./network";
-import { InferenceResult, type InternalNetworkMessage } from "./state";
+import {
+  type State,
+  InferenceResult,
+  type InternalNetworkMessage,
+} from "./state";
 import {
   type BaseLifecycleArgs,
   type BeforeLifecycleArgs,
@@ -13,7 +17,7 @@ import { type AnyZodType, type MaybePromise } from "./util";
  * createTool is a helper that properly types the input argument for a handler
  * based off of the Zod parameter types.
  */
-export const createTypedTool = <T extends AnyZodType>(t: Tool<T>): Tool<T> => t;
+export const createTool = <T extends AnyZodType>(t: Tool<T>): Tool<T> => t;
 
 /**
  * Agent represents a single agent, responsible for a set of tasks.
@@ -86,31 +90,81 @@ export class Agent {
    */
   async run(
     input: string,
-    { model, network }: Agent.RunOptions | undefined = {},
+    {
+      model,
+      network,
+      state: inputState,
+      maxIter = 0,
+    }: Agent.RunOptions | undefined = {},
   ): Promise<InferenceResult> {
     const p = model || this.model || network?.defaultModel;
     if (!p) {
       throw new Error("No step caller provided to agent");
     }
 
-    let system = await this.agentPrompt(input, network);
-    let history = network ? network.state.history : [];
+    // input state always overrides the network state.
+    const state = inputState || network?.state;
 
-    if (this.lifecycles?.onStart) {
-      const modified = await this.lifecycles.onStart({
-        agent: this,
-        network,
+    let history = state ? state.format() : [];
+    let prompt = await this.agentPrompt(input, network);
+    let result = new InferenceResult(this, input, prompt, history, [], [], "");
+    let hasMoreActions = true;
+    let iter = 0;
+
+    do {
+      // Call lifecycles each time we perform inference.
+      if (this.lifecycles?.onStart) {
+        const modified = await this.lifecycles.onStart({
+          agent: this,
+          network,
+          input,
+          prompt,
+          history,
+        });
+
+        if (modified.stop) {
+          // We allow users to prevent calling the LLM directly here.
+          return result;
+        }
+
+        prompt = modified.prompt;
+        history = modified.history;
+      }
+
+      const inference = await this.performInference(
         input,
-        system,
+        p,
+        prompt,
         history,
-      });
-      system = modified.system;
-      history = modified.history;
+        network,
+      );
+
+      hasMoreActions =
+        this.tools.size > 0 &&
+        inference.output[inference.output.length - 1]!.stop_reason !== "stop";
+
+      result = inference;
+      history = [...inference.output];
+      iter++;
+    } while (hasMoreActions && iter < maxIter);
+
+    if (this.lifecycles?.onFinish) {
+      result = await this.lifecycles.onFinish({ agent: this, network, result });
     }
 
+    return result;
+  }
+
+  private async performInference(
+    input: string,
+    p: AgenticModel.Any,
+    prompt: InternalNetworkMessage[],
+    history: InternalNetworkMessage[],
+    network?: Network,
+  ): Promise<InferenceResult> {
     const { output, raw } = await p.infer(
       this.name,
-      system.concat(history),
+      prompt.concat(history),
       Array.from(this.tools.values()),
     );
 
@@ -119,8 +173,8 @@ export class Agent {
     let result = new InferenceResult(
       this,
       input,
-      system,
-      system.concat(history),
+      prompt,
+      history,
       output,
       [],
       typeof raw === "string" ? raw : JSON.stringify(raw),
@@ -134,9 +188,9 @@ export class Agent {
     }
 
     // And ensure we invoke any call from the agent
-    result.toolCalls = await this.invokeTools(result.output, p, network);
-    if (this.lifecycles?.onFinish) {
-      result = await this.lifecycles.onFinish({ agent: this, network, result });
+    const toolCallOutput = await this.invokeTools(result.output, p, network);
+    if (toolCallOutput.length > 0) {
+      result.toolCalls = result.toolCalls.concat(toolCallOutput);
     }
 
     return result;
@@ -164,9 +218,10 @@ export class Agent {
 
         // Call this tool.
         //
-        // TODO: This should be wrapped in a step, but then `network.schedule`
-        // breaks, as `step.run` memoizes so agents aren't scheduled on their
-        // next loop.
+        // XXX: You might expect this to be wrapped in a step, but each tool can
+        // use multiple step tools, eg. `step.run`, then `step.waitForEvent` for
+        // human in the loop tasks.
+        //
         // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
         const result = await found.handler(tool.input, {
           agent: this,
@@ -174,19 +229,20 @@ export class Agent {
           step: p.step,
         });
 
-        if (result === undefined) {
-          // This had no result, so we don't wnat to save it to the state.
-          continue;
-        }
+        // TODO: handle error and send them back to the LLM
 
         output.push({
           role: "tool_result",
-          content: {
-            type: "tool_result",
-            id: tool.id,
-            // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-            content: result, // TODO: Properly type content.
-          },
+          tools: [
+            {
+              type: "tool",
+              id: tool.id,
+              name: tool.name,
+              input: tool.input.arguments as Record<string, unknown>,
+            },
+          ],
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+          content: result ? result : `${tool.name} successfully executed`,
         });
       }
     }
@@ -238,6 +294,13 @@ export namespace Agent {
   export interface RunOptions {
     model?: AgenticModel.Any;
     network?: Network;
+    /**
+     * State allows you to pass custom state into a single agent run call.  This should only
+     * be provided if you are running agents outside of a network.  Networks automatically
+     * supply their own state.
+     */
+    state?: State;
+    maxIter?: number;
   }
 
   export interface Lifecycle {
@@ -248,18 +311,21 @@ export namespace Agent {
     enabled?: (args: BaseLifecycleArgs) => MaybePromise<boolean>;
 
     /**
-     * onStart allows you to intercept and modify the input prompt for a given
-     * agent, or prevent the agent from being called altogether by throwing an
-     * error.
+     * onStart is called just before an agent starts an inference call.
      *
      * This receives the full agent prompt.  If this is a networked agent, the
      * agent will also receive the network's history which will be concatenated
      * to the end of the prompt when making the inference request.
      *
+     * The return values can be used to adjust the prompt, history, or to stop
+     * the agent from making the call altogether.
+     *
      */
     onStart?: (args: BeforeLifecycleArgs) => MaybePromise<{
-      system: InternalNetworkMessage[];
+      prompt: InternalNetworkMessage[];
       history: InternalNetworkMessage[];
+      // stop, if true, will prevent calling the agent
+      stop: boolean;
     }>;
 
     /**
