@@ -15,12 +15,14 @@ export interface TextMessage {
   type: "text";
   text: string;
 }
+
 export interface ToolMessage {
   type: "tool";
   id: string;
   name: string;
   input: Record<string, unknown>;
 }
+
 export interface ToolResult {
   type: "tool_result";
   id: string;
@@ -50,6 +52,11 @@ export class State {
 
   private _history: InferenceResult[];
 
+  /**
+   * answer stores the final answer.
+   */
+  private _answer: unknown;
+
   constructor() {
     this._history = [];
     this._kv = new Map();
@@ -70,6 +77,24 @@ export class State {
         return this._kv.has(key);
       },
     };
+  }
+
+  /**
+   * setting an answer signals that we have a final answer.  The presence
+   * of an answer stops networks from running its router loop.
+   *
+   * Note that setting an answer must only be done once we have a final answer
+   * from the agentic loop.  It should not be used for interim state.
+   */
+  set answer(answer: unknown) {
+    this._answer = answer;
+  }
+
+  /**
+   * the answer getter returns the final answer from the agent loop, if set.
+   */
+  get answer(): unknown {
+    return this._answer;
   }
 
   /**
