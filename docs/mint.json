@@ -32,6 +32,10 @@
   },
   "tabs": [
     {
+      "name": "Examples",
+      "url": "examples"
+    },
+    {
       "name": "Reference",
       "url": "reference"
     },
@@ -71,6 +75,17 @@
         "concepts/routers",
         "concepts/models"
       ]
+    },
+    {
+      "group": "Guides (Coming soon)",
+      "pages": [
+        "guides/state-management",
+        "guides/agent-handoff-and-escalation"
+      ]
+    },
+    {
+      "group": "Examples",
+      "pages": ["examples/overview"]
     },
     {
       "group": "",
