@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { Agent, createTypedTool } from "./agent";
+import { Agent, createTool } from "./agent";
 import { type AgenticModel } from "./model";
 import { type InferenceResult, State } from "./state";
 import { type MaybePromise } from "./util";
@@ -224,7 +224,7 @@ export const defaultRoutingAgent = new Agent({
   tools: [
     // This tool does nothing but ensure that the model responds with the
     // agent name as valid JSON.
-    createTypedTool({
+    createTool({
       name: "select_agent",
       description:
         "select an agent to handle the input, based off of the current conversation",

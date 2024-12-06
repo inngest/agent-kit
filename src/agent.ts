@@ -13,7 +13,7 @@ import { type AnyZodType, type MaybePromise } from "./util";
  * createTool is a helper that properly types the input argument for a handler
  * based off of the Zod parameter types.
  */
-export const createTypedTool = <T extends AnyZodType>(t: Tool<T>): Tool<T> => t;
+export const createTool = <T extends AnyZodType>(t: Tool<T>): Tool<T> => t;
 
 /**
  * Agent represents a single agent, responsible for a set of tasks.
@@ -86,47 +86,51 @@ export class Agent {
    */
   async run(
     input: string,
-    {
-      model,
-      network,
-      maxIter = this.tools.size + 1,
-    }: Agent.RunOptions | undefined = {},
+    { model, network, maxIter = 0 }: Agent.RunOptions | undefined = {},
   ): Promise<InferenceResult> {
     const p = model || this.model || network?.defaultModel;
     if (!p) {
       throw new Error("No step caller provided to agent");
     }
 
-    let history = network ? network.state.history : [];
-    let system = await this.agentPrompt(input, network);
-    let result: InferenceResult;
-
-    if (this.lifecycles?.onStart) {
-      const modified = await this.lifecycles.onStart({
-        agent: this,
-        network,
-        input,
-        system,
-        history,
-      });
-      system = modified.system;
-      history = modified.history;
-    }
-
+    let history = network ? network.state.format() : [];
+    let prompt = await this.agentPrompt(input, network);
+    let result = new InferenceResult(this, input, prompt, history, [], [], "");
     let hasMoreActions = true;
     let iter = 0;
+
     do {
+      // Call lifecycles each time we perform inference.
+      if (this.lifecycles?.onStart) {
+        const modified = await this.lifecycles.onStart({
+          agent: this,
+          network,
+          input,
+          prompt,
+          history,
+        });
+
+        if (modified.stop) {
+          // We allow users to prevent calling the LLM directly here.
+          return result;
+        }
+
+        prompt = modified.prompt;
+        history = modified.history;
+      }
+
       const inference = await this.performInference(
         input,
         p,
+        prompt,
         history,
-        system,
         network,
       );
 
       hasMoreActions =
         this.tools.size > 0 &&
         inference.output[inference.output.length - 1]!.stop_reason !== "stop";
+
       result = inference;
       history = [...inference.output];
       iter++;
@@ -142,13 +146,13 @@ export class Agent {
   private async performInference(
     input: string,
     p: AgenticModel.Any,
+    prompt: InternalNetworkMessage[],
     history: InternalNetworkMessage[],
-    system: InternalNetworkMessage[],
     network?: Network,
   ): Promise<InferenceResult> {
     const { output, raw } = await p.infer(
       this.name,
-      system.concat(history),
+      prompt.concat(history),
       Array.from(this.tools.values()),
     );
 
@@ -157,8 +161,8 @@ export class Agent {
     let result = new InferenceResult(
       this,
       input,
-      system,
-      system.concat(history),
+      prompt,
+      history,
       output,
       [],
       typeof raw === "string" ? raw : JSON.stringify(raw),
@@ -173,9 +177,8 @@ export class Agent {
 
     // And ensure we invoke any call from the agent
     const toolCallOutput = await this.invokeTools(result.output, p, network);
-    // if a tool was called, we add it to the history/messages
     if (toolCallOutput.length > 0) {
-      result.output = result.output.concat(toolCallOutput);
+      result.toolCalls = result.toolCalls.concat(toolCallOutput);
     }
 
     return result;
@@ -203,8 +206,9 @@ export class Agent {
 
         // Call this tool.
         //
-        // TODO: This should be wrapped in a step, but then `network.schedule`
-        // breaks, as `step.run` memoizes so agents aren't scheduled on their
+        // XXX: You might expect this to be wrapped in a step, but each tool can
+        // com
+        // `network.schedule` breaks, as `step.run` memoizes so agents aren't scheduled on their
         // next loop.
         // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
         const result = await found.handler(tool.input, {
@@ -299,8 +303,10 @@ export namespace Agent {
      *
      */
     onStart?: (args: BeforeLifecycleArgs) => MaybePromise<{
-      system: InternalNetworkMessage[];
+      prompt: InternalNetworkMessage[];
       history: InternalNetworkMessage[];
+      // stop, if true, will prevent calling the agent
+      stop: boolean;
     }>;
 
     /**

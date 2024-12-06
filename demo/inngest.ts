@@ -3,7 +3,7 @@ import {
   anthropic,
   createAgent,
   createNetwork,
-  createTypedTool,
+  createTool,
   defaultRoutingAgent,
   openai,
 } from "../src/index";
@@ -98,7 +98,7 @@ const codeWritingAgent = createAgent({
     //   "Do not respond with anything else other than the following XML tags:" +
     //   "- If you would like to write code, add all code within the following tags (replace $filename and $contents appropriately):" +
     //   "  <file name='$filename.ts'>$contents</file>";
-    createTypedTool({
+    createTool({
       name: "create_files",
       description: "Create files with the given filenames and contents",
       parameters: z

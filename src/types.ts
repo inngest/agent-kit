@@ -48,7 +48,13 @@ export interface ResultLifecycleArgs extends BaseLifecycleArgs {
 export interface BeforeLifecycleArgs extends BaseLifecycleArgs {
   // input is the user request for the entire agentic operation.
   input?: string;
-  system: InternalNetworkMessage[];
+
+  // prompt is the system, user, and any assistant prompt as generated
+  // by the Agent.  This does not include any past history.
+  prompt: InternalNetworkMessage[];
+
+  // history is the past history as generated via State.  Ths will be added
+  // after the prompt to form a single conversation log.
   history?: InternalNetworkMessage[];
 }
 
