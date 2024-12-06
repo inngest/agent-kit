@@ -311,13 +311,14 @@ export namespace Agent {
     enabled?: (args: BaseLifecycleArgs) => MaybePromise<boolean>;
 
     /**
-     * onStart allows you to intercept and modify the input prompt for a given
-     * agent, or prevent the agent from being called altogether by throwing an
-     * error.
+     * onStart is called just before an agent starts an inference call.
      *
      * This receives the full agent prompt.  If this is a networked agent, the
      * agent will also receive the network's history which will be concatenated
      * to the end of the prompt when making the inference request.
+     *
+     * The return values can be used to adjust the prompt, history, or to stop
+     * the agent from making the call altogether.
      *
      */
     onStart?: (args: BeforeLifecycleArgs) => MaybePromise<{
