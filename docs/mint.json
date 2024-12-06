@@ -84,7 +84,7 @@
       "group": "Network",
       "pages": [
         "reference/create-network",
-        "reference/network-state",
+        "reference/state",
         "reference/network-router"
       ]
     }
