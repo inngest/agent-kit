@@ -219,9 +219,9 @@ export class Agent {
         // Call this tool.
         //
         // XXX: You might expect this to be wrapped in a step, but each tool can
-        // com
-        // `network.schedule` breaks, as `step.run` memoizes so agents aren't scheduled on their
-        // next loop.
+        // use multiple step tools, eg. `step.run`, then `step.waitForEvent` for
+        // human in the loop tasks.
+        //
         // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
         const result = await found.handler(tool.input, {
           agent: this,
