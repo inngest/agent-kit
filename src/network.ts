@@ -81,6 +81,13 @@ export class Network {
   }
 
   /**
+   * the answer getter returns the final answer from the agent loop, if set.
+   */
+  get answer(): unknown {
+    return this.state.answer;
+  }
+
+  /**
    * addAgent adds a new agent to the network.
    */
   addAgent(agent: Agent) {
@@ -120,6 +127,7 @@ export class Network {
 
     while (
       this._stack.length > 0 &&
+      this.state.answer === undefined &&
       (this.maxIter === 0 || this._counter < this.maxIter)
     ) {
       // XXX: It would be possible to parallel call these agents here by
