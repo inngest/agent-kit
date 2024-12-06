@@ -1,0 +1,49 @@
+---
+title: Tools
+description: Extending the functionality of Agents for structured output or performing tasks.
+icon: 'screwdriver-wrench'
+iconType: 'light'
+---
+
+Tools are functions that extend the capabilities of an [Agent](/concepts/agents). Tools have two core uses:
+
+- Turning unstructured inputs into structured responses.
+- Calling code, enabling models to interact with systems like your own database or external APIs.
+
+A list of all available Tools and their configuration is sent in [an Agent's inference calls](/concepts/agents#how-agents-work) and a model may decide that a certain tool or tools should be called to complete the task. Tools are included in an Agent's calls to language models through features like OpenAI's "[function calling](https://platform.openai.com/docs/guides/function-calling)" or Claude's "[tool use](https://docs.anthropic.com/en/docs/build-with-claude/tool-use)."
+
+## Creating a Tool
+
+Each Tool's `name`, `description`, and `parameters` are part of the function definition that is used by model to learn about the tool's capabilities and decide when it should be called. The `handler` is the function that is executed by the Agent if the model decides that a particular Tool should be called.
+
+Here is a simple tool that lists charges for a given user's account between a date range:
+
+```ts
+import { createAgent, createTypedTool, openai } from '@inngest/agent-kit';
+
+const listChargesTool = createTypedTool({
+  name: 'list_charges',
+  description:
+    "Returns all of a user's charges. Call this whenever you need to find one or more charges between a date range.",
+  parameters: z.object({
+    userId: z.string(),
+    created: z.object({
+      gte: z.string().date(),
+      lte: z.string().date(),
+    }),
+  }),
+  handler: async (output, { network, agent, step }) => {
+    // output is strongly typed to match the parameter type.
+    return [{...}]
+  },
+});
+```
+
+Writing quality `name` and `description` parameters help the model determine when the particular Tool should be called.
+
+{/* TODO - Talk about the handler arguments and what you can do */}
+{/* TODO - Typing with zod */}
+{/* TODO - Showing how tools can be used for structured output */}
+{/* TODO - Leveraging state within tools */}
+{/* TODO - Using tool output from agent.run */}
+{/* TODO - Using Inngest steps with tools, human in the middle, etc. */}
