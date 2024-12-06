@@ -1,0 +1,46 @@
+---
+title: Networks
+description: 'Combine one or more agents into a Network'
+icon: 'chart-network'
+iconType: 'regular'
+---
+
+Networks are Systems of [Agents](/concepts/agents). Networks turn Agents into powerful stateful workflows.
+
+A network contains three components:
+
+- The agents that the network can access
+- The network's state, including past messages and a key value store (read more below)
+- The network's router, which chooses whether to quit or the next agent to run in the loop (read more below)
+
+It also has an optional default model, which will be used when your Agents have no model provided, and a setting to cap the number of model calls via `maxIter`.
+
+Here's a simple example:
+
+```tsx
+import { createNetwork, agenticOpenai as openai } from '@inngest/agent-kit';
+
+// Create a network with two agents.
+const network = createNetwork({
+  agents: [searchAgent, summaryAgent],
+  defaultModel: openai({ model: 'gpt-4o', step }), // Optional: used for routing and agents if they have no model
+  maxIter: 10, // Optional: max number of agent calls
+});
+
+// Run the network with a user prompt
+await network.run('What happened in the 2024 Super Bowl?');
+```
+
+Similar to agents, you call `.run` on a network with some user input. The network then runs a core loop to call one or more agents to find a suitable answer.
+
+## How networks work
+
+Networks are designed to be powerful while being easy to understand:
+
+1. You create a network with a list of available agents. Each agent can use a different model and inference provider.
+2. You give the network a user prompt by calling `.run`
+3. The network runs its core loop, and:
+   - Calls the router, which picks the first agent to run
+   - Runs the agent with your input. This also runs the agent’s lifecycles, and any tools selected.
+   - Stores the result in the network's state
+   - Re-calls the router with the new state, which either quits or runs another agent

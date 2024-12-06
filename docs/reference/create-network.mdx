@@ -1,0 +1,39 @@
+---
+title: createNetwork
+description: 'Define a network'
+---
+
+Networks are defined using the `createNetwork` function.
+
+```ts
+import { createNetwork, openai } from '@inngest/agent-kit';
+
+// Create a network with two agents
+const network = createNetwork({
+  agents: [searchAgent, summaryAgent],
+  defaultModel: openai({ model: 'gpt-4o', step }),
+  maxIter: 10,
+});
+```
+
+## Options
+
+<ParamField path="agents" type="array<Agent>" required>
+  Agents that can be called from within the `Network`.
+</ParamField>
+
+<ParamField path="defaultModel" type="string">
+  The provider model to use for routing inference calls.
+</ParamField>
+
+<ParamField path="system" type="string" required>
+  The system prompt, as a string or function. Functions let you change prompts
+  based off of state and memory
+</ParamField>
+
+<ParamField path="tools" type="array<TypedTool>">
+  Defined tools that an agent can call.
+
+Tools are created via [`createTypedTool`](/reference/createTypedTool).
+
+</ParamField>

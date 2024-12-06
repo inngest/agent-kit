@@ -1,0 +1,96 @@
+{
+  "$schema": "https://mintlify.com/schema.json",
+  "name": "AgentKit by Inngest",
+  "logo": {
+    "dark": "/brand/logo-dark.svg",
+    "light": "/brand/logo-light.svg"
+  },
+  "favicon": "/brand/favicon-june-2024-dark.png",
+  "colors": {
+    "primary": "#027A48",
+    "light": "#027A48",
+    "dark": "#027A48",
+    "anchors": {
+      "from": "#66BD8B",
+      "to": "#52B2FD"
+    }
+  },
+  "theme": "venus",
+  "layout": "topnav",
+  "codeBlock": {
+    "mode": "auto"
+  },
+  "topbarLinks": [
+    {
+      "name": "Inngest.com",
+      "url": "https://www.inngest.com/ai?ref=agent-kit-docs"
+    }
+  ],
+  "topbarCtaButton": {
+    "type": "github",
+    "url": "https://github.com/inngest/agent-kit"
+  },
+  "tabs": [
+    {
+      "name": "Reference",
+      "url": "reference"
+    },
+    {
+      "name": "Inngest documentation",
+      "url": "https://www.inngest.com/docs"
+    }
+  ],
+  "anchors": [
+    {
+      "name": "Community",
+      "icon": "discord",
+      "url": "https://www.inngest.com/discord"
+    },
+    {
+      "name": "Github",
+      "icon": "github",
+      "url": "https://github.com/inngest/agent-kit"
+    }
+  ],
+  "navigation": [
+    {
+      "group": "Get Started",
+      "pages": [
+        "overview",
+        "getting-started/quick-start",
+        "getting-started/installation"
+      ]
+    },
+    {
+      "group": "Concepts",
+      "pages": [
+        "concepts/agents",
+        "concepts/tools",
+        "concepts/networks",
+        "concepts/routing",
+        "concepts/network-state",
+        "concepts/models"
+      ]
+    },
+    {
+      "group": "",
+      "pages": ["reference/introduction"]
+    },
+    {
+      "group": "Agent",
+      "pages": ["reference/create-agent", "reference/create-typed-tool"]
+    },
+    {
+      "group": "Network",
+      "pages": [
+        "reference/create-network",
+        "reference/network-state",
+        "reference/network-router"
+      ]
+    }
+  ],
+  "footerSocials": {
+    "github": "https://github.com/inngest",
+    "x": "https://x.com/inngest"
+  }
+}
