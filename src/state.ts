@@ -1,9 +1,15 @@
 import { type Agent } from "./agent";
 
-export interface InternalNetworkMessage {
-  role: "system" | "user" | "assistant" | "tool_result";
-  content: string | Array<TextMessage> | ToolResult;
-  tools?: ToolMessage[];
+export type Message = TextMessage | ToolCallMessage | ToolResultMessage;
+
+/**
+ * TextMessage represents plain text messages in the chat history, eg. the user's prompt or
+ * an assistant's reply.
+ */
+export interface TextMessage {
+  type: "text";
+  role: "system" | "user" | "assistant";
+  content: string | Array<TextContent>;
   // Anthropic:
   // stop_reason: "end_turn" | "max_tokens" | "stop_sequence" | "tool_use" | null;
   // OpenAI:
@@ -11,22 +17,41 @@ export interface InternalNetworkMessage {
   stop_reason?: "tool" | "stop";
 }
 
-export interface TextMessage {
+/**
+ * ToolCallMessage represents a message for a tool call.
+ */
+export interface ToolCallMessage {
+  type: "tool_call";
+  role: "user" | "assistant";
+  tools: ToolMessage[];
+  stop_reason: "tool";
+}
+
+/**
+ * ToolResultMessage represents the output of a tool call.
+ */
+export interface ToolResultMessage {
+  type: "tool_result";
+  role: "tool_result";
+  // tool contains the tool call request for this result.
+  tool: ToolMessage;
+  content: unknown;
+  stop_reason: "tool";
+}
+
+// Message content.
+
+export interface TextContent {
   type: "text";
   text: string;
 }
+
 export interface ToolMessage {
   type: "tool";
   id: string;
   name: string;
   input: Record<string, unknown>;
 }
-export interface ToolResult {
-  type: "tool_result";
-  id: string;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  content: any;
-} // TODO: Content types.
 
 /**
  * State stores state (history) for a given network of agents.  The state
@@ -88,7 +113,7 @@ export class State {
    * calling an individual agent.
    *
    */
-  format(): InternalNetworkMessage[] {
+  format(): Message[] {
     return this._history.map((call) => call.format()).flat();
   }
 
@@ -109,9 +134,7 @@ export class InferenceResult {
   // You can set a custom history adapter by calling .withFormatter() within
   // lifecycles.  This allows you to change how future agentic calls interpret
   // past agentic calls.
-  private _historyFormatter:
-    | ((a: InferenceResult) => InternalNetworkMessage[])
-    | undefined;
+  private _historyFormatter: ((a: InferenceResult) => Message[]) | undefined;
 
   constructor(
     // agent represents the agent for this inference call.
@@ -123,30 +146,30 @@ export class InferenceResult {
     // prompt represents the input instructions - without any additional history
     // - as created by the agent.  This includes the system prompt, the user input,
     // and any initial agent assistant message.
-    public prompt: InternalNetworkMessage[],
+    public prompt: Message[],
 
     // history represents the history sent to the inference call, appended to the
     // prompt to form a complete conversation log
-    public history: InternalNetworkMessage[],
+    public history: Message[],
 
     // output represents the parsed output from the inference call.  This may be blank
     // if the agent responds with tool calls only.
-    public output: InternalNetworkMessage[],
+    public output: Message[],
 
     // toolCalls represents output from any tools called by the agent.
-    public toolCalls: InternalNetworkMessage[],
+    public toolCalls: ToolResultMessage[],
 
     // raw represents the raw API response from the call.  This is a JSON
     // string, and the format depends on the agent's model.
     public raw: string,
   ) {}
 
-  withFormatter(f: (a: InferenceResult) => InternalNetworkMessage[]) {
+  withFormatter(f: (a: InferenceResult) => Message[]) {
     this._historyFormatter = f;
   }
 
   // format
-  format(): InternalNetworkMessage[] {
+  format(): Message[] {
     if (this._historyFormatter) {
       return this._historyFormatter(this);
     }
@@ -160,25 +183,29 @@ export class InferenceResult {
     // prompts.
     const agent = this.agent;
 
-    const messages: InternalNetworkMessage[] = this.prompt.map(function (msg) {
-      let content: string;
-      if (typeof msg.content === "string") {
-        content = msg.content;
-      } else if (Array.isArray(msg.content)) {
-        content = msg.content.map((m) => m.text).join("\n");
-      } else {
-        // XXX: Type checking here.
-        content = msg.content.content as string;
-      }
+    const messages = this.prompt
+      .map((msg) => {
+        if (msg.type !== "text") {
+          return;
+        }
 
-      // Ensure that system prompts are always as an assistant in history
-      return {
-        ...msg,
-        role: "assistant",
-        content: `<agent>${agent.name}</agent>\n${content}`,
-      };
-    });
+        let content: string = "";
+        if (typeof msg.content === "string") {
+          content = msg.content;
+        } else if (Array.isArray(msg.content)) {
+          content = msg.content.map((m) => m.text).join("\n");
+        }
 
-    return messages.concat(this.output).concat(this.toolCalls);
+        // Ensure that system prompts are always as an assistant in history
+        return {
+          ...msg,
+          type: "text",
+          role: "assistant",
+          content: `<agent>${agent.name}</agent>\n${content}`,
+        };
+      })
+      .filter(Boolean);
+
+    return (messages as Message[]).concat(this.output).concat(this.toolCalls);
   }
 }
