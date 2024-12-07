@@ -8,7 +8,123 @@ import { type AiAdapter, type OpenAi } from "inngest";
 import { zodToJsonSchema } from "openai-zod-to-json-schema";
 import { type AgenticModel } from "../model";
 import { stringifyError } from "../util";
-import { type InternalNetworkMessage, type ToolMessage } from "../state";
+import {
+  type TextMessage,
+  type ToolCallMessage,
+  type Message,
+  type ToolMessage,
+} from "../state";
+
+/**
+ * Parse a request from internal network messages to an OpenAI input.
+ */
+export const requestParser: AgenticModel.RequestParser<OpenAi.AiModel> = (
+  model,
+  messages,
+  tools,
+) => {
+  const request: AiAdapter.Input<OpenAi.AiModel> = {
+    messages: messages.map((m) => {
+      switch (m.type) {
+        case "text":
+          return {
+            role: m.role,
+            content: m.content,
+          };
+        case "tool_call":
+          return {
+            role: "assistant",
+            content: null,
+            tool_calls: m.tools
+              ? m.tools?.map((tool) => ({
+                  id: tool.id,
+                  type: "function",
+                  function: {
+                    name: tool.name,
+                    arguments: JSON.stringify(tool.input),
+                  },
+                }))
+              : undefined,
+          };
+        case "tool_result":
+          return {
+            role: "tool",
+            content: m.content,
+          };
+      }
+    }) as AiAdapter.Input<OpenAi.AiModel>["messages"],
+  };
+
+  if (tools?.length) {
+    request.tool_choice = "auto";
+    // it is recommended to disable parallel tool calls with structured output
+    // https://platform.openai.com/docs/guides/function-calling#parallel-function-calling-and-structured-outputs
+    request.parallel_tool_calls = false;
+    request.tools = tools.map((t) => {
+      return {
+        type: "function",
+        function: {
+          name: t.name,
+          description: t.description,
+          parameters: zodToJsonSchema(t.parameters),
+          strict: true,
+        },
+      };
+    });
+  }
+
+  return request;
+};
+
+/**
+ * Parse a response from OpenAI output to internal network messages.
+ */
+export const responseParser: AgenticModel.ResponseParser<OpenAi.AiModel> = (
+  input,
+) => {
+  return (input?.choices ?? []).reduce<Message[]>((acc, choice) => {
+    const { message, finish_reason } = choice;
+    if (!message) {
+      return acc;
+    }
+
+    const base = {
+      role: choice.message.role,
+      stop_reason:
+        openAiStopReasonToStateStopReason[finish_reason ?? ""] || "stop",
+    };
+
+    if (message.content) {
+      return [
+        ...acc,
+        {
+          ...base,
+          type: "text",
+          content: message.content,
+        } as TextMessage,
+      ];
+    }
+    if (message.tool_calls.length > 0) {
+      return [
+        ...acc,
+        {
+          ...base,
+          type: "tool_call",
+          tools: message.tool_calls.map((tool) => {
+            return {
+              type: "tool",
+              id: tool.id,
+              name: tool.function.name,
+              function: tool.function.name,
+              input: safeParseOpenAIJson(tool.function.arguments || "{}"),
+            } as ToolMessage;
+          }),
+        } as ToolCallMessage,
+      ];
+    }
+    return acc;
+  }, []);
+};
 
 /**
  * Parse the given `str` `string` as JSON, also handling backticks, a common
@@ -42,124 +158,10 @@ const safeParseOpenAIJson = (str: string): unknown => {
   }
 };
 
-const StateStopReasonToOpenAiStopReason: Record<string, string> = {
-  tool: "tool_calls",
-  stop: "stop",
-};
-
-const OpenAiStopReasonToStateStopReason: Record<string, string> = {
+const openAiStopReasonToStateStopReason: Record<string, string> = {
   tool_calls: "tool",
   stop: "stop",
   length: "stop",
   content_filter: "stop",
   function_call: "tool",
-};
-
-const reqMsgRoleHandlers: Record<
-  InternalNetworkMessage["role"],
-  (
-    internalMessage: InternalNetworkMessage,
-  ) => Partial<AiAdapter.Input<OpenAi.AiModel>["messages"][number]>
-> = {
-  system: () => ({ role: "system" }),
-  user: () => ({ role: "user" }),
-  assistant: (m) => ({
-    role: "assistant",
-    tool_calls: m.tools
-      ? m.tools?.map((tool) => ({
-          id: tool.id,
-          type: "function",
-          function: {
-            name: tool.name,
-            arguments: JSON.stringify(tool.input),
-          },
-        }))
-      : undefined,
-  }),
-  tool_result: (m) => ({
-    role: "tool",
-    tool_call_id: m.tools?.[0]?.id,
-  }),
-};
-
-/**
- * Parse a request from internal network messages to an OpenAI input.
- */
-export const requestParser: AgenticModel.RequestParser<OpenAi.AiModel> = (
-  model,
-  messages,
-  tools,
-) => {
-  const request: AiAdapter.Input<OpenAi.AiModel> = {
-    messages: messages.map((m) => {
-      const baseMsg = {
-        ...(m.stop_reason
-          ? { finish_reason: StateStopReasonToOpenAiStopReason[m.stop_reason] }
-          : {}),
-        content: m.content,
-      };
-
-      return {
-        ...baseMsg,
-        ...reqMsgRoleHandlers[m.role](m),
-      };
-    }) as AiAdapter.Input<OpenAi.AiModel>["messages"],
-  };
-
-  if (tools?.length) {
-    request.tool_choice = "auto";
-    // it is recommended to disable parallel tool calls with structured output
-    // https://platform.openai.com/docs/guides/function-calling#parallel-function-calling-and-structured-outputs
-    request.parallel_tool_calls = false;
-    request.tools = tools.map((t) => {
-      return {
-        type: "function",
-        function: {
-          name: t.name,
-          description: t.description,
-          parameters: zodToJsonSchema(t.parameters),
-          strict: true,
-        },
-      };
-    });
-  }
-
-  return request;
-};
-
-/**
- * Parse a response from OpenAI output to internal network messages.
- */
-export const responseParser: AgenticModel.ResponseParser<OpenAi.AiModel> = (
-  input,
-) => {
-  return (input?.choices ?? []).reduce<InternalNetworkMessage[]>(
-    (acc, choice) => {
-      if (!choice.message) {
-        return acc;
-      }
-
-      const stopReason =
-        OpenAiStopReasonToStateStopReason[choice.finish_reason ?? ""];
-
-      return [
-        ...acc,
-        {
-          role: choice.message.role,
-          content: choice.message.content,
-          ...(stopReason ? { stop_reason: stopReason } : {}),
-          tools: (choice.message.tool_calls ?? []).map<ToolMessage>((tool) => {
-            return {
-              type: "function",
-              id: tool.id,
-              name: tool.function.name,
-              function: tool.function.name,
-              input: safeParseOpenAIJson(tool.function.arguments || "{}"),
-            } as unknown as ToolMessage; // :(
-          }),
-        } as InternalNetworkMessage,
-      ];
-    },
-    [],
-  );
 };
