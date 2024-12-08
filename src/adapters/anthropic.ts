@@ -10,6 +10,7 @@ import {
 } from "inngest";
 import { zodToJsonSchema } from "openai-zod-to-json-schema";
 import { type Tool } from "../types";
+import { z } from "zod";
 import { type AgenticModel } from "../model";
 import { type TextMessage, type Message } from "../state";
 
@@ -93,9 +94,11 @@ export const requestParser: AgenticModel.RequestParser<Anthropic.AiModel> = (
       return {
         name: t.name,
         description: t.description,
-        input_schema: zodToJsonSchema(
-          t.parameters,
-        ) as AnthropicAiAdapter.Tool.InputSchema,
+        input_schema: (t.parameters
+          ? zodToJsonSchema(t.parameters)
+          : zodToJsonSchema(
+              z.object({}),
+            )) as AnthropicAiAdapter.Tool.InputSchema,
       };
     });
     request.tool_choice = toolChoice(tool_choice);

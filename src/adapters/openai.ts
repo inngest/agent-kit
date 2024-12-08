@@ -68,7 +68,7 @@ export const requestParser: AgenticModel.RequestParser<OpenAi.AiModel> = (
         function: {
           name: t.name,
           description: t.description,
-          parameters: zodToJsonSchema(t.parameters),
+          parameters: t.parameters && zodToJsonSchema(t.parameters),
           strict: true,
         },
       };
