@@ -12,7 +12,7 @@ import {
 export type Tool<T extends AnyZodType> = {
   name: string;
   description?: string;
-  parameters: T;
+  parameters?: T;
 
   // TODO: Handler input types based off of JSON above.
   //

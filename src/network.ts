@@ -188,7 +188,7 @@ export class Network {
       router = defaultRoutingAgent;
     }
     if (router instanceof RoutingAgent) {
-      return this.getNextAgentsViaRoutingAgent(router, input);
+      return await this.getNextAgentsViaRoutingAgent(router, input);
     }
 
     // This is a function call which determines the next agent to call.  Note that the result
@@ -212,14 +212,14 @@ export class Network {
       return;
     }
     if (agent instanceof RoutingAgent) {
-      return this.getNextAgentsViaRoutingAgent(agent, input);
+      // Functions may also return routing agents.
+      return await this.getNextAgentsViaRoutingAgent(agent, input);
     }
 
     for (const a of Array.isArray(agent) ? agent : [agent]) {
       // Ensure this agent is part of the network.  If not, we're going to
       // automatically add it.
       if (!this._agents.has(a.name)) {
-        // XXX: Add a warning here.
         this._agents.set(a.name, a);
       }
     }
