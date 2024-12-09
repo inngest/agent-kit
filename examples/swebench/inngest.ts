@@ -58,7 +58,7 @@ export const fn = inngest.createFunction(
     const model = anthropic({
       model: "claude-3-5-haiku-latest",
       max_tokens: 1000,
-      step: step as any,
+      step,
     });
 
     const state = new State();

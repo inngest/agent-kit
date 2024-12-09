@@ -1,11 +1,7 @@
-import {
-  anthropic as ianthropic,
-  type GetStepTools,
-  type Inngest,
-  type Anthropic,
-} from "inngest";
+import { anthropic as ianthropic, type Anthropic } from "inngest";
 import { requestParser, responseParser } from "../adapters/anthropic";
 import { AgenticModel } from "../model";
+import { type AnyStepTools } from "../types";
 
 export namespace AnthropicModel {
   export interface Options<TAiAdapter extends Anthropic.AiModel>
@@ -18,7 +14,7 @@ export namespace AnthropicModel {
     /**
      * The step tools to use internally within this model.
      */
-    step: GetStepTools<Inngest.Any>;
+    step: AnyStepTools;
   }
 }
 
