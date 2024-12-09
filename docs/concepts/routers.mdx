@@ -5,11 +5,178 @@ icon: 'route'
 iconType: 'regular'
 ---
 
-Coming soon.
-
 {// TODO
 // - What is a router, what is it's purpose (it's role in a network of agents)
 // - Default router - how it works
 // - Creating a custom router
 // - The 3 types of custom routers w/ code examples (bring in from other docs and refresh)
 }
+
+The purpose of a Network's **Router** is to decide what [Agent](/concepts/agents) to call based off the current Network [State](/concepts/state).
+
+## What is a Router?
+
+A router is a function that gets called after each agent runs, which decides whether to:
+
+1. Call another agent (by returning an `Agent`)
+2. Stop the network's execution loop (by returning `undefined`)
+
+The routing function gets access to everything it needs to make this decision:
+
+- The Network object itself, including it's State.
+  {/* TODO - The "stack" of agents isn't clear how this stack is created and when they are executed in relation to the router */}
+- The stack of Agents to be called.
+- The number of times the Network has called Agents.
+- The result from the previously called Agent in the Network's execution loop.
+
+For more information about the role of a Router in a Network, read about [how Networks work](/concepts/networks#how-networks-work).
+
+{/* ## Default Router */}
+{/* TODO - Must explain how the default router works with the model as it's pretty opaque how things are run now. */}
+
+## Creating a custom Router
+
+Custom Routers can be defined using two approaches:
+
+1. A `router` function.
+2. A routing Agent.
+
+Router functions can be created by defining a single function passed to the `createNetwork`'s `router` option. The function receives a number of arguments:
+
+```ts
+interface RouterArgs {
+  network: Network; // The entire network, including the state and history
+  stack: Agent[]; // Future agents to be called
+  callCount: number; // Number of times the Network has called agents
+  lastResult?: InferenceResult; // The the previously called Agent's result
+}
+```
+
+The `router` function then either returns an instance of an `Agent` object or `undefined`.
+
+```ts
+const network = createNetwork({
+  agents: [classifier, writer],
+  router: ({ lastResult, callCount }) => {
+    if (lastResult?.output.match(/xyz/)) {
+      return writer;
+    }
+    // First call: use the classifier
+    if (callCount === 0) {
+      return classifier;
+    }
+    // Second call: if it's a question, use the writer
+    if (callCount === 1 && lastResult?.output === 'question') {
+      return writer;
+    }
+    // Otherwise, we're done!
+    return undefined;
+  },
+});
+```
+
+## Types of Routers
+
+### Code-based Routers (supervised routing)
+
+The simplest way to route is to write code that makes decisions. Here's an example that routes between a classifier and a writer:
+
+```ts
+const network = createNetwork({
+  agents: [classifier, writer],
+  router: ({ lastResult, callCount }) => {
+    // First call: use the classifier
+    if (callCount === 0) {
+      return classifier;
+    }
+    // Second call: if it's a question, use the writer
+    if (callCount === 1 && lastResult?.output === 'question') {
+      return writer;
+    }
+    // Otherwise, we're done!
+    return undefined;
+  },
+});
+```
+
+Code-based routing is great when you want deterministic, predictable behavior. It's also the fastest option since there's no LLM calls involved.
+
+### Agent Routers (autonomous routing)
+
+Sometimes you want your network to be more dynamic. Agent-based routing uses an LLM to decide what to do next. The network comes with a built-in routing agent that you can use:
+
+```tsx
+import { Network, agenticOpenai as openai } from '@inngest/agent-kit';
+
+const network = createNetwork({
+  agents: [classifier, writer],
+  defaultModel: model,
+  router: ({ lastResult, callCount }) => {
+    return defaultAgenticRouter;
+  },
+});
+```
+
+The routing agent looks at:
+
+- The original input
+- What agents are available
+- The conversation history
+- Each agent's description
+
+It then decides whether to call another agent or stop. This is great for building autonomous workflows where you're not sure what steps are needed up front. Note that the default agentic router is a starting point. In production apps it’s likely that you define your own agentic router props specifically for the network’s use case.
+
+### Hybrid code and agent Routers (semi-supervised routing)
+
+And, of course, you can mix code and agent-based routing. Here's an example that uses code for the first step, then lets an agent take over:
+
+```tsx
+const network = createNetwork({
+  agents: [classifier, writer],
+  router: ({ lastResult, callCount }) => {
+    // Always start with the classifier
+    if (callCount === 0) {
+      return classifier;
+    }
+    // Then let the routing agent take over
+    return defaultAgenticRouter;
+  },
+});
+```
+
+This gives you the best of both worlds:
+
+- Predictable first steps when you know what needs to happen
+- Flexibility when the path forward isn't clear
+
+### Using state in Routing
+
+The router is the brain of your network - it decides which agent to call next. You can use state to make smart routing decisions:
+
+```tsx
+const router = ({ network, lastResult }): Agent | undefined => {
+  // Check if we've solved the problem
+  const solution = network.state.kv.get('solution');
+  if (solution) {
+    // We're done - return undefined to stop the network
+    return undefined;
+  }
+
+  // Check the last result to decide what to do next
+  if (lastResult?.output[0].content.includes('need more context')) {
+    return contextAgent;
+  }
+
+  return mathAgent;
+};
+```
+
+### Tips for routing
+
+- Start simple with code-based routing
+- Use agent-based routing when you need flexibility
+- Remember that routers can access the network's state
+- You can return agents that weren't in the original network
+- The router runs after each agent call
+
+That's it! Routing is what makes networks powerful - it lets you build workflows that can be as simple or complex as you need.
