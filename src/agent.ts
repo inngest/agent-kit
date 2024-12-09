@@ -90,8 +90,15 @@ export class Agent {
   }
 
   withModel(model: AgenticModel.Any): Agent {
-    this.model = model;
-    return this; // for chaining
+    return new Agent({
+      name: this.name,
+      description: this.description,
+      system: this.system,
+      assistant: this.assistant,
+      tools: Array.from(this.tools.values()),
+      lifecycle: this.lifecycles,
+      model,
+    });
   }
 
   /**
@@ -306,8 +313,15 @@ export class RoutingAgent extends Agent {
   }
 
   override withModel(model: AgenticModel.Any): RoutingAgent {
-    this.model = model;
-    return this; // for chaining
+    return new RoutingAgent({
+      name: this.name,
+      description: this.description,
+      system: this.system,
+      assistant: this.assistant,
+      tools: Array.from(this.tools.values()),
+      lifecycle: this.lifecycles,
+      model,
+    });
   }
 }
 

@@ -248,8 +248,11 @@ export class Network {
 }
 
 /**
- * defaultRoutingAgent is an AI agent that selects the appropriate agent from the
- * network to handle the incoming request.
+ * defaultRoutingAgent is an AI agent that selects the appropriate agent from
+ * the network to handle the incoming request.
+ *
+ * It is no set model and so relies on the presence of a default model in the
+ * network or being explicitly given one.
  */
 export const defaultRoutingAgent = createRoutingAgent({
   name: "Default routing agent",
