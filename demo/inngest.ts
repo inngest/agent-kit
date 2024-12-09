@@ -22,7 +22,7 @@ export const inngest = new Inngest({
 });
 
 export const fn = inngest.createFunction(
-  { id: "agent" },
+  { id: "agent", retries: 0, },
   { event: "agent/run" },
   async ({ event, step }) => {
     const model = openai({ model: "gpt-4", step });
@@ -30,9 +30,9 @@ export const fn = inngest.createFunction(
     //  1. Single agent
     
     // Run a single agent as a prompt without a network.
-    await codeWritingAgent.run(event.data.input, {
-      model,
-    });
+    // await codeWritingAgent.run(event.data.input, {
+    //   model,
+    // });
 
     //  2. A network of agents that works together
     const network = createNetwork({
