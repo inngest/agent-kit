@@ -345,6 +345,10 @@ export namespace Agent {
     lifecycle: RoutingLifecycle;
   }
 
+  export interface RoutingConstructor extends Omit<Constructor, "lifecycle"> {
+    lifecycle: RoutingLifecycle;
+  }
+
   export interface RunOptions {
     model?: AiAdapter.Any;
     network?: Network;
