@@ -25,6 +25,8 @@ export type Tool<T extends AnyZodType> = {
 
 export namespace Tool {
   export type Any = Tool<AnyZodType>;
+
+  export type Choice = "auto" | "any" | (string & {});
 }
 
 export type ToolHandlerArgs = {

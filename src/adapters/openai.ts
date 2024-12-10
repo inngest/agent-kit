@@ -8,6 +8,7 @@ import { type AiAdapter, type OpenAi } from "inngest";
 import { zodToJsonSchema } from "openai-zod-to-json-schema";
 import { type AgenticModel } from "../model";
 import { stringifyError } from "../util";
+import { type Tool } from "../types";
 import {
   type TextMessage,
   type ToolCallMessage,
@@ -22,6 +23,7 @@ export const requestParser: AgenticModel.RequestParser<OpenAi.AiModel> = (
   model,
   messages,
   tools,
+  tool_choice = "auto",
 ) => {
   const request: AiAdapter.Input<OpenAi.AiModel> = {
     messages: messages.map((m) => {
@@ -56,7 +58,7 @@ export const requestParser: AgenticModel.RequestParser<OpenAi.AiModel> = (
   };
 
   if (tools?.length) {
-    request.tool_choice = "auto";
+    request.tool_choice = toolChoice(tool_choice);
     // it is recommended to disable parallel tool calls with structured output
     // https://platform.openai.com/docs/guides/function-calling#parallel-function-calling-and-structured-outputs
     request.parallel_tool_calls = false;
@@ -164,4 +166,18 @@ const openAiStopReasonToStateStopReason: Record<string, string> = {
   length: "stop",
   content_filter: "stop",
   function_call: "tool",
+};
+
+const toolChoice = (choice: Tool.Choice) => {
+  switch (choice) {
+    case "auto":
+      return "auto";
+    case "any":
+      return "required";
+    default:
+      return {
+        type: "function" as const,
+        function: { name: choice as string },
+      };
+  }
 };

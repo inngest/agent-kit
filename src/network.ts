@@ -309,6 +309,8 @@ export const defaultRoutingAgent = createRoutingAgent({
     }),
   ],
 
+  tool_choice: "select_agent",
+
   system: async (network?: Network): Promise<string> => {
     if (!network) {
       throw new Error(
@@ -337,11 +339,9 @@ The following agents are available:
 Follow the set of instructions:
 
 <instructions>
-  Think about the current history and status.  Determine which agent to use to handle the user's request.  Respond with the agent's name within a <response> tag as content, and select the appropriate tool.
+  Think about the current history and status.  Determine which agent to use to handle the user's request, based off of the current agents and their tools.
 
   Your aim is to thoroughly complete the request, thinking step by step, choosing the right agent based off of the context.
-
-  If the request has been solved, respond with one single tag, with the answer inside: <answer>$answer</answer>
 </instructions>
     `;
   },

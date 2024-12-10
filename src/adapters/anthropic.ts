@@ -9,6 +9,7 @@ import {
   type Anthropic,
 } from "inngest";
 import { zodToJsonSchema } from "openai-zod-to-json-schema";
+import { type Tool } from "../types";
 import { type AgenticModel } from "../model";
 import { type TextMessage, type Message } from "../state";
 
@@ -19,6 +20,7 @@ export const requestParser: AgenticModel.RequestParser<Anthropic.AiModel> = (
   model,
   messages,
   tools,
+  tool_choice = "auto",
 ) => {
   // Note that Anthropic has a top-level system prompt, then a series of prompts
   // for assistants and users.
@@ -96,6 +98,7 @@ export const requestParser: AgenticModel.RequestParser<Anthropic.AiModel> = (
         ) as AnthropicAiAdapter.Tool.InputSchema,
       };
     });
+    request.tool_choice = toolChoice(tool_choice);
   }
 
   return request;
@@ -156,4 +159,22 @@ export const responseParser: AgenticModel.ResponseParser<Anthropic.AiModel> = (
       }
     }
   }, []);
+};
+
+const toolChoice = (
+  choice: Tool.Choice,
+): AiAdapter.Input<Anthropic.AiModel>["tool_choice"] => {
+  switch (choice) {
+    case "auto":
+      return { type: "auto" };
+    case "any":
+      return { type: "any" };
+    default:
+      if (typeof choice === "string") {
+        return {
+          type: "tool",
+          name: choice as string,
+        };
+      }
+  }
 };

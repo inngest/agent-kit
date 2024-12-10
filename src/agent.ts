@@ -53,6 +53,16 @@ export class Agent {
   tools: Map<string, Tool.Any>;
 
   /**
+   * tool_choice allows you to specify whether tools are automatically.  this defaults
+   * to "auto", allowing the model to detect when to call tools automatically.  Choices are:
+   *
+   * - "auto": allow the model to choose tools automatically
+   * - "any": force the use of any tool in the tools map
+   * - string: force the name of a particular tool
+   */
+  tool_choice?: Tool.Choice;
+
+  /**
    * lifecycles are programmatic hooks used to manage the agent.
    */
   lifecycles: Agent.Lifecycle | Agent.RoutingLifecycle | undefined;
@@ -70,6 +80,7 @@ export class Agent {
     this.system = opts.system;
     this.assistant = opts.assistant || "";
     this.tools = new Map();
+    this.tool_choice = opts.tool_choice;
     this.lifecycles = opts.lifecycle;
     this.model = opts.model;
 
@@ -307,6 +318,7 @@ export namespace Agent {
     system: string | ((network?: Network) => MaybePromise<string>);
     assistant?: string;
     tools?: Tool.Any[];
+    tool_choice?: Tool.Choice;
     lifecycle?: Lifecycle;
     model?: AgenticModel.Any;
   }
