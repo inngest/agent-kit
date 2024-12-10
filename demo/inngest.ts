@@ -20,12 +20,14 @@ export const inngest = new Inngest({
 });
 
 export const fn = inngest.createFunction(
-  { id: "agent" },
+  { id: "agent", retries: 0, },
   { event: "agent/run" },
   async ({ event }) => {
     //  1. Single agent
     // Run a single agent as a prompt without a network.
-    await codeWritingAgent.run(event.data.input, { model });
+    // await codeWritingAgent.run(event.data.input, {
+    //   model,
+    // });
 
     //  2. A network of agents that works together
     // This uses the defaut agentic router to determine which agent to handle first.  You can

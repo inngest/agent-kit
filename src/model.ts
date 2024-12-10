@@ -1,5 +1,5 @@
 import { type AiAdapter } from "inngest";
-import { type InternalNetworkMessage } from "./state";
+import { type Message } from "./state";
 import { type Tool } from "./types";
 import { getStepTools } from "./util";
 import { adapters } from "./adapters";
@@ -37,14 +37,15 @@ export class AgenticModel<TAiAdapter extends AiAdapter.Any> {
 
   async infer(
     stepID: string,
-    input: InternalNetworkMessage[],
+    input: Message[],
     tools: Tool.Any[],
+    tool_choice: Tool.Choice,
   ): Promise<AgenticModel.InferenceResponse> {
     const step = await getStepTools();
 
     const result = (await step.ai.infer(stepID, {
       model: this.#model,
-      body: this.requestParser(this.#model, input, tools),
+      body: this.requestParser(this.#model, input, tools, tool_choice),
     })) as AiAdapter.Input<TAiAdapter>;
 
     return { output: this.responseParser(result), raw: result };
@@ -60,7 +61,7 @@ export namespace AgenticModel {
    * result depending on the model's API repsonse.
    */
   export type InferenceResponse<T = unknown> = {
-    output: InternalNetworkMessage[];
+    output: Message[];
     raw: T;
   };
 
@@ -72,11 +73,12 @@ export namespace AgenticModel {
 
   export type RequestParser<TAiAdapter extends AiAdapter.Any> = (
     model: TAiAdapter,
-    state: InternalNetworkMessage[],
+    state: Message[],
     tools: Tool.Any[],
+    tool_choice: Tool.Choice,
   ) => AiAdapter.Input<TAiAdapter>;
 
   export type ResponseParser<TAiAdapter extends AiAdapter.Any> = (
     output: AiAdapter.Output<TAiAdapter>,
-  ) => InternalNetworkMessage[];
+  ) => Message[];
 }
