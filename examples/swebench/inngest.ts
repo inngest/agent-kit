@@ -84,7 +84,9 @@ const planningAgent = createAgent({
       name: "list_files",
       description: "Lists all files within the project, returned as a JSON string",
       handler: (_input, opts) => {
-        const files = fs.readdirSync(opts.network?.state.kv.get("repo") || "./", { recursive: true });
+        // NOTE:  In this repo, all files are stored in "./opt/" as the prefix.
+        const path = "./opt/" + opts.network?.state.kv.get("repo")
+        const files = fs.readdirSync(path, { recursive: true });
         opts.network && opts.network.state.kv.set("files", files);
         return files;
       },
