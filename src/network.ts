@@ -231,11 +231,10 @@ export class Network {
     routingAgent: RoutingAgent,
     input: string,
   ): Promise<Agent[] | undefined> {
-    if (routingAgent.model === undefined && this.defaultModel) {
-      routingAgent = routingAgent.withModel(this.defaultModel);
-    }
-
-    const result = await routingAgent.run(input, { network: this });
+    const result = await routingAgent.run(input, {
+      network: this,
+      model: routingAgent.model || this.defaultModel,
+    });
     const agentNames = routingAgent.lifecycles.onRoute({
       result,
       agent: routingAgent,
