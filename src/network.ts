@@ -1,9 +1,8 @@
-import { type AiAdapter } from "inngest";
 import { z } from "zod";
-import { Agent, createTypedTool } from "./agent";
-import { type AgenticModel } from "./model";
-import { type InferenceResult, NetworkState } from "./state";
+import { Agent, createTool } from "./agent";
+import { type InferenceResult, State } from "./state";
 import { type MaybePromise } from "./util";
+import { type AiAdapter } from "inngest";
 
 /**
  * Network represents a network of agents.
@@ -22,24 +21,20 @@ export class Network {
   /**
    * state is the entire agent's state.
    */
-  state: NetworkState;
+  state: State;
 
   /**
    * defaultModel is the default model to use with the network.  This will not
    * override an agent's specific model if the agent already has a model defined
    * (eg. via withModel or via its constructor).
    */
-  defaultModel?: AiAdapter;
-
-  router?: Network.Router;
+  defaultModel?: AiAdapter.Any;
 
   /**
    * maxIter is the maximum number of times the we can call agents before ending
    * the network's run loop.
    */
   maxIter: number;
-
-  inferOverride: AgenticModel.Infer<AgenticModel.Any> | undefined;
 
   // _stack is an array of strings, each representing an agent name to call.
   private _stack: string[];
@@ -52,14 +47,18 @@ export class Network {
   // agents referenced in the router here.
   private _agents: Map<string, Agent>;
 
-  constructor({ agents, defaultModel, maxIter, router }: Network.Constructor) {
+  constructor({
+    agents,
+    defaultModel,
+    maxIter,
+    state = new State(),
+  }: Network.Constructor) {
     this.agents = new Map();
     this._agents = new Map();
-    this.state = new NetworkState();
+    this.state = state;
     this.defaultModel = defaultModel;
     this.maxIter = maxIter || 0;
     this._stack = [];
-    this.router = router;
 
     for (const agent of agents) {
       // Store all agents publicly visible.
@@ -81,16 +80,6 @@ export class Network {
     return available;
   }
 
-  overrideInfer(fn: AgenticModel.Infer<AgenticModel.Any> | undefined): this {
-    this.inferOverride = fn;
-
-    this._agents.forEach((agent) => {
-      agent.overrideInfer(fn);
-    });
-
-    return this;
-  }
-
   /**
    * addAgent adds a new agent to the network.
    */
@@ -110,10 +99,7 @@ export class Network {
    * concurrency-safe; you can only call run on a network once, as networks are
    * stateful.
    */
-  async run(
-    input: string,
-    router: Network.Router | undefined = this.router,
-  ): Promise<Network> {
+  async run(input: string, router?: Network.Router): Promise<Network> {
     const agents = await this.availableAgents();
 
     if (agents.length === 0) {
@@ -151,7 +137,9 @@ export class Network {
         return this;
       }
 
-      const call = await agent.run(input, { network: this });
+      // We force Agent to emit structured output in case of the use of tools by
+      // setting maxIter to 0.
+      const call = await agent.run(input, { network: this, maxIter: 0 });
       this._counter += 1;
 
       // Ensure that we store the call network history.
@@ -175,7 +163,7 @@ export class Network {
   }
 
   private async getNextAgent(
-    router: Network.Router | undefined = this.router,
+    router?: Network.Router,
   ): Promise<Agent | undefined> {
     const defaultModel = this.defaultModel;
     if (!router) {
@@ -185,7 +173,7 @@ export class Network {
         );
       }
 
-      return defaultRoutingAgent.withModel(defaultModel, this.inferOverride);
+      return defaultRoutingAgent.withModel(defaultModel);
     } else if (router instanceof Agent) {
       return router;
     }
@@ -241,7 +229,7 @@ export const defaultRoutingAgent = new Agent({
   tools: [
     // This tool does nothing but ensure that the model responds with the
     // agent name as valid JSON.
-    createTypedTool({
+    createTool({
       name: "select_agent",
       description:
         "select an agent to handle the input, based off of the current conversation",
@@ -252,23 +240,23 @@ export const defaultRoutingAgent = new Agent({
             .describe("The name of the agent that should handle the request"),
         })
         .strict(),
-      handler: (input, { agent, network }) => {
+      handler: ({ name }, { network }) => {
         if (!network) {
           throw new Error(
             "The routing agent can only be used within a network of agents",
           );
         }
 
-        // if (typeof name !== "string") {
-        //   throw new Error("The routing agent requested an invalid agent");
-        // }
+        if (typeof name !== "string") {
+          throw new Error("The routing agent requested an invalid agent");
+        }
 
-        // const agent = network.agents.get(name);
-        // if (agent === undefined) {
-        //   throw new Error(
-        //     `The routing agent requested an agent that doesn't exist: ${name}`,
-        //   );
-        // }
+        const agent = network.agents.get(name);
+        if (agent === undefined) {
+          throw new Error(
+            `The routing agent requested an agent that doesn't exist: ${name}`,
+          );
+        }
 
         // Schedule another agent.
         network.schedule(agent.name);
@@ -319,9 +307,11 @@ Follow the set of instructions:
 export namespace Network {
   export type Constructor = {
     agents: Agent[];
-    defaultModel?: AiAdapter;
+    defaultModel?: AiAdapter.Any;
     maxIter?: number;
-    router?: Network.Router;
+    // state is any pre-existing network state to use in this Network instance.  By
+    // default, new state is created without any history for every Network.
+    state?: State;
   };
 
   /**

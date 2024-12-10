@@ -1,15 +1,15 @@
-import { type AiAdapter, type OpenAi } from "inngest";
 import { type Agent } from "./agent";
 
 export interface InternalNetworkMessage {
   role: "system" | "user" | "assistant" | "tool_result";
   content: string | Array<TextMessage> | ToolResult;
   tools?: ToolMessage[];
-  // TODO: Images and multi-modality.
+  // Anthropic:
+  // stop_reason: "end_turn" | "max_tokens" | "stop_sequence" | "tool_use" | null;
+  // OpenAI:
+  // finish_reason: 'stop' | 'length' | 'tool_calls' | 'content_filter' | 'function_call' | null;
+  stop_reason?: "tool" | "stop";
 }
-
-export type OpenAiMessageType =
-  AiAdapter.Input<OpenAi.AiModel>["messages"][number];
 
 export interface TextMessage {
   type: "text";
@@ -29,13 +29,13 @@ export interface ToolResult {
 } // TODO: Content types.
 
 /**
- * NetworkState stores state (history) for a given network of agents.  The state
+ * State stores state (history) for a given network of agents.  The state
  * includes key-values, plus a stack of all agentic calls.
  *
  * From this, the chat history can be reconstructed (and manipulated) for each
  * subsequent agentic call.
  */
-export class NetworkState {
+export class State {
   public kv: {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     set: <T = any>(key: string, value: T) => void;
@@ -73,7 +73,7 @@ export class NetworkState {
   }
 
   /**
-   * Results retursn a new array containing all past inference results in the
+   * Results returns a new array containing all past inference results in the
    * network. This array is safe to modify.
    */
   get results() {
@@ -81,12 +81,15 @@ export class NetworkState {
   }
 
   /**
-   * history returns the memory used for agentic calls based off of prior
+   * format returns the memory used for agentic calls based off of prior
    * agentic calls.
    *
+   * This is used to format the current State as a conversation log when
+   * calling an individual agent.
+   *
    */
-  get history(): InternalNetworkMessage[] {
-    return this._history.map((call) => call.history()).flat();
+  format(): InternalNetworkMessage[] {
+    return this._history.map((call) => call.format()).flat();
   }
 
   append(call: InferenceResult) {
@@ -96,7 +99,7 @@ export class NetworkState {
 
 /**
  * InferenceResult represents a single agentic call as part of the network
- * state.
+ * state.  This stores every input and ouput for a call.
  *
  */
 export class InferenceResult {
@@ -117,15 +120,17 @@ export class InferenceResult {
     // input represents the input passed into the agent's run method.
     public input: string,
 
-    // system represents the input instructions - without any additional history
-    // - as created by the agent.
-    public system: InternalNetworkMessage[],
-
-    // prompt represents the entire prompt sent to the inference call.  This
-    // includes instructions and history from the current network state.
+    // prompt represents the input instructions - without any additional history
+    // - as created by the agent.  This includes the system prompt, the user input,
+    // and any initial agent assistant message.
     public prompt: InternalNetworkMessage[],
 
-    // output represents the parsed output.
+    // history represents the history sent to the inference call, appended to the
+    // prompt to form a complete conversation log
+    public history: InternalNetworkMessage[],
+
+    // output represents the parsed output from the inference call.  This may be blank
+    // if the agent responds with tool calls only.
     public output: InternalNetworkMessage[],
 
     // toolCalls represents output from any tools called by the agent.
@@ -140,23 +145,29 @@ export class InferenceResult {
     this._historyFormatter = f;
   }
 
-  history(): InternalNetworkMessage[] {
+  // format
+  format(): InternalNetworkMessage[] {
     if (this._historyFormatter) {
       return this._historyFormatter(this);
+    }
+
+    if (this.raw === "") {
+      // There is no call to the agent, so ignore this.
+      return [];
     }
 
     // Return the default format, which turns all system prompts into assistant
     // prompts.
     const agent = this.agent;
 
-    const history: InternalNetworkMessage[] = this.system.map(function (msg) {
+    const messages: InternalNetworkMessage[] = this.prompt.map(function (msg) {
       let content: string;
       if (typeof msg.content === "string") {
         content = msg.content;
       } else if (Array.isArray(msg.content)) {
         content = msg.content.map((m) => m.text).join("\n");
       } else {
-        // TODO `anyany`
+        // XXX: Type checking here.
         content = msg.content.content as string;
       }
 
@@ -168,6 +179,6 @@ export class InferenceResult {
       };
     });
 
-    return history.concat(this.output).concat(this.toolCalls);
+    return messages.concat(this.output).concat(this.toolCalls);
   }
 }
