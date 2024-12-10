@@ -181,6 +181,7 @@ export class Agent {
       this.name,
       prompt.concat(history),
       Array.from(this.tools.values()),
+      this.tool_choice || "auto",
     );
 
     // Now that we've made the call, we instantiate a new InferenceResult for
