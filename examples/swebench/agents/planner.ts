@@ -1,4 +1,4 @@
-import { createAgent, createTool } from "../../../src";
+import { createAgent, createTool } from "@inngest/agent-kit";
 import { z } from "zod";
 import {
   extractClassAndFnsTool,
