@@ -3,14 +3,13 @@ import fs from "fs";
 import { execSync } from 'child_process';
 import { z } from "zod";
 import {
-  createAgent,
   createNetwork,
-  createTool,
   anthropic,
   State,
 } from "../../src/index";
-import { extractClassAndFns, listFilesTool, readFileTool, replaceClassMethodTool } from "./tools/tools";
 import { Inngest, EventSchemas } from "inngest";
+import { planningAgent } from "./agents/planner";
+import { editingAgent } from "./agents/editor";
 
 export const inngest = new Inngest({
   id: "agents",
@@ -53,138 +52,43 @@ export const fn = inngest.createFunction(
       execSync(`cd ${dir} && git reset --hard FETCH_HEAD`);
     });
 
-
+    // Use Claude as the base model of the network.
     const model = anthropic({
       model: "claude-3-5-haiku-latest",
       max_tokens: 1000,
       step: step as any,
     });
 
+    // Create new network state, and set the repo we're editing directly from the event
+    // input.
     const state = new State();
     state.kv.set("repo", event.data.repo);
 
     const network = createNetwork({
-      agents: [planningAgent.withModel(model), editingAgent.withModel(model)],
+      agents: [planningAgent, editingAgent],
       defaultModel: model,
       state,
     });
     await network.run(event.data.problem_statement, (opts) => {
       if (opts.network.state.kv.get("done")) {
-        // We're done editing.
+        // We're done editing.  This is set when the editing agent finishes
+        // implementing the plan.
+        //
+        // At this point, we should hand off to another agent that tests, critiques,
+        // and validates the edits.
         return;
       }
 
+      // If there's a plan, we should switch to the editing agent to begin implementing.
+      // 
+      // This lets us separate the concerns of planning vs editing, including using differing
+      // prompts and tools at various stages of the editing process.
       if (opts.network.state.kv.get("plan") !== undefined) {
-        return editingAgent.withModel(model);
+        return editingAgent;
       }
-      return planningAgent.withModel(model);
+
+      // By default, use the planning agent.
+      return planningAgent;
     });
   },
 );
-
-// Now that the setup has been completed, we can run the agent properly within that repo.
-const planningAgent = createAgent({
-  name: "Planner",
-  description: "Plans the code to write and which files should be edited",
-  tools: [
-    listFilesTool,
-    readFileTool,
-    extractClassAndFns,
-
-    createTool({
-      name: "create_plan",
-      description: "Describe a formal plan for how to fix the issue, including which files to edit and reasoning.",
-      parameters: z.object({
-        thoughts: z.string(),
-        plan_details: z.string(),
-        edits: z.array(z.object({
-          filename: z.string(),
-          idea: z.string(),
-          reasoning: z.string(),
-        }))
-      }),
-
-      handler: async (plan, opts) => {
-        // Store this in the function state for introspection in tracing.
-        await opts.step.run("plan created", () => plan);
-        opts.network?.state.kv.set("plan", plan);
-      },
-    }),
-  ],
-
-  system: (network) => `
-    You are an expert Python programmer working on a specific project: ${network?.state.kv.get("repo")}.
-
-    You are given an issue reported within the project.  You are planning how to fix the issue by investigating the report,
-    the current code, then devising a "plan" - a spec - to modify code to fix the issue.
-
-    Your plan will be worked on and implemented after you create it.   You MUST create a plan to
-    fix the issue.  Be thorough. Think step-by-step using available tools.
-
-    Techniques you may use to create a plan:
-    - Read entire files
-    - Find specific classes and functions within a file
-  `,
-})
-
-/**
- * the editingAgent is enabled once a plan has been written.  It disregards all conversation history
- * and uses the plan from the current network state to construct a system prompt to edit the given
- * files to resolve the input.
- */
-const editingAgent = createAgent({
-  name: "Editor",
-  description: "Edits code by replacing contents in files, or creating new files with new code.",
-  tools: [
-    extractClassAndFns,
-    replaceClassMethodTool,
-    readFileTool,
-
-    createTool({
-      name: "done",
-      description: "Saves the current project and finishes editing",
-      handler: (_input, opts) => {
-        opts.network?.state.kv.delete("plan");
-        opts.network?.state.kv.set("done", true);
-        return "Done editing";
-      },
-    }),
-  ],
-  lifecycle: {
-
-    // The editing agent is only enabled once we have a plan.
-    enabled: (opts) => {
-      return opts.network?.state.kv.get("plan") !== undefined;
-    },
-
-    // onStart is called when we start inference.  We want to update the history here to remove
-    // things from the planning agent.  We update the system prompt to include details from the
-    // plan via network state.
-    onStart: ({ agent, prompt, network }) => {
-
-      const history = (network?.state.results || []).
-        filter(i => i.agent === agent). // Return the current history from this agent only.
-        map(i => i.output.concat(i.toolCalls)). // Only add the output and tool calls to the conversation history
-        flat();
-
-      return { prompt, history, stop: false };
-    },
-  },
-
-  system: (network) => `
-    You are an expert Python programmer working on a specific project: ${network?.state.kv.get("repo")}.  You have been
-    given a plan to fix the given issue supplied by the user.
-
-    The current plan is:
-    <plan>
-      ${JSON.stringify(network?.state.kv.get("plan"))}
-    </plan>
-
-    You MUST:
-      - Understand the user's request
-      - Understand the given plan
-      - Write code using the tools available to fix the issue
-
-    Once the files have been edited and you are confident in the updated code, you MUST finish your editing via calling the "done" tool.
-  `,
-})
