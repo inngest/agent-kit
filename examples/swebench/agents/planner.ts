@@ -1,7 +1,7 @@
 import { createAgent, createTool } from "../../../src";
 import { z } from "zod";
 import {
-  extractClassAndFns,
+  extractClassAndFnsTool,
   listFilesTool,
   readFileTool,
 } from "../tools/tools";
@@ -13,7 +13,7 @@ export const planningAgent = createAgent({
   tools: [
     listFilesTool,
     readFileTool,
-    extractClassAndFns,
+    extractClassAndFnsTool,
     createTool({
       name: "create_plan",
       description: "Describe a formal plan for how to fix the issue, including which files to edit and reasoning.",

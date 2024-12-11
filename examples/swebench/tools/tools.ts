@@ -63,7 +63,7 @@ export const readFileTool = createTool({
  * parses all method definitions of a class.
  *
  */
-export const extractClassAndFns = createTool({
+export const extractClassAndFnsTool = createTool({
   name: "extract_classes_and_functions",
   description: "Return all classes names and their functions, including top level functions",
   parameters: z.object({

@@ -1,6 +1,6 @@
 import { createAgent, createTool } from "../../../src";
 import {
-  extractClassAndFns,
+  extractClassAndFnsTool,
   readFileTool,
   replaceClassMethodTool,
 } from "../tools/tools";
@@ -14,7 +14,7 @@ export const editingAgent = createAgent({
   name: "Editor",
   description: "Edits code by replacing contents in files, or creating new files with new code.",
   tools: [
-    extractClassAndFns,
+    extractClassAndFnsTool,
     replaceClassMethodTool,
     readFileTool,
 
