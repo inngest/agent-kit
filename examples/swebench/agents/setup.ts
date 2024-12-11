@@ -1,4 +1,4 @@
-import { createAgent } from "../../../src";
+import { createAgent } from "@inngest/agent-kit";
 
 createAgent({
   name: "setup",

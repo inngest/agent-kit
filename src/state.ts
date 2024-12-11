@@ -75,9 +75,11 @@ export class State {
 
   private _history: InferenceResult[];
 
-  constructor() {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  constructor(state?: Record<string, any>) {
     this._history = [];
-    this._kv = new Map();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    this._kv = new Map<string, any>(state && Object.entries(state));
 
     this.kv = {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any

@@ -105,7 +105,23 @@ export class Network {
    * stateful.
    *
    */
-  async run(input: string, router?: Network.Router): Promise<Network> {
+  async run(
+    input: string,
+    overrides?: {
+      router?: Network.Router;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      state?: State | Record<string, any>;
+    },
+  ): Promise<Network> {
+    // If given, use the provided state.
+    if (overrides?.state) {
+      if (overrides.state instanceof State) {
+        this.state = overrides.state;
+      } else {
+        this.state = new State(overrides.state);
+      }
+    }
+
     const available = await this.availableAgents();
     if (available.length === 0) {
       throw new Error("no agents enabled in network");
@@ -114,7 +130,7 @@ export class Network {
     // If there's no default agent used to run the request, use our internal
     // routing agent which attempts to figure out the best agent to choose based
     // off of the network.
-    const next = await this.getNextAgents(input, router);
+    const next = await this.getNextAgents(input, overrides?.router);
     if (!next) {
       // TODO: If call count is 0, error.
       return this;
@@ -160,7 +176,7 @@ export class Network {
       // By default, this is an agentic router which takes the current state,
       // agents, then figures out next steps.  This can, and often should, be
       // custom code.
-      const next = await this.getNextAgents(input, router);
+      const next = await this.getNextAgents(input, overrides?.router);
       for (const a of next || []) {
         this.schedule(a.name);
       }

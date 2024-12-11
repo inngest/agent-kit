@@ -12,7 +12,8 @@ import {
  */
 export const editingAgent = createAgent({
   name: "Editor",
-  description: "Edits code by replacing contents in files, or creating new files with new code.",
+  description:
+    "Edits code by replacing contents in files, or creating new files with new code.",
   tools: [
     extractClassAndFnsTool,
     replaceClassMethodTool,
@@ -38,10 +39,10 @@ export const editingAgent = createAgent({
     // things from the planning agent.  We update the system prompt to include details from the
     // plan via network state.
     onStart: ({ agent, prompt, network }) => {
-      const history = (network?.state.results || []).
-        filter(i => i.agent === agent). // Return the current history from this agent only.
-        map(i => i.output.concat(i.toolCalls)). // Only add the output and tool calls to the conversation history
-        flat();
+      const history = (network?.state.results || [])
+        .filter((i) => i.agent === agent) // Return the current history from this agent only.
+        .map((i) => i.output.concat(i.toolCalls)) // Only add the output and tool calls to the conversation history
+        .flat();
 
       return { prompt, history, stop: false };
     },
@@ -63,4 +64,4 @@ export const editingAgent = createAgent({
 
     Once the files have been edited and you are confident in the updated code, you MUST finish your editing via calling the "done" tool.
   `,
-})
+});
