@@ -1,4 +1,4 @@
-import { type Agent } from "./agent";
+import { type Agent } from './agent';
 
 export type Message = TextMessage | ToolCallMessage | ToolResultMessage;
 
@@ -7,47 +7,47 @@ export type Message = TextMessage | ToolCallMessage | ToolResultMessage;
  * an assistant's reply.
  */
 export interface TextMessage {
-  type: "text";
-  role: "system" | "user" | "assistant";
+  type: 'text';
+  role: 'system' | 'user' | 'assistant';
   content: string | Array<TextContent>;
   // Anthropic:
   // stop_reason: "end_turn" | "max_tokens" | "stop_sequence" | "tool_use" | null;
   // OpenAI:
   // finish_reason: 'stop' | 'length' | 'tool_calls' | 'content_filter' | 'function_call' | null;
-  stop_reason?: "tool" | "stop";
+  stop_reason?: 'tool' | 'stop';
 }
 
 /**
  * ToolCallMessage represents a message for a tool call.
  */
 export interface ToolCallMessage {
-  type: "tool_call";
-  role: "user" | "assistant";
+  type: 'tool_call';
+  role: 'user' | 'assistant';
   tools: ToolMessage[];
-  stop_reason: "tool";
+  stop_reason: 'tool';
 }
 
 /**
  * ToolResultMessage represents the output of a tool call.
  */
 export interface ToolResultMessage {
-  type: "tool_result";
-  role: "tool_result";
+  type: 'tool_result';
+  role: 'tool_result';
   // tool contains the tool call request for this result.
   tool: ToolMessage;
   content: unknown;
-  stop_reason: "tool";
+  stop_reason: 'tool';
 }
 
 // Message content.
 
 export interface TextContent {
-  type: "text";
+  type: 'text';
   text: string;
 }
 
 export interface ToolMessage {
-  type: "tool";
+  type: 'tool';
   id: string;
   name: string;
   input: Record<string, unknown>;
@@ -174,7 +174,7 @@ export class InferenceResult {
       return this._historyFormatter(this);
     }
 
-    if (this.raw === "") {
+    if (this.raw === '') {
       // There is no call to the agent, so ignore this.
       return [];
     }
@@ -185,22 +185,22 @@ export class InferenceResult {
 
     const messages = this.prompt
       .map((msg) => {
-        if (msg.type !== "text") {
+        if (msg.type !== 'text') {
           return;
         }
 
-        let content: string = "";
-        if (typeof msg.content === "string") {
+        let content: string = '';
+        if (typeof msg.content === 'string') {
           content = msg.content;
         } else if (Array.isArray(msg.content)) {
-          content = msg.content.map((m) => m.text).join("\n");
+          content = msg.content.map((m) => m.text).join('\n');
         }
 
         // Ensure that system prompts are always as an assistant in history
         return {
           ...msg,
-          type: "text",
-          role: "assistant",
+          type: 'text',
+          role: 'assistant',
           content: `<agent>${agent.name}</agent>\n${content}`,
         };
       })

@@ -1,13 +1,13 @@
-import { z } from "zod";
+import { z } from 'zod';
 import {
   type Agent,
   RoutingAgent,
   createRoutingAgent,
   createTool,
-} from "./agent";
-import { type AgenticModel } from "./model";
-import { type InferenceResult, State } from "./state";
-import { type MaybePromise } from "./util";
+} from './agent';
+import { type AgenticModel } from './model';
+import { type InferenceResult, State } from './state';
+import { type MaybePromise } from './util';
 
 /**
  * Network represents a network of agents.
@@ -108,7 +108,7 @@ export class Network {
   async run(input: string, router?: Network.Router): Promise<Network> {
     const available = await this.availableAgents();
     if (available.length === 0) {
-      throw new Error("no agents enabled in network");
+      throw new Error('no agents enabled in network');
     }
 
     // If there's no default agent used to run the request, use our internal
@@ -181,7 +181,7 @@ export class Network {
     // It can do this by using code, or by calling routing agents directly.
     if (!router && !this.defaultModel) {
       throw new Error(
-        "No router or model defined in network.  You must pass a router or a default model to use the built-in agentic router.",
+        'No router or model defined in network.  You must pass a router or a default model to use the built-in agentic router.',
       );
     }
     if (!router) {
@@ -255,10 +255,10 @@ export class Network {
  * network or being explicitly given one.
  */
 export const defaultRoutingAgent = createRoutingAgent({
-  name: "Default routing agent",
+  name: 'Default routing agent',
 
   description:
-    "Selects which agents to work on based off of the current prompt and input.",
+    'Selects which agents to work on based off of the current prompt and input.',
 
   lifecycle: {
     onRoute: ({ result }) => {
@@ -266,7 +266,7 @@ export const defaultRoutingAgent = createRoutingAgent({
       if (!tool) {
         return;
       }
-      if (typeof tool.content === "string") {
+      if (typeof tool.content === 'string') {
         return [tool.content];
       }
       return;
@@ -277,25 +277,25 @@ export const defaultRoutingAgent = createRoutingAgent({
     // This tool does nothing but ensure that the model responds with the
     // agent name as valid JSON.
     createTool({
-      name: "select_agent",
+      name: 'select_agent',
       description:
-        "select an agent to handle the input, based off of the current conversation",
+        'select an agent to handle the input, based off of the current conversation',
       parameters: z
         .object({
           name: z
             .string()
-            .describe("The name of the agent that should handle the request"),
+            .describe('The name of the agent that should handle the request'),
         })
         .strict(),
       handler: ({ name }, { network }) => {
         if (!network) {
           throw new Error(
-            "The routing agent can only be used within a network of agents",
+            'The routing agent can only be used within a network of agents',
           );
         }
 
-        if (typeof name !== "string") {
-          throw new Error("The routing agent requested an invalid agent");
+        if (typeof name !== 'string') {
+          throw new Error('The routing agent requested an invalid agent');
         }
 
         const agent = network.agents.get(name);
@@ -312,12 +312,12 @@ export const defaultRoutingAgent = createRoutingAgent({
     }),
   ],
 
-  tool_choice: "select_agent",
+  tool_choice: 'select_agent',
 
   system: async (network?: Network): Promise<string> => {
     if (!network) {
       throw new Error(
-        "The routing agent can only be used within a network of agents",
+        'The routing agent can only be used within a network of agents',
       );
     }
 
@@ -336,7 +336,7 @@ The following agents are available:
       <tools>${JSON.stringify(Array.from(a.tools.values()))}</tools>
     </agent>`;
     })
-    .join("\n")}
+    .join('\n')}
 </agents>
 
 Follow the set of instructions:

@@ -1,15 +1,15 @@
-import { anthropic as ianthropic, type Anthropic } from "inngest";
-import { requestParser, responseParser } from "../adapters/anthropic";
-import { AgenticModel } from "../model";
-import { type AnyStepTools } from "../types";
+import { anthropic as ianthropic, type Anthropic } from 'inngest';
+import { requestParser, responseParser } from '../adapters/anthropic';
+import { AgenticModel } from '../model';
+import { type AnyStepTools } from '../types';
 
 export namespace AnthropicModel {
   export interface Options<TAiAdapter extends Anthropic.AiModel>
-    extends Omit<Anthropic.AiModelOptions, "model"> {
+    extends Omit<Anthropic.AiModelOptions, 'model'> {
     /**
      * The Anthropic model to use.
      */
-    model: Anthropic.AiModelOptions["model"] | TAiAdapter;
+    model: Anthropic.AiModelOptions['model'] | TAiAdapter;
 
     /**
      * The step tools to use internally within this model.
@@ -26,7 +26,7 @@ export const anthropic = <TAiAdapter extends Anthropic.AiModel>({
   ...modelOptions
 }: AnthropicModel.Options<TAiAdapter>) => {
   const model =
-    typeof modelOptions.model === "string"
+    typeof modelOptions.model === 'string'
       ? ianthropic({ ...modelOptions, model: modelOptions.model })
       : modelOptions.model;
 

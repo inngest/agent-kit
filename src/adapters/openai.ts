@@ -4,17 +4,17 @@
  * @module
  */
 
-import { type AiAdapter, type OpenAi } from "inngest";
-import { zodToJsonSchema } from "openai-zod-to-json-schema";
-import { type AgenticModel } from "../model";
-import { stringifyError } from "../util";
-import { type Tool } from "../types";
+import { type AiAdapter, type OpenAi } from 'inngest';
+import { zodToJsonSchema } from 'openai-zod-to-json-schema';
+import { type AgenticModel } from '../model';
+import { stringifyError } from '../util';
+import { type Tool } from '../types';
 import {
   type TextMessage,
   type ToolCallMessage,
   type Message,
   type ToolMessage,
-} from "../state";
+} from '../state';
 
 /**
  * Parse a request from internal network messages to an OpenAI input.
@@ -23,24 +23,24 @@ export const requestParser: AgenticModel.RequestParser<OpenAi.AiModel> = (
   model,
   messages,
   tools,
-  tool_choice = "auto",
+  tool_choice = 'auto',
 ) => {
   const request: AiAdapter.Input<OpenAi.AiModel> = {
     messages: messages.map((m) => {
       switch (m.type) {
-        case "text":
+        case 'text':
           return {
             role: m.role,
             content: m.content,
           };
-        case "tool_call":
+        case 'tool_call':
           return {
-            role: "assistant",
+            role: 'assistant',
             content: null,
             tool_calls: m.tools
               ? m.tools?.map((tool) => ({
                   id: tool.id,
-                  type: "function",
+                  type: 'function',
                   function: {
                     name: tool.name,
                     arguments: JSON.stringify(tool.input),
@@ -48,13 +48,13 @@ export const requestParser: AgenticModel.RequestParser<OpenAi.AiModel> = (
                 }))
               : undefined,
           };
-        case "tool_result":
+        case 'tool_result':
           return {
-            role: "tool",
+            role: 'tool',
             content: m.content,
           };
       }
-    }) as AiAdapter.Input<OpenAi.AiModel>["messages"],
+    }) as AiAdapter.Input<OpenAi.AiModel>['messages'],
   };
 
   if (tools?.length) {
@@ -64,7 +64,7 @@ export const requestParser: AgenticModel.RequestParser<OpenAi.AiModel> = (
     request.parallel_tool_calls = false;
     request.tools = tools.map((t) => {
       return {
-        type: "function",
+        type: 'function',
         function: {
           name: t.name,
           description: t.description,
@@ -93,7 +93,7 @@ export const responseParser: AgenticModel.ResponseParser<OpenAi.AiModel> = (
     const base = {
       role: choice.message.role,
       stop_reason:
-        openAiStopReasonToStateStopReason[finish_reason ?? ""] || "stop",
+        openAiStopReasonToStateStopReason[finish_reason ?? ''] || 'stop',
     };
 
     if (message.content) {
@@ -101,7 +101,7 @@ export const responseParser: AgenticModel.ResponseParser<OpenAi.AiModel> = (
         ...acc,
         {
           ...base,
-          type: "text",
+          type: 'text',
           content: message.content,
         } as TextMessage,
       ];
@@ -111,14 +111,14 @@ export const responseParser: AgenticModel.ResponseParser<OpenAi.AiModel> = (
         ...acc,
         {
           ...base,
-          type: "tool_call",
+          type: 'tool_call',
           tools: message.tool_calls.map((tool) => {
             return {
-              type: "tool",
+              type: 'tool',
               id: tool.id,
               name: tool.function.name,
               function: tool.function.name,
-              input: safeParseOpenAIJson(tool.function.arguments || "{}"),
+              input: safeParseOpenAIJson(tool.function.arguments || '{}'),
             } as ToolMessage;
           }),
         } as ToolCallMessage,
@@ -139,7 +139,7 @@ export const responseParser: AgenticModel.ResponseParser<OpenAi.AiModel> = (
  */
 const safeParseOpenAIJson = (str: string): unknown => {
   // Remove any leading/trailing quotes if present
-  const trimmed = str.replace(/^["']|["']$/g, "");
+  const trimmed = str.replace(/^["']|["']$/g, '');
 
   try {
     // First try direct JSON parse
@@ -161,22 +161,22 @@ const safeParseOpenAIJson = (str: string): unknown => {
 };
 
 const openAiStopReasonToStateStopReason: Record<string, string> = {
-  tool_calls: "tool",
-  stop: "stop",
-  length: "stop",
-  content_filter: "stop",
-  function_call: "tool",
+  tool_calls: 'tool',
+  stop: 'stop',
+  length: 'stop',
+  content_filter: 'stop',
+  function_call: 'tool',
 };
 
 const toolChoice = (choice: Tool.Choice) => {
   switch (choice) {
-    case "auto":
-      return "auto";
-    case "any":
-      return "required";
+    case 'auto':
+      return 'auto';
+    case 'any':
+      return 'required';
     default:
       return {
-        type: "function" as const,
+        type: 'function' as const,
         function: { name: choice as string },
       };
   }

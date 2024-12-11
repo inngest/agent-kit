@@ -1,13 +1,13 @@
-import { type AgenticModel } from "./model";
-import { type Network } from "./network";
+import { type AgenticModel } from './model';
+import { type Network } from './network';
 import {
   type State,
   InferenceResult,
   type Message,
   type ToolResultMessage,
-} from "./state";
-import { type Tool } from "./types";
-import { type AnyZodType, type MaybePromise } from "./util";
+} from './state';
+import { type Tool } from './types';
+import { type AnyZodType, type MaybePromise } from './util';
 
 /**
  * createTool is a helper that properly types the input argument for a handler
@@ -76,9 +76,9 @@ export class Agent {
 
   constructor(opts: Agent.Constructor | Agent.RoutingConstructor) {
     this.name = opts.name;
-    this.description = opts.description || "";
+    this.description = opts.description || '';
     this.system = opts.system;
-    this.assistant = opts.assistant || "";
+    this.assistant = opts.assistant || '';
     this.tools = new Map();
     this.tool_choice = opts.tool_choice;
     this.lifecycles = opts.lifecycle;
@@ -111,7 +111,7 @@ export class Agent {
   ): Promise<InferenceResult> {
     const p = model || this.model || network?.defaultModel;
     if (!p) {
-      throw new Error("No step caller provided to agent");
+      throw new Error('No step caller provided to agent');
     }
 
     // input state always overrides the network state.
@@ -119,7 +119,7 @@ export class Agent {
 
     let history = s ? s.format() : [];
     let prompt = await this.agentPrompt(input, network);
-    let result = new InferenceResult(this, input, prompt, history, [], [], "");
+    let result = new InferenceResult(this, input, prompt, history, [], [], '');
     let hasMoreActions = true;
     let iter = 0;
 
@@ -153,7 +153,7 @@ export class Agent {
 
       hasMoreActions =
         this.tools.size > 0 &&
-        inference.output[inference.output.length - 1]!.stop_reason !== "stop";
+        inference.output[inference.output.length - 1]!.stop_reason !== 'stop';
 
       result = inference;
       history = [...inference.output];
@@ -181,7 +181,7 @@ export class Agent {
       this.name,
       prompt.concat(history),
       Array.from(this.tools.values()),
-      this.tool_choice || "auto",
+      this.tool_choice || 'auto',
     );
 
     // Now that we've made the call, we instantiate a new InferenceResult for
@@ -193,7 +193,7 @@ export class Agent {
       history,
       output,
       [],
-      typeof raw === "string" ? raw : JSON.stringify(raw),
+      typeof raw === 'string' ? raw : JSON.stringify(raw),
     );
     if (this.lifecycles?.onResponse) {
       result = await this.lifecycles.onResponse({
@@ -220,7 +220,7 @@ export class Agent {
     const output: ToolResultMessage[] = [];
 
     for (const msg of msgs) {
-      if (msg.type !== "tool_call") {
+      if (msg.type !== 'tool_call') {
         continue;
       }
 
@@ -252,17 +252,17 @@ export class Agent {
         // TODO: handle error and send them back to the LLM
 
         output.push({
-          role: "tool_result",
-          type: "tool_result",
+          role: 'tool_result',
+          type: 'tool_result',
           tool: {
-            type: "tool",
+            type: 'tool',
             id: tool.id,
             name: tool.name,
             input: tool.input.arguments as Record<string, unknown>,
           },
 
           content: result ? result : `${tool.name} successfully executed`,
-          stop_reason: "tool",
+          stop_reason: 'tool',
         });
       }
     }
@@ -280,23 +280,23 @@ export class Agent {
     // Note that the agent's system message always comes first.
     const messages: Message[] = [
       {
-        type: "text",
-        role: "system",
+        type: 'text',
+        role: 'system',
         content:
-          typeof this.system === "string"
+          typeof this.system === 'string'
             ? this.system
             : await this.system(network),
       },
     ];
 
     if (input.length > 0) {
-      messages.push({ type: "text", role: "user", content: input });
+      messages.push({ type: 'text', role: 'user', content: input });
     }
 
     if (this.assistant.length > 0) {
       messages.push({
-        type: "text",
-        role: "assistant",
+        type: 'text',
+        role: 'assistant',
         content: this.assistant,
       });
     }
@@ -306,7 +306,7 @@ export class Agent {
 }
 
 export class RoutingAgent extends Agent {
-  type = "routing";
+  type = 'routing';
   override lifecycles: Agent.RoutingLifecycle;
   constructor(opts: Agent.RoutingConstructor) {
     super(opts);
@@ -338,7 +338,7 @@ export namespace Agent {
     model?: AgenticModel.Any;
   }
 
-  export interface RoutingConstructor extends Omit<Constructor, "lifecycle"> {
+  export interface RoutingConstructor extends Omit<Constructor, 'lifecycle'> {
     lifecycle: RoutingLifecycle;
   }
 

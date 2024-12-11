@@ -1,6 +1,6 @@
-import { type AiAdapter, type GetStepTools, type Inngest } from "inngest";
-import { type Message } from "./state";
-import { type Tool } from "./types";
+import { type AiAdapter, type GetStepTools, type Inngest } from 'inngest';
+import { type Message } from './state';
+import { type Tool } from './types';
 
 export class AgenticModel<TAiAdapter extends AiAdapter.Any> {
   #model: TAiAdapter;

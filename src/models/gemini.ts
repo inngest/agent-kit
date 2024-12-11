@@ -3,17 +3,17 @@ import {
   type Gemini,
   type GetStepTools,
   type Inngest,
-} from "inngest";
-import { requestParser, responseParser } from "../adapters/openai";
-import { AgenticModel } from "../model";
+} from 'inngest';
+import { requestParser, responseParser } from '../adapters/openai';
+import { AgenticModel } from '../model';
 
 export namespace AgenticGeminiModel {
   export interface Options<TAiAdapter extends Gemini.AiModel>
-    extends Omit<Gemini.AiModelOptions, "model"> {
+    extends Omit<Gemini.AiModelOptions, 'model'> {
     /**
      * The Gemini model to use.
      */
-    model: Gemini.AiModelOptions["model"] | TAiAdapter;
+    model: Gemini.AiModelOptions['model'] | TAiAdapter;
 
     /**
      * The step tools to use internally within this model.
@@ -33,7 +33,7 @@ export const gemini = <TAiAdapter extends Gemini.AiModel>({
   ...modelOptions
 }: AgenticGeminiModel.Options<TAiAdapter>) => {
   const model =
-    typeof modelOptions.model === "string"
+    typeof modelOptions.model === 'string'
       ? igemini({ ...modelOptions, model: modelOptions.model })
       : modelOptions.model;
 

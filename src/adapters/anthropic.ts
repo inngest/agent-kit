@@ -7,12 +7,12 @@ import {
   type AnthropicAiAdapter,
   type AiAdapter,
   type Anthropic,
-} from "inngest";
-import { zodToJsonSchema } from "openai-zod-to-json-schema";
-import { type Tool } from "../types";
-import { z } from "zod";
-import { type AgenticModel } from "../model";
-import { type TextMessage, type Message } from "../state";
+} from 'inngest';
+import { zodToJsonSchema } from 'openai-zod-to-json-schema';
+import { type Tool } from '../types';
+import { z } from 'zod';
+import { type AgenticModel } from '../model';
+import { type TextMessage, type Message } from '../state';
 
 /**
  * Parse a request from internal network messages to an Anthropic input.
@@ -21,56 +21,56 @@ export const requestParser: AgenticModel.RequestParser<Anthropic.AiModel> = (
   model,
   messages,
   tools,
-  tool_choice = "auto",
+  tool_choice = 'auto',
 ) => {
   // Note that Anthropic has a top-level system prompt, then a series of prompts
   // for assistants and users.
   const systemMessage = messages.find(
-    (m) => m.role === "system" && m.type === "text",
+    (m) => m.role === 'system' && m.type === 'text',
   ) as TextMessage;
   const system =
-    typeof systemMessage?.content === "string" ? systemMessage.content : "";
+    typeof systemMessage?.content === 'string' ? systemMessage.content : '';
 
-  const anthropicMessages: AiAdapter.Input<Anthropic.AiModel>["messages"] =
+  const anthropicMessages: AiAdapter.Input<Anthropic.AiModel>['messages'] =
     messages
-      .filter((m) => m.role !== "system")
+      .filter((m) => m.role !== 'system')
       .reduce(
         (acc, m) => {
           switch (m.type) {
-            case "text":
+            case 'text':
               return [
                 ...acc,
                 {
                   role: m.role,
                   content: Array.isArray(m.content)
-                    ? m.content.map((text) => ({ type: "text", text }))
+                    ? m.content.map((text) => ({ type: 'text', text }))
                     : m.content,
                 },
-              ] as AiAdapter.Input<Anthropic.AiModel>["messages"];
-            case "tool_call":
+              ] as AiAdapter.Input<Anthropic.AiModel>['messages'];
+            case 'tool_call':
               return [
                 ...acc,
                 {
                   role: m.role,
                   content: m.tools.map((tool) => ({
-                    type: "tool_use",
+                    type: 'tool_use',
                     id: tool.id,
                     input: tool.input,
                     name: tool.name,
                   })),
                 },
               ];
-            case "tool_result":
+            case 'tool_result':
               return [
                 ...acc,
                 {
-                  role: "user",
+                  role: 'user',
                   content: [
                     {
-                      type: "tool_result",
+                      type: 'tool_result',
                       tool_use_id: m.tool.id,
                       content:
-                        typeof m.content === "string"
+                        typeof m.content === 'string'
                           ? m.content
                           : JSON.stringify(m.content),
                     },
@@ -79,7 +79,7 @@ export const requestParser: AgenticModel.RequestParser<Anthropic.AiModel> = (
               ];
           }
         },
-        [] as AiAdapter.Input<Anthropic.AiModel>["messages"],
+        [] as AiAdapter.Input<Anthropic.AiModel>['messages'],
       );
 
   const request: AiAdapter.Input<Anthropic.AiModel> = {
@@ -119,23 +119,23 @@ export const responseParser: AgenticModel.ResponseParser<Anthropic.AiModel> = (
     }
 
     switch (item.type) {
-      case "text":
+      case 'text':
         return [
           ...acc,
           {
-            type: "text",
+            type: 'text',
             role: input.role,
             content: item.text,
             // XXX: Better stop reason parsing
-            stop_reason: "stop",
+            stop_reason: 'stop',
           },
         ];
-      case "tool_use": {
+      case 'tool_use': {
         let args;
         try {
           // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
           args =
-            typeof item.input === "string"
+            typeof item.input === 'string'
               ? JSON.parse(item.input)
               : item.input;
         } catch {
@@ -145,12 +145,12 @@ export const responseParser: AgenticModel.ResponseParser<Anthropic.AiModel> = (
         return [
           ...acc,
           {
-            type: "tool_call",
+            type: 'tool_call',
             role: input.role,
-            stop_reason: "tool",
+            stop_reason: 'tool',
             tools: [
               {
-                type: "tool",
+                type: 'tool',
                 id: item.id,
                 name: item.name,
                 // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
@@ -166,16 +166,16 @@ export const responseParser: AgenticModel.ResponseParser<Anthropic.AiModel> = (
 
 const toolChoice = (
   choice: Tool.Choice,
-): AiAdapter.Input<Anthropic.AiModel>["tool_choice"] => {
+): AiAdapter.Input<Anthropic.AiModel>['tool_choice'] => {
   switch (choice) {
-    case "auto":
-      return { type: "auto" };
-    case "any":
-      return { type: "any" };
+    case 'auto':
+      return { type: 'auto' };
+    case 'any':
+      return { type: 'any' };
     default:
-      if (typeof choice === "string") {
+      if (typeof choice === 'string') {
         return {
-          type: "tool",
+          type: 'tool',
           name: choice as string,
         };
       }

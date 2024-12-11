@@ -1,15 +1,15 @@
-import { openai as iopenai, type OpenAi } from "inngest";
-import { requestParser, responseParser } from "../adapters/openai";
-import { AgenticModel } from "../model";
-import { type AnyStepTools } from "../types";
+import { openai as iopenai, type OpenAi } from 'inngest';
+import { requestParser, responseParser } from '../adapters/openai';
+import { AgenticModel } from '../model';
+import { type AnyStepTools } from '../types';
 
 export namespace AgenticOpenAiModel {
   export interface Options<TAiAdapter extends OpenAi.AiModel>
-    extends Omit<OpenAi.AiModelOptions, "model"> {
+    extends Omit<OpenAi.AiModelOptions, 'model'> {
     /**
      * The OpenAI model to use.
      */
-    model: OpenAi.AiModelOptions["model"] | TAiAdapter;
+    model: OpenAi.AiModelOptions['model'] | TAiAdapter;
 
     /**
      * The step tools to use internally within this model.
@@ -28,7 +28,7 @@ export const openai = <TAiAdapter extends OpenAi.AiModel>({
   ...modelOptions
 }: AgenticOpenAiModel.Options<TAiAdapter>) => {
   const model =
-    typeof modelOptions.model === "string"
+    typeof modelOptions.model === 'string'
       ? iopenai({ ...modelOptions, model: modelOptions.model })
       : modelOptions.model;
 

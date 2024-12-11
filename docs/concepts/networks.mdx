@@ -1,0 +1,80 @@
+---
+title: Networks
+description: 'Combine one or more agents into a Network'
+icon: 'chart-network'
+iconType: 'regular'
+---
+
+Networks are **Systems of [Agents](/concepts/agents)**. Use Networks to create complex, stateful workflows with one or more Agents.
+
+A network contains three components:
+
+- The Agents that the network can access
+- [State](/concepts/state), including past messages and a key value store
+- A [Router](/concepts/routers), which chooses whether to quit or the next agent to run in the loop
+
+It also has an optional default model, which will be used when your Agents have no model provided, and a setting to cap the number of model calls via `maxIter`.
+
+Here's a simple example:
+
+```tsx
+import { createNetwork, openai } from '@inngest/agent-kit';
+
+// Create a network with two agents.
+const network = createNetwork({
+  agents: [searchAgent, summaryAgent],
+  // Optional: used for routing and agents if they have no model
+  defaultModel: openai({ model: 'gpt-4o', step }),
+  maxIter: 10, // Optional: max number of agent calls
+});
+
+// Run the network with a user prompt
+await network.run('What happened in the 2024 Super Bowl?');
+```
+
+Similar to agents, you call `run()` on a network with some user input. The network then runs a core loop to call one or more agents to find a suitable answer.
+
+## How Networks work
+
+Networks can be thought of as while loops with memory that call Agents and Tools until the Router determines that there is no more work to be done.
+
+<Steps>
+  <Step title="Create the Network of Agents">
+    You create a network with a list of available [Agents](/concepts/agents).
+    Each Agent can use a different [model and inference
+    provider](/concepts/models).
+  </Step>
+  <Step title="Provide the staring prompt">
+    You give the network a user prompt by calling `run()`.
+  </Step>
+  <Step title="Core execution loop">
+    The network runs its core loop:
+    <Steps>
+      <Step title="Call the Network router">
+        The [Router](/concepts/routers) decides the first Agent to run with your
+        input.
+      </Step>
+      <Step title="Run the Agent">
+        Call the Agent with your input. This also runs the agent's
+        [lifecycles](/concepts/agents#lifecycle-hooks), and any
+        [Tools](/concepts/tools) that the model decides to call.
+      </Step>
+      <Step title="Store the result">
+        Stores the result in the network's [State](/concepts/state). State can
+        be accessed by the Router or other Agent's Tools in future loops.
+      </Step>
+      <Step title="Call the the Router again ↩️">
+        Return to the top of the loop and calls the Router with the new State.
+        The Router can decide to quit or run another Agent.
+      </Step>
+    </Steps>
+  </Step>
+</Steps>
+{
+  // TODO
+  // - Purpose of a network
+  // - How state is core to the Network (minimal explainer - link to State concept doc)
+  // - Routing - what is a router and what is it's purpose within a Network, default router vs. custom routing - link to deeper routing guide
+}
+
+## Routing
