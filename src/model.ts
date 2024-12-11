@@ -1,8 +1,8 @@
-import { type AiAdapter, type GetStepTools, type Inngest } from "inngest";
-import { type InternalNetworkMessage } from "./state";
-import { type Tool } from "./types";
+import { type AiAdapter, type GetStepTools, type Inngest } from 'inngest';
+import { type Message } from './state';
+import { type Tool } from './types';
 
-export class AgenticModel<TAiAdapter extends AiAdapter> {
+export class AgenticModel<TAiAdapter extends AiAdapter.Any> {
   #model: TAiAdapter;
 
   step: GetStepTools<Inngest.Any>;
@@ -23,12 +23,13 @@ export class AgenticModel<TAiAdapter extends AiAdapter> {
 
   async infer(
     stepID: string,
-    input: InternalNetworkMessage[],
+    input: Message[],
     tools: Tool.Any[],
+    tool_choice: Tool.Choice,
   ): Promise<AgenticModel.InferenceResponse> {
     const result = (await this.step.ai.infer(stepID, {
       model: this.#model,
-      body: this.requestParser(input, tools),
+      body: this.requestParser(this.#model, input, tools, tool_choice),
     })) as AiAdapter.Input<TAiAdapter>;
 
     return { output: this.responseParser(result), raw: result };
@@ -36,7 +37,7 @@ export class AgenticModel<TAiAdapter extends AiAdapter> {
 }
 
 export namespace AgenticModel {
-  export type Any = AgenticModel<AiAdapter>;
+  export type Any = AgenticModel<AiAdapter.Any>;
 
   /**
    * InferenceResponse is the response from a model for an inference request.
@@ -44,23 +45,25 @@ export namespace AgenticModel {
    * result depending on the model's API repsonse.
    */
   export type InferenceResponse<T = unknown> = {
-    output: InternalNetworkMessage[];
+    output: Message[];
     raw: T;
   };
 
-  export interface Constructor<TAiAdapter extends AiAdapter> {
+  export interface Constructor<TAiAdapter extends AiAdapter.Any> {
     model: TAiAdapter;
     step: GetStepTools<Inngest.Any>;
     requestParser: RequestParser<TAiAdapter>;
     responseParser: ResponseParser<TAiAdapter>;
   }
 
-  export type RequestParser<TAiAdapter extends AiAdapter> = (
-    state: InternalNetworkMessage[],
+  export type RequestParser<TAiAdapter extends AiAdapter.Any> = (
+    model: TAiAdapter,
+    state: Message[],
     tools: Tool.Any[],
+    tool_choice: Tool.Choice,
   ) => AiAdapter.Input<TAiAdapter>;
 
-  export type ResponseParser<TAiAdapter extends AiAdapter> = (
+  export type ResponseParser<TAiAdapter extends AiAdapter.Any> = (
     output: AiAdapter.Output<TAiAdapter>,
-  ) => InternalNetworkMessage[];
+  ) => Message[];
 }

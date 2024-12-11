@@ -1,4 +1,4 @@
-import { type ZodType } from "zod";
+import { type ZodType } from 'zod';
 
 export type MaybePromise<T> = T | Promise<T>;
 
@@ -14,3 +14,57 @@ export type MaybePromise<T> = T | Promise<T>;
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type AnyZodType = ZodType<any>;
+
+/**
+ * Given an unknown value, return a string representation of the error if it is
+ * an error, otherwise return the stringified value.
+ */
+export const stringifyError = (e: unknown): string => {
+  if (e instanceof Error) {
+    return e.message;
+  }
+
+  return String(e);
+};
+
+/**
+ * Given an object `T`, return a new object where all keys with function types
+ * as values are genericized. If the value is an object, recursively apply this
+ * transformation.
+ */
+export type GenericizeFunctionsInObject<T> = {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  [K in keyof T]: T[K] extends (...args: any[]) => any
+    ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (...args: any[]) => any
+    : // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      T[K] extends Record<string, any>
+      ? // Allow every object to also contain arbitrary additional properties.
+        GenericizeFunctionsInObject<T[K]> & Record<string, unknown>
+      : T[K];
+};
+
+export type Simplify<T> = { [KeyType in keyof T]: T[KeyType] } & {};
+
+export type ConditionalSimplifyDeep<
+  Type,
+  ExcludeType = never,
+  IncludeType = unknown,
+> = Type extends ExcludeType
+  ? Type
+  : Type extends IncludeType
+    ? {
+        [TypeKey in keyof Type]: ConditionalSimplifyDeep<
+          Type[TypeKey],
+          ExcludeType,
+          IncludeType
+        >;
+      }
+    : Type;
+
+export type SimplifyDeep<Type> = ConditionalSimplifyDeep<
+  Type,
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-function-type
+  Function | Iterable<unknown>,
+  object
+>;

@@ -1,11 +1,12 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import {
-  agenticOpenai,
+  anthropic,
   createAgent,
   createNetwork,
-  createTypedTool,
+  createTool,
   defaultRoutingAgent,
-} from "@inngest/agent-kit";
+  openai,
+} from "../src/index";
 import { EventSchemas, Inngest } from "inngest";
 import { z } from "zod";
 
@@ -21,30 +22,27 @@ export const inngest = new Inngest({
 });
 
 export const fn = inngest.createFunction(
-  { id: "agent" },
+  { id: "agent", retries: 0, },
   { event: "agent/run" },
   async ({ event, step }) => {
-    const model = agenticOpenai({ model: "gpt-4", step });
+    const model = openai({ model: "gpt-4", step });
 
-    // 1. Single agents
-    //
+    //  1. Single agent
+    
     // Run a single agent as a prompt without a network.
-    const { output, raw } = await codeWritingAgent.run(event.data.input, {
-      model,
-    });
+    // await codeWritingAgent.run(event.data.input, {
+    //   model,
+    // });
 
-    // 2. Networks of agents
-    const cheapModel = agenticOpenai({ model: "gpt-3.5-turbo", step });
-
+    //  2. A network of agents that works together
     const network = createNetwork({
       agents: [
         codeWritingAgent.withModel(model),
-        executingAgent.withModel(cheapModel),
+        executingAgent.withModel(model),
       ],
       defaultModel: model,
       maxIter: 4,
     });
-    // code -> executing -> code
 
     // This uses the defaut agentic router to determine which agent to handle first.  You can
     // optionally specifiy the agent that should execute first, and provide your own logic for
@@ -63,8 +61,7 @@ export const fn = inngest.createFunction(
 );
 
 const systemPrompt =
-  "You are an expert TypeScript programmer.  Given a set of asks, think step-by-step to plan clean, " +
-  "idiomatic TypeScript code, with comments and tests as necessary.";
+  "You are an expert TypeScript programmer.  You can create files with idiomatic TypeScript code, with comments and associated tests.";
 
 const codeWritingAgent = createAgent({
   name: "Code writer",
@@ -101,9 +98,9 @@ const codeWritingAgent = createAgent({
     //   "Do not respond with anything else other than the following XML tags:" +
     //   "- If you would like to write code, add all code within the following tags (replace $filename and $contents appropriately):" +
     //   "  <file name='$filename.ts'>$contents</file>";
-    createTypedTool({
-      name: "write_files",
-      description: "Write code with the given filenames",
+    createTool({
+      name: "create_files",
+      description: "Create files with the given filenames and contents",
       parameters: z
         .object({
           files: z.array(
@@ -143,7 +140,7 @@ const executingAgent = createAgent({
     },
   },
 
-  system: `You are an export TypeScript engineer that can execute commands, run tests, debug the output, and make modifications to code.
+  system: `You are an expert TypeScript engineer that can execute commands, run tests, debug the output, and make modifications to code.
 
 Think carefully about the request that the user is asking for. Do not respond with anything else other than the following XML tags:
 
