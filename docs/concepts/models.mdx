@@ -5,11 +5,108 @@ icon: 'computer-classic'
 iconType: 'regular'
 ---
 
-Coming soon.
+Within AgentKit, models are adapters that wrap a given provider (ex. OpenAI, Anthropic)'s specific model version (ex. `gpt-3.5`).
+
+Each [Agent](/concepts/agents) can each select their own model to use and a [Network](/concepts/networks) can select a default model.
+
+```ts
+import { openai, anthropic, gemini } from '@inngest/agent-kit';
+```
+
+## How to use a model
+
+<CodeGroup>
+
+```ts OpenAI
+import { openai, createAgent } from '@inngest/agent-kit';
+
+const supportAgent = createAgent({
+  model: openai('gpt-3.5-turbo'),
+  name: 'Customer support specialist',
+  system: 'You are an customer support specialist...',
+  tools: [listChargesTool],
+});
+```
+
+```ts Anthropic
+import { anthropic, createAgent } from '@inngest/agent-kit';
+
+const supportAgent = createAgent({
+  model: anthropic('claude-3-5-haiku-latest'),
+  name: 'Customer support specialist',
+  system: 'You are an customer support specialist...',
+  tools: [listChargesTool],
+});
+```
+
+```ts Gemini
+import { gemini, createAgent } from '@inngest/agent-kit';
+
+const supportAgent = createAgent({
+  model: gemini('claude-3-5-haiku-latest'),
+  name: 'Customer support specialist',
+  system: 'You are an customer support specialist...',
+  tools: [listChargesTool],
+});
+```
+
+</CodeGroup>
 
 {// TODO:
-// - What is a model
 // - How models are called
-// - List all supported models
-// - How to add new models (contribution)
 }
+
+## List of supported models
+
+For a full list of supported models, you can always check [the models directory here](https://github.com/inngest/inngest-js/tree/main/packages/inngest/src/components/ai/models).
+
+<CodeGroup>
+
+```plaintext OpenAI
+"gpt-4o"
+"chatgpt-4o-latest"
+"gpt-4o-mini"
+"gpt-4"
+"o1-preview"
+"o1-mini"
+"gpt-3.5-turbo"
+```
+
+```plaintext Anthropic
+"claude-3-5-haiku-latest"
+"claude-3-5-haiku-20241022"
+"claude-3-5-sonnet-latest"
+"claude-3-5-sonnet-20241022"
+"claude-3-5-sonnet-20240620"
+"claude-3-opus-latest"
+"claude-3-opus-20240229"
+"claude-3-sonnet-20240229"
+"claude-3-haiku-20240307"
+"claude-2.1"
+"claude-2.0"
+"claude-instant-1.2"
+```
+
+```plaintext Gemini
+"gemini-1.5-flash"
+"gemini-1.5-flash-8b"
+"gemini-1.5-pro"
+"gemini-1.0-pro"
+"text-embedding-004"
+"aqa"
+```
+
+</CodeGroup>
+
+## Contribution
+
+Is there a model that you'd like to see included in AgentKit? Open an issue, create a pull request, or chat with the team on [Discord in the #ai channel](https://www.inngest.com/community).
+
+<Card
+  title="Contribute on GitHub"
+  icon="github"
+  href="https://github.com/inngest/agent-kit"
+>
+  Fork, clone, and open a pull request.
+</Card>
+```

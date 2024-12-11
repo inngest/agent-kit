@@ -7,9 +7,13 @@
   },
   "favicon": "/brand/favicon-june-2024-dark.png",
   "colors": {
-    "primary": "#075d5d",
-    "light": "#027A48",
-    "dark": "#027A48",
+    "primary": "#189c70",
+    "light": "#2fe4a8",
+    "dark": "#2fe4a8",
+    "background": {
+      "light": "#fefefe",
+      "dark": "#020202"
+    },
     "anchors": {
       "from": "#66BD8B",
       "to": "#52B2FD"
@@ -51,7 +55,7 @@
       "url": "https://www.inngest.com/discord"
     },
     {
-      "name": "Github",
+      "name": "GitHub",
       "icon": "github",
       "url": "https://github.com/inngest/agent-kit"
     }
