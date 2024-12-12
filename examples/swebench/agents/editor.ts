@@ -48,7 +48,7 @@ export const editingAgent = createAgent({
     },
   },
 
-  system: (network) => `
+  system: ({ network }) => `
     You are an expert Python programmer working on a specific project: ${network?.state.kv.get("repo")}.  You have been
     given a plan to fix the given issue supplied by the user.
 

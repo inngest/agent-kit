@@ -2,10 +2,11 @@ import { type AiAdapter } from "inngest";
 import { z } from "zod";
 import {
   type Agent,
-  RoutingAgent,
+  type RoutingAgent,
   createRoutingAgent,
   createTool,
 } from "./agent";
+import { NetworkRun } from "./networkRun";
 import { type InferenceResult, State } from "./state";
 import { type MaybePromise } from "./util";
 
@@ -26,7 +27,7 @@ export class Network {
   /**
    * state is the entire agent's state.
    */
-  state: State;
+  defaultState?: State;
 
   /**
    * defaultModel is the default model to use with the network.  This will not
@@ -35,6 +36,8 @@ export class Network {
    */
   defaultModel?: AiAdapter.Any;
 
+  defaultRouter?: Network.Router;
+
   /**
    * maxIter is the maximum number of times the we can call agents before ending
    * the network's run loop.
@@ -42,28 +45,33 @@ export class Network {
   maxIter: number;
 
   // _stack is an array of strings, each representing an agent name to call.
-  private _stack: string[];
+  protected _stack: string[];
 
-  private _counter = 0;
+  protected _counter = 0;
 
   // _agents atores all egents.  note that you may not include eg. the
   // defaultRoutingAgent within the network constructor, and you may return an
   // agent in the router that's not included.  This is okay;  we store all
   // agents referenced in the router here.
-  private _agents: Map<string, Agent>;
+  protected _agents: Map<string, Agent>;
 
   constructor({
     agents,
     defaultModel,
     maxIter,
-    state = new State(),
+    defaultState,
+    defaultRouter,
   }: Network.Constructor) {
     this.agents = new Map();
     this._agents = new Map();
-    this.state = state;
     this.defaultModel = defaultModel;
+    this.defaultRouter = defaultRouter;
     this.maxIter = maxIter || 0;
     this._stack = [];
+
+    if (defaultState) {
+      this.defaultState = defaultState;
+    }
 
     for (const agent of agents) {
       // Store all agents publicly visible.
@@ -73,12 +81,14 @@ export class Network {
     }
   }
 
-  async availableAgents(): Promise<Agent[]> {
+  async availableAgents(
+    networkRun: NetworkRun = new NetworkRun(this, new State()),
+  ): Promise<Agent[]> {
     const available: Agent[] = [];
     const all = Array.from(this.agents.values());
     for (const a of all) {
       const enabled = a?.lifecycles?.enabled;
-      if (!enabled || (await enabled({ agent: a, network: this }))) {
+      if (!enabled || (await enabled({ agent: a, network: networkRun }))) {
         available.push(a);
       }
     }
@@ -93,173 +103,24 @@ export class Network {
   }
 
   /**
-   * Schedule is used to push an agent's run function onto the stack.
-   */
-  schedule(agentName: string) {
-    this._stack.push(agentName);
-  }
-
-  /**
    * run handles a given request using the network of agents.  It is not
    * concurrency-safe; you can only call run on a network once, as networks are
    * stateful.
    *
    */
-  async run(
-    input: string,
-    overrides?: {
-      router?: Network.Router;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      state?: State | Record<string, any>;
-    },
-  ): Promise<Network> {
-    // If given, use the provided state.
+  public run(...[input, overrides]: Network.RunArgs): Promise<NetworkRun> {
+    let state: State;
     if (overrides?.state) {
       if (overrides.state instanceof State) {
-        this.state = overrides.state;
+        state = overrides.state;
       } else {
-        this.state = new State(overrides.state);
+        state = new State(overrides.state);
       }
+    } else {
+      state = this.defaultState?.clone() || new State();
     }
 
-    const available = await this.availableAgents();
-    if (available.length === 0) {
-      throw new Error("no agents enabled in network");
-    }
-
-    // If there's no default agent used to run the request, use our internal
-    // routing agent which attempts to figure out the best agent to choose based
-    // off of the network.
-    const next = await this.getNextAgents(input, overrides?.router);
-    if (!next) {
-      // TODO: If call count is 0, error.
-      return this;
-    }
-
-    // Schedule the agent to run on our stack, then start popping off the stack.
-    for (const agent of next) {
-      this.schedule(agent.name);
-    }
-
-    while (
-      this._stack.length > 0 &&
-      (this.maxIter === 0 || this._counter < this.maxIter)
-    ) {
-      // XXX: It would be possible to parallel call these agents here by
-      // fetching the entire stack, parallel running, then awaiting the
-      // responses.   However, this confuses history and we'll take our time to
-      // introduce parallelisation after the foundations are set.
-
-      // Fetch the agent we need to call next off of the stack.
-      const agentName = this._stack.shift();
-      // Grab agents from the private map, as this may have been introduced in
-      // the router.
-      const agent = agentName && this._agents.get(agentName);
-      if (!agent) {
-        // We're done.
-        return this;
-      }
-
-      // We force Agent to emit structured output in case of the use of tools by
-      // setting maxIter to 0.
-      const call = await agent.run(input, { network: this, maxIter: 0 });
-      this._counter += 1;
-
-      // Ensure that we store the call network history.
-      this.state.append(call);
-
-      // Here we face a problem: what's the definition of done?   An agent may
-      // have just been called with part of the information to solve an input.
-      // We may need to delegate to another agent.
-      //
-      // In this case, we defer to the router provided to give us next steps.
-      // By default, this is an agentic router which takes the current state,
-      // agents, then figures out next steps.  This can, and often should, be
-      // custom code.
-      const next = await this.getNextAgents(input, overrides?.router);
-      for (const a of next || []) {
-        this.schedule(a.name);
-      }
-    }
-
-    return this;
-  }
-
-  private async getNextAgents(
-    input: string,
-    router?: Network.Router,
-  ): Promise<Agent[] | undefined> {
-    // A router may do one of two things:
-    //
-    //   1. Return one or more Agents to run
-    //   2. Return undefined, meaning we're done.
-    //
-    // It can do this by using code, or by calling routing agents directly.
-    if (!router && !this.defaultModel) {
-      throw new Error(
-        "No router or model defined in network.  You must pass a router or a default model to use the built-in agentic router.",
-      );
-    }
-    if (!router) {
-      router = defaultRoutingAgent;
-    }
-    if (router instanceof RoutingAgent) {
-      return await this.getNextAgentsViaRoutingAgent(router, input);
-    }
-
-    // This is a function call which determines the next agent to call.  Note that the result
-    // of this function call may be another RoutingAgent.
-    const stack: Agent[] = this._stack.map((name) => {
-      const agent = this._agents.get(name);
-      if (!agent) {
-        throw new Error(`unknown agent in the network stack: ${name}`);
-      }
-      return agent;
-    });
-
-    const agent = await router({
-      input,
-      network: this,
-      stack,
-      lastResult: this.state.results.pop(),
-      callCount: this._counter,
-    });
-    if (!agent) {
-      return;
-    }
-    if (agent instanceof RoutingAgent) {
-      // Functions may also return routing agents.
-      return await this.getNextAgentsViaRoutingAgent(agent, input);
-    }
-
-    for (const a of Array.isArray(agent) ? agent : [agent]) {
-      // Ensure this agent is part of the network.  If not, we're going to
-      // automatically add it.
-      if (!this._agents.has(a.name)) {
-        this._agents.set(a.name, a);
-      }
-    }
-
-    return Array.isArray(agent) ? agent : [agent];
-  }
-
-  private async getNextAgentsViaRoutingAgent(
-    routingAgent: RoutingAgent,
-    input: string,
-  ): Promise<Agent[] | undefined> {
-    const result = await routingAgent.run(input, {
-      network: this,
-      model: routingAgent.model || this.defaultModel,
-    });
-    const agentNames = routingAgent.lifecycles.onRoute({
-      result,
-      agent: routingAgent,
-      network: this,
-    });
-
-    return (agentNames || [])
-      .map((name) => this.agents.get(name))
-      .filter(Boolean) as Agent[];
+    return new NetworkRun(this, state)["execute"](input, overrides);
   }
 }
 
@@ -330,7 +191,7 @@ export const defaultRoutingAgent = createRoutingAgent({
 
   tool_choice: "select_agent",
 
-  system: async (network?: Network): Promise<string> => {
+  system: async ({ network }): Promise<string> => {
     if (!network) {
       throw new Error(
         "The routing agent can only be used within a network of agents",
@@ -373,8 +234,15 @@ export namespace Network {
     maxIter?: number;
     // state is any pre-existing network state to use in this Network instance.  By
     // default, new state is created without any history for every Network.
-    state?: State;
+    defaultState?: State;
+    defaultRouter?: Router;
   };
+
+  export type RunArgs = [
+    input: string,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    overrides?: { router?: Router; state?: State | Record<string, any> },
+  ];
 
   /**
    * Router defines how a network coordinates between many agents.  A router is
@@ -410,7 +278,7 @@ export namespace Network {
        * Network is the network that this router is coordinating.  Network state
        * is accessible via `network.state`.
        */
-      network: Network;
+      network: NetworkRun;
 
       /**
        * stack is an ordered array of agents that will be called next.

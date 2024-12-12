@@ -1,7 +1,7 @@
 import { type GetStepTools, type Inngest } from "inngest";
 import { type output as ZodOutput } from "zod";
 import { type Agent } from "./agent";
-import { type Network } from "./network";
+import { type NetworkRun } from "./networkRun";
 import {
   type AnyZodType,
   type GenericizeFunctionsInObject,
@@ -31,7 +31,7 @@ export namespace Tool {
 
 export type ToolHandlerArgs = {
   agent: Agent;
-  network?: Network;
+  network?: NetworkRun;
   step: GetStepTools<Inngest.Any>;
 };
 

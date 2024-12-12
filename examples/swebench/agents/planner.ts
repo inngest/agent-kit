@@ -38,7 +38,7 @@ export const planningAgent = createAgent({
     }),
   ],
 
-  system: (network) => `
+  system: ({ network }) => `
     You are an expert Python programmer working on a specific project: ${network?.state.kv.get("repo")}.
 
     You are given an issue reported within the project.  You are planning how to fix the issue by investigating the report,

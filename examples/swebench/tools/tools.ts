@@ -1,8 +1,8 @@
+import { createTool } from "@inngest/agent-kit";
 import fs from "fs";
-import { z } from "zod";
 import Parser from "tree-sitter";
 import Py from "tree-sitter-python";
-import { createTool } from "@inngest/agent-kit";
+import { z } from "zod";
 
 // PyClass represents a class parsed from a python file.
 interface PyClass {

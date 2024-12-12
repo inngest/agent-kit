@@ -122,6 +122,13 @@ export class State {
   append(call: InferenceResult) {
     this._history.push(call);
   }
+
+  clone() {
+    const state = new State();
+    state._history = this._history.slice();
+    state._kv = new Map(this._kv);
+    return state;
+  }
 }
 
 /**

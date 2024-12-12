@@ -1,10 +1,11 @@
 import { type AiAdapter } from "inngest";
 import { createAgenticModelFromAiAdapter, type AgenticModel } from "./model";
 import { type Network } from "./network";
+import { NetworkRun } from "./networkRun";
 import {
   InferenceResult,
+  State,
   type Message,
-  type State,
   type ToolResultMessage,
 } from "./state";
 import { type Tool } from "./types";
@@ -41,7 +42,7 @@ export class Agent {
   /**
    * system is the system prompt for the agent.
    */
-  system: string | ((network?: Network) => MaybePromise<string>);
+  system: string | ((ctx: { network?: NetworkRun }) => MaybePromise<string>);
 
   /**
    * Assistant is the assistent message used for completion, if any.
@@ -118,10 +119,11 @@ export class Agent {
     const p = createAgenticModelFromAiAdapter(rawModel);
 
     // input state always overrides the network state.
-    const s = state || network?.state;
+    const s = state || network?.defaultState?.clone();
+    const run = network && new NetworkRun(network, s || new State());
 
     let history = s ? s.format() : [];
-    let prompt = await this.agentPrompt(input, network);
+    let prompt = await this.agentPrompt(input, run);
     let result = new InferenceResult(this, input, prompt, history, [], [], "");
     let hasMoreActions = true;
     let iter = 0;
@@ -131,7 +133,7 @@ export class Agent {
       if (this.lifecycles?.onStart) {
         const modified = await this.lifecycles.onStart({
           agent: this,
-          network,
+          network: run,
           input,
           prompt,
           history,
@@ -151,7 +153,7 @@ export class Agent {
         p,
         prompt,
         history,
-        network,
+        run,
       );
 
       hasMoreActions =
@@ -164,7 +166,11 @@ export class Agent {
     } while (hasMoreActions && iter < maxIter);
 
     if (this.lifecycles?.onFinish) {
-      result = await this.lifecycles.onFinish({ agent: this, network, result });
+      result = await this.lifecycles.onFinish({
+        agent: this,
+        network: run,
+        result,
+      });
     }
 
     // Note that the routing lifecycles aren't called by the agent.  They're called
@@ -178,7 +184,7 @@ export class Agent {
     p: AgenticModel.Any,
     prompt: Message[],
     history: Message[],
-    network?: Network,
+    network?: NetworkRun,
   ): Promise<InferenceResult> {
     const { output, raw } = await p.infer(
       this.name,
@@ -218,7 +224,7 @@ export class Agent {
   private async invokeTools(
     msgs: Message[],
     p: AgenticModel.Any,
-    network?: Network,
+    network?: NetworkRun,
   ): Promise<ToolResultMessage[]> {
     const output: ToolResultMessage[] = [];
 
@@ -275,7 +281,7 @@ export class Agent {
 
   private async agentPrompt(
     input: string,
-    network?: Network,
+    network?: NetworkRun,
   ): Promise<Message[]> {
     // Prompt returns the full prompt for the current agent.  This does NOT
     // include the existing network's state as part of the prompt.
@@ -288,7 +294,7 @@ export class Agent {
         content:
           typeof this.system === "string"
             ? this.system
-            : await this.system(network),
+            : await this.system({ network }),
       },
     ];
 
@@ -333,7 +339,7 @@ export namespace Agent {
   export interface Constructor {
     name: string;
     description?: string;
-    system: string | ((network?: Network) => MaybePromise<string>);
+    system: string | ((ctx: { network?: NetworkRun }) => MaybePromise<string>);
     assistant?: string;
     tools?: Tool.Any[];
     tool_choice?: Tool.Choice;
@@ -415,7 +421,7 @@ export namespace Agent {
       // Agent is the agent that made the call.
       agent: Agent;
       // Network represents the network that this agent or lifecycle belongs to.
-      network?: Network;
+      network?: NetworkRun;
     }
 
     export interface Result extends Base {

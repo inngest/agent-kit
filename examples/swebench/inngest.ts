@@ -1,9 +1,7 @@
-import fs from "fs";
 import { execSync } from "child_process";
-import { Inngest, EventSchemas } from "inngest";
+import fs from "fs";
+import { EventSchemas, Inngest } from "inngest";
 import { z } from "zod";
-import { planningAgent } from "./agents/planner";
-import { editingAgent } from "./agents/editor";
 import { codeWritingNetwork } from "./networks/codeWritingNetwork";
 
 export const inngest = new Inngest({
@@ -52,27 +50,6 @@ export const fn = inngest.createFunction(
 
     await codeWritingNetwork.run(event.data.problem_statement, {
       state: { repo: event.data.repo },
-      router: (opts) => {
-        if (opts.network.state.kv.get("done")) {
-          // We're done editing.  This is set when the editing agent finishes
-          // implementing the plan.
-          //
-          // At this point, we should hand off to another agent that tests, critiques,
-          // and validates the edits.
-          return;
-        }
-
-        // If there's a plan, we should switch to the editing agent to begin implementing.
-        //
-        // This lets us separate the concerns of planning vs editing, including using differing
-        // prompts and tools at various stages of the editing process.
-        if (opts.network.state.kv.get("plan") !== undefined) {
-          return editingAgent;
-        }
-
-        // By default, use the planning agent.
-        return planningAgent;
-      },
     });
   }
 );
