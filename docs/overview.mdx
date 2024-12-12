@@ -1,0 +1,86 @@
+---
+title: Overview
+description: 'Build test and deploy reliable AI applications at scale.'
+---
+
+<Info>
+  This page introduces the APIs and concepts to AgentKit. AgentKit is in early
+  access, and is improving on a daily basis.
+</Info>
+
+AgentKit is a framework for creating and orchestrating AI Agents, from single model inference calls to multi-agent systems that use tools. Designed with orchestration at it's core, AgentKit enables developers to build, test, and deploy reliable AI applications at scale.
+
+AgentKit provides primitives that are designed to be easily composable, but very flexible for advanced use cases.
+
+## How AgentKit works
+
+![A diagram with the components of AgentKit in an AgentKit Network](/graphics/system.svg)
+
+AgentKit enables developers to compose simple single-agent systems or entire _systems of agents_ in which multiple agents can work together. **Agents** are combined into "**Networks**" which include a **Router** to determine which Agent should be called. They system's memory is recorded as Network **State** which can be used by the Router, Agents or **Tools**, which can be used to enable the Agents' **Models** to perform tasks.
+
+The entire system is orchestration-aware and allows for customization at runtime for dynamic, powerful AI workflows and agentic systems. Here is what a simple Network looks like in code:
+
+```ts
+const network = createNetwork({
+  agents: [navigator, classifier, summarizer],
+  defaultModel: openai({ model: 'gpt-4o', step }),
+});
+
+const input = `Classify then summarize the latest 10 blog posts
+  on https://www.deeplearning.ai/blog/`;
+
+const result = await network.run(input, ({ network }) => {
+  // Use an agent which figures out the specific agent to call
+  // based off of the network's history.
+  return defaultRoutingAgent;
+});
+```
+
+{// TODO:
+// - Why use agent kit - why we built it
+// - key features
+}
+
+## Concepts
+
+To begin learning how to build with AgentKit, it's important to be familiar with a few key concepts:
+
+### Agents
+
+An Agent is used to call a single model with a system prompt and a set of tools. When an agent runs, it calls the model passing in the prompt, user input, and any tools. Depending on the response, the agent will automatically call tools and return a standardized output. Agents can be run individually or combined into a Network of Agents which can work together to achieve more complex goals.
+
+[Learn more about agents](/concepts/agents)
+
+### Networks
+
+A network is a group of agents which can work together using shared state to solve complex tasks. Networks iteratively call individual agents and their tools until the task is complete, using a router to determine the best next step. This lets you solve tasks in ways that may be hard with a single LLM request.
+
+[Learn more about networks](/concepts/networks)
+
+### State
+
+In a network, there's typically more than one inference call. The network stores state, which includes the _memory_ of all past inference calls and a key-value store for _facts, thoughts, and observations_ returned in each call. State allows you to transfer reasoning from one agent to another during _routing_, and allows you to complete complex tasks.
+
+[Learn more about state](/concepts/state)
+
+### Routers
+
+A network calls different agents, many times, in a loop. The router helps determine which agent should be called next, based off of the current network state, the input, and the available agents. Examples of routers are:
+
+- Callback code which inspects state and returns agents (supervised networks)
+- Another agent which inspects state, other available agents in the network, then returns another agent it recommends next (fully autonomous networks)
+- Or a mixture of code and routing agents (semi-autonomous networks)
+
+[Learn more about routers](/concepts/routers)
+
+## Getting started
+
+<Card title="Quick start" href="/getting-started/quick-start">
+  Learn the basics of building with AgentKit.
+</Card>
+<Card title="Installation" href="/getting-started/installation">
+  Get setup with AgentKit.
+</Card>
+<Card title="SDK Reference" href="/getting-started/installation">
+  Browse a detailed reference of the SDK.
+</Card>

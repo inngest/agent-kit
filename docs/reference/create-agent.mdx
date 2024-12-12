@@ -1,0 +1,109 @@
+---
+title: createAgent
+description: 'Define an agent'
+---
+
+Agents are defined using the `createAgent` function.
+
+```ts
+import { createAgent, agenticOpenai as openai } from '@inngest/agent-kit';
+
+const agent = createAgent({
+  name: 'Code writer',
+  system:
+    'You are an expert TypeScript programmer.  Given a set of asks, you think step-by-step to plan clean, ' +
+    'idiomatic TypeScript code, with comments and tests as necessary.' +
+    'Do not respond with anything else other than the following XML tags:' +
+    '- If you would like to write code, add all code within the following tags (replace $filename and $contents appropriately):' +
+    "  <file name='$filename.ts'>$contents</file>",
+  model: openai('gpt-4o-mini'),
+});
+```
+
+## Options
+
+<ParamField path="name" type="string" required>
+  The name of the agent. Displayed in tracing.
+</ParamField>
+
+<ParamField path="description" type="string">
+  Optional description for the agent, used for LLM-based routing to help the
+  network pick which agent to run next.
+</ParamField>
+
+<ParamField path="model" type="string" required>
+  The provider model to use for inference calls.
+</ParamField>
+
+<ParamField path="system" type="string" required>
+  The system prompt, as a string or function. Functions let you change prompts
+  based off of state and memory
+</ParamField>
+
+<ParamField path="tools" type="array<TypedTool>">
+  Defined tools that an agent can call.
+
+Tools are created via [`createTypedTool`](/reference/createTypedTool).
+
+</ParamField>
+
+<ParamField path="lifecycle" type="Lifecycle">
+  Lifecycle hooks that can intercept and modify inputs and outputs throughout the stages of execution of `run()`.
+
+Learn about each [lifecycle](#lifecycle) hook that can be defined below.
+
+</ParamField>
+
+### `lifecycle`
+
+<ParamField path="onStart" type="function">
+  Called after the initial prompt messages are created and before the inference call request. The `onStart` hook can be used to:
+
+- Modify input prompt for the Agent.
+- Prevent the agent from being called by throwing an error.
+
+</ParamField>
+
+<ParamField path="onResponse" type="function">
+Called after the inference call request is completed and before tool calling. The `onResponse` hook can be used to:
+
+- Inspect the tools that the model decided to call.
+- Modify the response prior to tool calling.
+
+</ParamField>
+
+<ParamField path="onFinish" type="function">
+Called after tool calling has completed. The `onFinish` hook can be used to:
+
+- Modify the `InferenceResult` including the outputs prior to the result being added to [Network state](/concepts/network-state).
+
+</ParamField>
+
+<CodeGroup>
+
+```ts onStart
+const agent = createAgent({
+  name: 'Code writer',
+  lifecycles: {
+    onStart: ({
+      agent,
+      network,
+      input,
+      system, // The system prompt for the agent
+      history, // An array of messages
+    }) => {
+      // Return the system prompt (the first message), and any history added to the
+      // model's conversation.
+      return { system, history };
+    },
+  },
+});
+```
+
+```ts onResponse
+function onResponse() {}
+```
+
+</CodeGroup>
+
+{/* TODO - Add docs for run, withModel, etc. */}

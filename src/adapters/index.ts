@@ -1,7 +1,7 @@
 import { type AiAdapter, type AiAdapters } from "inngest";
 import { type AgenticModel } from "../model";
-import * as openai from "./openai";
 import * as anthropic from "./anthropic";
+import * as openai from "./openai";
 
 export type Adapters = {
   [Format in AiAdapter.Format]: {

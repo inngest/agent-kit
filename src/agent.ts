@@ -2,13 +2,13 @@ import { type AiAdapter } from "inngest";
 import { createAgenticModelFromAiAdapter, type AgenticModel } from "./model";
 import { type Network } from "./network";
 import {
-  type State,
   InferenceResult,
   type Message,
+  type State,
   type ToolResultMessage,
 } from "./state";
 import { type Tool } from "./types";
-import { type AnyZodType, type MaybePromise, getStepTools } from "./util";
+import { getStepTools, type AnyZodType, type MaybePromise } from "./util";
 
 /**
  * createTool is a helper that properly types the input argument for a handler

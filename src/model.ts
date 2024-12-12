@@ -1,8 +1,8 @@
 import { type AiAdapter } from "inngest";
+import { adapters } from "./adapters";
 import { type Message } from "./state";
 import { type Tool } from "./types";
 import { getStepTools } from "./util";
-import { adapters } from "./adapters";
 
 export const createAgenticModelFromAiAdapter = <
   TAiAdapter extends AiAdapter.Any,

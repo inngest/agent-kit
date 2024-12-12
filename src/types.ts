@@ -1,13 +1,13 @@
+import { type GetStepTools, type Inngest } from "inngest";
 import { type output as ZodOutput } from "zod";
 import { type Agent } from "./agent";
 import { type Network } from "./network";
 import {
-  type GenericizeFunctionsInObject,
   type AnyZodType,
+  type GenericizeFunctionsInObject,
   type MaybePromise,
   type SimplifyDeep,
 } from "./util";
-import { type GetStepTools, type Inngest } from "inngest";
 
 export type Tool<T extends AnyZodType> = {
   name: string;

@@ -7,14 +7,14 @@
 import { type AiAdapter, type OpenAi } from "inngest";
 import { zodToJsonSchema } from "openai-zod-to-json-schema";
 import { type AgenticModel } from "../model";
-import { stringifyError } from "../util";
-import { type Tool } from "../types";
 import {
+  type Message,
   type TextMessage,
   type ToolCallMessage,
-  type Message,
   type ToolMessage,
 } from "../state";
+import { type Tool } from "../types";
+import { stringifyError } from "../util";
 
 /**
  * Parse a request from internal network messages to an OpenAI input.

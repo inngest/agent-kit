@@ -4,15 +4,15 @@
  * @module
  */
 import {
-  type AnthropicAiAdapter,
   type AiAdapter,
   type Anthropic,
+  type AnthropicAiAdapter,
 } from "inngest";
 import { zodToJsonSchema } from "openai-zod-to-json-schema";
-import { type Tool } from "../types";
 import { z } from "zod";
 import { type AgenticModel } from "../model";
-import { type TextMessage, type Message } from "../state";
+import { type Message, type TextMessage } from "../state";
+import { type Tool } from "../types";
 
 /**
  * Parse a request from internal network messages to an Anthropic input.

@@ -1,3 +1,4 @@
+import { type AiAdapter } from "inngest";
 import { z } from "zod";
 import {
   type Agent,
@@ -7,7 +8,6 @@ import {
 } from "./agent";
 import { type InferenceResult, State } from "./state";
 import { type MaybePromise } from "./util";
-import { type AiAdapter } from "inngest";
 
 /**
  * Network represents a network of agents.
