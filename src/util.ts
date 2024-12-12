@@ -1,4 +1,5 @@
-import { type ZodType } from 'zod';
+import { getAsyncCtx } from "inngest/experimental";
+import { type ZodType } from "zod";
 
 export type MaybePromise<T> = T | Promise<T>;
 
@@ -25,6 +26,19 @@ export const stringifyError = (e: unknown): string => {
   }
 
   return String(e);
+};
+
+/**
+ * Attempts to retrieve the step tools from the async context. If the context is
+ * not found, an error is thrown.
+ */
+export const getStepTools = async () => {
+  const asyncCtx = await getAsyncCtx();
+  if (!asyncCtx) {
+    throw new Error("Could not find Inngest step tooling in async context");
+  }
+
+  return asyncCtx.ctx.step;
 };
 
 /**

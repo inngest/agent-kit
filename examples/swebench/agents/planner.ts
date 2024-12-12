@@ -1,4 +1,4 @@
-import { createAgent, createTool } from "../../../src";
+import { createAgent, createTool } from "@inngest/agent-kit";
 import { z } from "zod";
 import {
   extractClassAndFnsTool,
@@ -16,15 +16,18 @@ export const planningAgent = createAgent({
     extractClassAndFnsTool,
     createTool({
       name: "create_plan",
-      description: "Describe a formal plan for how to fix the issue, including which files to edit and reasoning.",
+      description:
+        "Describe a formal plan for how to fix the issue, including which files to edit and reasoning.",
       parameters: z.object({
         thoughts: z.string(),
         plan_details: z.string(),
-        edits: z.array(z.object({
-          filename: z.string(),
-          idea: z.string(),
-          reasoning: z.string(),
-        }))
+        edits: z.array(
+          z.object({
+            filename: z.string(),
+            idea: z.string(),
+            reasoning: z.string(),
+          })
+        ),
       }),
 
       handler: async (plan, opts) => {
@@ -35,7 +38,7 @@ export const planningAgent = createAgent({
     }),
   ],
 
-  system: (network) => `
+  system: ({ network }) => `
     You are an expert Python programmer working on a specific project: ${network?.state.kv.get("repo")}.
 
     You are given an issue reported within the project.  You are planning how to fix the issue by investigating the report,
@@ -48,5 +51,4 @@ export const planningAgent = createAgent({
     - Read entire files
     - Find specific classes and functions within a file
   `,
-})
-
+});

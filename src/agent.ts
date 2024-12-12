@@ -1,13 +1,15 @@
-import { type AgenticModel } from './model';
-import { type Network } from './network';
+import { type AiAdapter } from "inngest";
+import { createAgenticModelFromAiAdapter, type AgenticModel } from "./model";
+import { type Network } from "./network";
+import { NetworkRun } from "./networkRun";
 import {
-  type State,
   InferenceResult,
+  State,
   type Message,
   type ToolResultMessage,
-} from './state';
-import { type Tool } from './types';
-import { type AnyZodType, type MaybePromise } from './util';
+} from "./state";
+import { type Tool } from "./types";
+import { getStepTools, type AnyZodType, type MaybePromise } from "./util";
 
 /**
  * createTool is a helper that properly types the input argument for a handler
@@ -40,7 +42,7 @@ export class Agent {
   /**
    * system is the system prompt for the agent.
    */
-  system: string | ((network?: Network) => MaybePromise<string>);
+  system: string | ((ctx: { network?: NetworkRun }) => MaybePromise<string>);
 
   /**
    * Assistant is the assistent message used for completion, if any.
@@ -72,13 +74,13 @@ export class Agent {
    * to use a specific model which may be different to other agents in the
    * system
    */
-  model: AgenticModel.Any | undefined;
+  model: AiAdapter.Any | undefined;
 
   constructor(opts: Agent.Constructor | Agent.RoutingConstructor) {
     this.name = opts.name;
-    this.description = opts.description || '';
+    this.description = opts.description || "";
     this.system = opts.system;
-    this.assistant = opts.assistant || '';
+    this.assistant = opts.assistant || "";
     this.tools = new Map();
     this.tool_choice = opts.tool_choice;
     this.lifecycles = opts.lifecycle;
@@ -89,7 +91,7 @@ export class Agent {
     }
   }
 
-  withModel(model: AgenticModel.Any): Agent {
+  withModel(model: AiAdapter.Any): Agent {
     return new Agent({
       name: this.name,
       description: this.description,
@@ -109,17 +111,20 @@ export class Agent {
     input: string,
     { model, network, state, maxIter = 0 }: Agent.RunOptions | undefined = {},
   ): Promise<InferenceResult> {
-    const p = model || this.model || network?.defaultModel;
-    if (!p) {
-      throw new Error('No step caller provided to agent');
+    const rawModel = model || this.model || network?.defaultModel;
+    if (!rawModel) {
+      throw new Error("No step caller provided to agent");
     }
 
+    const p = createAgenticModelFromAiAdapter(rawModel);
+
     // input state always overrides the network state.
-    const s = state || network?.state;
+    const s = state || network?.defaultState?.clone();
+    const run = network && new NetworkRun(network, s || new State());
 
     let history = s ? s.format() : [];
-    let prompt = await this.agentPrompt(input, network);
-    let result = new InferenceResult(this, input, prompt, history, [], [], '');
+    let prompt = await this.agentPrompt(input, run);
+    let result = new InferenceResult(this, input, prompt, history, [], [], "");
     let hasMoreActions = true;
     let iter = 0;
 
@@ -128,7 +133,7 @@ export class Agent {
       if (this.lifecycles?.onStart) {
         const modified = await this.lifecycles.onStart({
           agent: this,
-          network,
+          network: run,
           input,
           prompt,
           history,
@@ -148,12 +153,12 @@ export class Agent {
         p,
         prompt,
         history,
-        network,
+        run,
       );
 
       hasMoreActions =
         this.tools.size > 0 &&
-        inference.output[inference.output.length - 1]!.stop_reason !== 'stop';
+        inference.output[inference.output.length - 1]!.stop_reason !== "stop";
 
       result = inference;
       history = [...inference.output];
@@ -161,7 +166,11 @@ export class Agent {
     } while (hasMoreActions && iter < maxIter);
 
     if (this.lifecycles?.onFinish) {
-      result = await this.lifecycles.onFinish({ agent: this, network, result });
+      result = await this.lifecycles.onFinish({
+        agent: this,
+        network: run,
+        result,
+      });
     }
 
     // Note that the routing lifecycles aren't called by the agent.  They're called
@@ -175,13 +184,13 @@ export class Agent {
     p: AgenticModel.Any,
     prompt: Message[],
     history: Message[],
-    network?: Network,
+    network?: NetworkRun,
   ): Promise<InferenceResult> {
     const { output, raw } = await p.infer(
       this.name,
       prompt.concat(history),
       Array.from(this.tools.values()),
-      this.tool_choice || 'auto',
+      this.tool_choice || "auto",
     );
 
     // Now that we've made the call, we instantiate a new InferenceResult for
@@ -193,7 +202,7 @@ export class Agent {
       history,
       output,
       [],
-      typeof raw === 'string' ? raw : JSON.stringify(raw),
+      typeof raw === "string" ? raw : JSON.stringify(raw),
     );
     if (this.lifecycles?.onResponse) {
       result = await this.lifecycles.onResponse({
@@ -215,12 +224,12 @@ export class Agent {
   private async invokeTools(
     msgs: Message[],
     p: AgenticModel.Any,
-    network?: Network,
+    network?: NetworkRun,
   ): Promise<ToolResultMessage[]> {
     const output: ToolResultMessage[] = [];
 
     for (const msg of msgs) {
-      if (msg.type !== 'tool_call') {
+      if (msg.type !== "tool_call") {
         continue;
       }
 
@@ -246,23 +255,23 @@ export class Agent {
         const result = await found.handler(tool.input, {
           agent: this,
           network,
-          step: p.step,
+          step: await getStepTools(),
         });
 
         // TODO: handle error and send them back to the LLM
 
         output.push({
-          role: 'tool_result',
-          type: 'tool_result',
+          role: "tool_result",
+          type: "tool_result",
           tool: {
-            type: 'tool',
+            type: "tool",
             id: tool.id,
             name: tool.name,
             input: tool.input.arguments as Record<string, unknown>,
           },
 
           content: result ? result : `${tool.name} successfully executed`,
-          stop_reason: 'tool',
+          stop_reason: "tool",
         });
       }
     }
@@ -272,7 +281,7 @@ export class Agent {
 
   private async agentPrompt(
     input: string,
-    network?: Network,
+    network?: NetworkRun,
   ): Promise<Message[]> {
     // Prompt returns the full prompt for the current agent.  This does NOT
     // include the existing network's state as part of the prompt.
@@ -280,23 +289,23 @@ export class Agent {
     // Note that the agent's system message always comes first.
     const messages: Message[] = [
       {
-        type: 'text',
-        role: 'system',
+        type: "text",
+        role: "system",
         content:
-          typeof this.system === 'string'
+          typeof this.system === "string"
             ? this.system
-            : await this.system(network),
+            : await this.system({ network }),
       },
     ];
 
     if (input.length > 0) {
-      messages.push({ type: 'text', role: 'user', content: input });
+      messages.push({ type: "text", role: "user", content: input });
     }
 
     if (this.assistant.length > 0) {
       messages.push({
-        type: 'text',
-        role: 'assistant',
+        type: "text",
+        role: "assistant",
         content: this.assistant,
       });
     }
@@ -306,14 +315,14 @@ export class Agent {
 }
 
 export class RoutingAgent extends Agent {
-  type = 'routing';
+  type = "routing";
   override lifecycles: Agent.RoutingLifecycle;
   constructor(opts: Agent.RoutingConstructor) {
     super(opts);
     this.lifecycles = opts.lifecycle;
   }
 
-  override withModel(model: AgenticModel.Any): RoutingAgent {
+  override withModel(model: AiAdapter.Any): RoutingAgent {
     return new RoutingAgent({
       name: this.name,
       description: this.description,
@@ -330,20 +339,28 @@ export namespace Agent {
   export interface Constructor {
     name: string;
     description?: string;
-    system: string | ((network?: Network) => MaybePromise<string>);
+    system: string | ((ctx: { network?: NetworkRun }) => MaybePromise<string>);
     assistant?: string;
     tools?: Tool.Any[];
     tool_choice?: Tool.Choice;
     lifecycle?: Lifecycle;
-    model?: AgenticModel.Any;
+    model?: AiAdapter.Any;
   }
 
-  export interface RoutingConstructor extends Omit<Constructor, 'lifecycle'> {
+  export interface RoutingConstructor extends Omit<Constructor, "lifecycle"> {
+    lifecycle: RoutingLifecycle;
+  }
+
+  export interface RoutingConstructor extends Omit<Constructor, "lifecycle"> {
+    lifecycle: RoutingLifecycle;
+  }
+
+  export interface RoutingConstructor extends Omit<Constructor, "lifecycle"> {
     lifecycle: RoutingLifecycle;
   }
 
   export interface RunOptions {
-    model?: AgenticModel.Any;
+    model?: AiAdapter.Any;
     network?: Network;
     /**
      * State allows you to pass custom state into a single agent run call.  This should only
@@ -404,7 +421,7 @@ export namespace Agent {
       // Agent is the agent that made the call.
       agent: Agent;
       // Network represents the network that this agent or lifecycle belongs to.
-      network?: Network;
+      network?: NetworkRun;
     }
 
     export interface Result extends Base {

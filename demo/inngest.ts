@@ -1,13 +1,11 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import {
-  anthropic,
   createAgent,
   createNetwork,
   createTool,
   defaultRoutingAgent,
-  openai,
-} from "../src/index";
-import { EventSchemas, Inngest } from "inngest";
+} from "@inngest/agent-kit";
+import { EventSchemas, Inngest, openai } from "inngest";
 import { z } from "zod";
 
 export const inngest = new Inngest({
@@ -22,43 +20,25 @@ export const inngest = new Inngest({
 });
 
 export const fn = inngest.createFunction(
-  { id: "agent", retries: 0, },
+  { id: "agent", retries: 0 },
   { event: "agent/run" },
-  async ({ event, step }) => {
-    const model = openai({ model: "gpt-4", step });
-
+  async ({ event }) => {
     //  1. Single agent
-    
     // Run a single agent as a prompt without a network.
     // await codeWritingAgent.run(event.data.input, {
     //   model,
     // });
 
-    //  2. A network of agents that works together
-    const network = createNetwork({
-      agents: [
-        codeWritingAgent.withModel(model),
-        executingAgent.withModel(model),
-      ],
-      defaultModel: model,
-      maxIter: 4,
-    });
-
-    // This uses the defaut agentic router to determine which agent to handle first.  You can
-    // optionally specifiy the agent that should execute first, and provide your own logic for
-    // handling logic in between agent calls.
-    const result = await network.run(event.data.input, ({ network }) => {
-      if (network.state.kv.has("files")) {
-        // Okay, we have some files.  Did an agent run tests?
-        return executingAgent;
-      }
-
-      return defaultRoutingAgent.withModel(model);
-    });
-
-    return result;
-  },
+    // A network of agents that works together.
+    //
+    // This uses the defaut agentic router to determine which agent to handle
+    // first.  You can optionally specifiy the agent that should execute first,
+    // and provide your own logic for handling logic in between agent calls.
+    return network.run(event.data.input);
+  }
 );
+
+const model = openai({ model: "gpt-4" });
 
 const systemPrompt =
   "You are an expert TypeScript programmer.  You can create files with idiomatic TypeScript code, with comments and associated tests.";
@@ -68,14 +48,14 @@ const codeWritingAgent = createAgent({
   // description helps LLM routers choose the right agents to run.
   description: "An expert TypeScript programmer which can write and debug code",
   // system defines a system prompt generated each time the agent is called by a network.
-  system: (network) => {
-    if (!network) {
+  system: ({ network }) => {
+    if (!network?.state) {
       return systemPrompt;
     }
 
     // Each time this agent runs, it may produce "file" content.  Check if any
     // content has already been produced in an agentic workflow.
-    const files = network.state.kv.get<Record<string, string>>("files");
+    const files = network?.state.kv.get<Record<string, string>>("files");
 
     if (files === undefined) {
       // Use the default system prompt.
@@ -109,7 +89,7 @@ const codeWritingAgent = createAgent({
                 filename: z.string(),
                 content: z.string(),
               })
-              .required(),
+              .required()
           ),
         })
         .required(),
@@ -156,4 +136,18 @@ Think carefully about the request that the user is asking for. Do not respond wi
   $command
 </command>
 `,
+});
+
+const network = createNetwork({
+  agents: [codeWritingAgent.withModel(model), executingAgent.withModel(model)],
+  defaultModel: model,
+  maxIter: 4,
+  defaultRouter: ({ network }) => {
+    if (network.state.kv.has("files")) {
+      // Okay, we have some files.  Did an agent run tests?
+      return executingAgent;
+    }
+
+    return defaultRoutingAgent.withModel(model);
+  },
 });

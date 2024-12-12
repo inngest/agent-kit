@@ -1,13 +1,13 @@
-import { type GetStepTools, type Inngest } from 'inngest';
-import { type output as ZodOutput } from 'zod';
-import { type Agent } from './agent';
-import { type Network } from './network';
+import { type GetStepTools, type Inngest } from "inngest";
+import { type output as ZodOutput } from "zod";
+import { type Agent } from "./agent";
+import { type NetworkRun } from "./networkRun";
 import {
-  type GenericizeFunctionsInObject,
   type AnyZodType,
+  type GenericizeFunctionsInObject,
   type MaybePromise,
   type SimplifyDeep,
-} from './util';
+} from "./util";
 
 export type Tool<T extends AnyZodType> = {
   name: string;
@@ -26,12 +26,12 @@ export type Tool<T extends AnyZodType> = {
 export namespace Tool {
   export type Any = Tool<AnyZodType>;
 
-  export type Choice = 'auto' | 'any' | (string & {});
+  export type Choice = "auto" | "any" | (string & {});
 }
 
 export type ToolHandlerArgs = {
   agent: Agent;
-  network?: Network;
+  network?: NetworkRun;
   step: GetStepTools<Inngest.Any>;
 };
 

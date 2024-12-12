@@ -1,22 +1,36 @@
-import { type AiAdapter, type GetStepTools, type Inngest } from 'inngest';
-import { type Message } from './state';
-import { type Tool } from './types';
+import { type AiAdapter } from "inngest";
+import { adapters } from "./adapters";
+import { type Message } from "./state";
+import { type Tool } from "./types";
+import { getStepTools } from "./util";
+
+export const createAgenticModelFromAiAdapter = <
+  TAiAdapter extends AiAdapter.Any,
+>(
+  adapter: TAiAdapter,
+): AgenticModel<TAiAdapter> => {
+  const opts = adapters[adapter.format as AiAdapter.Format];
+
+  return new AgenticModel({
+    model: adapter,
+    requestParser:
+      opts.request as unknown as AgenticModel.RequestParser<TAiAdapter>,
+    responseParser:
+      opts.response as unknown as AgenticModel.ResponseParser<TAiAdapter>,
+  });
+};
 
 export class AgenticModel<TAiAdapter extends AiAdapter.Any> {
   #model: TAiAdapter;
-
-  step: GetStepTools<Inngest.Any>;
   requestParser: AgenticModel.RequestParser<TAiAdapter>;
   responseParser: AgenticModel.ResponseParser<TAiAdapter>;
 
   constructor({
     model,
-    step,
     requestParser,
     responseParser,
   }: AgenticModel.Constructor<TAiAdapter>) {
     this.#model = model;
-    this.step = step;
     this.requestParser = requestParser;
     this.responseParser = responseParser;
   }
@@ -27,7 +41,9 @@ export class AgenticModel<TAiAdapter extends AiAdapter.Any> {
     tools: Tool.Any[],
     tool_choice: Tool.Choice,
   ): Promise<AgenticModel.InferenceResponse> {
-    const result = (await this.step.ai.infer(stepID, {
+    const step = await getStepTools();
+
+    const result = (await step.ai.infer(stepID, {
       model: this.#model,
       body: this.requestParser(this.#model, input, tools, tool_choice),
     })) as AiAdapter.Input<TAiAdapter>;
@@ -51,7 +67,6 @@ export namespace AgenticModel {
 
   export interface Constructor<TAiAdapter extends AiAdapter.Any> {
     model: TAiAdapter;
-    step: GetStepTools<Inngest.Any>;
     requestParser: RequestParser<TAiAdapter>;
     responseParser: ResponseParser<TAiAdapter>;
   }
