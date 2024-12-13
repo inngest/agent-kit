@@ -1,5 +1,5 @@
 import { RoutingAgent, type Agent } from "./agent";
-import { defaultRoutingAgent, Network } from "./network";
+import { getDefaultRoutingAgent, Network } from "./network";
 import { type State } from "./state";
 
 export class NetworkRun extends Network {
@@ -118,7 +118,7 @@ export class NetworkRun extends Network {
       );
     }
     if (!router) {
-      router = defaultRoutingAgent;
+      router = getDefaultRoutingAgent();
     }
     if (router instanceof RoutingAgent) {
       return await this.getNextAgentsViaRoutingAgent(router, input);
