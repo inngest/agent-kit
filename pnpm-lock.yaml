@@ -12,8 +12,8 @@ importers:
         specifier: ^4.21.1
         version: 4.21.1
       inngest:
-        specifier: 3.27.6-pr-776.2
-        version: 3.27.6-pr-776.2(express@4.21.1)(typescript@5.7.2)
+        specifier: ^3.28.0
+        version: 3.28.0(express@4.21.1)(typescript@5.7.2)
       openai-zod-to-json-schema:
         specifier: ^1.0.3
         version: 1.0.3(zod@3.23.8)
@@ -866,8 +866,8 @@ packages:
   inherits@2.0.4:
     resolution: {integrity: sha512-k/vGaX4/Yla3WzyMCvTQOXYeIHvqOKtnqBduzTHpzpQZzAskKMhZ2K+EnBiSM9zGSoIFeMpXKxa4dYeZIQqewQ==}
 
-  inngest@3.27.6-pr-776.2:
-    resolution: {integrity: sha512-hod0BjJkKKSuA5hyIwMuPqaVBKM4UY9zZwU7kJPV+BCmhEOf0oX0Rr4x5eLffjwTzCXWWi4HuNtBXZpmNF58tQ==}
+  inngest@3.28.0:
+    resolution: {integrity: sha512-7myzcPkX+A0PakUMwczIdDqt5lpHEgVqeK0N8IUcONjajlt/g1sk+yjZ88ER8SxoJWCFFoAV04NJdZN9ka1N1A==}
     engines: {node: '>=14'}
     peerDependencies:
       '@sveltejs/kit': '>=1.27.3'
@@ -2477,7 +2477,7 @@ snapshots:
 
   inherits@2.0.4: {}
 
-  inngest@3.27.6-pr-776.2(express@4.21.1)(typescript@5.7.2):
+  inngest@3.28.0(express@4.21.1)(typescript@5.7.2):
     dependencies:
       '@types/debug': 4.1.12
       canonicalize: 1.0.8
