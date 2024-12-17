@@ -1,5 +1,11 @@
 # @inngest/agent-kit
 
+## 0.1.0
+
+### Minor Changes
+
+- f7158e4: Stepless model/network/agent instantiations
+
 ## 0.0.3
 
 ### Patch Changes
