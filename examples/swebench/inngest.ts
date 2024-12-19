@@ -2,6 +2,7 @@ import { execSync } from "child_process";
 import fs from "fs";
 import { EventSchemas, Inngest } from "inngest";
 import { z } from "zod";
+import { State } from "@inngest/agent-kit";
 import { codeWritingNetwork } from "./networks/codeWritingNetwork";
 
 export const inngest = new Inngest({
@@ -49,8 +50,12 @@ export const fn = inngest.createFunction(
       execSync(`cd ${dir} && git reset --hard FETCH_HEAD`);
     });
 
+    // Create new state and store the repo in KV for access via tools.
+    const state = new State();
+    state.kv.set("repo", event.data.repo);
+
     await codeWritingNetwork.run(event.data.problem_statement, {
-      state: { repo: event.data.repo },
+      state,
     });
   }
 );

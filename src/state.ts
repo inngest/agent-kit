@@ -68,6 +68,7 @@ export class State {
     get: <T = any>(key: string) => T | undefined;
     delete: (key: string) => boolean;
     has: (key: string) => boolean;
+    all: () => Record<string, unknown>;
   };
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -95,6 +96,9 @@ export class State {
       },
       has: (key: string) => {
         return this._kv.has(key);
+      },
+      all: () => {
+        return Object.fromEntries(this._kv);
       },
     };
   }
