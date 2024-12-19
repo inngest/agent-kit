@@ -1,5 +1,11 @@
 # @inngest/agent-kit
 
+## 0.1.2
+
+### Patch Changes
+
+- 4e94cb2: Ensure tools mutate state, not a clone
+
 ## 0.1.1
 
 ### Patch Changes
