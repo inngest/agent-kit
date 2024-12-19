@@ -1,6 +1,11 @@
 import { type AiAdapter } from "inngest";
 import { z } from "zod";
-import { createRoutingAgent, type Agent, type RoutingAgent } from "./agent";
+import {
+  createRoutingAgent,
+  createTool,
+  type Agent,
+  type RoutingAgent,
+} from "./agent";
 import { NetworkRun } from "./networkRun";
 import { State, type InferenceResult } from "./state";
 import { type MaybePromise } from "./util";
@@ -150,7 +155,7 @@ export const getDefaultRoutingAgent = () => {
     tools: [
       // This tool does nothing but ensure that the model responds with the
       // agent name as valid JSON.
-      {
+      createTool({
         name: "select_agent",
         description:
           "select an agent to handle the input, based off of the current conversation",
@@ -183,7 +188,7 @@ export const getDefaultRoutingAgent = () => {
           // schedules this agent by inpsecting this name via the tool call output.
           return agent.name;
         },
-      },
+      }),
     ],
 
     tool_choice: "select_agent",

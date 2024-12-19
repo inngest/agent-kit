@@ -13,6 +13,7 @@
     "@inngest/agent-kit": "^0.1.0",
     "inngest": "^3.27.6-pr-776.2",
     "tree-sitter": "^0.22.1",
-    "tree-sitter-python": "^0.23.5"
+    "tree-sitter-python": "^0.23.5",
+    "zod": "^3.23.8"
   }
 }
