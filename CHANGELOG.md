@@ -1,5 +1,11 @@
 # @inngest/agent-kit
 
+## 0.1.1
+
+### Patch Changes
+
+- 9f302e4: Network state flow to agents
+
 ## 0.1.0
 
 ### Minor Changes
