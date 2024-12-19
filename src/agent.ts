@@ -118,7 +118,7 @@ export class Agent {
     const p = createAgenticModelFromAiAdapter(rawModel);
 
     // input state always overrides the network state.
-    const s = state || network?.state?.clone() || new State();
+    const s = state || network?.state || new State();
     const run = network && new NetworkRun(network, s);
 
     let history = s ? s.format() : [];
