@@ -35,8 +35,9 @@ export const fn = inngest.createFunction(
       console.log("creating repo");
       fs.mkdirSync(dir, { recursive: true });
       execSync(`cd ${dir} && git init`);
+      // use the `https` version so that we can pull without a pubkey.
       execSync(
-        `cd ${dir} && git remote add origin git@github.com:${event.data.repo}.git`
+        `cd ${dir} && git remote add origin https://github.com/${event.data.repo}.git`
       );
     });
 

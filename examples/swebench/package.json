@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "run": "npx ts-node ./index.ts"
   },
   "keywords": [],
   "author": "",
@@ -15,5 +15,8 @@
     "tree-sitter": "^0.22.1",
     "tree-sitter-python": "^0.23.5",
     "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0"
   }
 }
