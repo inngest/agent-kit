@@ -1,6 +1,5 @@
 import { type AiAdapter } from "inngest";
 import { createAgenticModelFromAiAdapter, type AgenticModel } from "./model";
-import { type Network } from "./network";
 import { NetworkRun } from "./networkRun";
 import {
   InferenceResult,
@@ -119,8 +118,8 @@ export class Agent {
     const p = createAgenticModelFromAiAdapter(rawModel);
 
     // input state always overrides the network state.
-    const s = state || network?.defaultState?.clone();
-    const run = network && new NetworkRun(network, s || new State());
+    const s = state || network?.state?.clone() || new State();
+    const run = network && new NetworkRun(network, s);
 
     let history = s ? s.format() : [];
     let prompt = await this.agentPrompt(input, run);
@@ -361,7 +360,7 @@ export namespace Agent {
 
   export interface RunOptions {
     model?: AiAdapter.Any;
-    network?: Network;
+    network?: NetworkRun;
     /**
      * State allows you to pass custom state into a single agent run call.  This should only
      * be provided if you are running agents outside of a network.  Networks automatically
