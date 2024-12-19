@@ -9,8 +9,8 @@ importers:
   .:
     dependencies:
       '@inngest/agent-kit':
-        specifier: ^0.1.0
-        version: 0.1.0
+        specifier: ^0.1.1
+        version: 0.1.1
       inngest:
         specifier: ^3.27.6-pr-776.2
         version: 3.28.0(express@4.21.2)
@@ -30,8 +30,8 @@ importers:
 
 packages:
 
-  '@inngest/agent-kit@0.1.0':
-    resolution: {integrity: sha512-QamE2twU+Z2y1L3Q59H0fFLPsDtBJQQBYHtuX29No9gaevHRLUaRNVNRrDIvAdc9Dcm+njPaB7W/W6NvSS7xEw==}
+  '@inngest/agent-kit@0.1.1':
+    resolution: {integrity: sha512-1QEbxz7S3yILpObobBSHmdsyYYQ+L5iipDvtCU0g878iO9IZYWJFycDkVUUpPMmprhzVt8sTOewhpn4NwpFJ5w==}
 
   '@types/body-parser@1.19.5':
     resolution: {integrity: sha512-fB3Zu92ucau0iQ0JMCFQE7b/dv8Ot07NI3KaZIkIUNXq82k4eBAqUaneXfleGY9JWskeS9y+u0nXMyspcuQrCg==}
@@ -484,7 +484,7 @@ packages:
 
 snapshots:
 
-  '@inngest/agent-kit@0.1.0':
+  '@inngest/agent-kit@0.1.1':
     dependencies:
       express: 4.21.2
       inngest: 3.28.0(express@4.21.2)
