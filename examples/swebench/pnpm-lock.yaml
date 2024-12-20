@@ -12,7 +12,7 @@ importers:
         specifier: ^0.1.2
         version: 0.1.2
       inngest:
-        specifier: ^3.27.6-pr-776.2
+        specifier: ^3.28.0
         version: 3.28.0(express@4.21.2)
       tree-sitter:
         specifier: ^0.22.1
