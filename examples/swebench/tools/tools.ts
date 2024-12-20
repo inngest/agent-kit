@@ -1,8 +1,12 @@
 import { createTool } from "@inngest/agent-kit";
-import fs from "fs";
+import fs from "node:fs";
+import path from "node:path";
 import Parser from "tree-sitter";
 import Py from "tree-sitter-python";
 import { z } from "zod";
+
+// NOTE:  In this repo, all files are stored in "./opt/" as the prefix.
+const WORKING_DIR = "./opt";
 
 // PyClass represents a class parsed from a python file.
 interface PyClass {
@@ -25,14 +29,14 @@ interface PyFn {
 export const listFilesTool = createTool({
   name: "list_files",
   description:
-    "Lists all files within the project, returned as a JSON string containign the path to each file",
+    "Lists all files within the project, returned as a JSON string containing the path to each file",
   handler: async (_input, opts) => {
-    // NOTE:  In this repo, all files are stored in "./opt/" as the prefix.
-    const path = "./opt/" + opts.network?.state.kv.get("repo");
+    const repo = opts.network?.state.kv.get("repo") || "";
+    const repoDir = path.join(WORKING_DIR, repo);
 
     const files = await opts.step.run("list files", () => {
       return fs
-        .readdirSync(path, { recursive: true })
+        .readdirSync(repoDir, { recursive: true })
         .filter((name) => name.indexOf(".git") !== 0);
     });
 
@@ -61,6 +65,29 @@ export const readFileTool = createTool({
   },
 });
 
+export const writeFileTool = createTool({
+  name: "write_file",
+  description: "Writes a single file to disk with its content",
+  parameters: z.object({
+    filename: z.string(),
+    content: z.string(),
+  }),
+  handler: async ({ filename, content }, opts) => {
+    await opts.step.run(`read file: ${filename}`, () => {
+      return writeFile(
+        opts.network?.state.kv.get("repo") || "",
+        filename,
+        content,
+      );
+    });
+
+    // Set state for the filename.  Note that this happens outside of steps
+    // so that this is not memoized.
+    opts.network?.state.kv.set("file:" + filename, content);
+    return content;
+  },
+});
+
 /**
  * extractFnTool extracts all top level functions and classes from a Python file.  It also
  * parses all method definitions of a class.
@@ -77,7 +104,7 @@ export const extractClassAndFnsTool = createTool({
     return await opts.step.run("parse file", () => {
       const contents = readFile(
         opts.network?.state.kv.get("repo") || "",
-        input.filename
+        input.filename,
       );
       return parseClassAndFns(contents);
     });
@@ -95,15 +122,15 @@ export const replaceClassMethodTool = createTool({
   }),
   handler: async (
     { filename, class_name, function_name, new_contents },
-    opts
+    opts,
   ) => {
     const updated = await opts?.step.run(
-      `update class method in '${filename}': ${class_name}.${function_name}`,
+      `update class method in "${filename}": ${class_name}.${function_name}`,
       () => {
         // Re-parse the contents to find the correct start and end offsets.
         const contents = readFile(
           opts.network?.state.kv.get("repo") || "",
-          filename
+          filename,
         );
         const parsed = parseClassAndFns(contents);
 
@@ -128,12 +155,10 @@ export const replaceClassMethodTool = createTool({
             return isRange ? [...updated, new_contents] : updated;
           }, [] as string[])
           .join("\n");
-      }
+      },
     );
 
-    const path = "./opt/" + opts.network?.state.kv.get("repo");
-    fs.writeFileSync(path + "/" + filename, updated);
-
+    writeFile(opts.network?.state.kv.get("repo") || "", filename, updated);
     return new_contents;
   },
 });
@@ -143,9 +168,14 @@ export const replaceClassMethodTool = createTool({
 //
 
 export const readFile = (repo: string, filename: string) => {
-  // NOTE:  In this repo, all files are stored in "./opt/" as the prefix.
-  const path = "./opt/" + repo;
-  return fs.readFileSync(path + "/" + filename).toString();
+  return fs.readFileSync(path.join(WORKING_DIR, repo, filename)).toString();
+};
+export const writeFile = (repo: string, filename: string, content: string) => {
+  return fs.writeFileSync(
+    path.join(WORKING_DIR, repo, filename),
+    content,
+    "utf-8",
+  );
 };
 
 export const parseClassAndFns = (contents: string) => {
