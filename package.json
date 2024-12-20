@@ -65,5 +65,11 @@
   },
   "lint-staged": {
     "*.{j,t}s": "eslint --cache --fix"
+  },
+  "prettier": {
+    "tabWidth": 2,
+    "useTabs": false,
+    "semi": true,
+    "trailingComma": "es5"
   }
 }
