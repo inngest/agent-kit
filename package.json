@@ -40,7 +40,7 @@
   },
   "dependencies": {
     "express": "^4.21.1",
-    "inngest": "^3.28.0",
+    "inngest": "^3.29.0",
     "openai-zod-to-json-schema": "^1.0.3",
     "zod": "^3.23.8"
   },
