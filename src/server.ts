@@ -1,17 +1,7 @@
-import { Inngest, type InngestFunction } from "inngest";
+import { Inngest, slugify, type InngestFunction } from "inngest";
 import { createServer as createInngestServer } from "inngest/node";
-
-import { type Network } from "./network";
 import { type Agent } from "./agent";
-
-function slugify(str: string): string {
-  return str
-    .replace(/^\s+|\s+$/g, "") // trim leading/trailing white space
-    .toLowerCase() // convert string to lowercase
-    .replace(/[^a-z0-9 -]/g, "") // remove any non-alphanumeric characters
-    .replace(/\s+/g, "-") // replace spaces with hyphens
-    .replace(/-+/g, "-"); // remove consecutive hyphens
-}
+import { type Network } from "./network";
 
 /**
  * Create a server to serve Agents and Networks as Inngest functions
@@ -32,21 +22,22 @@ function slugify(str: string): string {
  * @public
  */
 export const createServer = ({
+  appId = "agent-kit",
   networks = [],
   agents = [],
 }: {
+  appId?: string;
   networks?: Network[];
   agents?: Agent[];
 }) => {
-  const appId = "agent-kit";
-  const inngest = new Inngest({
-    id: appId,
-  });
+  const inngest = new Inngest({ id: appId });
+
   const functions: { [keyof: string]: InngestFunction.Any } = {};
 
   for (const agent of agents) {
     const slug = slugify(agent.name);
     const id = `agent-${slug}`;
+
     functions[id] = inngest.createFunction(
       { id, name: agent.name },
       { event: `${appId}/${id}` },
@@ -56,19 +47,13 @@ export const createServer = ({
       }
     );
   }
-  let networkIdx = 0;
+
   for (const network of networks) {
-    networkIdx++;
-    const name = network.name ?? `My network #${networkIdx}`;
-    if (!network.name) {
-      console.warn(
-        `Network missing 'name' option. Created generic name: ${name}`
-      );
-    }
-    const slug = slugify(name);
+    const slug = slugify(network.name);
     const id = `network-${slug}`;
+
     functions[id] = inngest.createFunction(
-      { id, name },
+      { id, name: network.name },
       { event: `${appId}/${id}` },
       async ({ event }) => {
         // eslint-disable-next-line
