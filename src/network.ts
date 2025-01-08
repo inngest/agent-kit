@@ -22,7 +22,7 @@ export class Network {
   /**
    * The name for the system of agents
    */
-  name?: string;
+  name: string;
 
   /**
    * agents are all publicly available agents in the netwrok
@@ -214,15 +214,15 @@ export const getDefaultRoutingAgent = () => {
 The following agents are available:
 <agents>
   ${agents
-          .map((a) => {
-            return `
+    .map((a) => {
+      return `
     <agent>
       <name>${a.name}</name>
       <description>${a.description}</description>
       <tools>${JSON.stringify(Array.from(a.tools.values()))}</tools>
     </agent>`;
-          })
-          .join("\n")}
+    })
+    .join("\n")}
 </agents>
 
 Follow the set of instructions:
@@ -241,7 +241,7 @@ Follow the set of instructions:
 
 export namespace Network {
   export type Constructor = {
-    name?: string;
+    name: string;
     agents: Agent[];
     defaultModel?: AiAdapter.Any;
     maxIter?: number;
