@@ -24,6 +24,8 @@ export class Network {
    */
   name: string;
 
+  description?: string;
+
   /**
    * agents are all publicly available agents in the netwrok
    */
@@ -62,6 +64,7 @@ export class Network {
 
   constructor({
     name,
+    description,
     agents,
     defaultModel,
     maxIter,
@@ -69,6 +72,7 @@ export class Network {
     defaultRouter,
   }: Network.Constructor) {
     this.name = name;
+    this.description = description;
     this.agents = new Map();
     this._agents = new Map();
     this.defaultModel = defaultModel;
@@ -242,6 +246,7 @@ Follow the set of instructions:
 export namespace Network {
   export type Constructor = {
     name: string;
+    description?: string;
     agents: Agent[];
     defaultModel?: AiAdapter.Any;
     maxIter?: number;
