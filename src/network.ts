@@ -20,6 +20,13 @@ export const createNetwork = (opts: Network.Constructor) => new Network(opts);
  */
 export class Network {
   /**
+   * The name for the system of agents
+   */
+  name: string;
+
+  description?: string;
+
+  /**
    * agents are all publicly available agents in the netwrok
    */
   agents: Map<string, Agent>;
@@ -56,12 +63,16 @@ export class Network {
   protected _agents: Map<string, Agent>;
 
   constructor({
+    name,
+    description,
     agents,
     defaultModel,
     maxIter,
     defaultState,
     defaultRouter,
   }: Network.Constructor) {
+    this.name = name;
+    this.description = description;
     this.agents = new Map();
     this._agents = new Map();
     this.defaultModel = defaultModel;
@@ -82,7 +93,7 @@ export class Network {
   }
 
   async availableAgents(
-    networkRun: NetworkRun = new NetworkRun(this, new State()),
+    networkRun: NetworkRun = new NetworkRun(this, new State())
   ): Promise<Agent[]> {
     const available: Agent[] = [];
     const all = Array.from(this.agents.values());
@@ -169,7 +180,7 @@ export const getDefaultRoutingAgent = () => {
         handler: ({ name }, { network }) => {
           if (!network) {
             throw new Error(
-              "The routing agent can only be used within a network of agents",
+              "The routing agent can only be used within a network of agents"
             );
           }
 
@@ -180,7 +191,7 @@ export const getDefaultRoutingAgent = () => {
           const agent = network.agents.get(name);
           if (agent === undefined) {
             throw new Error(
-              `The routing agent requested an agent that doesn't exist: ${name}`,
+              `The routing agent requested an agent that doesn't exist: ${name}`
             );
           }
 
@@ -196,7 +207,7 @@ export const getDefaultRoutingAgent = () => {
     system: async ({ network }): Promise<string> => {
       if (!network) {
         throw new Error(
-          "The routing agent can only be used within a network of agents",
+          "The routing agent can only be used within a network of agents"
         );
       }
 
@@ -234,6 +245,8 @@ Follow the set of instructions:
 
 export namespace Network {
   export type Constructor = {
+    name: string;
+    description?: string;
     agents: Agent[];
     defaultModel?: AiAdapter.Any;
     maxIter?: number;
@@ -270,7 +283,7 @@ export namespace Network {
      *
      */
     export type FnRouter = (
-      args: Args,
+      args: Args
     ) => MaybePromise<RoutingAgent | Agent | Agent[] | undefined>;
 
     export interface Args {

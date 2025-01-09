@@ -7,6 +7,8 @@ export class NetworkRun extends Network {
 
   constructor(network: Network, state: State) {
     super({
+      name: network.name,
+      description: network.description,
       agents: Array.from(network.agents.values()),
       defaultModel: network.defaultModel,
       defaultState: network.defaultState,
@@ -43,7 +45,7 @@ export class NetworkRun extends Network {
     // off of the network.
     const next = await this.getNextAgents(
       input,
-      overrides?.router || this.defaultRouter,
+      overrides?.router || this.defaultRouter
     );
     if (!next) {
       // TODO: If call count is 0, error.
@@ -92,7 +94,7 @@ export class NetworkRun extends Network {
       // custom code.
       const next = await this.getNextAgents(
         input,
-        overrides?.router || this.defaultRouter,
+        overrides?.router || this.defaultRouter
       );
       for (const a of next || []) {
         this.schedule(a.name);
@@ -104,7 +106,7 @@ export class NetworkRun extends Network {
 
   private async getNextAgents(
     input: string,
-    router?: Network.Router,
+    router?: Network.Router
   ): Promise<Agent[] | undefined> {
     // A router may do one of two things:
     //
@@ -114,7 +116,7 @@ export class NetworkRun extends Network {
     // It can do this by using code, or by calling routing agents directly.
     if (!router && !this.defaultModel) {
       throw new Error(
-        "No router or model defined in network.  You must pass a router or a default model to use the built-in agentic router.",
+        "No router or model defined in network.  You must pass a router or a default model to use the built-in agentic router."
       );
     }
     if (!router) {
@@ -162,7 +164,7 @@ export class NetworkRun extends Network {
 
   private async getNextAgentsViaRoutingAgent(
     routingAgent: RoutingAgent,
-    input: string,
+    input: string
   ): Promise<Agent[] | undefined> {
     const result = await routingAgent.run(input, {
       network: this,
