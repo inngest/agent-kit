@@ -1,8 +1,8 @@
 ---
 title: Models
 description: Leverage different provider's models across Agents.
-icon: 'computer-classic'
-iconType: 'regular'
+icon: "computer-classic"
+iconType: "regular"
 ---
 
 Within AgentKit, models are adapters that wrap a given provider (ex. OpenAI, Anthropic)'s specific model version (ex. `gpt-3.5`).
@@ -10,7 +10,7 @@ Within AgentKit, models are adapters that wrap a given provider (ex. OpenAI, Ant
 Each [Agent](/concepts/agents) can each select their own model to use and a [Network](/concepts/networks) can select a default model.
 
 ```ts
-import { openai, anthropic, gemini } from '@inngest/agent-kit';
+import { openai, anthropic, gemini } from "@inngest/agent-kit";
 ```
 
 ## How to use a model
@@ -18,34 +18,34 @@ import { openai, anthropic, gemini } from '@inngest/agent-kit';
 <CodeGroup>
 
 ```ts OpenAI
-import { openai, createAgent } from '@inngest/agent-kit';
+import { openai, createAgent } from "@inngest/agent-kit";
 
 const supportAgent = createAgent({
-  model: openai('gpt-3.5-turbo'),
-  name: 'Customer support specialist',
-  system: 'You are an customer support specialist...',
+  model: openai("gpt-3.5-turbo"),
+  name: "Customer support specialist",
+  system: "You are an customer support specialist...",
   tools: [listChargesTool],
 });
 ```
 
 ```ts Anthropic
-import { anthropic, createAgent } from '@inngest/agent-kit';
+import { anthropic, createAgent } from "@inngest/agent-kit";
 
 const supportAgent = createAgent({
-  model: anthropic('claude-3-5-haiku-latest'),
-  name: 'Customer support specialist',
-  system: 'You are an customer support specialist...',
+  model: anthropic("claude-3-5-haiku-latest"),
+  name: "Customer support specialist",
+  system: "You are an customer support specialist...",
   tools: [listChargesTool],
 });
 ```
 
 ```ts Gemini
-import { gemini, createAgent } from '@inngest/agent-kit';
+import { gemini, createAgent } from "@inngest/agent-kit";
 
 const supportAgent = createAgent({
-  model: gemini('claude-3-5-haiku-latest'),
-  name: 'Customer support specialist',
-  system: 'You are an customer support specialist...',
+  model: gemini("claude-3-5-haiku-latest"),
+  name: "Customer support specialist",
+  system: "You are an customer support specialist...",
   tools: [listChargesTool],
 });
 ```

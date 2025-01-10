@@ -1,9 +1,181 @@
 ---
 title: Quick start
-description: 'Learn the basics of AgentKit in a few minutes.'
+description: "Learn the basics of AgentKit in a few minutes."
 ---
 
-Coming soon.
+In this tutorial you will create an [Agent](/concepts/agents) and a [Network](/concepts/networks) with AgentKit and run it using the Inngest Dev Server.
+
+<Steps>
+  <Step title="Install AgentKit">
+    Within an existing project, Install AgentKit and Inngest (the orchestrator) from npm:
+
+    <CodeGroup>
+
+    ```shell npm
+    npm install @inngest/agent-kit inngest
+    ```
+
+    ```shell pnpm
+    pnpm install @inngest/agent-kit inngest
+    ```
+
+    ```shell yarn
+    yarn add @inngest/agent-kit inngest
+    ```
+
+    </CodeGroup>
+
+    You can always find the latest release version on [npm](https://www.npmjs.com/package/@inngest/agent-kit).
+
+    <Accordion title="Don't have an existing project?">
+      To create a new project, create a new directory then initialize using your package manager:
+
+    <CodeGroup>
+
+    ```shell npm
+    mkdir my-agent-kit-project && npm init
+    ```
+
+    ```shell pnpm
+    mkdir my-agent-kit-project && pnpm init
+    ```
+
+    ```shell yarn
+    mkdir my-agent-kit-project && yarn init
+    ```
+
+    </CodeGroup>
+    </Accordion>
+
+  </Step>
+
+  <Step title="Create an agent">
+    To start, we'll create our first "[Agent](/concepts/agents)." An "Agent" is an entity that has a specific role to answer questions or perform tasks (See "tools" further below).
+
+    To start, let's create a new file, `index.ts`. Using the `createAgent` constructor, give your agent a `name`, a `description` and it's initial `system` prompt. The `name` and `description` properties are used to allow the LLM to determine which Agent to call.
+
+    You'll also specify which `model` you want the agent to use. Here we'll use Anthropic's [Claude 3.5 Haiku](https://docs.anthropic.com/en/docs/about-claude/models) model. ([Model reference](/concepts/models))
+
+    Your agent can be whatever you want, but in this quick start, we'll create a Postgres database administrator agent:
+
+    ```ts index.ts
+    import { createAgent, anthropic } from '@inngest/agent-kit';
+
+    const dbaAgent = createAgent({
+      name: 'Database administrator',
+      description: 'Provides expert support for managing PostgreSQL databases',
+      system: 'You are a PostgreSQL expert database administrator. ' +
+        'You help answer questions about Postgres including database schema, indexes, extensions.',
+      model: anthropic({
+        model: 'claude-3-5-haiku-latest',
+        max_tokens: 1000,
+      }),
+    });
+    ```
+
+    We'll also have to set any provider API keys as environment variables.
+
+    ```shell terminal
+    export ANTHROPIC_API_KEY=sk-ant-api03-XXXXXX....
+    ```
+
+  </Step>
+  <Step title="Run the server">
+
+    Next, we'll create an http server in order to run our agent. In the same
+
+    ```ts index.ts
+    import { createAgent, anthropic, createServer } from '@inngest/agent-kit';
+    // ...
+    const server = createServer({
+      agents: [dbaAgent],
+    });
+    server.listen(3000, () => console.log('Agent kit running!'));
+    ```
+
+    Now we can run our AgentKit server using [`npx`](https://docs.npmjs.com/cli/v8/commands/npx) and [`tsx`](https://tsx.is/) (for easy TypeScript execution).
+
+    ```shell terminal
+    npx tsx ./index.ts
+    ```
+
+  </Step>
+
+  <Step title="Test our agent">
+    To test our agent, we'll use the [Inngest dev server](https://www.inngest.com/docs/local-development) to allow us to visually debug our agents. Using `npx`, we'll start the server and point it to our AgentKit server:
+
+    ```shell terminal
+    npx inngest-cli@latest dev -u http://localhost:3000/api/inngest
+    ```
+
+    Now, open the dev server and select the function's tab (`http://localhost:8288/functions`) and click the "Invoke" button:
+
+    ![Inngest Dev Server function list](/graphics/quick-start/dev-server-agent.png)
+
+    In the Invoke function modal, specify the input prompt for your agent and click the "Invoke function" button.
+
+    ![Inngest Dev Server invoke function modal](/graphics/quick-start/dev-server-invoke.png)
+
+    ```json Invoke payload
+    {
+      "data": {
+        "input": "How do I aggregate an integer column across a date column by week?"
+      }
+    }
+    ```
+
+    You'll be redirected to watch the agent run and view the output:
+
+    ![Inngest Dev Server agent run](/graphics/quick-start/dev-server-agent-run.png)
+
+  </Step>
+
+<Step title="Creating a Network">
+  A key benefit of AgentKit is the ability to create a system of agents called a
+  "[Network](/concepts/networks)." "Networks" are used to create stateful
+  workflows with one or more Agents that can call tools.
+
+Create a network using the `createNetwork` constructor. Define a `name` include our agent from the previous step in the `agents` array. You must also configure the `defaultModel` for which the "[router](/concepts/routers)" will use to determine which agent to call.
+
+```ts index.ts
+import { /*...*/ createNetwork } from "@inngest/agent-kit";
+// ...
+const devOpsNetwork = createNetwork({
+  name: "DevOps team",
+  agents: [dbaAgent],
+  defaultModel: anthropic({
+    model: "claude-3-5-haiku-latest",
+    max_tokens: 1000,
+  }),
+});
+const server = createServer({
+  agents: [dbaAgent],
+  networks: [devOpsNetwork],
+});
+```
+
+  </Step>
+
+  <Step title="Test our network">
+    We'll use the same approach to test our network as we did above to test our network, with the Inngest dev server's
+
+    <Tip>
+      Networks are powerful as they include "[routing agents](/concepts/routers)" that can coordinate between a system of multiple agents, enabling networks to complete more complex tasks.
+    </Tip>
+
+    ```json Invoke payload
+    {
+      "data": {
+        "input": "How do I aggregate an integer column across a date column by week?"
+      }
+    }
+    ```
+
+    {/* TODO - this throws an error at the routing agent level */}
+
+  </Step>
+
+</Steps>
 
 {// TODO:
 // - Create an agent
@@ -14,4 +186,5 @@ Coming soon.
 // - Add 2nd agent to Network
 // - Run it
 // - Next steps (learn about tools, agents, state, custom routing)
+// todo should we reference tools or use a separate guide?
 }
