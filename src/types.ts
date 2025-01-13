@@ -29,6 +29,26 @@ export namespace Tool {
   export type Choice = "auto" | "any" | (string & {});
 }
 
+export namespace MCP {
+  export type Server = {
+    transport: TransportSSE | TransportWebsocket;
+  };
+
+  export type Transport = TransportSSE | TransportWebsocket;
+
+  export type TransportSSE = {
+    type: "sse";
+    url: string;
+    eventSourceInit?: EventSourceInit;
+    requestInit?: RequestInit;
+  };
+
+  export type TransportWebsocket = {
+    type: "ws";
+    url: string;
+  };
+}
+
 export type ToolHandlerArgs = {
   agent: Agent;
   network?: NetworkRun;
