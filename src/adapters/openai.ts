@@ -4,7 +4,7 @@
  * @module
  */
 
-import { type AiAdapter, type OpenAi } from "inngest";
+import { type AiAdapter, type OpenAi } from "@inngest/ai";
 import { zodToJsonSchema } from "openai-zod-to-json-schema";
 import { type AgenticModel } from "../model";
 import {
@@ -23,7 +23,7 @@ export const requestParser: AgenticModel.RequestParser<OpenAi.AiModel> = (
   model,
   messages,
   tools,
-  tool_choice = "auto",
+  tool_choice = "auto"
 ) => {
   const request: AiAdapter.Input<OpenAi.AiModel> = {
     messages: messages.map((m) => {
@@ -82,7 +82,7 @@ export const requestParser: AgenticModel.RequestParser<OpenAi.AiModel> = (
  * Parse a response from OpenAI output to internal network messages.
  */
 export const responseParser: AgenticModel.ResponseParser<OpenAi.AiModel> = (
-  input,
+  input
 ) => {
   return (input?.choices ?? []).reduce<Message[]>((acc, choice) => {
     const { message, finish_reason } = choice;
@@ -149,12 +149,12 @@ const safeParseOpenAIJson = (str: string): unknown => {
       // Replace backtick strings with regular JSON strings
       // Match content between backticks, preserving newlines
       const withQuotes = trimmed.replace(/`([\s\S]*?)`/g, (_, content) =>
-        JSON.stringify(content),
+        JSON.stringify(content)
       );
       return JSON.parse(withQuotes);
     } catch (e) {
       throw new Error(
-        `Failed to parse JSON with backticks: ${stringifyError(e)}`,
+        `Failed to parse JSON with backticks: ${stringifyError(e)}`
       );
     }
   }

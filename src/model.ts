@@ -1,4 +1,4 @@
-import { type AiAdapter } from "inngest";
+import { type AiAdapter } from "@inngest/ai";
 import { adapters } from "./adapters";
 import { type Message } from "./state";
 import { type Tool } from "./types";
@@ -7,7 +7,7 @@ import { getStepTools } from "./util";
 export const createAgenticModelFromAiAdapter = <
   TAiAdapter extends AiAdapter.Any,
 >(
-  adapter: TAiAdapter,
+  adapter: TAiAdapter
 ): AgenticModel<TAiAdapter> => {
   const opts = adapters[adapter.format as AiAdapter.Format];
 
@@ -39,14 +39,43 @@ export class AgenticModel<TAiAdapter extends AiAdapter.Any> {
     stepID: string,
     input: Message[],
     tools: Tool.Any[],
-    tool_choice: Tool.Choice,
+    tool_choice: Tool.Choice
   ): Promise<AgenticModel.InferenceResponse> {
+    const body = this.requestParser(this.#model, input, tools, tool_choice);
+    let result: AiAdapter.Input<TAiAdapter>;
+
     const step = await getStepTools();
 
-    const result = (await step.ai.infer(stepID, {
-      model: this.#model,
-      body: this.requestParser(this.#model, input, tools, tool_choice),
-    })) as AiAdapter.Input<TAiAdapter>;
+    if (step) {
+      result = (await step.ai.infer(stepID, {
+        model: this.#model,
+        body,
+      })) as AiAdapter.Input<TAiAdapter>;
+    } else {
+      const url = new URL(this.#model.url || "");
+
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+
+      // Make sure we handle every known format in `@inngest/ai`.
+      const formatHandlers: Record<AiAdapter.Format, () => void> = {
+        "openai-chat": () => {
+          headers["Authorization"] = `Bearer ${this.#model.authKey}`;
+        },
+        anthropic: () => {
+          headers["x-api-key"] = this.#model.authKey;
+        },
+      };
+
+      formatHandlers[this.#model.format as AiAdapter.Format]();
+
+      result = await fetch(url, {
+        method: "POST",
+        headers,
+        body,
+      });
+    }
 
     return { output: this.responseParser(result), raw: result };
   }
@@ -75,10 +104,10 @@ export namespace AgenticModel {
     model: TAiAdapter,
     state: Message[],
     tools: Tool.Any[],
-    tool_choice: Tool.Choice,
+    tool_choice: Tool.Choice
   ) => AiAdapter.Input<TAiAdapter>;
 
   export type ResponseParser<TAiAdapter extends AiAdapter.Any> = (
-    output: AiAdapter.Output<TAiAdapter>,
+    output: AiAdapter.Output<TAiAdapter>
   ) => Message[];
 }

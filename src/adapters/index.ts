@@ -1,4 +1,4 @@
-import { type AiAdapter, type AiAdapters } from "inngest";
+import { type AiAdapter, type AiAdapters } from "@inngest/ai";
 import { type AgenticModel } from "../model";
 import * as anthropic from "./anthropic";
 import * as openai from "./openai";

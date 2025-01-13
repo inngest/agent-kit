@@ -1,4 +1,4 @@
-import { type AiAdapter } from "inngest";
+import { type AiAdapter } from "@inngest/ai";
 import { createAgenticModelFromAiAdapter, type AgenticModel } from "./model";
 import { NetworkRun } from "./networkRun";
 import {
@@ -8,7 +8,7 @@ import {
   type ToolResultMessage,
 } from "./state";
 import { type Tool } from "./types";
-import { getStepTools, type AnyZodType, type MaybePromise } from "./util";
+import { type AnyZodType, type MaybePromise } from "./util";
 
 /**
  * createTool is a helper that properly types the input argument for a handler
@@ -108,7 +108,7 @@ export class Agent {
    */
   async run(
     input: string,
-    { model, network, state, maxIter = 0 }: Agent.RunOptions | undefined = {},
+    { model, network, state, maxIter = 0 }: Agent.RunOptions | undefined = {}
   ): Promise<InferenceResult> {
     const rawModel = model || this.model || network?.defaultModel;
     if (!rawModel) {
@@ -152,7 +152,7 @@ export class Agent {
         p,
         prompt,
         history,
-        run,
+        run
       );
 
       hasMoreActions =
@@ -183,13 +183,13 @@ export class Agent {
     p: AgenticModel.Any,
     prompt: Message[],
     history: Message[],
-    network?: NetworkRun,
+    network?: NetworkRun
   ): Promise<InferenceResult> {
     const { output, raw } = await p.infer(
       this.name,
       prompt.concat(history),
       Array.from(this.tools.values()),
-      this.tool_choice || "auto",
+      this.tool_choice || "auto"
     );
 
     // Now that we've made the call, we instantiate a new InferenceResult for
@@ -201,7 +201,7 @@ export class Agent {
       history,
       output,
       [],
-      typeof raw === "string" ? raw : JSON.stringify(raw),
+      typeof raw === "string" ? raw : JSON.stringify(raw)
     );
     if (this.lifecycles?.onResponse) {
       result = await this.lifecycles.onResponse({
@@ -223,7 +223,7 @@ export class Agent {
   private async invokeTools(
     msgs: Message[],
     p: AgenticModel.Any,
-    network?: NetworkRun,
+    network?: NetworkRun
   ): Promise<ToolResultMessage[]> {
     const output: ToolResultMessage[] = [];
 
@@ -240,7 +240,7 @@ export class Agent {
         const found = this.tools.get(tool.name);
         if (!found) {
           throw new Error(
-            `Inference requested a non-existent tool: ${tool.name}`,
+            `Inference requested a non-existent tool: ${tool.name}`
           );
         }
 
@@ -254,7 +254,7 @@ export class Agent {
         const result = await found.handler(tool.input, {
           agent: this,
           network,
-          step: await getStepTools(),
+          // step: await getStepTools(),
         });
 
         // TODO: handle error and send them back to the LLM
@@ -280,7 +280,7 @@ export class Agent {
 
   private async agentPrompt(
     input: string,
-    network?: NetworkRun,
+    network?: NetworkRun
   ): Promise<Message[]> {
     // Prompt returns the full prompt for the current agent.  This does NOT
     // include the existing network's state as part of the prompt.
@@ -401,7 +401,7 @@ export namespace Agent {
      * running tools.
      */
     onResponse?: (
-      args: Agent.LifecycleArgs.Result,
+      args: Agent.LifecycleArgs.Result
     ) => MaybePromise<InferenceResult>;
 
     /**
@@ -411,7 +411,7 @@ export namespace Agent {
      *
      */
     onFinish?: (
-      args: Agent.LifecycleArgs.Result,
+      args: Agent.LifecycleArgs.Result
     ) => MaybePromise<InferenceResult>;
   }
 

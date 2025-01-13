@@ -7,7 +7,7 @@ import {
   type AiAdapter,
   type Anthropic,
   type AnthropicAiAdapter,
-} from "inngest";
+} from "@inngest/ai";
 import { zodToJsonSchema } from "openai-zod-to-json-schema";
 import { z } from "zod";
 import { type AgenticModel } from "../model";
@@ -21,12 +21,12 @@ export const requestParser: AgenticModel.RequestParser<Anthropic.AiModel> = (
   model,
   messages,
   tools,
-  tool_choice = "auto",
+  tool_choice = "auto"
 ) => {
   // Note that Anthropic has a top-level system prompt, then a series of prompts
   // for assistants and users.
   const systemMessage = messages.find(
-    (m) => m.role === "system" && m.type === "text",
+    (m) => m.role === "system" && m.type === "text"
   ) as TextMessage;
   const system =
     typeof systemMessage?.content === "string" ? systemMessage.content : "";
@@ -79,7 +79,7 @@ export const requestParser: AgenticModel.RequestParser<Anthropic.AiModel> = (
               ];
           }
         },
-        [] as AiAdapter.Input<Anthropic.AiModel>["messages"],
+        [] as AiAdapter.Input<Anthropic.AiModel>["messages"]
       );
 
   const request: AiAdapter.Input<Anthropic.AiModel> = {
@@ -97,7 +97,7 @@ export const requestParser: AgenticModel.RequestParser<Anthropic.AiModel> = (
         input_schema: (t.parameters
           ? zodToJsonSchema(t.parameters)
           : zodToJsonSchema(
-              z.object({}),
+              z.object({})
             )) as AnthropicAiAdapter.Tool.InputSchema,
       };
     });
@@ -111,7 +111,7 @@ export const requestParser: AgenticModel.RequestParser<Anthropic.AiModel> = (
  * Parse a response from Anthropic output to internal network messages.
  */
 export const responseParser: AgenticModel.ResponseParser<Anthropic.AiModel> = (
-  input,
+  input
 ) => {
   return (input?.content ?? []).reduce<Message[]>((acc, item) => {
     if (!item.type) {
@@ -165,7 +165,7 @@ export const responseParser: AgenticModel.ResponseParser<Anthropic.AiModel> = (
 };
 
 const toolChoice = (
-  choice: Tool.Choice,
+  choice: Tool.Choice
 ): AiAdapter.Input<Anthropic.AiModel>["tool_choice"] => {
   switch (choice) {
     case "auto":

@@ -8,12 +8,15 @@ importers:
 
   .:
     dependencies:
+      '@inngest/ai':
+        specifier: ^0.0.0
+        version: 0.0.0
       express:
         specifier: ^4.21.1
         version: 4.21.1
       inngest:
-        specifier: ^3.29.0
-        version: 3.29.0(express@4.21.1)(typescript@5.7.2)
+        specifier: 3.29.4-pr-802.0
+        version: 3.29.4-pr-802.0(express@4.21.1)(typescript@5.7.2)
       openai-zod-to-json-schema:
         specifier: ^1.0.3
         version: 1.0.3(zod@3.23.8)
@@ -189,6 +192,9 @@ packages:
     resolution: {integrity: sha512-c7hNEllBlenFTHBky65mhq8WD2kbN9Q6gk0bTk8lSBvc554jpXSkST1iePudpt7+A/AQvuHs9EMqjHDXMY1lrA==}
     engines: {node: '>=18.18'}
 
+  '@inngest/ai@0.0.0':
+    resolution: {integrity: sha512-Zic5ECvciYFgLyreuAwlD09/QrlHdCLBBZDodf+h9mTicXB1eq6sWgBOMQ4XiR31qVKVj19ADU7mtqF1+f7Lbg==}
+
   '@jridgewell/resolve-uri@3.1.2':
     resolution: {integrity: sha512-bRISgCIjP20/tbWSPWMEi54QVPRZExkuD9lJL+UIxUKtwVJA8wW1Trb1jMs1RFXo1CBTNZ/5hpC9QvmKWdopKw==}
     engines: {node: '>=6.0.0'}
@@ -268,6 +274,9 @@ packages:
 
   '@types/node@22.10.1':
     resolution: {integrity: sha512-qKgsUwfHZV2WCWLAnVP1JqnpE6Im6h3Y0+fYgMTasNQ7V++CBX5OT1as0g0f+OyubbFqhf6XVNIsmN4IIhEgGQ==}
+
+  '@types/node@22.10.5':
+    resolution: {integrity: sha512-F8Q+SeGimwOo86fiovQh8qiXfFEh2/ocYv7tU5pJ3EXMSSxk1Joj5wefpFK2fHTf/N6HKGSxIDBT9f3gCxXPkQ==}
 
   '@types/node@22.9.1':
     resolution: {integrity: sha512-p8Yy/8sw1caA8CdRIQBG5tiLHmxtQKObCijiAa9Ez+d4+PRffM4054xbju0msf+cvhJpnFEeNjxmVT/0ipktrg==}
@@ -517,8 +526,8 @@ packages:
   create-require@1.1.1:
     resolution: {integrity: sha512-dcKFX3jn0MpIaXjisoRvexIJVEKzaq7z2rZKxf+MSr9TkdmHmsU4m2lcLojrj/FHl8mk5VxMmYA+ftRkP/3oKQ==}
 
-  cross-fetch@4.0.0:
-    resolution: {integrity: sha512-e4a5N8lVvuLgAWgnCrLr2PP0YyDOTHa9H/Rj54dirp61qXnNq46m82bRhNqIA5VccJtWBvPTFRV3TtvHUKPB1g==}
+  cross-fetch@4.1.0:
+    resolution: {integrity: sha512-uKm5PU+MHTootlWEY+mZ4vvXoCn4fLQxT9dSc1sXVMSFkINTJVN8cAQROpwcKm8bJ/c7rgZVIBWzH5T78sNZZw==}
 
   cross-spawn@7.0.6:
     resolution: {integrity: sha512-uV2QOWP2nWzsy2aMp8aRibhi9dlzF5Hgh5SHaB9OiTGEyDTiJJyx0uy51QXdyWbtAHNua4XJzUKca3OzKUd3vA==}
@@ -866,8 +875,8 @@ packages:
   inherits@2.0.4:
     resolution: {integrity: sha512-k/vGaX4/Yla3WzyMCvTQOXYeIHvqOKtnqBduzTHpzpQZzAskKMhZ2K+EnBiSM9zGSoIFeMpXKxa4dYeZIQqewQ==}
 
-  inngest@3.29.0:
-    resolution: {integrity: sha512-TQV9ce8nxNvj1nzOzWb197UHXHuXG3YHAkoSe0U5oqTAE7vs0a4HxQAzTivovsS9Z32f6FVx+m78Fov8sV0lQA==}
+  inngest@3.29.4-pr-802.0:
+    resolution: {integrity: sha512-l8QBwiXaOLLodztC3CpAftuOeP7HOYqD+dFWoQeRqlDI+l+nejZ4YLAkzO6abUtGhnIyIkLQN/HMk7XWuVjPQw==}
     engines: {node: '>=14'}
     peerDependencies:
       '@sveltejs/kit': '>=1.27.3'
@@ -1469,6 +1478,11 @@ packages:
     engines: {node: '>=14.17'}
     hasBin: true
 
+  typescript@5.7.3:
+    resolution: {integrity: sha512-84MVSjMEHP+FQRPy3pX9sTVV/INIex71s9TL2Gm5FG/WG1SqXeKyZ0k7/blY/4FdOzI12CBy1vGc4og/eus0fw==}
+    engines: {node: '>=14.17'}
+    hasBin: true
+
   undefsafe@2.0.5:
     resolution: {integrity: sha512-WxONCrssBM8TSPRqN5EmsjVrsv4A8X12J4ArBiiayv3DyyG3ZlIg6yysuuSYdZsVz3TKcTg2fd//Ujd4CHV1iA==}
 
@@ -1742,6 +1756,11 @@ snapshots:
 
   '@humanwhocodes/retry@0.4.1': {}
 
+  '@inngest/ai@0.0.0':
+    dependencies:
+      '@types/node': 22.10.5
+      typescript: 5.7.3
+
   '@jridgewell/resolve-uri@3.1.2': {}
 
   '@jridgewell/sourcemap-codec@1.5.0': {}
@@ -1829,6 +1848,10 @@ snapshots:
   '@types/node@12.20.55': {}
 
   '@types/node@22.10.1':
+    dependencies:
+      undici-types: 6.20.0
+
+  '@types/node@22.10.5':
     dependencies:
       undici-types: 6.20.0
 
@@ -2098,7 +2121,7 @@ snapshots:
 
   create-require@1.1.1: {}
 
-  cross-fetch@4.0.0:
+  cross-fetch@4.1.0:
     dependencies:
       node-fetch: 2.7.0
     transitivePeerDependencies:
@@ -2477,12 +2500,13 @@ snapshots:
 
   inherits@2.0.4: {}
 
-  inngest@3.29.0(express@4.21.1)(typescript@5.7.2):
+  inngest@3.29.4-pr-802.0(express@4.21.1)(typescript@5.7.2):
     dependencies:
+      '@inngest/ai': 0.0.0
       '@types/debug': 4.1.12
       canonicalize: 1.0.8
       chalk: 4.1.2
-      cross-fetch: 4.0.0
+      cross-fetch: 4.1.0
       debug: 4.3.7(supports-color@5.5.0)
       hash.js: 1.1.7
       json-stringify-safe: 5.0.1
@@ -3006,6 +3030,8 @@ snapshots:
       - supports-color
 
   typescript@5.7.2: {}
+
+  typescript@5.7.3: {}
 
   undefsafe@2.0.5: {}
 

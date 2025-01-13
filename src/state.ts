@@ -174,7 +174,7 @@ export class InferenceResult {
 
     // raw represents the raw API response from the call.  This is a JSON
     // string, and the format depends on the agent's model.
-    public raw: string,
+    public raw: string
   ) {}
 
   withFormatter(f: (a: InferenceResult) => Message[]) {
