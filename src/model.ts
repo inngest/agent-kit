@@ -70,11 +70,13 @@ export class AgenticModel<TAiAdapter extends AiAdapter.Any> {
 
       formatHandlers[this.#model.format as AiAdapter.Format]();
 
-      result = await fetch(url, {
-        method: "POST",
-        headers,
-        body,
-      });
+      result = (
+        await fetch(url, {
+          method: "POST",
+          headers,
+          body,
+        })
+      ).json();
     }
 
     return { output: this.responseParser(result), raw: result };
