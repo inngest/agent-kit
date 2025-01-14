@@ -339,6 +339,8 @@ export class Agent {
     return messages;
   }
 
+  // initMCP fetches all tools from the agent's MCP servers, adding them to the tool list.
+  // This is all that's necessary in order to enable MCP tool use within agents
   private async initMCP() {
     if (!this.mcpServers || this._mcpInit) {
       return;
