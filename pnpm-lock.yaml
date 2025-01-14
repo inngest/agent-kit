@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      '@dmitryrechkin/json-schema-to-zod':
+        specifier: ^1.0.0
+        version: 1.0.0
       '@modelcontextprotocol/sdk':
         specifier: ^1.1.1
         version: 1.1.1
@@ -137,6 +140,9 @@ packages:
   '@cspotcode/source-map-support@0.8.1':
     resolution: {integrity: sha512-IchNf6dN4tHoMFIn/7OE8LWZ19Y6q/67Bmf6vnGREv8RSbBVb9LPJxEcnwrcwX6ixSvaiGoomAUvu4YSxXrVgw==}
     engines: {node: '>=12'}
+
+  '@dmitryrechkin/json-schema-to-zod@1.0.0':
+    resolution: {integrity: sha512-avV26RC8CRzhnL6AvQsURlkd071SXlcPURxiYFsRLpsMoDDXBBGJDIsNQTvYmevq31WHYdwGCKGgQKC0YIjDGg==}
 
   '@eslint-community/eslint-utils@4.4.1':
     resolution: {integrity: sha512-s3O3waFUrMV8P/XaF/+ZTp1X9XBZW1a4B97ZnjQF2KYWaFD2A8KyFBsrsfSjEmjn3RGWAIuvlneuZm3CUK3jbA==}
@@ -1704,6 +1710,10 @@ snapshots:
   '@cspotcode/source-map-support@0.8.1':
     dependencies:
       '@jridgewell/trace-mapping': 0.3.9
+
+  '@dmitryrechkin/json-schema-to-zod@1.0.0':
+    dependencies:
+      zod: 3.23.8
 
   '@eslint-community/eslint-utils@4.4.1(eslint@9.15.0)':
     dependencies:

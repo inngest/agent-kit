@@ -14,10 +14,12 @@ import { getStepTools, type AnyZodType, type MaybePromise } from "./util";
 import { Client as MCPClient } from "@modelcontextprotocol/sdk/client/index";
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse";
 import { WebSocketClientTransport } from "@modelcontextprotocol/sdk/client/websocket";
+import { ListToolsResultSchema } from "@modelcontextprotocol/sdk/types.js";
 import {
-  ListResourcesResultSchema,
-  type ResourceSchema,
-} from "@modelcontextprotocol/sdk/types.js";
+  type JSONSchema,
+  JSONSchemaToZod,
+} from "@dmitryrechkin/json-schema-to-zod";
+import type { ZodType } from "zod";
 
 /**
  * createTool is a helper that properly types the input argument for a handler
@@ -90,7 +92,8 @@ export class Agent {
    */
   mcpServers?: MCP.Server[];
 
-  private _mcpResources: ResourceSchema[];
+  // _mcpInit records whether the MCP tool list has been initialized.
+  _mcpInit?: boolean;
 
   constructor(opts: Agent.Constructor | Agent.RoutingConstructor) {
     this.name = opts.name;
@@ -127,6 +130,9 @@ export class Agent {
     input: string,
     { model, network, state, maxIter = 0 }: Agent.RunOptions | undefined = {}
   ): Promise<InferenceResult> {
+    // Attempt to resolve the MCP tools, if we haven't yet done so.
+    await this.initMCP();
+
     const rawModel = model || this.model || network?.defaultModel;
     if (!rawModel) {
       throw new Error("No step caller provided to agent");
@@ -237,6 +243,10 @@ export class Agent {
     return result;
   }
 
+  /**
+   * invokeTools takes output messages from an inference call then invokes any tools
+   * in the message responses.
+   */
   private async invokeTools(
     msgs: Message[],
     p: AgenticModel.Any,
@@ -329,16 +339,61 @@ export class Agent {
     return messages;
   }
 
+  private async initMCP() {
+    if (!this.mcpServers || this._mcpInit) {
+      return;
+    }
+
+    const promises = [];
+    for (const server of this.mcpServers) {
+      promises.push(this.listMCPTools(server));
+    }
+
+    await Promise.allSettled(promises);
+    this._mcpInit = true;
+  }
+
   /**
    * listMCPTools lists all available tools for a given MCP server
    */
   private async listMCPTools(server: MCP.Server) {
     const client = await this.mcpClient(server);
     const results = await client.request(
-      { method: "resources/list" },
-      ListResourcesResultSchema
+      { method: "tools/list" },
+      ListToolsResultSchema
     );
-    this._mcpResources = results.resources;
+    results.tools.forEach((t) => {
+      const name = `${server.name}: ${t.name}`;
+
+      let zschema: undefined | ZodType;
+      try {
+        zschema = JSONSchemaToZod.convert(t.inputSchema as JSONSchema);
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      } catch (e) {
+        // Do nothing here.
+        zschema = undefined;
+      }
+
+      // Add the MCP tools directly to the tool set.
+      this.tools.set(name, {
+        name: name,
+        description: t.description,
+        parameters: zschema,
+        mcp: {
+          server,
+          tool: t,
+        },
+        handler: async (input: { [x: string]: unknown } | undefined, opts) => {
+          const result = await opts.step.run(name, async () => {
+            return await client.callTool({
+              name: t.name,
+              arguments: input,
+            });
+          });
+          return result.content;
+        },
+      });
+    });
   }
 
   /**

@@ -14,6 +14,13 @@ export type Tool<T extends AnyZodType> = {
   description?: string;
   parameters?: T;
 
+  // mcp lists the MCP details for this tool, if this tool is provided by an
+  // MCP server.
+  mcp?: {
+    server: MCP.Server;
+    tool: MCP.Tool;
+  };
+
   // TODO: Handler input types based off of JSON above.
   //
   // Handlers get their input arguments from inference calls, and can also
@@ -31,6 +38,9 @@ export namespace Tool {
 
 export namespace MCP {
   export type Server = {
+    // name is a short name for the MCP server, eg. "github".  This allows
+    // us to namespace tools for each MCP server.
+    name: string;
     transport: TransportSSE | TransportWebsocket;
   };
 
@@ -46,6 +56,15 @@ export namespace MCP {
   export type TransportWebsocket = {
     type: "ws";
     url: string;
+  };
+
+  export type Tool = {
+    name: string;
+    description?: string;
+    inputSchema?: {
+      type: "object";
+      properties?: unknown;
+    };
   };
 }
 
