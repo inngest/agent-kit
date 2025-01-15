@@ -1,5 +1,6 @@
+import { type Inngest, type InngestFunction } from "inngest";
 import { getAsyncCtx } from "inngest/experimental";
-import { type ZodType } from "zod";
+import { ZodType, type ZodObject, type ZodTypeAny } from "zod";
 
 export type MaybePromise<T> = T | Promise<T>;
 
@@ -14,7 +15,7 @@ export type MaybePromise<T> = T | Promise<T>;
  * custom type which matches many versions in the future.
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type AnyZodType = ZodType<any>;
+export type AnyZodType = ZodType<any> | ZodTypeAny;
 
 /**
  * Given an unknown value, return a string representation of the error if it is
@@ -41,44 +42,60 @@ export const getStepTools = async () => {
   return asyncCtx.ctx.step;
 };
 
-/**
- * Given an object `T`, return a new object where all keys with function types
- * as values are genericized. If the value is an object, recursively apply this
- * transformation.
- */
-export type GenericizeFunctionsInObject<T> = {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  [K in keyof T]: T[K] extends (...args: any[]) => any
-    ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (...args: any[]) => any
-    : // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      T[K] extends Record<string, any>
-      ? // Allow every object to also contain arbitrary additional properties.
-        GenericizeFunctionsInObject<T[K]> & Record<string, unknown>
-      : T[K];
+export const getInngestFnInput = (
+  fn: InngestFunction.Any
+): AnyZodType | undefined => {
+  const runtimeSchemas = (fn["client"] as Inngest.Any)["schemas"]?.[
+    "runtimeSchemas"
+  ];
+  if (!runtimeSchemas) {
+    return;
+  }
+
+  const schemasToAttempt = new Set<string>(
+    (fn["opts"] as InngestFunction.Options).triggers?.reduce((acc, trigger) => {
+      if (trigger.event) {
+        return [...acc, trigger.event];
+      }
+
+      return acc;
+    }, [] as string[]) ?? []
+  );
+
+  if (!schemasToAttempt.size) {
+    return;
+  }
+
+  let schema: AnyZodType | undefined;
+
+  for (const eventSchema of schemasToAttempt) {
+    const runtimeSchema = runtimeSchemas[eventSchema];
+
+    // We only support Zod atm
+    if (!helpers.isZodObject(runtimeSchema)) {
+      continue;
+    }
+
+    if (!schema) {
+      schema = runtimeSchema;
+      continue;
+    }
+
+    schema = schema.or(runtimeSchema);
+  }
+
+  return schema;
 };
 
-export type Simplify<T> = { [KeyType in keyof T]: T[KeyType] } & {};
+const helpers = {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  isZodObject: (value: unknown): value is ZodObject<any> => {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+    return value instanceof ZodType && value._def.typeName === "ZodObject";
+  },
 
-export type ConditionalSimplifyDeep<
-  Type,
-  ExcludeType = never,
-  IncludeType = unknown,
-> = Type extends ExcludeType
-  ? Type
-  : Type extends IncludeType
-    ? {
-        [TypeKey in keyof Type]: ConditionalSimplifyDeep<
-          Type[TypeKey],
-          ExcludeType,
-          IncludeType
-        >;
-      }
-    : Type;
-
-export type SimplifyDeep<Type> = ConditionalSimplifyDeep<
-  Type,
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-function-type
-  Function | Iterable<unknown>,
-  object
->;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  isObject: (value: unknown): value is Record<string, any> => {
+    return typeof value === "object" && value !== null && !Array.isArray(value);
+  },
+};

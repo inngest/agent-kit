@@ -13,7 +13,7 @@ import {
   type ToolCallMessage,
   type ToolMessage,
 } from "../state";
-import { type Tool } from "../types";
+import { type Tool } from "../tool";
 import { stringifyError } from "../util";
 
 /**
@@ -23,7 +23,7 @@ export const requestParser: AgenticModel.RequestParser<OpenAi.AiModel> = (
   model,
   messages,
   tools,
-  tool_choice = "auto",
+  tool_choice = "auto"
 ) => {
   const request: AiAdapter.Input<OpenAi.AiModel> = {
     messages: messages.map((m) => {
@@ -82,7 +82,7 @@ export const requestParser: AgenticModel.RequestParser<OpenAi.AiModel> = (
  * Parse a response from OpenAI output to internal network messages.
  */
 export const responseParser: AgenticModel.ResponseParser<OpenAi.AiModel> = (
-  input,
+  input
 ) => {
   return (input?.choices ?? []).reduce<Message[]>((acc, choice) => {
     const { message, finish_reason } = choice;
@@ -149,12 +149,12 @@ const safeParseOpenAIJson = (str: string): unknown => {
       // Replace backtick strings with regular JSON strings
       // Match content between backticks, preserving newlines
       const withQuotes = trimmed.replace(/`([\s\S]*?)`/g, (_, content) =>
-        JSON.stringify(content),
+        JSON.stringify(content)
       );
       return JSON.parse(withQuotes);
     } catch (e) {
       throw new Error(
-        `Failed to parse JSON with backticks: ${stringifyError(e)}`,
+        `Failed to parse JSON with backticks: ${stringifyError(e)}`
       );
     }
   }

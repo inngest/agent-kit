@@ -1,4 +1,6 @@
 import { type AiAdapter } from "inngest";
+import { InngestFunction } from "inngest/components/InngestFunction";
+import { type MinimalEventPayload } from "inngest/types";
 import { createAgenticModelFromAiAdapter, type AgenticModel } from "./model";
 import { NetworkRun } from "./networkRun";
 import {
@@ -7,8 +9,14 @@ import {
   type Message,
   type ToolResultMessage,
 } from "./state";
-import { type Tool } from "./types";
-import { getStepTools, type AnyZodType, type MaybePromise } from "./util";
+
+import { type Tool } from "./tool";
+import {
+  getInngestFnInput,
+  getStepTools,
+  type AnyZodType,
+  type MaybePromise,
+} from "./util";
 
 /**
  * createTool is a helper that properly types the input argument for a handler
@@ -84,9 +92,38 @@ export class Agent {
     this.tool_choice = opts.tool_choice;
     this.lifecycles = opts.lifecycle;
     this.model = opts.model;
+    this.setTools(opts.tools);
+  }
 
-    for (const tool of opts.tools || []) {
-      this.tools.set(tool.name, tool);
+  private setTools(tools: Agent.Constructor["tools"]): void {
+    for (const tool of tools || []) {
+      if (tool instanceof InngestFunction) {
+        this.tools.set(tool["absoluteId"], {
+          name: tool["absoluteId"],
+          description: tool.description,
+          parameters: getInngestFnInput(tool),
+          handler: async (input: MinimalEventPayload, opts) => {
+            // Doing this late means a potential throw if we use the agent in a
+            // non-Inngest environment. We could instead calculate the tool list
+            // JIT and omit any Inngest tools if we're not in an Inngest
+            // context.
+            const step = await getStepTools();
+            if (!step) {
+              throw new Error("Inngest tool called outside of Inngest context");
+            }
+
+            const stepId = `${opts.agent.name}/tools/${tool["absoluteId"]}`;
+
+            return step.invoke(stepId, {
+              function: tool,
+              data: input.data,
+              user: input.user,
+            });
+          },
+        });
+      } else {
+        this.tools.set(tool.name, tool);
+      }
     }
   }
 
@@ -108,7 +145,7 @@ export class Agent {
    */
   async run(
     input: string,
-    { model, network, state, maxIter = 0 }: Agent.RunOptions | undefined = {},
+    { model, network, state, maxIter = 0 }: Agent.RunOptions | undefined = {}
   ): Promise<InferenceResult> {
     const rawModel = model || this.model || network?.defaultModel;
     if (!rawModel) {
@@ -152,7 +189,7 @@ export class Agent {
         p,
         prompt,
         history,
-        run,
+        run
       );
 
       hasMoreActions =
@@ -183,13 +220,13 @@ export class Agent {
     p: AgenticModel.Any,
     prompt: Message[],
     history: Message[],
-    network?: NetworkRun,
+    network?: NetworkRun
   ): Promise<InferenceResult> {
     const { output, raw } = await p.infer(
       this.name,
       prompt.concat(history),
       Array.from(this.tools.values()),
-      this.tool_choice || "auto",
+      this.tool_choice || "auto"
     );
 
     // Now that we've made the call, we instantiate a new InferenceResult for
@@ -201,7 +238,7 @@ export class Agent {
       history,
       output,
       [],
-      typeof raw === "string" ? raw : JSON.stringify(raw),
+      typeof raw === "string" ? raw : JSON.stringify(raw)
     );
     if (this.lifecycles?.onResponse) {
       result = await this.lifecycles.onResponse({
@@ -223,7 +260,7 @@ export class Agent {
   private async invokeTools(
     msgs: Message[],
     p: AgenticModel.Any,
-    network?: NetworkRun,
+    network?: NetworkRun
   ): Promise<ToolResultMessage[]> {
     const output: ToolResultMessage[] = [];
 
@@ -240,7 +277,7 @@ export class Agent {
         const found = this.tools.get(tool.name);
         if (!found) {
           throw new Error(
-            `Inference requested a non-existent tool: ${tool.name}`,
+            `Inference requested a non-existent tool: ${tool.name}`
           );
         }
 
@@ -280,7 +317,7 @@ export class Agent {
 
   private async agentPrompt(
     input: string,
-    network?: NetworkRun,
+    network?: NetworkRun
   ): Promise<Message[]> {
     // Prompt returns the full prompt for the current agent.  This does NOT
     // include the existing network's state as part of the prompt.
@@ -340,7 +377,7 @@ export namespace Agent {
     description?: string;
     system: string | ((ctx: { network?: NetworkRun }) => MaybePromise<string>);
     assistant?: string;
-    tools?: Tool.Any[];
+    tools?: (Tool.Any | InngestFunction.Any)[];
     tool_choice?: Tool.Choice;
     lifecycle?: Lifecycle;
     model?: AiAdapter.Any;
@@ -401,7 +438,7 @@ export namespace Agent {
      * running tools.
      */
     onResponse?: (
-      args: Agent.LifecycleArgs.Result,
+      args: Agent.LifecycleArgs.Result
     ) => MaybePromise<InferenceResult>;
 
     /**
@@ -411,7 +448,7 @@ export namespace Agent {
      *
      */
     onFinish?: (
-      args: Agent.LifecycleArgs.Result,
+      args: Agent.LifecycleArgs.Result
     ) => MaybePromise<InferenceResult>;
   }
 
