@@ -3,7 +3,7 @@ title: Quick start
 description: "Learn the basics of AgentKit in a few minutes."
 ---
 
-In this tutorial you will create an [Agent](/concepts/agents) and a [Network](/concepts/networks) with AgentKit and run it using the Inngest Dev Server.
+In this tutorial you will create an [Agent](/concepts/agents) and run it within a [Network](/concepts/networks) with AgentKit.
 
 <Steps>
   <Step title="Install AgentKit">
@@ -82,7 +82,7 @@ In this tutorial you will create an [Agent](/concepts/agents) and a [Network](/c
   </Step>
   <Step title="Run the server">
 
-    Next, we'll create an http server in order to run our agent. In the same
+    Next, we'll create an http server in order to run our agent. In the same file as our _Agent_ definition:
 
     ```ts index.ts
     import { createAgent, anthropic, createServer } from '@inngest/agent-kit';
