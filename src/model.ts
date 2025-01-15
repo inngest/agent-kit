@@ -7,7 +7,7 @@ import { getStepTools } from "./util";
 export const createAgenticModelFromAiAdapter = <
   TAiAdapter extends AiAdapter.Any,
 >(
-  adapter: TAiAdapter,
+  adapter: TAiAdapter
 ): AgenticModel<TAiAdapter> => {
   const opts = adapters[adapter.format as AiAdapter.Format];
 
@@ -39,7 +39,7 @@ export class AgenticModel<TAiAdapter extends AiAdapter.Any> {
     stepID: string,
     input: Message[],
     tools: Tool.Any[],
-    tool_choice: Tool.Choice,
+    tool_choice: Tool.Choice
   ): Promise<AgenticModel.InferenceResponse> {
     const step = await getStepTools();
 
@@ -75,10 +75,10 @@ export namespace AgenticModel {
     model: TAiAdapter,
     state: Message[],
     tools: Tool.Any[],
-    tool_choice: Tool.Choice,
+    tool_choice: Tool.Choice
   ) => AiAdapter.Input<TAiAdapter>;
 
   export type ResponseParser<TAiAdapter extends AiAdapter.Any> = (
-    output: AiAdapter.Output<TAiAdapter>,
+    output: AiAdapter.Output<TAiAdapter>
   ) => Message[];
 }
