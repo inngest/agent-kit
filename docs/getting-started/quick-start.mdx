@@ -135,6 +135,25 @@ In this tutorial you will create an [Agent](/concepts/agents) and a [Network](/c
   "[Network](/concepts/networks)." "Networks" are used to create stateful
   workflows with one or more Agents that can call tools.
 
+  We'll start by creating a second _"Database Security"_ Agent:
+
+  ```ts index.ts
+  import { createAgent, anthropic } from '@inngest/agent-kit';
+  // ...
+  const securityAgent = createAgent({
+    name: 'Database Security Expert',
+    description: 'Provides expert guidance on PostgreSQL security, access control, audit logging, and compliance best practices',
+    system: 'You are a PostgreSQL security expert. ' +
+      'You help answer questions about a wide range of PostgreSQL security topics such as encryption, access control, audit logging, and compliance best practices.',
+    model: anthropic({
+      model: 'claude-3-5-haiku-latest',
+      max_tokens: 1000,
+    }),
+  });
+  ```
+
+We can now create a network combining our _"Database Administrator"_ and _"Database Security"_ Agents, which enables us to answer more complex questions.
+
 Create a network using the `createNetwork` constructor. Define a `name` include our agent from the previous step in the `agents` array. You must also configure the `defaultModel` for which the "[router](/concepts/routers)" will use to determine which agent to call.
 
 ```ts index.ts
@@ -142,14 +161,14 @@ import { /*...*/ createNetwork } from "@inngest/agent-kit";
 // ...
 const devOpsNetwork = createNetwork({
   name: "DevOps team",
-  agents: [dbaAgent],
+  agents: [dbaAgent, securityAgent],
   defaultModel: anthropic({
     model: "claude-3-5-haiku-latest",
     max_tokens: 1000,
   }),
 });
 const server = createServer({
-  agents: [dbaAgent],
+  agents: [dbaAgent, securityAgent],
   networks: [devOpsNetwork],
 });
 ```
@@ -166,7 +185,7 @@ const server = createServer({
     ```json Invoke payload
     {
       "data": {
-        "input": "How do I aggregate an integer column across a date column by week?"
+        "input": "What is the more performant and secure way to store financial data across multiple organizations?"
       }
     }
     ```
