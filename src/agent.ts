@@ -11,9 +11,9 @@ import {
 import { type Tool, type MCP } from "./types";
 import { getStepTools, type AnyZodType, type MaybePromise } from "./util";
 // MCP
-import { Client as MCPClient } from "@modelcontextprotocol/sdk/client/index";
-import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse";
-import { WebSocketClientTransport } from "@modelcontextprotocol/sdk/client/websocket";
+import { Client as MCPClient } from "@modelcontextprotocol/sdk/client/index.js";
+import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
+import { WebSocketClientTransport } from "@modelcontextprotocol/sdk/client/websocket.js";
 import { ListToolsResultSchema } from "@modelcontextprotocol/sdk/types.js";
 import {
   type JSONSchema,
