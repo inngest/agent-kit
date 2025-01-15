@@ -94,7 +94,7 @@ export class Agent {
   mcpServers?: MCP.Server[];
 
   // _mcpInit records whether the MCP tool list has been initialized.
-  _mcpInit?: boolean;
+  private _mcpClients: MCPClient[];
 
   constructor(opts: Agent.Constructor | Agent.RoutingConstructor) {
     this.name = opts.name;
@@ -106,6 +106,7 @@ export class Agent {
     this.lifecycles = opts.lifecycle;
     this.model = opts.model;
     this.mcpServers = opts.mcpServers;
+    this._mcpClients = [];
 
     for (const tool of opts.tools || []) {
       this.tools.set(tool.name, tool);
@@ -137,7 +138,7 @@ export class Agent {
 
     const rawModel = model || this.model || network?.defaultModel;
     if (!rawModel) {
-      throw new Error("No step caller provided to agent");
+      throw new Error("No model provided to agent");
     }
 
     const p = createAgenticModelFromAiAdapter(rawModel);
@@ -344,7 +345,10 @@ export class Agent {
   // initMCP fetches all tools from the agent's MCP servers, adding them to the tool list.
   // This is all that's necessary in order to enable MCP tool use within agents
   private async initMCP() {
-    if (!this.mcpServers || this._mcpInit) {
+    if (
+      !this.mcpServers ||
+      this._mcpClients.length === this.mcpServers.length
+    ) {
       return;
     }
 
@@ -355,8 +359,6 @@ export class Agent {
     }
 
     await Promise.all(promises);
-
-    this._mcpInit = true;
   }
 
   /**
@@ -364,48 +366,56 @@ export class Agent {
    */
   private async listMCPTools(server: MCP.Server) {
     const client = await this.mcpClient(server);
-    const results = await client.request(
-      { method: "tools/list" },
-      ListToolsResultSchema
-    );
-    results.tools.forEach((t) => {
-      const name = `${server.name}: ${t.name}`;
+    try {
+      const results = await client.request(
+        { method: "tools/list" },
+        ListToolsResultSchema
+      );
+      results.tools.forEach((t) => {
+        const name = `${server.name}: ${t.name}`;
 
-      let zschema: undefined | ZodType;
-      try {
-        zschema = JSONSchemaToZod.convert(t.inputSchema as JSONSchema);
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      } catch (e) {
-        // Do nothing here.
-        zschema = undefined;
-      }
+        let zschema: undefined | ZodType;
+        try {
+          zschema = JSONSchemaToZod.convert(t.inputSchema as JSONSchema);
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        } catch (e) {
+          // Do nothing here.
+          zschema = undefined;
+        }
 
-      // Add the MCP tools directly to the tool set.
-      this.tools.set(name, {
-        name: name,
-        description: t.description,
-        parameters: zschema,
-        mcp: {
-          server,
-          tool: t,
-        },
-        handler: async (input: { [x: string]: unknown } | undefined, opts) => {
-          const result = await opts.step.run(name, async () => {
-            return await client.callTool({
-              name: t.name,
-              arguments: input,
+        // Add the MCP tools directly to the tool set.
+        this.tools.set(name, {
+          name: name,
+          description: t.description,
+          parameters: zschema,
+          mcp: {
+            server,
+            tool: t,
+          },
+          handler: async (
+            input: { [x: string]: unknown } | undefined,
+            opts
+          ) => {
+            const result = await opts.step.run(name, async () => {
+              return await client.callTool({
+                name: t.name,
+                arguments: input,
+              });
             });
-          });
-          return result.content;
-        },
+            return result.content;
+          },
+        });
       });
-    });
+    } catch (e) {
+      console.warn("error listing mcp tools", e);
+    }
   }
 
   /**
    * mcpClient creates a new MCP client for the given server.
    */
   private async mcpClient(server: MCP.Server): Promise<MCPClient> {
+    // Does this client already exist?
     const transport: Transport = (() => {
       switch (server.transport.type) {
         case "sse":
@@ -432,7 +442,13 @@ export class Agent {
         capabilities: {},
       }
     );
-    await client.connect(transport);
+    try {
+      await client.connect(transport);
+    } catch (e) {
+      // The transport closed.
+      console.warn("mcp server disconnected", server, e);
+    }
+    this._mcpClients.push(client);
     return client;
   }
 }

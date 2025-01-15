@@ -12,10 +12,8 @@ import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse";
 import express from "express";
 
 describe("mcp", () => {
-  // TODO: Create a new MCP server.
-
   test("initMCP should update tools", async () => {
-    await newMCPServer();
+    await newMCPServer(3000);
     const agent = new Agent({
       name: "test",
       system: "noop",
@@ -34,9 +32,29 @@ describe("mcp", () => {
     await agent["initMCP"]();
     expect(agent.tools.size).toEqual(1);
   });
+
+  // TODO: We need a mock AI model to test this.
+  // test("it should pass tools into models", async () => {
+  //   const server = await newMCPServer(3001);
+  //   const agent = new Agent({
+  //     name: "test",
+  //     system: "noop",
+  //     mcpServers: [
+  //       {
+  //         name: "test",
+  //         transport: {
+  //           type: "sse",
+  //           url: "http://localhost:3000/server",
+  //         },
+  //       },
+  //     ],
+  //   });
+
+  //   await agent.run("test");
+  // });
 });
 
-const newMCPServer = async () => {
+const newMCPServer = async (port: number) => {
   const server = new Server(
     {
       name: "test server",
@@ -86,9 +104,5 @@ const newMCPServer = async () => {
     await transport.handlePostMessage(req, res);
   });
 
-  app.listen(3000, () => {
-    console.log(`Server is running on port 3000`);
-  });
-
-  return app;
+  return app.listen(port, () => {});
 };
