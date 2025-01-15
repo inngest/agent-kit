@@ -185,12 +185,25 @@ const server = createServer({
     ```json Invoke payload
     {
       "data": {
-        "input": "What is the more performant and secure way to store financial data across multiple organizations?"
+        "input": "I am building a Finance application. Help me answer the following 2 questions: \n - How can I scale my application to millions of request per second? \n - How should I design my schema to ensure the safety of each organization's data?"
       }
     }
     ```
 
-    {/* TODO - this throws an error at the routing agent level */}
+    The network will now run through the Agents to answer the questions:
+
+    ![Inngest Dev Server agent run](/graphics/quick-start/dev-server-network-run.png)
+
+    And provide the final answer in two parts:
+
+    ```txt
+    As a PostgreSQL expert focused on database schema, indexes, and extensions, I'll provide database-specific recommendations:
+    ...
+
+    Thank you for waiting. As a PostgreSQL security expert, I'll focus specifically on the security aspects of your schema design and data isolation:
+    ...
+
+    ```
 
   </Step>
 
