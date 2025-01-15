@@ -20,6 +20,7 @@ import {
   JSONSchemaToZod,
 } from "@dmitryrechkin/json-schema-to-zod";
 import type { ZodType } from "zod";
+import { EventSource } from "eventsource";
 
 /**
  * createTool is a helper that properly types the input argument for a handler
@@ -104,6 +105,7 @@ export class Agent {
     this.tool_choice = opts.tool_choice;
     this.lifecycles = opts.lifecycle;
     this.model = opts.model;
+    this.mcpServers = opts.mcpServers;
 
     for (const tool of opts.tools || []) {
       this.tools.set(tool.name, tool);
@@ -348,10 +350,12 @@ export class Agent {
 
     const promises = [];
     for (const server of this.mcpServers) {
+      await this.listMCPTools(server);
       promises.push(this.listMCPTools(server));
     }
 
-    await Promise.allSettled(promises);
+    await Promise.all(promises);
+
     this._mcpInit = true;
   }
 
@@ -402,10 +406,13 @@ export class Agent {
    * mcpClient creates a new MCP client for the given server.
    */
   private async mcpClient(server: MCP.Server): Promise<MCPClient> {
-    // TODO: Memoize connected clients.
     const transport: Transport = (() => {
       switch (server.transport.type) {
         case "sse":
+          // Check if EventSource is defined.  If not, we use a polyfill.
+          if (global.EventSource === undefined) {
+            global.EventSource = EventSource;
+          }
           return new SSEClientTransport(new URL(server.transport.url), {
             eventSourceInit: server.transport.eventSourceInit,
             requestInit: server.transport.requestInit,
@@ -461,6 +468,7 @@ export namespace Agent {
     tool_choice?: Tool.Choice;
     lifecycle?: Lifecycle;
     model?: AiAdapter.Any;
+    mcpServers?: MCP.Server[];
   }
 
   export interface RoutingConstructor extends Omit<Constructor, "lifecycle"> {
