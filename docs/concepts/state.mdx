@@ -20,17 +20,8 @@ Both history and key-value data are used automatically by the Network to store a
 
 The history system maintains a chronological record of all Agent interactions in your Network.
 
-Each interaction is stored as an `InferenceResult`, which includes:
+Each interaction is stored as an `InferenceResult`. Refer to the [InferenceResult reference](/reference/state#inferenceresult) for more information.
 
-- `agent`: The `Agent` that created this result.
-- `input`: The original user input prompt passed to the Agent's `run()` method.
-- `prompt`: The complete initial set of messages (`Message[]`) forming the initial call's prompt.
-- `history`: The history of messages (`Message[]`) also sent to the model's inference call which is appended to the `prompt` array.
-- `output`: The parsed results as list of messages (`Message[]`). May be an empty array if the model returns only tool calls (see below).
-- `toolCalls`: The results of any [Tools](/concepts/tools) called by the Agent as an array of `ToolResultMessage` objects.
-- `raw`: Raw API response
-
-{/* TODO - Link to reference with all types, methods, etc. */}
 
 ## Key-value store
 
@@ -64,11 +55,12 @@ Common uses for the key-value store include:
 
 State, which is required by [Networks](/concepts/networks), has many uses across various AgentKit components.
 
+Refer to the [State key-value store reference](/reference/state#reading-and-modifying-state-state-kv) for more information.
+
 ### State in Tools
 
 State can be leveraged in a Tool's `handler` method to get or set data. Here is an example of a Tool that uses `kv` as a temporary store for files and their contents that are being written by the Agent.
 
-{/* TODO - Link to references, add more "why" or use cases */}
 
 ```ts
 const writeFiles = createTool({
