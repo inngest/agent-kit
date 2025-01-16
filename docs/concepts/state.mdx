@@ -71,7 +71,7 @@ State can be leveraged in a Tool's `handler` method to get or set data. Here is 
 {/* TODO - Link to references, add more "why" or use cases */}
 
 ```ts
-const writeFiles = createTypedTool({
+const writeFiles = createTool({
   name: 'write_files',
   description: 'Write code with the given filenames',
   parameters: z.object({

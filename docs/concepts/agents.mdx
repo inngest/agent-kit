@@ -60,12 +60,12 @@ console.log(output);
 
 [Tools](/concepts/tools) are functions that extend the capabilities of an Agent. Along with the prompt (see `run()`), Tools are included in calls to the language model through features like OpenAI's "[function calling](https://platform.openai.com/docs/guides/function-calling)" or Claude's "[tool use](https://docs.anthropic.com/en/docs/build-with-claude/tool-use)."
 
-Tools are defined using the `createTypedTool` function and are passed to agents via the `tools` parameter:
+Tools are defined using the `createTool` function and are passed to agents via the `tools` parameter:
 
 ```ts
-import { createAgent, createTypedTool, openai } from '@inngest/agent-kit';
+import { createAgent, createTool, openai } from '@inngest/agent-kit';
 
-const listChargesTool = createTypedTool({
+const listChargesTool = createTool({
   name: 'list_charges',
   description:
     "Returns all of a user's charges. Call this whenever you need to find one or more charges between a date range.",

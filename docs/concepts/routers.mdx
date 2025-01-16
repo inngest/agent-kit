@@ -27,13 +27,13 @@ For more information about the role of a Router in a Network, read about [how Ne
 ## Using a Router
 
 <Tip>
-  Providing a custom Router to your Network is optional. If you don't provide one, the Network will use the "Default Router" (see below).
+  Providing a custom Router to your Network is optional. If you don't provide one, the Network will use the "Default Router" Routing Agent.
 </Tip>
 
 Providing a custom Router to your Network can be achieved using 3 different patterns:
 
-- **Using the [Default Routing Agent](/concepts/routers#default-routing-agent-autonomous-routing)**: Leverages LLM calls to decide which Agents should be called next based on the current [State](/concepts/state).
 - **Writing a custom [Code-based Router](/concepts/routers#code-based-routers-supervised-routing)**: Define a function that makes decisions based on the current [State](/concepts/state).
+- **Creating a [Routing Agent](/concepts/routers#routing-agent-autonomous-routing)**: Leverages LLM calls to decide which Agents should be called next based on the current [State](/concepts/state).
 - **Writing a custom [Hybrid Router](/concepts/routers#hybrid-code-and-agent-routers-semi-supervised-routing)**: Mix code and agent-based routing to get the best of both worlds.
 
 
@@ -93,20 +93,6 @@ The available arguments can be used to build the routing patterns described belo
 That's it! Routing is what makes networks powerful - it lets you build workflows that can be as simple or complex as you need.
 
 
-### Default Routing Agent (autonomous routing)
-
-Without a `defaultRouter` defined, the network will use the "Default Routing Agent" to decide which agent to call next.
-This Agent-based routing uses an LLM to decide what to do next.
-
-The routing agent looks at:
-
-- The original input
-- What agents are available
-- The conversation history
-- Each agent's description
-
-It then decides whether to call another agent or stop. This is great for building autonomous workflows where you're not sure what steps are needed up front. Note that the default agentic router is a starting point. In production apps it’s likely that you define your own agentic router props specifically for the network’s use case.
-
 
 ### Code-based Routers (supervised routing)
 
@@ -138,6 +124,40 @@ const network = createNetwork({
 ```
 
 Code-based routing is great when you want deterministic, predictable behavior. It's also the fastest option since there's no LLM calls involved.
+
+### Routing Agent (autonomous routing)
+
+Without a `defaultRouter` defined, the network will use the "Default Routing Agent" to decide which agent to call next.
+The "Default Routing Agent" is a Routing Agent provided by Agent Kit to handle the default routing logic.
+
+You can create your own Routing Agent by using the [`createRoutingAgent`](/reference/network-router#createroutingagent) helper function:
+
+```ts
+import { createRoutingAgent } from '@inngest/agent-kit';
+
+const routingAgent = createRoutingAgent({
+  name: "Custom routing agent",
+  description: "Selects agents based on the current state and request",
+  lifecycle: {
+    onRoute: ({ result, network }) => {
+      // custom logic...
+    }
+  }
+});
+
+// classifier and writer Agents definition...
+
+const network = createNetwork({
+  agents: [classifier, writer],
+  defaultRouter: routingAgent,
+});
+```
+
+<Warning>
+  Routing Agents look similar to Agents but are designed to make routing decisions:
+  - Routing Agents cannot have Tools.
+  - Routing Agents provides a single `onRoute` lifecycle method.
+</Warning>
 
 ### Hybrid code and agent Routers (semi-supervised routing)
 
