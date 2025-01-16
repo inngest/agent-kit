@@ -89,8 +89,7 @@ A Network not defining a `defaultModel` and composed of Agents without model wil
 
 ### Combination of multiple models
 
-The `defaultModel` is only used by the network when no model is provided on an Agent.
-This means that a network can end up using multiple models if some Agents relies on different models:
+Each Agent can specify it's own model to use so a Network may end up using multiple models. Here is an example of a Network that defaults to use an OpenAI model, but the `summaryAgent` is configured to use an Anthropic model:
 
 ```tsx
 import { createNetwork, openai, anthropic } from '@inngest/agent-kit';
