@@ -106,6 +106,14 @@
         "reference/state",
         "reference/network-router"
       ]
+    },
+    {
+      "group": "Models",
+      "pages": [
+        "reference/model-openai",
+        "reference/model-anthropic",
+        "reference/model-gemini"
+      ]
     }
   ],
   "footerSocials": {

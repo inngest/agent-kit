@@ -1,0 +1,57 @@
+---
+title: Gemini Model
+description: 'Configure Google Gemini as your model provider'
+---
+
+The `gemini` function configures Google's Gemini as your model provider.
+
+```ts
+import { createAgent, gemini } from '@inngest/agent-kit';
+
+const agent = createAgent({
+  name: 'Code writer',
+  system: 'You are an expert TypeScript programmer.',
+  model: gemini('gemini-pro'),
+});
+```
+
+## Configuration
+
+The `gemini` function accepts a model name string or a configuration object:
+
+```ts
+const agent = createAgent({
+  model: gemini({
+    model: 'gemini-pro',
+    apiKey: process.env.GOOGLE_API_KEY,
+    baseUrl: 'https://generativelanguage.googleapis.com/v1/',
+  }),
+});
+```
+
+### Options
+
+<ParamField path="model" type="string" required>
+  ID of the model to use. See the [model endpoint compatibility](https://cloud.google.com/vertex-ai/docs/generative-ai/model-reference/gemini)
+  table for details on which models work with the Gemini API.
+</ParamField>
+
+<ParamField path="apiKey" type="string">
+  The Google API key to use for authenticating your request. By default we'll
+  search for and use the `GOOGLE_API_KEY` environment variable.
+</ParamField>
+
+<ParamField path="baseUrl" type="string" default="https://generativelanguage.googleapis.com/v1/">
+  The base URL for the Gemini API.
+</ParamField>
+
+### Available Models
+
+- `gemini-1.5-pro`
+- `gemini-1.5-flash`
+- `gemini-1.5-flash-8b`
+- `gemini-1.0-pro`
+- `text-embedding-004`
+- `aqa`
+
+For the latest list of available models, see [Google's Gemini model overview](https://cloud.google.com/vertex-ai/docs/generative-ai/model-reference/gemini).
