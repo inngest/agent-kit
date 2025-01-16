@@ -1,5 +1,11 @@
 # @inngest/agent-kit
 
+## 0.2.1
+
+### Patch Changes
+
+- d40a5c3: fix(adapters/openai): safely parse non-strong tool return value for Function calling
+
 ## 0.2.0
 
 ### Minor Changes
