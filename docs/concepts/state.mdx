@@ -1,8 +1,8 @@
 ---
 title: State
-description: 'Shared memory, history, and key-value state for Agents and Networks.'
-icon: 'database'
-iconType: 'regular'
+description: "Shared memory, history, and key-value state for Agents and Networks."
+icon: "database"
+iconType: "regular"
 ---
 
 State is shared memory, or context, that is be passed between different [Agents](/concepts/agents) in a [Networks](/concepts/networks). State is used to store message history and any arbitrary data from Tools.
@@ -20,17 +20,7 @@ Both history and key-value data are used automatically by the Network to store a
 
 The history system maintains a chronological record of all Agent interactions in your Network.
 
-Each interaction is stored as an `InferenceResult`, which includes:
-
-- `agent`: The `Agent` that created this result.
-- `input`: The original user input prompt passed to the Agent's `run()` method.
-- `prompt`: The complete initial set of messages (`Message[]`) forming the initial call's prompt.
-- `history`: The history of messages (`Message[]`) also sent to the model's inference call which is appended to the `prompt` array.
-- `output`: The parsed results as list of messages (`Message[]`). May be an empty array if the model returns only tool calls (see below).
-- `toolCalls`: The results of any [Tools](/concepts/tools) called by the Agent as an array of `ToolResultMessage` objects.
-- `raw`: Raw API response
-
-{/* TODO - Link to reference with all types, methods, etc. */}
+Each interaction is stored as an `InferenceResult`. Refer to the [InferenceResult reference](/reference/state#inferenceresult) for more information.
 
 ## Key-value store
 
@@ -38,16 +28,16 @@ The key-value store can be used to store information between Agent calls. It's A
 
 ```ts
 // Set a value
-state.kv.set('user-name', 'Alice');
+state.kv.set("user-name", "Alice");
 
 // Get a value
-const name = state.kv.get('user-name');
+const name = state.kv.get("user-name");
 
 // Delete a value
-state.kv.delete('user-name');
+state.kv.delete("user-name");
 
 // Check if a value exists
-const usernameExists = network.state.kv.has('user-name');
+const usernameExists = network.state.kv.has("user-name");
 ```
 
 Common uses for the key-value store include:
@@ -64,32 +54,32 @@ Common uses for the key-value store include:
 
 State, which is required by [Networks](/concepts/networks), has many uses across various AgentKit components.
 
-### State in Tools
+Refer to the [State key-value store reference](/reference/state#reading-and-modifying-state-state-kv) for more information.
+
+## Using state in tools
 
 State can be leveraged in a Tool's `handler` method to get or set data. Here is an example of a Tool that uses `kv` as a temporary store for files and their contents that are being written by the Agent.
 
-{/* TODO - Link to references, add more "why" or use cases */}
-
 ```ts
-const writeFiles = createTypedTool({
-  name: 'write_files',
-  description: 'Write code with the given filenames',
+const writeFiles = createTool({
+  name: "write_files",
+  description: "Write code with the given filenames",
   parameters: z.object({
     files: z.array(
       z.object({
         filename: z.string(),
         content: z.string(),
-      }),
+      })
     ),
   }),
   handler: (output, { network }) => {
     // files is the output from the model's response in the format above.
     // Here, we store OpenAI's generated files in the response.
-    const files = network?.state.kv.get('files') || {};
+    const files = network?.state.kv.get("files") || {};
     for (const file of output.files) {
       files[file.filename] = file.content;
     }
-    network?.state.kv.set('files', files);
+    network?.state.kv.set("files", files);
   },
 });
 ```

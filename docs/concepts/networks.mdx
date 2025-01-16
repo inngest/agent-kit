@@ -1,42 +1,39 @@
 ---
 title: Networks
-description: 'Combine one or more agents into a Network'
+description: 'Combine one or more agents into a Network.'
 icon: 'chart-network'
 iconType: 'regular'
 ---
 
-Networks are **Systems of [Agents](/concepts/agents)**. Use Networks to create complex, stateful workflows with one or more Agents.
+Networks are **Systems of [Agents](/concepts/agents)**. Use Networks to create powerful AI workflows by combining multiple Agents.
 
 A network contains three components:
 
-- The Agents that the network can access
-- [State](/concepts/state), including past messages and a key value store
-- A [Router](/concepts/routers), which chooses whether to quit or the next agent to run in the loop
-
-It also has an optional default model, which will be used when your Agents have no model provided, and a setting to cap the number of model calls via `maxIter`.
+- The [Agents](/concepts/agents) that the network can use to achieve a goal
+- A [State](/concepts/state) including past messages and a key value store, shared between Agents and the Router
+- A [Router](/concepts/routers), which chooses whether to stop or select the next agent to run in the loop
 
 Here's a simple example:
 
 ```tsx
 import { createNetwork, openai } from '@inngest/agent-kit';
 
+// searchAgent and summaryAgent definitions...
+
 // Create a network with two agents.
 const network = createNetwork({
   agents: [searchAgent, summaryAgent],
-  // Optional: used for routing and agents if they have no model
-  defaultModel: openai({ model: 'gpt-4o', step }),
-  maxIter: 10, // Optional: max number of agent calls
 });
 
 // Run the network with a user prompt
 await network.run('What happened in the 2024 Super Bowl?');
 ```
 
-Similar to agents, you call `run()` on a network with some user input. The network then runs a core loop to call one or more agents to find a suitable answer.
+By calling `run()`, the network runs a core loop to call one or more agents to find a suitable answer.
 
 ## How Networks work
 
-Networks can be thought of as while loops with memory that call Agents and Tools until the Router determines that there is no more work to be done.
+Networks can be thought of as while loops with memory ([State](/concepts/state)) that call Agents and Tools until the Router determines that there is no more work to be done.
 
 <Steps>
   <Step title="Create the Network of Agents">
@@ -70,11 +67,130 @@ Networks can be thought of as while loops with memory that call Agents and Tools
     </Steps>
   </Step>
 </Steps>
-{
-  // TODO
-  // - Purpose of a network
-  // - How state is core to the Network (minimal explainer - link to State concept doc)
-  // - Routing - what is a router and what is it's purpose within a Network, default router vs. custom routing - link to deeper routing guide
-}
 
-## Routing
+## Model configuration
+
+A Network must provide a default model which is used for routing between Agents and for Agents that don't have one:
+
+```tsx
+import { createNetwork, openai } from '@inngest/agent-kit';
+
+// searchAgent and summaryAgent definitions...
+
+const network = createNetwork({
+  agents: [searchAgent, summaryAgent],
+  defaultModel: openai({ model: 'gpt-4o' }),
+});
+```
+
+<Info>
+A Network not defining a `defaultModel` and composed of Agents without model will throw an error.
+</Info>
+
+### Combination of multiple models
+
+Each Agent can specify it's own model to use so a Network may end up using multiple models. Here is an example of a Network that defaults to use an OpenAI model, but the `summaryAgent` is configured to use an Anthropic model:
+
+```tsx
+import { createNetwork, openai, anthropic } from '@inngest/agent-kit';
+
+const searchAgent = createAgent({
+  name: 'Search',
+  description: 'Search the web for information',
+});
+
+const summaryAgent = createAgent({
+  name: 'Summary',
+  description: 'Summarize the information',
+  model: anthropic({ model: 'claude-3-5-sonnet' }),
+});
+
+// The searchAgent will use gpt-4o, while the summaryAgent will use claude-3-5-sonnet.
+const network = createNetwork({
+  agents: [searchAgent, summaryAgent],
+  defaultModel: openai({ model: 'gpt-4o' }),
+});
+```
+
+## Routing & maximum iterations
+
+
+### Routing
+
+A Network can specify an optional `defaultRouter` function that will be used to determine the next Agent to run.
+
+```ts
+import { createNetwork } from '@inngest/agent-kit';
+
+// classifier and writer Agents definition...
+
+const network = createNetwork({
+  agents: [classifier, writer],
+  defaultRouter: ({ lastResult, callCount }) => {
+    // retrieve the last message from the output
+    const lastMessage = lastResult?.output[lastResult?.output.length - 1];
+    const content = lastMessage?.type === 'text' ? lastMessage?.content as string : '';
+    // First call: use the classifier
+    if (callCount === 0) {
+      return classifier;
+    }
+    // Second call: if it's a question, use the writer
+    if (callCount === 1 && content.includes('question')) {
+      return writer;
+    }
+    // Otherwise, we're done!
+    return undefined;
+  },
+});
+```
+
+
+Refer to the [Router](/concepts/routers) documentation for more information about how to create a custom Router.
+
+### Maximum iterations
+
+A Network can specify an optional `maxIter` setting to limit the number of iterations.
+
+```tsx
+import { createNetwork } from '@inngest/agent-kit';
+
+// searchAgent and summaryAgent definitions...
+
+const network = createNetwork({
+  agents: [searchAgent, summaryAgent],
+  defaultModel: openai({ model: 'gpt-4o' }),
+  maxIter: 10,
+});
+```
+
+<Info>
+Specifying a `maxIter` option is useful when using a [Default Routing Agent](/concepts/routers#default-routing-agent-autonomous-routing) or a [Hybrid Router](/concepts/routers#hybrid-code-and-agent-routers-semi-supervised-routing) to avoid infinite loops.
+
+A Routing Agent or Hybrid Router rely on LLM calls to make decisions, which means that they can sometimes fail to identify a final condition.
+</Info>
+
+### Combining `maxIter` and `defaultRouter`
+
+You can combine `maxIter` and `defaultRouter` to create a Network that will stop after a certain number of iterations or when a condition is met.
+
+However, please note that the `maxIter` option can prevent the `defaultRouter` from being called (For example, if `maxIter` is set to 1, the `defaultRouter` will only be called once).
+
+
+## Providing a default State
+
+A Network can specify an optional `defaultState` setting to provide a default [State](/concepts/state).
+
+```tsx
+import { createNetwork } from '@inngest/agent-kit';
+
+// searchAgent and summaryAgent definitions...
+
+const network = createNetwork({
+  agents: [searchAgent, summaryAgent],
+  defaultState: new State({
+    foo: 'bar',
+  }),
+});
+```
+
+Providing a `defaultState` can be useful to persist the state in database between runs or initialize your network with external data.

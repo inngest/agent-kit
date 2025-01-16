@@ -1,6 +1,6 @@
 ---
 title: Agents
-description: Create
+description: Create agents to accomplish specific tasks with tools inside a network.
 icon: 'head-side-gear'
 iconType: 'regular'
 ---
@@ -13,7 +13,9 @@ At the most basic level, an Agent is a wrapper around a specific provider's [mod
 
 ## Creating an Agent
 
-To create a simple Agent, all that you need is a `name`, `system` prompt and a `model`. All configuration options are detailed in the `createAgent` [reference](/reference/agent). Here is a simple agent created using the `createAgent` function:
+To create a simple Agent, all that you need is a `name`, `system` prompt and a `model`. All configuration options are detailed in the `createAgent` [reference](/reference/agent). 
+
+Here is a simple agent created using the `createAgent` function:
 
 ```ts
 import { createAgent, openai } from '@inngest/agent-kit';
@@ -58,12 +60,12 @@ console.log(output);
 
 [Tools](/concepts/tools) are functions that extend the capabilities of an Agent. Along with the prompt (see `run()`), Tools are included in calls to the language model through features like OpenAI's "[function calling](https://platform.openai.com/docs/guides/function-calling)" or Claude's "[tool use](https://docs.anthropic.com/en/docs/build-with-claude/tool-use)."
 
-Tools are defined using the `createTypedTool` function and are passed to agents via the `tools` parameter:
+Tools are defined using the `createTool` function and are passed to agents via the `tools` parameter:
 
 ```ts
-import { createAgent, createTypedTool, openai } from '@inngest/agent-kit';
+import { createAgent, createTool, openai } from '@inngest/agent-kit';
 
-const listChargesTool = createTypedTool({
+const listChargesTool = createTool({
   name: 'list_charges',
   description:
     "Returns all of a user's charges. Call this whenever you need to find one or more charges between a date range.",
@@ -106,7 +108,7 @@ Agents themselves are relatively simple. When you call `run()`, there are severa
   </Step>
   <Step title="Inference call">
     {/* TODO - Update this when Inngest isn't a requirement */}
-    An inference call is made to the provided [`model`](/concepts/models) using Inngest's `step.ai`. `step.ai` automatically retries on failure and caches the result for durability.
+    An inference call is made to the provided [`model`](/concepts/models) using Inngest's [`step.ai`](https://www.inngest.com/docs/features/inngest-functions/steps-workflows/step-ai-orchestration#step-tools-step-ai). `step.ai` automatically retries on failure and caches the result for durability.
 
     The result is parsed into an `InferenceResult` object that contains all messages, tool calls and the raw API response from the model.
 
@@ -130,7 +132,27 @@ Agents themselves are relatively simple. When you call `run()`, there are severa
 
 ### Lifecycle hooks
 
-Agent lifecycle hooks can be used to intercept and modify how an Agent works enabling dynamic control over the system. As mentioned in the "[How Agents work](#how-agents-work)" section, there are a few lifecycle hooks that can be defined on the Agent's `lifecycle` options object.
+Agent lifecycle hooks can be used to intercept and modify how an Agent works enabling dynamic control over the system:
+
+```tsx
+import { createAgent, openai } from '@inngest/agent-kit';
+
+const agent = createAgent({
+  name: 'Code writer',
+  description: 'An expert TypeScript programmer which can write and debug code.',
+  system: '...',
+  model: openai('gpt-3.5-turbo'),
+  lifecycle: {
+    onStart: async ({ prompt,  network: { state }, history }) => {
+      // Dynamically alter prompts using Network state and history.
+
+      return { prompt, history }
+    },
+  },
+});
+```
+
+As mentioned in the "[How Agents work](#how-agents-work)" section, there are a few lifecycle hooks that can be defined on the Agent's `lifecycle` options object.
 
 - Dynamically alter prompts using Network [State](/concepts/state) or the Network's history.
 - Parse output of model after an inference call.
@@ -145,7 +167,7 @@ An Agent's system prompt can be defined as a string or an async callback. When A
 
 Dynamic system prompts are very useful in agentic workflows, when multiple models are called in a loop, prompts can be adjusted based on network state from other call outputs.
 
-```ts Dynamic system prompt
+```ts
 const agent = createAgent({
   name: 'Code writer',
   description:

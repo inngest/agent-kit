@@ -1,4 +1,15 @@
+import {
+  JSONSchemaToZod,
+  type JSONSchema,
+} from "@dmitryrechkin/json-schema-to-zod";
 import { type AiAdapter } from "@inngest/ai";
+import { Client as MCPClient } from "@modelcontextprotocol/sdk/client/index.js";
+import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
+import { WebSocketClientTransport } from "@modelcontextprotocol/sdk/client/websocket.js";
+import { type Transport } from "@modelcontextprotocol/sdk/shared/transport";
+import { ListToolsResultSchema } from "@modelcontextprotocol/sdk/types.js";
+import { EventSource } from "eventsource";
+import type { ZodType } from "zod";
 import { createAgenticModelFromAiAdapter, type AgenticModel } from "./model";
 import { NetworkRun } from "./networkRun";
 import {
@@ -7,9 +18,8 @@ import {
   type Message,
   type ToolResultMessage,
 } from "./state";
-import { type Tool } from "./types";
-import { type AnyZodType, type MaybePromise } from "./util";
-
+import { type MCP, type Tool } from "./types";
+import { getStepTools, type AnyZodType, type MaybePromise } from "./util";
 /**
  * createTool is a helper that properly types the input argument for a handler
  * based off of the Zod parameter types.
@@ -75,6 +85,15 @@ export class Agent {
    */
   model: AiAdapter.Any | undefined;
 
+  /**
+   * mcpServers is a list of MCP (model-context-protocol) servers which can
+   * provide tools to the agent.
+   */
+  mcpServers?: MCP.Server[];
+
+  // _mcpInit records whether the MCP tool list has been initialized.
+  private _mcpClients: MCPClient[];
+
   constructor(opts: Agent.Constructor | Agent.RoutingConstructor) {
     this.name = opts.name;
     this.description = opts.description || "";
@@ -84,6 +103,8 @@ export class Agent {
     this.tool_choice = opts.tool_choice;
     this.lifecycles = opts.lifecycle;
     this.model = opts.model;
+    this.mcpServers = opts.mcpServers;
+    this._mcpClients = [];
 
     for (const tool of opts.tools || []) {
       this.tools.set(tool.name, tool);
@@ -110,9 +131,12 @@ export class Agent {
     input: string,
     { model, network, state, maxIter = 0 }: Agent.RunOptions | undefined = {}
   ): Promise<InferenceResult> {
+    // Attempt to resolve the MCP tools, if we haven't yet done so.
+    await this.initMCP();
+
     const rawModel = model || this.model || network?.defaultModel;
     if (!rawModel) {
-      throw new Error("No step caller provided to agent");
+      throw new Error("No model provided to agent");
     }
 
     const p = createAgenticModelFromAiAdapter(rawModel);
@@ -220,6 +244,10 @@ export class Agent {
     return result;
   }
 
+  /**
+   * invokeTools takes output messages from an inference call then invokes any tools
+   * in the message responses.
+   */
   private async invokeTools(
     msgs: Message[],
     p: AgenticModel.Any,
@@ -311,6 +339,116 @@ export class Agent {
 
     return messages;
   }
+
+  // initMCP fetches all tools from the agent's MCP servers, adding them to the tool list.
+  // This is all that's necessary in order to enable MCP tool use within agents
+  private async initMCP() {
+    if (
+      !this.mcpServers ||
+      this._mcpClients.length === this.mcpServers.length
+    ) {
+      return;
+    }
+
+    const promises = [];
+    for (const server of this.mcpServers) {
+      await this.listMCPTools(server);
+      promises.push(this.listMCPTools(server));
+    }
+
+    await Promise.all(promises);
+  }
+
+  /**
+   * listMCPTools lists all available tools for a given MCP server
+   */
+  private async listMCPTools(server: MCP.Server) {
+    const client = await this.mcpClient(server);
+    try {
+      const results = await client.request(
+        { method: "tools/list" },
+        ListToolsResultSchema
+      );
+      results.tools.forEach((t) => {
+        const name = `${server.name}: ${t.name}`;
+
+        let zschema: undefined | ZodType;
+        try {
+          zschema = JSONSchemaToZod.convert(t.inputSchema as JSONSchema);
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        } catch (e) {
+          // Do nothing here.
+          zschema = undefined;
+        }
+
+        // Add the MCP tools directly to the tool set.
+        this.tools.set(name, {
+          name: name,
+          description: t.description,
+          parameters: zschema,
+          mcp: {
+            server,
+            tool: t,
+          },
+          handler: async (input: { [x: string]: unknown } | undefined) => {
+            const fn = () =>
+              client.callTool({
+                name: t.name,
+                arguments: input,
+              });
+
+            const step = await getStepTools();
+            const result = await (step?.run(name, fn) ?? fn());
+
+            return result.content;
+          },
+        });
+      });
+    } catch (e) {
+      console.warn("error listing mcp tools", e);
+    }
+  }
+
+  /**
+   * mcpClient creates a new MCP client for the given server.
+   */
+  private async mcpClient(server: MCP.Server): Promise<MCPClient> {
+    // Does this client already exist?
+    const transport: Transport = (() => {
+      switch (server.transport.type) {
+        case "sse":
+          // Check if EventSource is defined.  If not, we use a polyfill.
+          if (global.EventSource === undefined) {
+            global.EventSource = EventSource;
+          }
+          return new SSEClientTransport(new URL(server.transport.url), {
+            eventSourceInit: server.transport.eventSourceInit,
+            requestInit: server.transport.requestInit,
+          });
+        case "ws":
+          return new WebSocketClientTransport(new URL(server.transport.url));
+      }
+    })();
+
+    const client = new MCPClient(
+      {
+        name: this.name,
+        // XXX: This version should change.
+        version: "1.0.0",
+      },
+      {
+        capabilities: {},
+      }
+    );
+    try {
+      await client.connect(transport);
+    } catch (e) {
+      // The transport closed.
+      console.warn("mcp server disconnected", server, e);
+    }
+    this._mcpClients.push(client);
+    return client;
+  }
 }
 
 export class RoutingAgent extends Agent {
@@ -344,6 +482,7 @@ export namespace Agent {
     tool_choice?: Tool.Choice;
     lifecycle?: Lifecycle;
     model?: AiAdapter.Any;
+    mcpServers?: MCP.Server[];
   }
 
   export interface RoutingConstructor extends Omit<Constructor, "lifecycle"> {

@@ -82,6 +82,13 @@ export const requestParser: AgenticModel.RequestParser<Anthropic.AiModel> = (
         [] as AiAdapter.Input<Anthropic.AiModel>["messages"]
       );
 
+  // We need to patch the last message if it's an assistant message.  This is a known limitation of Anthropic's API.
+  // cf: https://github.com/langchain-ai/langgraph/discussions/952#discussioncomment-10012320
+  const lastMessage = anthropicMessages[anthropicMessages.length - 1];
+  if (lastMessage?.role === "assistant") {
+    lastMessage.role = "user";
+  }
+
   const request: AiAdapter.Input<Anthropic.AiModel> = {
     system,
     model: model.options.model,
