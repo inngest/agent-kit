@@ -1,8 +1,8 @@
 ---
 title: Models
 description: Leverage different provider's models across Agents.
-icon: 'computer-classic'
-iconType: 'regular'
+icon: "computer-classic"
+iconType: "regular"
 ---
 
 Within AgentKit, models are adapters that wrap a given provider (ex. OpenAI, Anthropic)'s specific model version (ex. `gpt-3.5`).
@@ -10,7 +10,7 @@ Within AgentKit, models are adapters that wrap a given provider (ex. OpenAI, Ant
 Each [Agent](/concepts/agents) can each select their own model to use and a [Network](/concepts/networks) can select a default model.
 
 ```ts
-import { openai, anthropic, gemini } from '@inngest/agent-kit';
+import { openai, anthropic, gemini } from "@inngest/agent-kit";
 ```
 
 ## How to use a model
@@ -25,7 +25,7 @@ import { openai, anthropic, gemini } from '@inngest/agent-kit';
 <CodeGroup>
 
 ```ts OpenAI
-import { openai, createAgent } from '@inngest/agent-kit';
+import { openai, createAgent } from "@inngest/agent-kit";
 
 const model = openai('gpt-3.5-turbo')
 const modelWithApiKey = openai('gpt-3.5-turbo', { apiKey: 'sk-...' })
@@ -57,12 +57,13 @@ const model = gemini('gemini-1.5-flash')
 import { createAgent } from '@inngest/agent-kit';
 
 const supportAgent = createAgent({
-  model: openai('gpt-3.5-turbo'),
-  name: 'Customer support specialist',
-  system: 'You are an customer support specialist...',
+  model: openai("gpt-3.5-turbo"),
+  name: "Customer support specialist",
+  system: "You are an customer support specialist...",
   tools: [listChargesTool],
 });
 ```
+
 
 ### Providing a model instance to a Network
 
