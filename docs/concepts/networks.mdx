@@ -70,7 +70,7 @@ Networks can be thought of as while loops with memory ([State](/concepts/state))
 
 ## Model configuration
 
-A Network can provide a default model for Agents that don't have one:
+A Network must provide a default model which is used for routing between Agents and for Agents that don't have one:
 
 ```tsx
 import { createNetwork, openai } from '@inngest/agent-kit';
