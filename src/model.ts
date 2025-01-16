@@ -70,7 +70,8 @@ export class AgenticModel<TAiAdapter extends AiAdapter.Any> {
 
       formatHandlers[this.#model.format as AiAdapter.Format]();
 
-      result = (
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+      result = await (
         await fetch(url, {
           method: "POST",
           headers,
