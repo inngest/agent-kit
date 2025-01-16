@@ -1,5 +1,16 @@
 # @inngest/agent-kit
 
+## 0.2.0
+
+### Minor Changes
+
+- c8343c0: Add basic AgentKit server to serve agents and networks as Inngest functions for easy testing
+- ec689b8: fix(models/anthropic): ensure that the last message isn't an assistant one
+
+### Patch Changes
+
+- d4a0d26: Update description for npm
+
 ## 0.1.2
 
 ### Patch Changes
