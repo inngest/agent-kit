@@ -52,7 +52,11 @@ export class AgenticModel<TAiAdapter extends AiAdapter.Any> {
         body,
       })) as AiAdapter.Input<TAiAdapter>;
     } else {
-      const url = new URL(this.#model.url || "");
+      // Allow the model to mutate options and body for this call
+      const modelCopy = { ...this.#model };
+      this.#model.onCall?.(modelCopy, body);
+
+      const url = new URL(modelCopy.url || "");
 
       const headers: Record<string, string> = {
         "Content-Type": "application/json",
@@ -61,14 +65,14 @@ export class AgenticModel<TAiAdapter extends AiAdapter.Any> {
       // Make sure we handle every known format in `@inngest/ai`.
       const formatHandlers: Record<AiAdapter.Format, () => void> = {
         "openai-chat": () => {
-          headers["Authorization"] = `Bearer ${this.#model.authKey}`;
+          headers["Authorization"] = `Bearer ${modelCopy.authKey}`;
         },
         anthropic: () => {
-          headers["x-api-key"] = this.#model.authKey;
+          headers["x-api-key"] = modelCopy.authKey;
         },
       };
 
-      formatHandlers[this.#model.format as AiAdapter.Format]();
+      formatHandlers[modelCopy.format as AiAdapter.Format]();
 
       // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       result = await (
