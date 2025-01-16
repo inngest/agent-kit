@@ -1,8 +1,8 @@
 ---
 title: State
-description: 'Shared memory, history, and key-value state for Agents and Networks.'
-icon: 'database'
-iconType: 'regular'
+description: "Shared memory, history, and key-value state for Agents and Networks."
+icon: "database"
+iconType: "regular"
 ---
 
 State is shared memory, or context, that is be passed between different [Agents](/concepts/agents) in a [Networks](/concepts/networks). State is used to store message history and any arbitrary data from Tools.
@@ -22,23 +22,22 @@ The history system maintains a chronological record of all Agent interactions in
 
 Each interaction is stored as an `InferenceResult`. Refer to the [InferenceResult reference](/reference/state#inferenceresult) for more information.
 
-
 ## Key-value store
 
 The key-value store can be used to store information between Agent calls. It's API contains all the simple methods you might expect:
 
 ```ts
 // Set a value
-state.kv.set('user-name', 'Alice');
+state.kv.set("user-name", "Alice");
 
 // Get a value
-const name = state.kv.get('user-name');
+const name = state.kv.get("user-name");
 
 // Delete a value
-state.kv.delete('user-name');
+state.kv.delete("user-name");
 
 // Check if a value exists
-const usernameExists = network.state.kv.has('user-name');
+const usernameExists = network.state.kv.has("user-name");
 ```
 
 Common uses for the key-value store include:
@@ -55,34 +54,32 @@ Common uses for the key-value store include:
 
 State, which is required by [Networks](/concepts/networks), has many uses across various AgentKit components.
 
-
 Refer to the [State key-value store reference](/reference/state#reading-and-modifying-state-state-kv) for more information.
 
 ## Using state in tools
 
 State can be leveraged in a Tool's `handler` method to get or set data. Here is an example of a Tool that uses `kv` as a temporary store for files and their contents that are being written by the Agent.
 
-
 ```ts
 const writeFiles = createTool({
-  name: 'write_files',
-  description: 'Write code with the given filenames',
+  name: "write_files",
+  description: "Write code with the given filenames",
   parameters: z.object({
     files: z.array(
       z.object({
         filename: z.string(),
         content: z.string(),
-      }),
+      })
     ),
   }),
   handler: (output, { network }) => {
     // files is the output from the model's response in the format above.
     // Here, we store OpenAI's generated files in the response.
-    const files = network?.state.kv.get('files') || {};
+    const files = network?.state.kv.get("files") || {};
     for (const file of output.files) {
       files[file.filename] = file.content;
     }
-    network?.state.kv.set('files', files);
+    network?.state.kv.set("files", files);
   },
 });
 ```
