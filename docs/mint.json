@@ -81,13 +81,6 @@
       ]
     },
     {
-      "group": "Guides (Coming soon)",
-      "pages": [
-        "guides/state-management",
-        "guides/agent-handoff-and-escalation"
-      ]
-    },
-    {
       "group": "Examples",
       "pages": ["examples/overview"]
     },
