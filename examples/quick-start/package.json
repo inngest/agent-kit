@@ -11,8 +11,8 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@inngest/agent-kit": "^0.1.2",
-    "inngest": "^3.29.3"
+    "@inngest/agent-kit": "0.2.0",
+    "inngest": "^3.30.0"
   },
   "devDependencies": {
     "tsx": "^4.19.2"
