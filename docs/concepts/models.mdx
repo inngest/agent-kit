@@ -15,10 +15,46 @@ import { openai, anthropic, gemini } from "@inngest/agent-kit";
 
 ## How to use a model
 
+### Create a model instance
+
+<Info>
+ Each model helper will first try to get the API Key from the environment variable.
+ The API Key can also be provided with the `apiKey` option to the model helper.
+</Info>
+
 <CodeGroup>
 
 ```ts OpenAI
 import { openai, createAgent } from "@inngest/agent-kit";
+
+const model = openai('gpt-3.5-turbo')
+const modelWithApiKey = openai('gpt-3.5-turbo', { apiKey: 'sk-...' })
+```
+
+```ts Anthropic
+import { anthropic, createAgent } from '@inngest/agent-kit';
+
+const model = anthropic('claude-3-5-haiku-latest')
+
+const modelWithMaxTokens = anthropic('claude-3-5-haiku-latest', { maxTokens: 1000 })
+
+const modelWithBetaFlags = anthropic('claude-3-5-haiku-latest', { betaHeaders: ["prompt-caching-2024-07-31"] })
+
+const modelWithApiKey = anthropic('claude-3-5-haiku-latest', { apiKey: 'sk-...' })
+```
+
+```ts Gemini
+import { gemini, createAgent } from '@inngest/agent-kit';
+
+const model = gemini('gemini-1.5-flash')
+```
+
+</CodeGroup>
+
+### Providing a model instance to an Agent
+
+```ts
+import { createAgent } from '@inngest/agent-kit';
 
 const supportAgent = createAgent({
   model: openai("gpt-3.5-turbo"),
@@ -28,33 +64,22 @@ const supportAgent = createAgent({
 });
 ```
 
-```ts Anthropic
-import { anthropic, createAgent } from "@inngest/agent-kit";
 
-const supportAgent = createAgent({
-  model: anthropic("claude-3-5-haiku-latest"),
-  name: "Customer support specialist",
-  system: "You are an customer support specialist...",
-  tools: [listChargesTool],
+### Providing a model instance to a Network
+
+<Info>
+  The provided `defaultModel` will be used for all Agents without a model specified.
+  It will also be used by the "[Default Routing Agent](/concepts/routers#default-routing-agent-autonomous-routing)" if enabled.
+</Info>
+
+```ts
+import { createNetwork } from '@inngest/agent-kit';
+
+const network = createNetwork({
+  agents: [supportAgent],
+  defaultModel: openai('gpt-4o'),
 });
 ```
-
-```ts Gemini
-import { gemini, createAgent } from "@inngest/agent-kit";
-
-const supportAgent = createAgent({
-  model: gemini("claude-3-5-haiku-latest"),
-  name: "Customer support specialist",
-  system: "You are an customer support specialist...",
-  tools: [listChargesTool],
-});
-```
-
-</CodeGroup>
-
-{// TODO:
-// - How models are called
-}
 
 ## List of supported models
 
@@ -97,6 +122,12 @@ For a full list of supported models, you can always check [the models directory 
 ```
 
 </CodeGroup>
+
+### Environment variable used for each model provider
+
+- OpenAI: `OPENAI_API_KEY`
+- Anthropic: `ANTHROPIC_API_KEY`
+- Gemini: `GEMINI_API_KEY`
 
 ## Contribution
 

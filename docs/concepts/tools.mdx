@@ -7,8 +7,8 @@ iconType: 'light'
 
 Tools are functions that extend the capabilities of an [Agent](/concepts/agents). Tools have two core uses:
 
-- Turning unstructured inputs into structured responses.
 - Calling code, enabling models to interact with systems like your own database or external APIs.
+- Turning unstructured inputs into structured responses.
 
 A list of all available Tools and their configuration is sent in [an Agent's inference calls](/concepts/agents#how-agents-work) and a model may decide that a certain tool or tools should be called to complete the task. Tools are included in an Agent's calls to language models through features like OpenAI's "[function calling](https://platform.openai.com/docs/guides/function-calling)" or Claude's "[tool use](https://docs.anthropic.com/en/docs/build-with-claude/tool-use)."
 
@@ -19,9 +19,9 @@ Each Tool's `name`, `description`, and `parameters` are part of the function def
 Here is a simple tool that lists charges for a given user's account between a date range:
 
 ```ts
-import { createAgent, createTypedTool, openai } from '@inngest/agent-kit';
+import { createTool } from '@inngest/agent-kit';
 
-const listChargesTool = createTypedTool({
+const listChargesTool = createTool({
   name: 'list_charges',
   description:
     "Returns all of a user's charges. Call this whenever you need to find one or more charges between a date range.",
@@ -40,6 +40,20 @@ const listChargesTool = createTypedTool({
 ```
 
 Writing quality `name` and `description` parameters help the model determine when the particular Tool should be called.
+
+## Examples
+
+You can find multiple examples of tools in the below GitHub projects:
+
+<CardGroup cols={1}>
+  <Card title="Hacker News Agent with Render and Inngest" href="https://github.com/inngest/agentkit-render-tutorial" icon="github">
+    A tutorial showing how to create a Hacker News Agent using AgentKit Code-style routing and Agents with tools.
+  </Card>
+
+  <Card title="AgentKit SWE-bench" href="https://github.com/inngest/agent-kit/tree/main/examples/swebench#readme" icon="github">
+    This AgentKit example uses the SWE-bench dataset to train an agent to solve coding problems. It uses advanced tools to interact with files and codebases.
+  </Card>
+</CardGroup>
 
 {/* TODO - Talk about the handler arguments and what you can do */}
 {/* TODO - Typing with zod */}
