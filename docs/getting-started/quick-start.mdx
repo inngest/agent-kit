@@ -64,8 +64,9 @@ In this tutorial you will create an [Agent](/concepts/agents) and run it within 
     const dbaAgent = createAgent({
       name: 'Database administrator',
       description: 'Provides expert support for managing PostgreSQL databases',
-      system: 'You are a PostgreSQL expert database administrator. ' +
-        'You help answer questions about Postgres including database schema, indexes, extensions.',
+      system:
+        'You are a PostgreSQL expert database administrator. ' +
+        'You only provide answers to questions linked to Postgres database schema, indexes, extensions.',
       model: anthropic({
         model: 'claude-3-5-haiku-latest',
         max_tokens: 1000,
@@ -139,12 +140,14 @@ In this tutorial you will create an [Agent](/concepts/agents) and run it within 
 
   ```ts index.ts
   import { createAgent, anthropic } from '@inngest/agent-kit';
+  
   // ...
+ 
   const securityAgent = createAgent({
     name: 'Database Security Expert',
     description: 'Provides expert guidance on PostgreSQL security, access control, audit logging, and compliance best practices',
     system: 'You are a PostgreSQL security expert. ' +
-      'You help answer questions about a wide range of PostgreSQL security topics such as encryption, access control, audit logging, and compliance best practices.',
+      'You only provide answers to questions linked to PostgreSQL security topics such as encryption, access control, audit logging, and compliance best practices.',
     model: anthropic({
       model: 'claude-3-5-haiku-latest',
       max_tokens: 1000,
@@ -176,11 +179,13 @@ const server = createServer({
   </Step>
 
   <Step title="Test our network">
-    We'll use the same approach to test our network as we did above to test our network, with the Inngest dev server's
+    We'll use the same approach to test our network as we did above to test our network, with the Inngest dev server's.
 
     <Tip>
       Networks are powerful as they include "[routing agents](/concepts/routers)" that can coordinate between a system of multiple agents, enabling networks to complete more complex tasks.
     </Tip>
+
+    Our network enables us to answer more complex or multiple questions such as:
 
     ```json Invoke payload
     {
