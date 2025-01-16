@@ -12,8 +12,8 @@ importers:
         specifier: ^1.0.0
         version: 1.0.0
       '@inngest/ai':
-        specifier: ^0.0.2
-        version: 0.0.2
+        specifier: ^0.0.0
+        version: 0.0.0
       '@modelcontextprotocol/sdk':
         specifier: ^1.1.1
         version: 1.1.1
@@ -24,8 +24,8 @@ importers:
         specifier: ^4.21.1
         version: 4.21.1
       inngest:
-        specifier: ^3.29.0
-        version: 3.29.0(express@4.21.1)(typescript@5.7.2)
+        specifier: ^3.30.0
+        version: 3.30.0(express@4.21.1)(typescript@5.7.2)
       openai-zod-to-json-schema:
         specifier: ^1.0.3
         version: 1.0.3(zod@3.23.8)
@@ -345,8 +345,8 @@ packages:
     resolution: {integrity: sha512-c7hNEllBlenFTHBky65mhq8WD2kbN9Q6gk0bTk8lSBvc554jpXSkST1iePudpt7+A/AQvuHs9EMqjHDXMY1lrA==}
     engines: {node: '>=18.18'}
 
-  '@inngest/ai@0.0.2':
-    resolution: {integrity: sha512-PEU0gXvAGFDU3F6Z0PpmLSsi22qv5nbOmnOOueGZUYyXNXIm7tNZ/QryreeqdqhfU/LWYzmnJN1APycdoBwuBg==}
+  '@inngest/ai@0.0.0':
+    resolution: {integrity: sha512-Zic5ECvciYFgLyreuAwlD09/QrlHdCLBBZDodf+h9mTicXB1eq6sWgBOMQ4XiR31qVKVj19ADU7mtqF1+f7Lbg==}
 
   '@jridgewell/resolve-uri@3.1.2':
     resolution: {integrity: sha512-bRISgCIjP20/tbWSPWMEi54QVPRZExkuD9lJL+UIxUKtwVJA8wW1Trb1jMs1RFXo1CBTNZ/5hpC9QvmKWdopKw==}
@@ -823,8 +823,8 @@ packages:
   create-require@1.1.1:
     resolution: {integrity: sha512-dcKFX3jn0MpIaXjisoRvexIJVEKzaq7z2rZKxf+MSr9TkdmHmsU4m2lcLojrj/FHl8mk5VxMmYA+ftRkP/3oKQ==}
 
-  cross-fetch@4.0.0:
-    resolution: {integrity: sha512-e4a5N8lVvuLgAWgnCrLr2PP0YyDOTHa9H/Rj54dirp61qXnNq46m82bRhNqIA5VccJtWBvPTFRV3TtvHUKPB1g==}
+  cross-fetch@4.1.0:
+    resolution: {integrity: sha512-uKm5PU+MHTootlWEY+mZ4vvXoCn4fLQxT9dSc1sXVMSFkINTJVN8cAQROpwcKm8bJ/c7rgZVIBWzH5T78sNZZw==}
 
   cross-spawn@7.0.6:
     resolution: {integrity: sha512-uV2QOWP2nWzsy2aMp8aRibhi9dlzF5Hgh5SHaB9OiTGEyDTiJJyx0uy51QXdyWbtAHNua4XJzUKca3OzKUd3vA==}
@@ -1203,8 +1203,8 @@ packages:
   inherits@2.0.4:
     resolution: {integrity: sha512-k/vGaX4/Yla3WzyMCvTQOXYeIHvqOKtnqBduzTHpzpQZzAskKMhZ2K+EnBiSM9zGSoIFeMpXKxa4dYeZIQqewQ==}
 
-  inngest@3.29.0:
-    resolution: {integrity: sha512-TQV9ce8nxNvj1nzOzWb197UHXHuXG3YHAkoSe0U5oqTAE7vs0a4HxQAzTivovsS9Z32f6FVx+m78Fov8sV0lQA==}
+  inngest@3.30.0:
+    resolution: {integrity: sha512-MLl66ylItUVqAxVr9dqYPaynh45DKBZo9TV+hfWk5x4A8vFC52aIhTM5EsCp4o2kTfZSYjNnalR7ROMbK56plA==}
     engines: {node: '>=14'}
     peerDependencies:
       '@sveltejs/kit': '>=1.27.3'
@@ -2285,7 +2285,7 @@ snapshots:
 
   '@humanwhocodes/retry@0.4.1': {}
 
-  '@inngest/ai@0.0.2':
+  '@inngest/ai@0.0.0':
     dependencies:
       '@types/node': 22.10.7
       typescript: 5.7.3
@@ -2767,7 +2767,7 @@ snapshots:
 
   create-require@1.1.1: {}
 
-  cross-fetch@4.0.0:
+  cross-fetch@4.1.0:
     dependencies:
       node-fetch: 2.7.0
     transitivePeerDependencies:
@@ -3192,12 +3192,13 @@ snapshots:
 
   inherits@2.0.4: {}
 
-  inngest@3.29.0(express@4.21.1)(typescript@5.7.2):
+  inngest@3.30.0(express@4.21.1)(typescript@5.7.2):
     dependencies:
+      '@inngest/ai': 0.0.0
       '@types/debug': 4.1.12
       canonicalize: 1.0.8
       chalk: 4.1.2
-      cross-fetch: 4.0.0
+      cross-fetch: 4.1.0
       debug: 4.3.7(supports-color@5.5.0)
       hash.js: 1.1.7
       json-stringify-safe: 5.0.1
