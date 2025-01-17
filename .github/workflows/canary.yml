@@ -1,0 +1,42 @@
+name: "Canary"
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - ".changeset/**/*.md"
+
+env:
+  NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          # Used to fetch all history so that changesets doesn't attempt to
+          # publish duplicate tags.
+          fetch-depth: 0
+      # Replaces `concurrency` - never cancels any jobs
+      - uses: softprops/turnstyle@v1
+        with:
+          poll-interval-seconds: 30
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+      - run: pnpm install
+      - uses: "the-guild-org/changesets-snapshot-action@v0.0.2"
+        with:
+          tag: "alpha"
+          prepareScript: "pnpm run build"
+        env:
+          GITHUB_TOKEN: ${{ secrets.CHANGESET_GITHUB_TOKEN }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NODE_ENV: test # disable npm access checks; they don't work in CI

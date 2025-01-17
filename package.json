@@ -1,6 +1,9 @@
 {
   "scripts": {
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "pnpm run --if-present --recursive test",
+    "build": "pnpm run --if-present --recursive build",
+    "release": "pnpm run build && changeset publish"
   },
   "pnpm": {
     "overrides": {

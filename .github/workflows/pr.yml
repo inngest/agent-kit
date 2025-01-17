@@ -12,7 +12,6 @@ jobs:
       - uses: pnpm/action-setup@v4
       - run: pnpm install
       - run: pnpm run build
-        working-directory: packages/agent-kit
 
   lint:
     runs-on: ubuntu-latest
@@ -21,7 +20,6 @@ jobs:
       - uses: pnpm/action-setup@v4
       - run: pnpm install
       - run: pnpm run lint
-        working-directory: packages/agent-kit
 
   test:
     runs-on: ubuntu-latest
@@ -30,4 +28,3 @@ jobs:
       - uses: pnpm/action-setup@v4
       - run: pnpm install
       - run: pnpm run test
-        working-directory: packages/agent-kit
