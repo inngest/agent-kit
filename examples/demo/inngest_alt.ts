@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
-import { defaultRoutingAgent } from "@inngest/agent-kit";
+import { getDefaultRoutingAgent } from "@inngest/agent-kit";
 import { EventSchemas, Inngest } from "inngest";
 import { z } from "zod";
 import { codeWritingNetworkMiddleware } from "./mw";
@@ -36,18 +36,17 @@ export const fn = inngest.createFunction(
     // This uses the defaut agentic router to determine which agent to handle first.  You can
     // optinoally specifiy the agent that should execute first, and provide your own logic for
     // handling logic in between agent calls.
-    const result = await codeWritingNetwork.run(
-      event.data.input,
-      ({ network }) => {
+    const result = await codeWritingNetwork.run(event.data.input, {
+      router: ({ network }) => {
         if (network.state.kv.has("files")) {
           // Okay, we have some files.  Did an agent run tests?
           return executingAgent;
         }
 
-        return defaultRoutingAgent;
+        return getDefaultRoutingAgent();
       },
-    );
+    });
 
     return result;
-  },
+  }
 );

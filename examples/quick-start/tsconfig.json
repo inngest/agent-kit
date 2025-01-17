@@ -7,7 +7,7 @@
     "declarationMap": true,
     "sourceMap": true,
     "rootDir": "./",
-    "outDir": "./dist-demo",
+    "outDir": "./dist",
     "types": ["node"],
     "moduleResolution": "node",
     "esModuleInterop": true,
@@ -20,5 +20,5 @@
     "strictNullChecks": true
   },
   "include": ["./**/*.ts"],
-  "exclude": ["./demo/inngest_alt.ts", "./demo/mw.ts"]
+  "exclude": ["node_modules", "dist"]
 }

@@ -11,10 +11,11 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@inngest/agent-kit": "0.2.0",
+    "@inngest/agent-kit": "workspace:^",
     "inngest": "^3.30.0"
   },
   "devDependencies": {
+    "@types/node": "^22.9.1",
     "tsx": "^4.19.2"
   }
 }

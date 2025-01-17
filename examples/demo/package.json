@@ -9,12 +9,14 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
-    "@inngest/agent-kit": "file:../inngest-agent-kit-0.0.3.tgz",
+    "@inngest/agent-kit": "workspace:^",
     "express": "^4.21.1",
-    "inngest": "^3.27.6-pr-776.2"
+    "inngest": "^3.27.6-pr-776.2",
+    "zod": "^3.23.8"
   },
   "devDependencies": {
     "@types/express": "^5.0.0",
     "typescript": "^5.6.3"
-  }
+  },
+  "packageManager": "pnpm@9.14.2+sha512.6e2baf77d06b9362294152c851c4f278ede37ab1eba3a55fda317a4a17b209f4dbb973fb250a77abc463a341fcb1f17f17cfa24091c4eb319cda0d9b84278387"
 }
