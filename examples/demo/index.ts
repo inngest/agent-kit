@@ -15,7 +15,7 @@ app.use(
   serve({
     client: inngest,
     functions: [fn],
-  }),
+  })
 );
 
 app.listen(port, () => {
