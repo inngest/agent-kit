@@ -4,6 +4,7 @@ import { editingAgent } from "../agents/editor";
 import { planningAgent } from "../agents/planner";
 
 export const codeWritingNetwork = createNetwork({
+  name: "Code writing network",
   agents: [planningAgent, editingAgent],
   // Use Claude as the base model of the network.
   defaultModel: anthropic({

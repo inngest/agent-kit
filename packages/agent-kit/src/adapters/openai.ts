@@ -51,7 +51,11 @@ export const requestParser: AgenticModel.RequestParser<OpenAi.AiModel> = (
         case "tool_result":
           return {
             role: "tool",
-            content: m.content,
+            tool_call_id: m.tool.id,
+            content:
+              typeof m.content === "string"
+                ? m.content
+                : JSON.stringify(m.content),
           };
       }
     }) as AiAdapter.Input<OpenAi.AiModel>["messages"],

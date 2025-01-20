@@ -1,8 +1,8 @@
+import { State } from "@inngest/agent-kit";
 import { execSync } from "child_process";
 import fs from "fs";
 import { EventSchemas, Inngest } from "inngest";
 import { z } from "zod";
-import { State } from "@inngest/agent-kit";
 import { codeWritingNetwork } from "./networks/codeWritingNetwork";
 
 export const inngest = new Inngest({
@@ -28,7 +28,7 @@ export const fn = inngest.createFunction(
     //
     // First, we clone the repo, then we ensure we're on the correct base commit.
     const dir = `./opt/${event.data.repo}`;
-    await step.run("clone repo", async () => {
+    await step.run("clone repo", () => {
       // Check if the dir already exists.
       if (fs.existsSync(dir)) {
         return;
@@ -42,7 +42,7 @@ export const fn = inngest.createFunction(
       );
     });
 
-    await step.run("check out commit", async () => {
+    await step.run("check out commit", () => {
       console.log("checking out commit");
       execSync(
         `cd ${dir} && git fetch origin ${event.data.base_commit} --depth=1`

@@ -1,14 +1,14 @@
 /* eslint-disable @typescript-eslint/require-await */
-import { Agent } from "./agent";
 import { describe, expect, test } from "vitest";
+import { Agent } from "./agent";
 // MCP server tests
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
+import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse";
 import {
+  CallToolRequestSchema,
   ListToolsRequestSchema,
   type ListToolsResult,
-  CallToolRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
-import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse";
 import express from "express";
 
 describe("mcp", () => {

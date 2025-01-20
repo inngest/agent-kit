@@ -1,9 +1,8 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
 import {
   createAgent,
   createNetwork,
   createTool,
-  defaultRoutingAgent,
+  getDefaultRoutingAgent,
 } from "@inngest/agent-kit";
 import { EventSchemas, Inngest, openai } from "inngest";
 import { z } from "zod";
@@ -139,6 +138,7 @@ Think carefully about the request that the user is asking for. Do not respond wi
 });
 
 const network = createNetwork({
+  name: "Code writing network",
   agents: [codeWritingAgent.withModel(model), executingAgent.withModel(model)],
   defaultModel: model,
   maxIter: 4,
@@ -148,6 +148,6 @@ const network = createNetwork({
       return executingAgent;
     }
 
-    return defaultRoutingAgent.withModel(model);
+    return getDefaultRoutingAgent().withModel(model);
   },
 });
