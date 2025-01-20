@@ -1,7 +1,7 @@
 import { type output as ZodOutput } from "zod";
 import { type Agent } from "./agent";
 import { type NetworkRun } from "./networkRun";
-import { type AnyZodType, type MaybePromise } from "./util";
+import { type AnyZodType, type MaybePromise, type StepTools } from "./util";
 
 export type Tool<T extends AnyZodType> = {
   name: string;
@@ -63,4 +63,5 @@ export namespace MCP {
 export type ToolHandlerArgs = {
   agent: Agent;
   network?: NetworkRun;
+  step?: StepTools;
 };

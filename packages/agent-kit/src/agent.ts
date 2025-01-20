@@ -282,6 +282,7 @@ export class Agent {
         const result = await found.handler(tool.input, {
           agent: this,
           network,
+          step: await getStepTools(),
         });
 
         // TODO: handle error and send them back to the LLM

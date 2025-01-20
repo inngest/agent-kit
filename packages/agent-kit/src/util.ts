@@ -39,6 +39,8 @@ export const getStepTools = async (): Promise<
   return asyncCtx?.ctx.step;
 };
 
+export type StepTools = Awaited<ReturnType<typeof getStepTools>>;
+
 /**
  * Given an object `T`, return a new object where all keys with function types
  * as values are genericized. If the value is an object, recursively apply this
