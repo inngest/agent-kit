@@ -32,7 +32,7 @@ export const planningAgent = createAgent({
 
       handler: async (plan, opts) => {
         // Store this in the function state for introspection in tracing.
-        await opts.step.run("plan created", () => plan);
+        await opts.step?.run("plan created", () => plan);
         opts.network?.state.kv.set("plan", plan);
       },
     }),

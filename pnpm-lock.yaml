@@ -107,6 +107,9 @@ importers:
       '@dmitryrechkin/json-schema-to-zod':
         specifier: ^1.0.0
         version: 1.0.0
+      '@inngest/ai':
+        specifier: ^0.0.0
+        version: 0.0.0
       '@modelcontextprotocol/sdk':
         specifier: ^1.1.1
         version: 1.1.1

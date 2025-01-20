@@ -1,13 +1,7 @@
-import { type GetStepTools, type Inngest } from "inngest";
 import { type output as ZodOutput } from "zod";
 import { type Agent } from "./agent";
 import { type NetworkRun } from "./networkRun";
-import {
-  type AnyZodType,
-  type GenericizeFunctionsInObject,
-  type MaybePromise,
-  type SimplifyDeep,
-} from "./util";
+import { type AnyZodType, type MaybePromise, type StepTools } from "./util";
 
 export type Tool<T extends AnyZodType> = {
   name: string;
@@ -69,17 +63,5 @@ export namespace MCP {
 export type ToolHandlerArgs = {
   agent: Agent;
   network?: NetworkRun;
-  step: GetStepTools<Inngest.Any>;
+  step?: StepTools;
 };
-
-/**
- * Represents step tooling from an Inngest client, purposefully genericized to
- * allow for more flexible usage.
- *
- * Prefer use of `GetStepTools` in most cases, especially when you have access
- * to a client.
- */
-export type AnyStepTools = SimplifyDeep<
-  GenericizeFunctionsInObject<GetStepTools<Inngest.Any>>
-> &
-  Record<string, unknown>;

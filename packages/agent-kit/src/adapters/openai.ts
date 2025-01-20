@@ -4,7 +4,7 @@
  * @module
  */
 
-import { type AiAdapter, type OpenAi } from "inngest";
+import { type AiAdapter, type OpenAi } from "@inngest/ai";
 import { zodToJsonSchema } from "openai-zod-to-json-schema";
 import { type AgenticModel } from "../model";
 import {

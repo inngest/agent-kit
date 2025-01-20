@@ -1,4 +1,4 @@
-import { type AiAdapter } from "inngest";
+import { type AiAdapter } from "@inngest/ai";
 import { z } from "zod";
 import {
   createRoutingAgent,

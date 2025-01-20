@@ -7,7 +7,7 @@ import {
   type AiAdapter,
   type Anthropic,
   type AnthropicAiAdapter,
-} from "inngest";
+} from "@inngest/ai";
 import { zodToJsonSchema } from "openai-zod-to-json-schema";
 import { z } from "zod";
 import { type AgenticModel } from "../model";

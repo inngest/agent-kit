@@ -1,4 +1,4 @@
-import { type AiAdapter } from "inngest";
+import { type AiAdapter } from "@inngest/ai";
 import { adapters } from "./adapters";
 import { type Message } from "./state";
 import { type Tool } from "./types";
@@ -41,12 +41,48 @@ export class AgenticModel<TAiAdapter extends AiAdapter.Any> {
     tools: Tool.Any[],
     tool_choice: Tool.Choice
   ): Promise<AgenticModel.InferenceResponse> {
+    const body = this.requestParser(this.#model, input, tools, tool_choice);
+    let result: AiAdapter.Input<TAiAdapter>;
+
     const step = await getStepTools();
 
-    const result = (await step.ai.infer(stepID, {
-      model: this.#model,
-      body: this.requestParser(this.#model, input, tools, tool_choice),
-    })) as AiAdapter.Input<TAiAdapter>;
+    if (step) {
+      result = (await step.ai.infer(stepID, {
+        model: this.#model,
+        body,
+      })) as AiAdapter.Input<TAiAdapter>;
+    } else {
+      // Allow the model to mutate options and body for this call
+      const modelCopy = { ...this.#model };
+      this.#model.onCall?.(modelCopy, body);
+
+      const url = new URL(modelCopy.url || "");
+
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+
+      // Make sure we handle every known format in `@inngest/ai`.
+      const formatHandlers: Record<AiAdapter.Format, () => void> = {
+        "openai-chat": () => {
+          headers["Authorization"] = `Bearer ${modelCopy.authKey}`;
+        },
+        anthropic: () => {
+          headers["x-api-key"] = modelCopy.authKey;
+        },
+      };
+
+      formatHandlers[modelCopy.format as AiAdapter.Format]();
+
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+      result = await (
+        await fetch(url, {
+          method: "POST",
+          headers,
+          body,
+        })
+      ).json();
+    }
 
     return { output: this.responseParser(result), raw: result };
   }

@@ -1,5 +1,15 @@
-import { type AiAdapter } from "inngest";
+import {
+  JSONSchemaToZod,
+  type JSONSchema,
+} from "@dmitryrechkin/json-schema-to-zod";
+import { type AiAdapter } from "@inngest/ai";
+import { Client as MCPClient } from "@modelcontextprotocol/sdk/client/index.js";
+import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
+import { WebSocketClientTransport } from "@modelcontextprotocol/sdk/client/websocket.js";
 import { type Transport } from "@modelcontextprotocol/sdk/shared/transport";
+import { ListToolsResultSchema } from "@modelcontextprotocol/sdk/types.js";
+import { EventSource } from "eventsource";
+import type { ZodType } from "zod";
 import { createAgenticModelFromAiAdapter, type AgenticModel } from "./model";
 import { NetworkRun } from "./networkRun";
 import {
@@ -8,20 +18,8 @@ import {
   type Message,
   type ToolResultMessage,
 } from "./state";
-import { type Tool, type MCP } from "./types";
+import { type MCP, type Tool } from "./types";
 import { getStepTools, type AnyZodType, type MaybePromise } from "./util";
-// MCP
-import { Client as MCPClient } from "@modelcontextprotocol/sdk/client/index.js";
-import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
-import { WebSocketClientTransport } from "@modelcontextprotocol/sdk/client/websocket.js";
-import { ListToolsResultSchema } from "@modelcontextprotocol/sdk/types.js";
-import {
-  type JSONSchema,
-  JSONSchemaToZod,
-} from "@dmitryrechkin/json-schema-to-zod";
-import type { ZodType } from "zod";
-import { EventSource } from "eventsource";
-
 /**
  * createTool is a helper that properly types the input argument for a handler
  * based off of the Zod parameter types.
@@ -392,16 +390,16 @@ export class Agent {
             server,
             tool: t,
           },
-          handler: async (
-            input: { [x: string]: unknown } | undefined,
-            opts
-          ) => {
-            const result = await opts.step.run(name, async () => {
-              return await client.callTool({
+          handler: async (input: { [x: string]: unknown } | undefined) => {
+            const fn = () =>
+              client.callTool({
                 name: t.name,
                 arguments: input,
               });
-            });
+
+            const step = await getStepTools();
+            const result = await (step?.run(name, fn) ?? fn());
+
             return result.content;
           },
         });
