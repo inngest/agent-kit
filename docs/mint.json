@@ -44,6 +44,10 @@
       "url": "reference"
     },
     {
+      "name": "Changelog",
+      "url": "changelog"
+    },
+    {
       "name": "Inngest documentation",
       "url": "https://www.inngest.com/docs"
     }
@@ -107,6 +111,10 @@
         "reference/model-anthropic",
         "reference/model-gemini"
       ]
+    },
+    {
+      "group": "Changelog",
+      "pages": ["changelog/overview"]
     }
   ],
   "footerSocials": {
