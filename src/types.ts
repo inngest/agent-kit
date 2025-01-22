@@ -29,9 +29,22 @@ export type Tool<T extends AnyZodType> = {
 };
 
 export namespace Tool {
-  export type Any = Tool<AnyZodType>;
+  export type Any = Custom | Builtin<unknown>;
+
+  export type Custom = Tool<AnyZodType>;
+
+  // Builtin represents a built-in tool from a foundational model, eg. computer use.
+  export type Builtin<T> = {
+    name: string,
+    builtin: true,
+    // definition is the builtin tool definition to send to the model.
+    definition: { [k: string]: any },
+    // handler is the handler for built-in tools.
+    handler: (input: T, opts: ToolHandlerArgs) => MaybePromise<any>;
+  }
 
   export type Choice = "auto" | "any" | (string & {});
+
 }
 
 export namespace MCP {

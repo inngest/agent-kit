@@ -14,6 +14,7 @@ import {
   type ToolMessage,
 } from "../state";
 import { type Tool } from "../types";
+import { isBuiltin, asBuiltin } from "../tools/index";
 import { stringifyError } from "../util";
 
 /**
@@ -66,9 +67,23 @@ export const requestParser: AgenticModel.RequestParser<OpenAi.AiModel> = (
     // it is recommended to disable parallel tool calls with structured output
     // https://platform.openai.com/docs/guides/function-calling#parallel-function-calling-and-structured-outputs
     request.parallel_tool_calls = false;
-    request.tools = tools.map((t) => {
+
+    // Filter tools for validity.
+    const filteredTools = tools.map((t) => {
+      if (isBuiltin(t)) {
+        // TODO: OpenAI does not yet support built-in tools.
+        return;
+      }
+      return t;
+    }).filter(Boolean) as Tool.Any[];
+
+
+    request.tools = filteredTools.map((tool) => {
+      // TODO: OpenAI does not yet support built-in tools.
+      const t = tool as Tool.Custom;
+
       return {
-        type: "function",
+        type: "function" as "function",
         function: {
           name: t.name,
           description: t.description,
@@ -76,7 +91,7 @@ export const requestParser: AgenticModel.RequestParser<OpenAi.AiModel> = (
           strict: true,
         },
       };
-    });
+    }).filter(Boolean);
   }
 
   return request;

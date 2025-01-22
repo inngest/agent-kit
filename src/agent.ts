@@ -394,7 +394,7 @@ export class Agent {
           },
           handler: async (
             input: { [x: string]: unknown } | undefined,
-            opts
+            opts: any,
           ) => {
             const result = await opts.step.run(name, async () => {
               return await client.callTool({
