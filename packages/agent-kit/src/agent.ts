@@ -9,7 +9,8 @@ import { WebSocketClientTransport } from "@modelcontextprotocol/sdk/client/webso
 import { type Transport } from "@modelcontextprotocol/sdk/shared/transport";
 import { ListToolsResultSchema } from "@modelcontextprotocol/sdk/types.js";
 import { EventSource } from "eventsource";
-import { InngestFunction } from "inngest/components/InngestFunction";
+import { referenceFunction, type Inngest } from "inngest";
+import { type InngestFunction } from "inngest/components/InngestFunction";
 import { type MinimalEventPayload } from "inngest/types";
 import type { ZodType } from "zod";
 import { createAgenticModelFromAiAdapter, type AgenticModel } from "./model";
@@ -24,6 +25,7 @@ import { type MCP, type Tool } from "./tool";
 import {
   getInngestFnInput,
   getStepTools,
+  isInngestFn,
   type AnyZodType,
   type MaybePromise,
 } from "./util";
@@ -118,12 +120,13 @@ export class Agent {
 
   private setTools(tools: Agent.Constructor["tools"]): void {
     for (const tool of tools || []) {
-      if (tool instanceof InngestFunction) {
+      if (isInngestFn(tool)) {
         this.tools.set(tool["absoluteId"], {
           name: tool["absoluteId"],
           description: tool.description,
+          // TODO Should we error here if we can't find an input schema?
           parameters: getInngestFnInput(tool),
-          handler: async (input: MinimalEventPayload, opts) => {
+          handler: async (input: MinimalEventPayload["data"], opts) => {
             // Doing this late means a potential throw if we use the agent in a
             // non-Inngest environment. We could instead calculate the tool list
             // JIT and omit any Inngest tools if we're not in an Inngest
@@ -136,9 +139,11 @@ export class Agent {
             const stepId = `${opts.agent.name}/tools/${tool["absoluteId"]}`;
 
             return step.invoke(stepId, {
-              function: tool,
-              data: input.data,
-              user: input.user,
+              function: referenceFunction({
+                appId: (tool["client"] as Inngest.Any)["id"],
+                functionId: tool.id(),
+              }),
+              data: input,
             });
           },
         });

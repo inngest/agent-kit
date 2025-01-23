@@ -1,4 +1,5 @@
-import { type Inngest, type InngestFunction } from "inngest";
+import { type Inngest } from "inngest";
+import { InngestFunction } from "inngest/components/InngestFunction";
 import { getAsyncCtx, type AsyncContext } from "inngest/experimental";
 import { ZodType, type ZodObject, type ZodTypeAny } from "zod";
 
@@ -38,6 +39,28 @@ export const getStepTools = async (): Promise<
   const asyncCtx = await getAsyncCtx();
 
   return asyncCtx?.ctx.step;
+};
+
+export const isInngestFn = (fn: unknown): fn is InngestFunction.Any => {
+  // Derivation of `InngestFunction` means it's definitely correct
+  if (fn instanceof InngestFunction) {
+    return true;
+  }
+
+  // If it's not derived from `InngestFunction`, it could still be a function
+  // but from a different version of the library. Depending on your other deps
+  // this could be likely and multiple versions of the `inngest` package are
+  // installed at the same time. Thus, we check the generic shape here instead.
+  if (
+    typeof fn === "object" &&
+    fn !== null &&
+    "createExecution" in fn &&
+    typeof fn.createExecution === "function"
+  ) {
+    return true;
+  }
+
+  return false;
 };
 
 export const getInngestFnInput = (
