@@ -47,7 +47,7 @@ export class NetworkRun extends Network {
       input,
       overrides?.router || this.defaultRouter
     );
-    if (!next) {
+    if (!next?.length) {
       // TODO: If call count is 0, error.
       return this;
     }
