@@ -11,6 +11,7 @@ import { ListToolsResultSchema } from "@modelcontextprotocol/sdk/types.js";
 import { EventSource } from "eventsource";
 import { referenceFunction, type Inngest } from "inngest";
 import { type InngestFunction } from "inngest/components/InngestFunction";
+import { serializeError } from "inngest/helpers/errors";
 import { type MinimalEventPayload } from "inngest/types";
 import type { ZodType } from "zod";
 import { createAgenticModelFromAiAdapter, type AgenticModel } from "./model";
@@ -322,14 +323,26 @@ export class Agent {
         // use multiple step tools, eg. `step.run`, then `step.waitForEvent` for
         // human in the loop tasks.
         //
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-        const result = await found.handler(tool.input, {
-          agent: this,
-          network,
-          step: await getStepTools(),
-        });
 
-        // TODO: handle error and send them back to the LLM
+        const result = await Promise.resolve(
+          found.handler(tool.input, {
+            agent: this,
+            network,
+            step: await getStepTools(),
+          })
+        )
+          .then((r) => {
+            return {
+              // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+              data:
+                typeof r === "undefined"
+                  ? `${tool.name} successfully executed`
+                  : r,
+            };
+          })
+          .catch((err) => {
+            return { error: serializeError(err) };
+          });
 
         output.push({
           role: "tool_result",
@@ -341,7 +354,7 @@ export class Agent {
             input: tool.input.arguments as Record<string, unknown>,
           },
 
-          content: result ? result : `${tool.name} successfully executed`,
+          content: result,
           stop_reason: "tool",
         });
       }
