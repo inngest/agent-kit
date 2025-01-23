@@ -69,6 +69,7 @@ export class AgenticModel<TAiAdapter extends AiAdapter.Any> {
         },
         anthropic: () => {
           headers["x-api-key"] = modelCopy.authKey;
+          headers["anthropic-version"] = "2023-06-01";
         },
       };
 
