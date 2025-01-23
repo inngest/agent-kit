@@ -81,13 +81,6 @@
       ]
     },
     {
-      "group": "Guides (Coming soon)",
-      "pages": [
-        "guides/state-management",
-        "guides/agent-handoff-and-escalation"
-      ]
-    },
-    {
       "group": "Examples",
       "pages": ["examples/overview"]
     },
@@ -105,6 +98,14 @@
         "reference/create-network",
         "reference/state",
         "reference/network-router"
+      ]
+    },
+    {
+      "group": "Models",
+      "pages": [
+        "reference/model-openai",
+        "reference/model-anthropic",
+        "reference/model-gemini"
       ]
     }
   ],

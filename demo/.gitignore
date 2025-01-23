@@ -1,9 +1,0 @@
-# Built files
-dist
-*.tgz
-
-# Node packages
-node_modules
-
-# Nix
-/.direnv/

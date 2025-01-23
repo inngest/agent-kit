@@ -1,12 +1,7 @@
 ---
 title: Overview
-description: 'Build test and deploy reliable AI applications at scale.'
+description: 'A TypeScript library to create and orchestrate AI Agents.'
 ---
-
-<Info>
-  This page introduces the APIs and concepts to AgentKit. AgentKit is in early
-  access, and is improving on a daily basis.
-</Info>
 
 AgentKit is a framework for creating and orchestrating AI Agents, from single model inference calls to multi-agent systems that use tools. Designed with orchestration at it's core, AgentKit enables developers to build, test, and deploy reliable AI applications at scale.
 
@@ -16,14 +11,35 @@ AgentKit provides primitives that are designed to be easily composable, but very
 
 ![A diagram with the components of AgentKit in an AgentKit Network](/graphics/system.svg)
 
-AgentKit enables developers to compose simple single-agent systems or entire _systems of agents_ in which multiple agents can work together. **Agents** are combined into "**Networks**" which include a **Router** to determine which Agent should be called. They system's memory is recorded as Network **State** which can be used by the Router, Agents or **Tools**, which can be used to enable the Agents' **Models** to perform tasks.
+AgentKit enables developers to compose simple single-agent systems or entire _systems of agents_ in which multiple agents can work together. **[Agents](/concepts/agents)** are combined into **[Networks](concepts/networks)** which include a **[Router](concepts/routers)** to determine which Agent should be called. Their system's memory is recorded as Network **[State](concepts/state)** which can be used by the Router, Agents or **[Tools](concepts/tools)** to collaborate on tasks.
 
 The entire system is orchestration-aware and allows for customization at runtime for dynamic, powerful AI workflows and agentic systems. Here is what a simple Network looks like in code:
 
 ```ts
+import { createNetwork, createAgent, openai, anthropic } from '@inngest/agent-kit';
+import { searchWebTool } from './tools';
+
+const navigator = createAgent({
+  name: 'Navigator',
+  system: 'You are a navigator...',
+  tools: [searchWebTool],
+});
+
+const classifier = createAgent({
+  name: 'Classifier',
+  system: 'You are a classifier...',
+  model: openai('gpt-3.5-turbo'),
+});
+
+const summarizer = createAgent({
+  model: anthropic('claude-3-5-haiku-latest'),
+  name: 'Summarizer',
+  system: 'You are a summarizer...',
+});
+
 const network = createNetwork({
   agents: [navigator, classifier, summarizer],
-  defaultModel: openai({ model: 'gpt-4o', step }),
+  defaultModel: openai({ model: 'gpt-4o' }),
 });
 
 const input = `Classify then summarize the latest 10 blog posts

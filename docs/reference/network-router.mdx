@@ -1,7 +1,150 @@
 ---
 title: Network Router
 sidebarTitle: Router
-description: Connecting agents within a Network.
+description: Controlling the flow of execution between agents in a Network.
 ---
 
-Coming soon
+The `defaultRouter` option in `createNetwork` defines how agents are coordinated within a Network. It can be either a [Function Router](#function-router ) or a [Routing Agent](#routing-agent).
+
+
+## Function Router
+
+A function router is provided to the `defaultRouter` option in `createNetwork`.
+
+### Example
+
+```ts
+const network = createNetwork({
+  agents: [classifier, writer],
+  defaultRouter: ({ lastResult, callCount, network, stack, input }) => {
+    // First call: use the classifier
+    if (callCount === 0) {
+      return classifier;
+    }
+
+    // Get the last message from the output
+    const lastMessage = lastResult?.output[lastResult?.output.length - 1];
+    const content = lastMessage?.type === 'text' ? lastMessage?.content as string : '';
+
+    // Second call: if it's a question, use the writer
+    if (callCount === 1 && content.includes('question')) {
+      return writer;
+    }
+
+    // Otherwise, we're done!
+    return undefined;
+  }
+});
+```
+
+### Parameters
+
+<ParamField path="input" type="string">
+  The original input provided to the network.
+</ParamField>
+
+<ParamField path="network" type="Network">
+  The network instance, including its state and history.
+
+  See [`Network.State`](/reference/state) for more details.
+</ParamField>
+
+<ParamField path="stack" type="Agent[]">
+  The list of future agents to be called. (_internal read-only value_)
+</ParamField>
+
+<ParamField path="callCount" type="number">
+  The number of agent calls that have been made.
+</ParamField>
+
+<ParamField path="lastResult" type="InferenceResult">
+  The result from the previously called agent.
+
+  See [`InferenceResult`](/reference/state#inferenceresult) for more details.
+</ParamField>
+
+### Return Values
+
+| Return Type | Description |
+| --- | --- |
+| `Agent` | Single agent to execute next |
+| `Agent[]` | Multiple agents to execute in sequence |
+| `RoutingAgent` | Delegate routing decision to another routing agent |
+| `undefined` | Stop network execution |
+
+## createRoutingAgent()
+
+Creates a new routing agent that can be used as a `defaultRouter` in a network.
+
+### Example
+
+```ts
+import { createRoutingAgent, createNetwork } from '@inngest/agent-kit';
+
+const routingAgent = createRoutingAgent({
+  name: "Custom routing agent",
+  description: "Selects agents based on the current state and request",
+  lifecycle: {
+    onRoute: ({ result, network }) => {
+      // Get the agent names from the result
+      const agentNames = result.output
+        .filter(m => m.type === 'text')
+        .map(m => m.content as string);
+      
+      // Validate that the agents exist
+      return agentNames.filter(name => network.agents.has(name));
+    }
+  }
+});
+
+// classifier and writer Agents definition...
+
+const network = createNetwork({
+  agents: [classifier, writer],
+  defaultRouter: routingAgent
+});
+```
+
+### Parameters
+
+<ParamField path="name" type="string" required>
+  The name of the routing agent.
+</ParamField>
+
+<ParamField path="description" type="string">
+  Optional description of the routing agent's purpose.
+</ParamField>
+
+<ParamField path="lifecycle" type="object" required>
+  <Expandable title="properties">
+    <ParamField path="onRoute" type="function" required>
+      Called after each inference to determine the next agent(s) to call.
+      
+      **Arguments:**
+      ```ts
+      {
+        result: InferenceResult;  // The result from the routing agent's inference
+        agent: RoutingAgent;      // The routing agent instance
+        network: Network;         // The network instance
+      }
+      ```
+      
+      **Returns:** `string[]` - Array of agent names to call next, or `undefined` to stop execution
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField path="model" type="AiAdapter.Any">
+  Optional model to use for routing decisions. If not provided, uses the network's `defaultModel`.
+</ParamField>
+
+### Returns
+
+Returns a `RoutingAgent` instance that can be used as a network's `defaultRouter`.
+
+
+
+## Related APIs
+
+- [`createNetwork`](/reference/create-network)
+- [`Network.State`](/reference/state)

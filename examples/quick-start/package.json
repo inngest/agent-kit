@@ -1,0 +1,22 @@
+{
+  "name": "quick-start",
+  "private": true,
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "start": "tsx --watch ./index.ts",
+    "inngest-dev": "npx inngest-cli@latest dev -u http://localhost:3000/api/inngest"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@inngest/agent-kit": "workspace:^",
+    "inngest": "^3.30.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.9.1",
+    "tsx": "^4.19.2"
+  }
+}

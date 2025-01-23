@@ -31,7 +31,7 @@ export const listFilesTool = createTool({
   description:
     "Lists all files within the project, returned as a JSON string containing the path to each file",
   handler: async (_input, opts) => {
-    const repo = opts.network?.state.kv.get("repo") || "";
+    const repo = opts.network?.state.kv.get<string>("repo") || "";
     const repoDir = path.join(WORKING_DIR, repo);
 
     const files = await opts.step.run("list files", () => {
@@ -42,7 +42,8 @@ export const listFilesTool = createTool({
 
     // Store all files within state.  Note that this happens outside of steps
     // so that this is not memoized.
-    opts.network && opts.network.state.kv.set("files", files);
+    opts.network?.state.kv.set("files", files);
+
     return files;
   },
 });
@@ -77,7 +78,7 @@ export const writeFileTool = createTool({
       return writeFile(
         opts.network?.state.kv.get("repo") || "",
         filename,
-        content,
+        content
       );
     });
 
@@ -104,7 +105,7 @@ export const extractClassAndFnsTool = createTool({
     return await opts.step.run("parse file", () => {
       const contents = readFile(
         opts.network?.state.kv.get("repo") || "",
-        input.filename,
+        input.filename
       );
       return parseClassAndFns(contents);
     });
@@ -122,7 +123,7 @@ export const replaceClassMethodTool = createTool({
   }),
   handler: async (
     { filename, class_name, function_name, new_contents },
-    opts,
+    opts
   ) => {
     const updated = await opts?.step.run(
       `update class method in "${filename}": ${class_name}.${function_name}`,
@@ -130,7 +131,7 @@ export const replaceClassMethodTool = createTool({
         // Re-parse the contents to find the correct start and end offsets.
         const contents = readFile(
           opts.network?.state.kv.get("repo") || "",
-          filename,
+          filename
         );
         const parsed = parseClassAndFns(contents);
 
@@ -155,7 +156,7 @@ export const replaceClassMethodTool = createTool({
             return isRange ? [...updated, new_contents] : updated;
           }, [] as string[])
           .join("\n");
-      },
+      }
     );
 
     writeFile(opts.network?.state.kv.get("repo") || "", filename, updated);
@@ -174,13 +175,13 @@ export const writeFile = (repo: string, filename: string, content: string) => {
   return fs.writeFileSync(
     path.join(WORKING_DIR, repo, filename),
     content,
-    "utf-8",
+    "utf-8"
   );
 };
 
 export const parseClassAndFns = (contents: string) => {
   const parser = new Parser();
-  parser.setLanguage(Py);
+  parser.setLanguage(Py as Parser.Language);
 
   const tree = parser.parse(contents);
   const cursor = tree.walk();
@@ -231,14 +232,15 @@ export const parseClassAndFns = (contents: string) => {
     }
 
     switch (node.type) {
-      case "function_definition":
+      case "function_definition": {
         // Only process top-level functions
         if (node.parent === tree.rootNode) {
           results.functions.push(getFunctionDetails(node));
         }
         break;
+      }
 
-      case "class_definition":
+      case "class_definition": {
         const classInfo: PyClass = {
           name: node.childForFieldName("name")?.text || "<unknown>",
           startLine: node.startPosition.row + 1,
@@ -247,6 +249,7 @@ export const parseClassAndFns = (contents: string) => {
         };
         results.classes.push(classInfo);
         break;
+      }
     }
   } while (cursor.gotoNextSibling());
 
