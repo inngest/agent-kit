@@ -80,7 +80,7 @@ export class AgenticModel<TAiAdapter extends AiAdapter.Any> {
         await fetch(url, {
           method: "POST",
           headers,
-          body,
+          body: JSON.stringify(body),
         })
       ).json();
     }
