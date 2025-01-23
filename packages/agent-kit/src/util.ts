@@ -70,16 +70,22 @@ export const getInngestFnInput = (
     const runtimeSchema = runtimeSchemas[eventSchema];
 
     // We only support Zod atm
-    if (!helpers.isZodObject(runtimeSchema)) {
+    if (
+      typeof runtimeSchema === "object" &&
+      runtimeSchema !== null &&
+      "data" in runtimeSchema &&
+      helpers.isZodObject(runtimeSchema.data)
+    ) {
+      if (schema) {
+        schema = schema.or(runtimeSchema.data);
+      } else {
+        schema = runtimeSchema.data;
+      }
       continue;
     }
 
-    if (!schema) {
-      schema = runtimeSchema;
-      continue;
-    }
-
-    schema = schema.or(runtimeSchema);
+    // TODO It could also be a regular object with inidivudal fields, so
+    // validate that too
   }
 
   return schema;
