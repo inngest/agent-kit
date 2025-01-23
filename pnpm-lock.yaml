@@ -72,6 +72,9 @@ importers:
       inngest:
         specifier: ^3.30.0
         version: 3.30.0(express@4.21.1)(typescript@5.7.3)
+      zod:
+        specifier: ^3.23.8
+        version: 3.23.8
     devDependencies:
       '@types/node':
         specifier: ^22.9.1
