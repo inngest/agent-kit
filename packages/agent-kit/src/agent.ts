@@ -221,9 +221,11 @@ export class Agent {
         run
       );
 
-      hasMoreActions =
+      hasMoreActions = Boolean(
         this.tools.size > 0 &&
-        inference.output[inference.output.length - 1]!.stop_reason !== "stop";
+          inference.output.length &&
+          inference.output[inference.output.length - 1]!.stop_reason !== "stop"
+      );
 
       result = inference;
       history = [...inference.output];
