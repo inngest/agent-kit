@@ -123,7 +123,7 @@ importers:
         specifier: ^4.21.1
         version: 4.21.1
       inngest:
-        specifier: ^3.29.0
+        specifier: ^3.30.0
         version: 3.30.0(express@4.21.1)(typescript@5.7.2)
       openai-zod-to-json-schema:
         specifier: ^1.0.3
