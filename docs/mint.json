@@ -113,6 +113,10 @@
       ]
     },
     {
+      "group": "Learn AI Agents in Practice",
+      "pages": ["ai-agents-in-practice/overview"]
+    },
+    {
       "group": "Changelog",
       "pages": ["changelog/overview"]
     }
