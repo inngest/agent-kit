@@ -9,6 +9,10 @@ import { WebSocketClientTransport } from "@modelcontextprotocol/sdk/client/webso
 import { type Transport } from "@modelcontextprotocol/sdk/shared/transport";
 import { ListToolsResultSchema } from "@modelcontextprotocol/sdk/types.js";
 import { EventSource } from "eventsource";
+import { referenceFunction, type Inngest } from "inngest";
+import { type InngestFunction } from "inngest/components/InngestFunction";
+import { serializeError } from "inngest/helpers/errors";
+import { type MinimalEventPayload } from "inngest/types";
 import type { ZodType } from "zod";
 import { createAgenticModelFromAiAdapter, type AgenticModel } from "./model";
 import { NetworkRun } from "./networkRun";
@@ -18,8 +22,15 @@ import {
   type Message,
   type ToolResultMessage,
 } from "./state";
-import { type MCP, type Tool } from "./types";
-import { getStepTools, type AnyZodType, type MaybePromise } from "./util";
+import { type MCP, type Tool } from "./tool";
+import {
+  getInngestFnInput,
+  getStepTools,
+  isInngestFn,
+  type AnyZodType,
+  type MaybePromise,
+} from "./util";
+
 /**
  * createTool is a helper that properly types the input argument for a handler
  * based off of the Zod parameter types.
@@ -103,11 +114,43 @@ export class Agent {
     this.tool_choice = opts.tool_choice;
     this.lifecycles = opts.lifecycle;
     this.model = opts.model;
+    this.setTools(opts.tools);
     this.mcpServers = opts.mcpServers;
     this._mcpClients = [];
+  }
 
-    for (const tool of opts.tools || []) {
-      this.tools.set(tool.name, tool);
+  private setTools(tools: Agent.Constructor["tools"]): void {
+    for (const tool of tools || []) {
+      if (isInngestFn(tool)) {
+        this.tools.set(tool["absoluteId"], {
+          name: tool["absoluteId"],
+          description: tool.description,
+          // TODO Should we error here if we can't find an input schema?
+          parameters: getInngestFnInput(tool),
+          handler: async (input: MinimalEventPayload["data"], opts) => {
+            // Doing this late means a potential throw if we use the agent in a
+            // non-Inngest environment. We could instead calculate the tool list
+            // JIT and omit any Inngest tools if we're not in an Inngest
+            // context.
+            const step = await getStepTools();
+            if (!step) {
+              throw new Error("Inngest tool called outside of Inngest context");
+            }
+
+            const stepId = `${opts.agent.name}/tools/${tool["absoluteId"]}`;
+
+            return step.invoke(stepId, {
+              function: referenceFunction({
+                appId: (tool["client"] as Inngest.Any)["id"],
+                functionId: tool.id(),
+              }),
+              data: input,
+            });
+          },
+        });
+      } else {
+        this.tools.set(tool.name, tool);
+      }
     }
   }
 
@@ -179,9 +222,11 @@ export class Agent {
         run
       );
 
-      hasMoreActions =
+      hasMoreActions = Boolean(
         this.tools.size > 0 &&
-        inference.output[inference.output.length - 1]!.stop_reason !== "stop";
+          inference.output.length &&
+          inference.output[inference.output.length - 1]!.stop_reason !== "stop"
+      );
 
       result = inference;
       history = [...inference.output];
@@ -278,14 +323,26 @@ export class Agent {
         // use multiple step tools, eg. `step.run`, then `step.waitForEvent` for
         // human in the loop tasks.
         //
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-        const result = await found.handler(tool.input, {
-          agent: this,
-          network,
-          step: await getStepTools(),
-        });
 
-        // TODO: handle error and send them back to the LLM
+        const result = await Promise.resolve(
+          found.handler(tool.input, {
+            agent: this,
+            network,
+            step: await getStepTools(),
+          })
+        )
+          .then((r) => {
+            return {
+              // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+              data:
+                typeof r === "undefined"
+                  ? `${tool.name} successfully executed`
+                  : r,
+            };
+          })
+          .catch((err) => {
+            return { error: serializeError(err) };
+          });
 
         output.push({
           role: "tool_result",
@@ -297,7 +354,7 @@ export class Agent {
             input: tool.input.arguments as Record<string, unknown>,
           },
 
-          content: result ? result : `${tool.name} successfully executed`,
+          content: result,
           stop_reason: "tool",
         });
       }
@@ -478,7 +535,7 @@ export namespace Agent {
     description?: string;
     system: string | ((ctx: { network?: NetworkRun }) => MaybePromise<string>);
     assistant?: string;
-    tools?: Tool.Any[];
+    tools?: (Tool.Any | InngestFunction.Any)[];
     tool_choice?: Tool.Choice;
     lifecycle?: Lifecycle;
     model?: AiAdapter.Any;

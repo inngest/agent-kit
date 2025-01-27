@@ -25,14 +25,26 @@ export const createServer = ({
   appId = "agent-kit",
   networks = [],
   agents = [],
+  client,
+  functions: manualFns = [],
 }: {
   appId?: string;
   networks?: Network[];
   agents?: Agent[];
+  functions?: InngestFunction.Any[];
+  client?: Inngest.Any;
 }) => {
-  const inngest = new Inngest({ id: appId });
+  const inngest = client ?? new Inngest({ id: appId });
 
-  const functions: { [keyof: string]: InngestFunction.Any } = {};
+  const functions = manualFns.reduce<Record<string, InngestFunction.Any>>(
+    (acc, fn) => {
+      return {
+        ...acc,
+        [fn.id()]: fn,
+      };
+    },
+    {}
+  );
 
   for (const agent of agents) {
     const slug = slugify(agent.name);
@@ -40,7 +52,7 @@ export const createServer = ({
 
     functions[id] = inngest.createFunction(
       { id, name: agent.name },
-      { event: `${appId}/${id}` },
+      { event: `${inngest.id}/${id}` },
       async ({ event }) => {
         // eslint-disable-next-line
         return agent.run(event.data.input);
@@ -54,7 +66,7 @@ export const createServer = ({
 
     functions[id] = inngest.createFunction(
       { id, name: network.name },
-      { event: `${appId}/${id}` },
+      { event: `${inngest.id}/${id}` },
       async ({ event }) => {
         // eslint-disable-next-line
         return network.run(event.data.input);

@@ -13,7 +13,7 @@ import {
   type ToolCallMessage,
   type ToolMessage,
 } from "../state";
-import { type Tool } from "../types";
+import { type Tool } from "../tool";
 import { stringifyError } from "../util";
 
 /**
