@@ -8,7 +8,7 @@ This guide will provide a definition of AI Agents with practical examples inspir
 
 Before jumping into action, let's first understand how AI Agents are different from other AI patterns.
 
-## From Workflows to Agents
+## From AI Workflows to AI Agents
 
 The first AI applications were chat-based experiences offering different ways to interact with existing LLM APIs.
 Then, as the LLM knowledge was limited to its training data (_ex: [OpenAI knowledge cutoff date of September 2021](https://community.openai.com/t/knowledge-cutoff-date-of-september-2021/66215/1)_), it quickly became clear that this was not enough to build practical AI applications.
@@ -60,12 +60,21 @@ Still, it is the most active experimentation space in the LLM ecosystem with mul
 Developing AI applications leverages multiple patterns from AI workflows with static steps to fully autonomous AI Agents, each fitting specific use cases.
 The best way to start is to begin simple and iterate towards complexity.
 
-This guide is divided into 4 parts, transitioning an AI workflow into an AI Agent by gradually adding autonomy leveraging AgentKit's routing patterns:
+This guide features a Code Assistant that will will progressively evolve from a static AI workflow to an autonomous AI Agent.
 
-1. [AI workflows with Code-based Routers](/ai-agents-in-practice/static-routing): _TODO_
-2. [Agentic workflows with Hybrid Routers](/ai-agents-in-practice/hybrid-routing): _TODO_
-3. [AI Agents with Routing Agents](/ai-agents-in-practice/autonomous-routing): _TODO_
-4. [Pushing your AgentKit application to production](/ai-agents-in-practice/production): _TODO_
+Below are the different versions of our Code Assistant, each progressively adding more autonomy and complexity:
+
+<div className="pl-4">
+
+<span className="border-primary dark:border-primary-light bg-primary/10 text-primary text-xs dark:text-primary-light dark:bg-primary-light/10 rounded-xl px-2 py-1">v1</span> [Explaining a given code file](/ai-agents-in-practice/ai-workflows): The first version starts as a AI workflow using a tool to provide a file as context to the LLM (RAG).
+
+<span className="border-primary dark:border-primary-light bg-primary/10 text-primary text-xs dark:text-primary-light dark:bg-primary-light/10 rounded-xl px-2 py-1">v2</span> [Performing complex code analysis](/ai-agents-in-practice/agentic-workflows): Then, we will add Agentic capabilities to our assistant to enable it more complex analysis.
+
+<span className="border-primary dark:border-primary-light bg-primary/10 text-primary text-xs dark:text-primary-light dark:bg-primary-light/10 rounded-xl px-2 py-1">v3</span> [Autonomously reviewing a pull request](/ai-agents-in-practice/ai-agents): Finally, we will add more autonomy to our assistant, transforming it into a semi-autonomous AI Agent.
+
+<span className="border-primary dark:border-primary-light bg-primary/10 text-primary text-xs dark:text-primary-light dark:bg-primary-light/10 rounded-xl px-2 py-1">Bonus</span> [Pushing our Code Assistant to production](/ai-agents-in-practice/deploy-to-production): This additional chapter will cover best practices to deploy your AI Agents to production.
+
+</div>
 
 Depending on your experience developing AI applications, you can choose to start directly with the second part covering Agentic workflows.
 

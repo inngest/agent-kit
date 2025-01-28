@@ -35,9 +35,9 @@ const agent = createAgent({
   The provider model to use for inference calls.
 </ParamField>
 
-<ParamField path="system" type="string" required>
+<ParamField path="system" type="string | function" required>
   The system prompt, as a string or function. Functions let you change prompts
-  based off of state and memory
+  based off of state and memory.
 </ParamField>
 
 <ParamField path="tools" type="array<TypedTool>">

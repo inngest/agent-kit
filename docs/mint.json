@@ -94,7 +94,7 @@
     },
     {
       "group": "Agent",
-      "pages": ["reference/create-agent", "reference/create-typed-tool"]
+      "pages": ["reference/create-agent", "reference/create-tool"]
     },
     {
       "group": "Network",
@@ -114,11 +114,22 @@
     },
     {
       "group": "Learn AI Agents in Practice",
-      "pages": ["ai-agents-in-practice/overview"]
+      "pages": [
+        "ai-agents-in-practice/overview",
+        "ai-agents-in-practice/ai-workflows",
+        "ai-agents-in-practice/agentic-workflows",
+        "ai-agents-in-practice/ai-agents"
+      ]
     },
     {
       "group": "Changelog",
       "pages": ["changelog/overview"]
+    }
+  ],
+  "redirects": [
+    {
+      "source": "/reference/create-typed-tool",
+      "destination": "/reference/create-tool"
     }
   ],
   "footerSocials": {
