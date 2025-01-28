@@ -1,6 +1,6 @@
 import { State } from "@inngest/agent-kit";
-import { execSync } from "child_process";
-import fs from "fs";
+import { execSync } from "node:child_process";
+import fs from "node:fs";
 import { EventSchemas, Inngest } from "inngest";
 import { z } from "zod";
 import { codeWritingNetwork } from "./networks/codeWritingNetwork";
