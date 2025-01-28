@@ -88,6 +88,9 @@ importers:
       '@inngest/agent-kit':
         specifier: workspace:^
         version: link:../../packages/agent-kit
+      express:
+        specifier: ^4.21.1
+        version: 4.21.1
       inngest:
         specifier: ^3.28.0
         version: 3.30.0(express@4.21.1)(typescript@5.7.3)
