@@ -92,7 +92,7 @@ importers:
         specifier: ^4.21.1
         version: 4.21.1
       inngest:
-        specifier: ^3.28.0
+        specifier: ^3.30.0
         version: 3.30.0(express@4.21.1)(typescript@5.7.3)
       tree-sitter:
         specifier: ^0.22.1
@@ -107,6 +107,9 @@ importers:
       '@types/express':
         specifier: ^5.0.0
         version: 5.0.0
+      tsx:
+        specifier: ^4.19.2
+        version: 4.19.2
 
   packages/agent-kit:
     dependencies:
