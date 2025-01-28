@@ -86,8 +86,8 @@ importers:
   examples/swebench:
     dependencies:
       '@inngest/agent-kit':
-        specifier: workspace:^
-        version: link:../../packages/agent-kit
+        specifier: ^0.2.1
+        version: 0.2.1(typescript@5.7.3)
       express:
         specifier: ^4.21.1
         version: 4.21.1
@@ -563,6 +563,9 @@ packages:
   '@humanwhocodes/retry@0.4.1':
     resolution: {integrity: sha512-c7hNEllBlenFTHBky65mhq8WD2kbN9Q6gk0bTk8lSBvc554jpXSkST1iePudpt7+A/AQvuHs9EMqjHDXMY1lrA==}
     engines: {node: '>=18.18'}
+
+  '@inngest/agent-kit@0.2.1':
+    resolution: {integrity: sha512-wKH8vPt4cAFs8Dl0ECevx+HKOpNiHZbzXVl1laa0e32MQuoDN6/NFyCnK/gytQVFMggYj4SlSLpZ84Tg7o0bSg==}
 
   '@inngest/ai@0.0.0':
     resolution: {integrity: sha512-Zic5ECvciYFgLyreuAwlD09/QrlHdCLBBZDodf+h9mTicXB1eq6sWgBOMQ4XiR31qVKVj19ADU7mtqF1+f7Lbg==}
@@ -2604,6 +2607,28 @@ snapshots:
   '@humanwhocodes/retry@0.3.1': {}
 
   '@humanwhocodes/retry@0.4.1': {}
+
+  '@inngest/agent-kit@0.2.1(typescript@5.7.3)':
+    dependencies:
+      '@dmitryrechkin/json-schema-to-zod': 1.0.0
+      '@modelcontextprotocol/sdk': 1.1.1
+      eventsource: 3.0.2
+      express: 4.21.1
+      inngest: 3.30.0(express@4.21.1)(typescript@5.7.3)
+      openai-zod-to-json-schema: 1.0.3(zod@3.23.8)
+      zod: 3.23.8
+    transitivePeerDependencies:
+      - '@sveltejs/kit'
+      - '@vercel/node'
+      - aws-lambda
+      - encoding
+      - fastify
+      - h3
+      - hono
+      - koa
+      - next
+      - supports-color
+      - typescript
 
   '@inngest/ai@0.0.0':
     dependencies:
