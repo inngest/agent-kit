@@ -44,6 +44,10 @@
       "url": "reference"
     },
     {
+      "name": "Changelog",
+      "url": "changelog"
+    },
+    {
       "name": "Inngest documentation",
       "url": "https://www.inngest.com/docs"
     }
@@ -107,6 +111,14 @@
         "reference/model-anthropic",
         "reference/model-gemini"
       ]
+    },
+    {
+      "group": "Learn AI Agents in Practice",
+      "pages": ["ai-agents-in-practice/overview"]
+    },
+    {
+      "group": "Changelog",
+      "pages": ["changelog/overview"]
     }
   ],
   "footerSocials": {
