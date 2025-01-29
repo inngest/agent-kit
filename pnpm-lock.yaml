@@ -4,9 +4,6 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
-overrides:
-  '@inngest/agent-kit': workspace:^
-
 importers:
 
   .:

@@ -3,12 +3,8 @@
     "lint": "eslint",
     "test": "pnpm run --if-present --recursive test",
     "build": "pnpm run --if-present --recursive build",
-    "release": "pnpm run build && changeset publish"
-  },
-  "pnpm": {
-    "overrides": {
-      "@inngest/agent-kit": "workspace:^"
-    }
+    "release": "pnpm run build && changeset publish",
+    "version": "changeset version && pnpm install --lockfile-only"
   },
   "devDependencies": {
     "@changesets/cli": "^2.27.10",

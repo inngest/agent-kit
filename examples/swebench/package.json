@@ -11,7 +11,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@inngest/agent-kit": "^0.2.1",
+    "@inngest/agent-kit": "workspace:^0.2.1",
     "express": "^4.21.1",
     "inngest": "^3.31.0",
     "tree-sitter": "^0.22.1",
