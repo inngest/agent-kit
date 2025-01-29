@@ -15,8 +15,8 @@ importers:
         specifier: ^4.21.1
         version: 4.21.2
       inngest:
-        specifier: ^3.30.0
-        version: 3.30.0(express@4.21.2)(typescript@5.7.3)
+        specifier: ^3.31.0
+        version: 3.31.0(express@4.21.2)(typescript@5.7.3)
       tree-sitter:
         specifier: ^0.22.1
         version: 0.22.4
@@ -35,6 +35,9 @@ importers:
         version: 4.19.2
 
 packages:
+
+  '@bufbuild/protobuf@2.2.3':
+    resolution: {integrity: sha512-tFQoXHJdkEOSwj5tRIZSPNUuXK3RaR7T1nUrPgbYX1pUbvqqaaZAsfo+NXBPsz5rZMSKVFrgK1WL8Q/MSLvprg==}
 
   '@dmitryrechkin/json-schema-to-zod@1.0.0':
     resolution: {integrity: sha512-avV26RC8CRzhnL6AvQsURlkd071SXlcPURxiYFsRLpsMoDDXBBGJDIsNQTvYmevq31WHYdwGCKGgQKC0YIjDGg==}
@@ -188,6 +191,9 @@ packages:
 
   '@inngest/ai@0.0.0':
     resolution: {integrity: sha512-Zic5ECvciYFgLyreuAwlD09/QrlHdCLBBZDodf+h9mTicXB1eq6sWgBOMQ4XiR31qVKVj19ADU7mtqF1+f7Lbg==}
+
+  '@jpwilliams/waitgroup@2.1.1':
+    resolution: {integrity: sha512-0CxRhNfkvFCTLZBKGvKxY2FYtYW1yWhO2McLqBL0X5UWvYjIf9suH8anKW/DNutl369A75Ewyoh2iJMwBZ2tRg==}
 
   '@modelcontextprotocol/sdk@1.4.1':
     resolution: {integrity: sha512-wS6YC4lkUZ9QpP+/7NBTlVNiEvsnyl0xF7rRusLF+RsG0xDPc/zWR7fEEyhKnnNutGsDAZh59l/AeoWGwIb1+g==}
@@ -436,8 +442,8 @@ packages:
   inherits@2.0.4:
     resolution: {integrity: sha512-k/vGaX4/Yla3WzyMCvTQOXYeIHvqOKtnqBduzTHpzpQZzAskKMhZ2K+EnBiSM9zGSoIFeMpXKxa4dYeZIQqewQ==}
 
-  inngest@3.30.0:
-    resolution: {integrity: sha512-MLl66ylItUVqAxVr9dqYPaynh45DKBZo9TV+hfWk5x4A8vFC52aIhTM5EsCp4o2kTfZSYjNnalR7ROMbK56plA==}
+  inngest@3.31.0:
+    resolution: {integrity: sha512-mp2O2numpT/lBDMPSktcgFgf0AlEKJLUv6b1/3Rq0xNq4zqVHepmuIawuXiGSYh48jD3/R/Wrxl2gEo68vdRCw==}
     engines: {node: '>=14'}
     peerDependencies:
       '@sveltejs/kit': '>=1.27.3'
@@ -661,6 +667,10 @@ packages:
     engines: {node: '>=14.17'}
     hasBin: true
 
+  ulid@2.3.0:
+    resolution: {integrity: sha512-keqHubrlpvT6G2wH0OEfSW4mquYRcbe/J8NMmveoQOjUqmo+hXtO+ORCpWhdbZ7k72UtY61BL7haGxW6enBnjw==}
+    hasBin: true
+
   undici-types@6.20.0:
     resolution: {integrity: sha512-Ny6QZ2Nju20vw1SRHe3d9jVu6gJ+4e3+MMpqu7pqE5HT6WsTSlce++GQmK5UXS8mzV8DSYHrQH+Xrf2jVcuKNg==}
 
@@ -694,6 +704,8 @@ packages:
     resolution: {integrity: sha512-muH7gBL9sI1nciMZV67X5fTKKBLtwpZ5VBp1vsOQzj1MhrBZ4wlVCm3gedKZWLp0Oyel8sIGfeiz54Su+OVT+A==}
 
 snapshots:
+
+  '@bufbuild/protobuf@2.2.3': {}
 
   '@dmitryrechkin/json-schema-to-zod@1.0.0':
     dependencies:
@@ -777,7 +789,7 @@ snapshots:
       '@modelcontextprotocol/sdk': 1.4.1
       eventsource: 3.0.5
       express: 4.21.2
-      inngest: 3.30.0(express@4.21.2)(typescript@5.7.3)
+      inngest: 3.31.0(express@4.21.2)(typescript@5.7.3)
       openai-zod-to-json-schema: 1.0.3(zod@3.24.1)
       zod: 3.24.1
     transitivePeerDependencies:
@@ -797,6 +809,8 @@ snapshots:
     dependencies:
       '@types/node': 22.12.0
       typescript: 5.7.3
+
+  '@jpwilliams/waitgroup@2.1.1': {}
 
   '@modelcontextprotocol/sdk@1.4.1':
     dependencies:
@@ -1110,9 +1124,11 @@ snapshots:
 
   inherits@2.0.4: {}
 
-  inngest@3.30.0(express@4.21.2)(typescript@5.7.3):
+  inngest@3.31.0(express@4.21.2)(typescript@5.7.3):
     dependencies:
+      '@bufbuild/protobuf': 2.2.3
       '@inngest/ai': 0.0.0
+      '@jpwilliams/waitgroup': 2.1.1
       '@types/debug': 4.1.12
       canonicalize: 1.0.8
       chalk: 4.1.2
@@ -1123,6 +1139,7 @@ snapshots:
       ms: 2.1.3
       serialize-error-cjs: 0.1.3
       strip-ansi: 5.2.0
+      ulid: 2.3.0
       zod: 3.22.5
     optionalDependencies:
       express: 4.21.2
@@ -1310,6 +1327,8 @@ snapshots:
       mime-types: 2.1.35
 
   typescript@5.7.3: {}
+
+  ulid@2.3.0: {}
 
   undici-types@6.20.0: {}
 

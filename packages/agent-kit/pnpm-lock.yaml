@@ -24,8 +24,8 @@ importers:
         specifier: ^4.21.1
         version: 4.21.2
       inngest:
-        specifier: ^3.30.0
-        version: 3.30.0(express@4.21.2)(typescript@5.7.3)
+        specifier: ^3.31.0
+        version: 3.31.0(express@4.21.2)(typescript@5.7.3)
       openai-zod-to-json-schema:
         specifier: ^1.0.3
         version: 1.0.3(zod@3.24.1)
@@ -56,6 +56,9 @@ importers:
         version: 2.1.8(@types/node@22.12.0)
 
 packages:
+
+  '@bufbuild/protobuf@2.2.3':
+    resolution: {integrity: sha512-tFQoXHJdkEOSwj5tRIZSPNUuXK3RaR7T1nUrPgbYX1pUbvqqaaZAsfo+NXBPsz5rZMSKVFrgK1WL8Q/MSLvprg==}
 
   '@cspotcode/source-map-support@0.8.1':
     resolution: {integrity: sha512-IchNf6dN4tHoMFIn/7OE8LWZ19Y6q/67Bmf6vnGREv8RSbBVb9LPJxEcnwrcwX6ixSvaiGoomAUvu4YSxXrVgw==}
@@ -258,6 +261,9 @@ packages:
 
   '@inngest/ai@0.0.0':
     resolution: {integrity: sha512-Zic5ECvciYFgLyreuAwlD09/QrlHdCLBBZDodf+h9mTicXB1eq6sWgBOMQ4XiR31qVKVj19ADU7mtqF1+f7Lbg==}
+
+  '@jpwilliams/waitgroup@2.1.1':
+    resolution: {integrity: sha512-0CxRhNfkvFCTLZBKGvKxY2FYtYW1yWhO2McLqBL0X5UWvYjIf9suH8anKW/DNutl369A75Ewyoh2iJMwBZ2tRg==}
 
   '@jridgewell/resolve-uri@3.1.2':
     resolution: {integrity: sha512-bRISgCIjP20/tbWSPWMEi54QVPRZExkuD9lJL+UIxUKtwVJA8wW1Trb1jMs1RFXo1CBTNZ/5hpC9QvmKWdopKw==}
@@ -928,8 +934,8 @@ packages:
   inherits@2.0.4:
     resolution: {integrity: sha512-k/vGaX4/Yla3WzyMCvTQOXYeIHvqOKtnqBduzTHpzpQZzAskKMhZ2K+EnBiSM9zGSoIFeMpXKxa4dYeZIQqewQ==}
 
-  inngest@3.30.0:
-    resolution: {integrity: sha512-MLl66ylItUVqAxVr9dqYPaynh45DKBZo9TV+hfWk5x4A8vFC52aIhTM5EsCp4o2kTfZSYjNnalR7ROMbK56plA==}
+  inngest@3.31.0:
+    resolution: {integrity: sha512-mp2O2numpT/lBDMPSktcgFgf0AlEKJLUv6b1/3Rq0xNq4zqVHepmuIawuXiGSYh48jD3/R/Wrxl2gEo68vdRCw==}
     engines: {node: '>=14'}
     peerDependencies:
       '@sveltejs/kit': '>=1.27.3'
@@ -1384,6 +1390,10 @@ packages:
     engines: {node: '>=14.17'}
     hasBin: true
 
+  ulid@2.3.0:
+    resolution: {integrity: sha512-keqHubrlpvT6G2wH0OEfSW4mquYRcbe/J8NMmveoQOjUqmo+hXtO+ORCpWhdbZ7k72UtY61BL7haGxW6enBnjw==}
+    hasBin: true
+
   undefsafe@2.0.5:
     resolution: {integrity: sha512-WxONCrssBM8TSPRqN5EmsjVrsv4A8X12J4ArBiiayv3DyyG3ZlIg6yysuuSYdZsVz3TKcTg2fd//Ujd4CHV1iA==}
 
@@ -1509,6 +1519,8 @@ packages:
     resolution: {integrity: sha512-muH7gBL9sI1nciMZV67X5fTKKBLtwpZ5VBp1vsOQzj1MhrBZ4wlVCm3gedKZWLp0Oyel8sIGfeiz54Su+OVT+A==}
 
 snapshots:
+
+  '@bufbuild/protobuf@2.2.3': {}
 
   '@cspotcode/source-map-support@0.8.1':
     dependencies:
@@ -1646,6 +1658,8 @@ snapshots:
     dependencies:
       '@types/node': 22.12.0
       typescript: 5.7.3
+
+  '@jpwilliams/waitgroup@2.1.1': {}
 
   '@jridgewell/resolve-uri@3.1.2': {}
 
@@ -2389,9 +2403,11 @@ snapshots:
 
   inherits@2.0.4: {}
 
-  inngest@3.30.0(express@4.21.2)(typescript@5.7.3):
+  inngest@3.31.0(express@4.21.2)(typescript@5.7.3):
     dependencies:
+      '@bufbuild/protobuf': 2.2.3
       '@inngest/ai': 0.0.0
+      '@jpwilliams/waitgroup': 2.1.1
       '@types/debug': 4.1.12
       canonicalize: 1.0.8
       chalk: 4.1.2
@@ -2402,6 +2418,7 @@ snapshots:
       ms: 2.1.3
       serialize-error-cjs: 0.1.3
       strip-ansi: 5.2.0
+      ulid: 2.3.0
       zod: 3.22.5
     optionalDependencies:
       express: 4.21.2
@@ -2807,6 +2824,8 @@ snapshots:
       - supports-color
 
   typescript@5.7.3: {}
+
+  ulid@2.3.0: {}
 
   undefsafe@2.0.5: {}
 
