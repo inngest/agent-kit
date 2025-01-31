@@ -156,8 +156,13 @@ export const getDefaultRoutingAgent = () => {
         if (!tool) {
           return;
         }
-        if (typeof tool.content === "string") {
-          return [tool.content];
+        if (
+          typeof tool.content === "object" &&
+          tool.content !== null &&
+          "data" in tool.content &&
+          typeof tool.content.data === "string"
+        ) {
+          return [tool.content.data];
         }
         return;
       },

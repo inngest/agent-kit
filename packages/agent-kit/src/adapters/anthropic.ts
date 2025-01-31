@@ -12,7 +12,7 @@ import { zodToJsonSchema } from "openai-zod-to-json-schema";
 import { z } from "zod";
 import { type AgenticModel } from "../model";
 import { type Message, type TextMessage } from "../state";
-import { type Tool } from "../types";
+import { type Tool } from "../tool";
 
 /**
  * Parse a request from internal network messages to an Anthropic input.

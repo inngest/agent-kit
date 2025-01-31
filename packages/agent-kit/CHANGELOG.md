@@ -1,5 +1,14 @@
 # @inngest/agent-kit
 
+## 0.2.2
+
+### Patch Changes
+
+- 1720646: Resolve being unable to find async ctx when using with `inngest`
+- ae56867: Use `@inngest/ai` and only optionally use step tooling
+- 6b309bb: Allow specifying Inngest functions as tools
+- 4d6b263: Shift to pnpm workspace packages; fix linting
+
 ## 0.2.1
 
 ### Patch Changes

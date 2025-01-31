@@ -1,7 +1,7 @@
 import { type AiAdapter } from "@inngest/ai";
 import { adapters } from "./adapters";
 import { type Message } from "./state";
-import { type Tool } from "./types";
+import { type Tool } from "./tool";
 import { getStepTools } from "./util";
 
 export const createAgenticModelFromAiAdapter = <
@@ -69,6 +69,7 @@ export class AgenticModel<TAiAdapter extends AiAdapter.Any> {
         },
         anthropic: () => {
           headers["x-api-key"] = modelCopy.authKey;
+          headers["anthropic-version"] = "2023-06-01";
         },
       };
 
@@ -79,7 +80,7 @@ export class AgenticModel<TAiAdapter extends AiAdapter.Any> {
         await fetch(url, {
           method: "POST",
           headers,
-          body,
+          body: JSON.stringify(body),
         })
       ).json();
     }

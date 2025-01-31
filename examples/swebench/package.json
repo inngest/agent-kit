@@ -5,19 +5,21 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "start": "npx ts-node ./index.ts"
+    "start": "tsx ./index.ts"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@inngest/agent-kit": "^0.1.2",
-    "inngest": "^3.28.0",
+    "@inngest/agent-kit": "workspace:^0.2.2",
+    "express": "^4.21.1",
+    "inngest": "^3.31.0",
     "tree-sitter": "^0.22.1",
     "tree-sitter-python": "^0.23.5",
     "zod": "^3.23.8"
   },
   "devDependencies": {
-    "@types/express": "^5.0.0"
+    "@types/express": "^5.0.0",
+    "tsx": "^4.19.2"
   }
 }

@@ -1,6 +1,6 @@
 {
   "name": "@inngest/agent-kit",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "AgentKit is a framework for creating and orchestrating AI agents and AI workflows",
   "main": "dist/index.js",
   "scripts": {
@@ -50,7 +50,7 @@
     "@modelcontextprotocol/sdk": "^1.1.1",
     "eventsource": "^3.0.2",
     "express": "^4.21.1",
-    "inngest": "^3.29.0",
+    "inngest": "^3.31.0",
     "openai-zod-to-json-schema": "^1.0.3",
     "zod": "^3.23.8"
   },
