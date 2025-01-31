@@ -6,7 +6,12 @@ description: "A comprehensive guide to building AI Agents with AgentKit and Anth
 AI Agents can be a complex topic to understand and differentiate from RAG, AI workflows, Agentic workflows, and more.
 This guide will provide a definition of AI Agents with practical examples inspired by the [Building effective agents](https://www.anthropic.com/research/building-effective-agents) manifesto from Anthropic.
 
-Before jumping into action, let's first understand how AI Agents are different from other AI patterns.
+**Table of contents:**
+
+- [From AI Workflows to AI Agents](#from-ai-workflows-to-ai-agents)
+- [How to use this guide](#how-to-use-this-guide)
+
+
 
 ## From AI Workflows to AI Agents
 
@@ -19,14 +24,14 @@ This is where AI applications started to introduce workflows to power patterns s
 
 RAG enabled AI applications to retrieve information from external sources and forward it as context to LLMs, resulting in more accurate and relevant responses.
 
-_TODO: add a diagram of the RAG workflow_
+{/* _TODO: add a diagram of the RAG workflow_ */}
 
 The introduction of workflows in AI applications enabled additional patterns:
 - **Prompt chaining**: one of many [Prompt Engineering](https://www.promptingguide.ai/) patterns to improve LLM accuracy and reduce hallucinations.
 - **Tool calling**: enabling LLMs to call provided functions to perform specific tasks or retrieve fresh information.
 - **External databases for memory and embeddings**: enabling LLMs to store and retrieve information from external databases in an efficient way.
 
-_TODO: add a diagram of AI workflows capabilities_
+{/* _TODO: add a diagram of AI workflows capabilities_ */}
 
 **Reasoning and Action: the birth of Agentic Workflows**
 
@@ -37,11 +42,11 @@ In October 2022, a research paper called ["Reasoning and Action"](https://arxiv.
 This paper introduced a new approach to developing LLM applications by introducing the concepts of _reasoning_ and _action_ in AI workflows, giving birth to **Agentic workflows**.
 
 Agentic workflows consist of leveraging LLMs to take actions on the workflow state, making the workflow more autonomous and reducing hallucinations.
-A good example of an Agentic workflow is the SafeGuard pattern, which adds LLM reasoning and action capabilities to review both the input provided by the user and the output of the LLM:
+A good example of an Agentic workflow is the SafeGuard pattern, which adds LLM reasoning and action capabilities to review both the input provided by the user and the output of the LLM.
 
-<Frame caption="By getting the user input and the LLM output reviewed by another LLM, the SafeGuard pattern protects the user from hallucinations and the LLM from prompt injection.">
+{/* <Frame caption="By getting the user input and the LLM output reviewed by another LLM, the SafeGuard pattern protects the user from hallucinations and the LLM from prompt injection.">
   <img src="/graphics/ai-agents-in-practice/safeguard-pattern.png" />
-</Frame>
+</Frame> */}
 
 While Agentic workflows leverage LLMs to improve AI workflow relevance and reduce hallucinations, a new pattern emerged taking the principles of chain-of-thought reasoning with action-taking to another level: **AI Agents**.
 
@@ -50,7 +55,7 @@ While Agentic workflows leverage LLMs to improve AI workflow relevance and reduc
 The previous AI workflows and Agentic workflows are based on static workflows with some degree of autonomy.
 AI Agents aim for full autonomy of the AI application, enabling it to solve complex problems such as developing complete web applications or fixing issues in production.
 
-_TODO: add a diagram of AI Agents_
+{/* _TODO: add a diagram of AI Agents_ */}
 
 AI Agents are still an exploratory field, with few companies having successfully built and deployed them in production (ex: [Devin](https://devin.ai/)).
 Still, it is the most active experimentation space in the LLM ecosystem with multiple open-source projects (ex: [AutoGPT](https://github.com/Significant-Gravitas/AutoGPT)).
