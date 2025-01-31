@@ -1,28 +1,429 @@
 ---
-title: "Code Assistant v3: Autonomous Code Assistant"
-sidebarTitle: "3. AI Agent"
-description: "Build a custom Agent Router to enable autonomous code analysis."
+title: "Code Assistant v3: Autonomous Bug Solver"
+sidebarTitle: "3. Autonomous Bug Solver"
+description: "Build a custom Agent Router for semi-autonomy and advanced tools to solve bugs."
 ---
 
 ## Overview
 
+Our [Code Assistant v2](/ai-agents-in-practice/agentic-workflows) introduced some limited reasoning capabilities through Tools and a Network of Agents.
+This third version will transform our Code Assistant into a semi-autonomous AI Agent that can solve bugs and improve code.
+
+Our AI Agent will operate over an express API project filled of bugs:
+
+```txt
+/examples/code-assistant-agent/project
+├── package.json
+├── tsconfig.json
+├── src
+│   ├── index.ts
+│   ├── routes
+│   │   ├── users.ts
+│   │   └── posts.ts
+│   ├── models
+│   │   ├── user.ts
+│   │   └── post.ts
+│   └── db.ts
+└── tests
+    ├── users.test.ts
+    └── posts.test.ts
+
+```
+
+Given a prompt such as:
+
+```txt
+Can you help me fix the following error?
+1. TypeError: Cannot read properties of undefined (reading 'body')
+   at app.post (/project/src/routes/users.ts:10:23)
+```
+
+Our Code Assistant v3 will autonomously navigate through the codebase and fix the bug by updating the impacted files.
+
+
+This new version relies on previously covered concepts such as [Tools](/concepts/tools), [Agents](/concepts/agent), and [Networks](/concepts/network) but introduces
+the creation of a custom [Router Agent](/concepts/routers#routing-agent-autonomous-routing) brining to routing autonomy of the AI Agent.
+
+
+Let's learn these concepts in practice.
+
 ## Setup
 
+Similarly to the [Code Assistant v2](/ai-agents-in-practice/agentic-workflows), perform the following steps to setup your project:
+
+<AccordionGroup>
+<Accordion title="1. Initialize your project" defaultOpen="true">
+
+<CodeGroup>
+
+```bash npm
+npm init
+```
+
+```bash pnpm
+pnpm init
+```
+
+```bash yarn
+yarn init
+```
+
+</CodeGroup>
+</Accordion>
+
+<Accordion title="2. Install the required dependencies">
+
+<CodeGroup>
+
+```bash npm
+npm install @inngest/agent-kit zod
+```
+
+```bash pnpm
+pnpm install @inngest/agent-kit zod
+```
+
+```bash yarn
+yarn add @inngest/agent-kit zod
+```
+
+</CodeGroup>
+
+</Accordion>
+
+<Accordion title="3. Add TypeScript support">
+
+<CodeGroup>
+
+```bash npm
+npm install -D tsx @types/node
+```
+
+```bash pnpm
+pnpm install -D tsx @types/node
+```
+
+```bash yarn
+yarn add -D tsx @types/node
+```
+
+</CodeGroup>
+
+And add the following scripts to your `package.json`:
+
+```json
+"scripts": {
+    "start": "tsx ./index.ts"
+}
+```
+
+</Accordion>
+</AccordionGroup>
+
+You are now set up, let's implement our autonomous Code Assistant.
 
 ## Implementing our Code Assistant v3
 
+### Overview of the autonomous workflow
+
+Our Code Assistant v3 introduces autonomy through a specialized Router Agent that orchestrates two task-specific Agents:
+
+- `plannerAgent`: Analyzes code and plans fixes using code search capabilities
+- `editorAgent`: Implements the planned fixes using file system operations
+
+The Router Agent acts as the "brain" of our Code Assistant, deciding which Agent to use based on the current context and user request.
+
+Let's implement each component of our autonomous workflow.
+
+### Implementing the Tools
+
+Our Code Assistant v3 needs to interact with the file system and search through code. Let's implement these capabilities as Tools:
+
+```typescript {10, 12, 28}
+import { createTool } from '@inngest/agent-kit';
+
+const writeFile = createTool({
+  name: "writeFile",
+  description: "Write a file to the filesystem",
+  parameters: z.object({
+    path: z.string().describe("The path to the file to write"),
+    content: z.string().describe("The content to write to the file"),
+  }),
+  handler: async ({ path, content }) => {
+    try {
+      let relativePath = path.startsWith("/") ? path.slice(1) : path;
+      writeFileSync(relativePath, content);
+      return "File written";
+    } catch (err) {
+      console.error(`Error writing file ${path}:`, err);
+      throw new Error(`Failed to write file ${path}`);
+    }
+  },
+});
+
+const readFile = createTool({
+  name: "readFile",
+  description: "Read a file from the filesystem",
+  parameters: z.object({
+    path: z.string().describe("The path to the file to read"),
+  }),
+  handler: async ({ path }) => {
+    try {
+      let relativePath = path.startsWith("/") ? path.slice(1) : path;
+      const content = readFileSync(relativePath, "utf-8");
+      return content;
+    } catch (err) {
+      console.error(`Error reading file ${path}:`, err);
+      throw new Error(`Failed to read file ${path}`);
+    }
+  },
+});
+
+const searchCode = createTool({
+  name: "searchCode",
+  description: "Search for a given pattern in a project files",
+  parameters: z.object({
+    query: z.string().describe("The query to search for"),
+  }),
+  handler: async ({ query }) => {
+    const searchFiles = (dir: string, searchQuery: string): string[] => {
+      const results: string[] = [];
+      const walk = (currentPath: string) => {
+        const files = readdirSync(currentPath);
+        for (const file of files) {
+          const filePath = join(currentPath, file);
+          const stat = statSync(filePath);
+          if (stat.isDirectory()) {
+            walk(filePath);
+          } else {
+            try {
+              const content = readFileSync(filePath, "utf-8");
+              if (content.includes(searchQuery)) {
+                results.push(filePath);
+              }
+            } catch (err) {
+              console.error(`Error reading file ${filePath}:`, err);
+            }
+          }
+        }
+      };
+      walk(dir);
+      return results;
+    };
+    const matches = searchFiles(process.cwd(), query);
+    return matches.length === 0
+      ? "No matches found"
+      : `Found matches in following files:\n${matches.join("\n")}`;
+  },
+});
+```
+
+<Note>
+
+Some notes on the highlighted lines:
+
+- As noted in the ["Building Effective Agents" article](https://www.anthropic.com/research/building-effective-agents) from Anthropic, Tools based on file system operations are most effective when provided with absolute paths.
+- Tools performing action such as `writeFile` should always return a value to inform the Agent that the action has been completed.
+
+</Note>
+
+
+
+These Tools provide our Agents with the following capabilities:
+- `writeFile`: Write content to a file
+- `readFile`: Read content from a file
+- `searchCode`: Search for patterns in project files
+
+Let's now create our task-specific Agents.
+
+### Creating the Task-Specific Agents
+
+Our Code Assistant v3 relies on two specialized Agents:
+
+```typescript
+import { createAgent } from '@inngest/agent-kit';
+
+const plannerAgent = createAgent({
+  name: "planner",
+  system: "You are an expert in debugging TypeScript projects.",
+  tools: [searchCode],
+});
+
+const editorAgent = createAgent({
+  name: "editor",
+  system: "You are an expert in fixing bugs in TypeScript projects.",
+  tools: [writeFile, readFile],
+});
+```
+
+Each Agent has a specific role:
+- `plannerAgent` uses the `searchCode` Tool to analyze code and plan fixes
+- `editorAgent` uses the `readFile` and `writeFile` Tools to implement fixes
+
+Separating the Agents into two distinct roles will enable our AI Agent to better _"divide and conquer"_ the problem to solve.
+
+Let's now implement the Router Agent that will bring the reasoning capabilities to autonomously orchestrate these Agents.
+
+### Implementing the Router Agent
+
+The [Router Agent](/concepts/routers#routing-agent-autonomous-routing) is the "brain" of our Code Assistant, deciding which Agent to use based on the context.
+
+The router developed in the [Code Assistant v2](/ai-agents-in-practice/agentic-workflows) was a function that decided which Agent to call next
+based on the progress of the workflow. Such router made a Agent deterministic, but lacked the reasoning capabilities to autonomously orchestrate the Agents.
+
+In this version, we will provide an Agent as a router, called a Router Agent.
+By doing so, we can leverage the reasoning capabilities of the LLM to autonomously orchestrate the Agents around a given goal (here, fixing the bug).
+
+Creating a Router Agent is done by using the [`createRoutingAgent`](/reference/network-router#createroutingagent) helper function:
+
+```typescript {5, 38, 70}
+import { createRoutingAgent } from '@inngest/agent-kit';
+
+const router = createRoutingAgent({
+    name: "Code Assistant routing agent",
+    system: async ({ network }): Promise<string> => {
+      if (!network) {
+        throw new Error(
+          "The routing agent can only be used within a network of agents"
+        );
+      }
+      const agents = await network?.availableAgents();
+      return `You are the orchestrator between a group of agents. Each agent is suited for a set of specific tasks, and has a name, instructions, and a set of tools.
+      
+      The following agents are available:
+      <agents>
+      ${agents
+        .map((a) => {
+          return `
+        <agent>
+          <name>${a.name}</name>
+          <description>${a.description}</description>
+          <tools>${JSON.stringify(Array.from(a.tools.values()))}</tools>
+        </agent>`;
+        })
+        .join("\n")}
+      </agents>
+      
+      Follow the set of instructions:
+      
+      <instructions>
+      Think about the current history and status.
+      If the user issue has been fixed, call select_agent with "finished"
+      Otherwise, determine which agent to use to handle the user's request, based off of the current agents and their tools.
+      
+      Your aim is to thoroughly complete the request, thinking step by step, choosing the right agent based off of the context.
+      </instructions>`;
+    },
+    tools: [
+      createTool({
+        name: "select_agent",
+        description:
+          "select an agent to handle the input, based off of the current conversation",
+        parameters: z
+          .object({
+            name: z
+              .string()
+              .describe("The name of the agent that should handle the request"),
+          })
+          .strict(),
+        handler: ({ name }, { network }) => {
+          if (!network) {
+            throw new Error(
+              "The routing agent can only be used within a network of agents"
+            );
+          }
+          if (name === "finished") {
+            return undefined;
+          }
+          const agent = network.agents.get(name);
+          if (agent === undefined) {
+            throw new Error(
+              `The routing agent requested an agent that doesn't exist: ${name}`
+            );
+          }
+          return agent.name;
+        },
+      }),
+    ],
+    tool_choice: "select_agent",
+    lifecycle: {
+      onRoute: ({ result }) => {
+        const tool = result.toolCalls[0];
+        if (!tool) {
+          return;
+        }
+        const agentName =
+          (tool.content as any).data || (tool.content as string);
+        if (agentName === "finished") {
+          return;
+        } else {
+          return [agentName];
+        }
+      },
+    },
+});
+```
+
+Looking at the highlighted lines, we can see that a Router Agent mixes features from regular Agents and a function Router:
+1. A Router Agent is a regular Agent with a `system` function that returns a prompt
+2. A Router Agent can use [Tools](/concepts/tools) to interact with the environment
+3. Finally, a Router Agent can also define lifecycle callbacks, [like Agents do](/concepts/agents#lifecycle-hooks)
+
+Let's now dissect how this Router Agent works:
+1. The `system` function is used to define the prompt dynamically based on the Agents available in the Network
+    - You will notice that the prompt explicitly ask to call a "finished" tool when the user issue has been fixed
+2. The `select_agent` Tool is used to validate that the Agent selected is available in the Network
+    - The tool ensures that the "finished" edge case is handled
+3. The `onRoute` lifecycle callback is used to determine which Agent to call next
+    - This callback stops the conversation when the user issue has been fixed (when the "finished" Agent is called)
+
+This is it! Using this prompt, our Router Agent will orchestrate the Agents until the given bug is fixed.
+
+### Assembling the Network
+
+Finally, assemble the Network of Agents and Router Agent:
+
+```typescript
+const network = createNetwork({
+  name: "code-assistant-v3",
+  agents: [plannerAgent, editorAgent],
+  defaultModel: anthropic({
+    model: "claude-3-5-sonnet-latest",
+    max_tokens: 4096,
+  }),
+  defaultRouter: router,
+});
+```
+
+Our Code Assistant v3 is now complete and ready to be used!
+
 ## Running our Code Assistant v3
 
+First, go to your Anthropic dashboard and create a new API key.
 
+Then, run the following command to start the server:
+
+<CodeGroup>
+
+```bash npm
+ANTHROPIC_API_KEY=<your-api-key> npm run start
+```
+
+```bash pnpm
+ANTHROPIC_API_KEY=<your-api-key> pnpm run start
+```
+
+```bash yarn
+ANTHROPIC_API_KEY=<your-api-key> yarn run start
+```
+
+</CodeGroup>
+
+Your Code Assistant is now running at `http://localhost:3010` and ready to help fix bugs in your TypeScript projects!
 
 ## What we've learned so far
 
 Let's recap what we've learned so far:
 
-_TODO_
-
-## Next steps
-
-<Card title="Code Assistant v3: Autonomous Code Assistant" href="/ai-agents-in-practice/ai-agents" icon="brain">
-The final version update of our Code Assistant will transform it into a semi-autonomous AI Agent.
-</Card>
+- **Autonomous AI Agents** can be built by using [**Router Agents**](/concepts/routers#routing-agent-autonomous-routing), which act as the "brain" of an autonomous system by orchestrating other Agents
+- **Tools** provide Agents with capabilities to interact with their environment
