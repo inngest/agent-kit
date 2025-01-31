@@ -1,0 +1,23 @@
+{
+  "name": "code-assistant-rag",
+  "private": true,
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "start": "tsx ./index.ts",
+    "inngest-dev": "npx inngest-cli@latest dev -u http://localhost:3000/api/inngest",
+    "dev": "tsx --watch ./index.ts"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@inngest/agent-kit": "0.2.2",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^22.9.1",
+    "tsx": "^4.19.2"
+  }
+}

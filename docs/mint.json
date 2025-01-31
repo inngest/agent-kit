@@ -44,6 +44,10 @@
       "url": "reference"
     },
     {
+      "name": "Changelog",
+      "url": "changelog"
+    },
+    {
       "name": "Inngest documentation",
       "url": "https://www.inngest.com/docs"
     }
@@ -90,7 +94,7 @@
     },
     {
       "group": "Agent",
-      "pages": ["reference/create-agent", "reference/create-typed-tool"]
+      "pages": ["reference/create-agent", "reference/create-tool"]
     },
     {
       "group": "Network",
@@ -107,6 +111,25 @@
         "reference/model-anthropic",
         "reference/model-gemini"
       ]
+    },
+    {
+      "group": "Learn AI Agents in Practice",
+      "pages": [
+        "ai-agents-in-practice/overview",
+        "ai-agents-in-practice/ai-workflows",
+        "ai-agents-in-practice/agentic-workflows",
+        "ai-agents-in-practice/ai-agents"
+      ]
+    },
+    {
+      "group": "Changelog",
+      "pages": ["changelog/overview"]
+    }
+  ],
+  "redirects": [
+    {
+      "source": "/reference/create-typed-tool",
+      "destination": "/reference/create-tool"
     }
   ],
   "footerSocials": {

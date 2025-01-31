@@ -1,0 +1,89 @@
+---
+title: "The three levels of AI apps"
+description: "A comprehensive guide to building AI Agents with AgentKit and Anthropic"
+---
+
+AI Agents can be a complex topic to understand and differentiate from RAG, AI workflows, Agentic workflows, and more.
+This guide will provide a definition of AI Agents with practical examples inspired by the [Building effective agents](https://www.anthropic.com/research/building-effective-agents) manifesto from Anthropic.
+
+**Table of contents:**
+
+- [From AI Workflows to AI Agents](#from-ai-workflows-to-ai-agents)
+- [How to use this guide](#how-to-use-this-guide)
+
+
+
+## From AI Workflows to AI Agents
+
+The first AI applications were chat-based experiences offering different ways to interact with existing LLM APIs.
+Then, as the LLM knowledge was limited to its training data (_ex: [OpenAI knowledge cutoff date of September 2021](https://community.openai.com/t/knowledge-cutoff-date-of-september-2021/66215/1)_), it quickly became clear that this was not enough to build practical AI applications.
+
+**Workflows: enriching LLM knowledge**
+
+This is where AI applications started to introduce workflows to power patterns such as RAG: Retrieval Augmented Generation.
+
+RAG enabled AI applications to retrieve information from external sources and forward it as context to LLMs, resulting in more accurate and relevant responses.
+
+{/* _TODO: add a diagram of the RAG workflow_ */}
+
+The introduction of workflows in AI applications enabled additional patterns:
+- **Prompt chaining**: one of many [Prompt Engineering](https://www.promptingguide.ai/) patterns to improve LLM accuracy and reduce hallucinations.
+- **Tool calling**: enabling LLMs to call provided functions to perform specific tasks or retrieve fresh information.
+- **External databases for memory and embeddings**: enabling LLMs to store and retrieve information from external databases in an efficient way.
+
+{/* _TODO: add a diagram of AI workflows capabilities_ */}
+
+**Reasoning and Action: the birth of Agentic Workflows**
+
+Relying on tools, embeddings, and prompt engineering greatly helped to improve LLM accuracy and reduce hallucinations.
+Still, such patterns were not enough to solve complex problems or completely solve the problem of hallucinations (_ex: [Air Canada chatbot misinformation](https://www.bbc.com/travel/article/20240222-air-canada-chatbot-misinformation-what-travellers-should-know)_).
+
+In October 2022, a research paper called ["Reasoning and Action"](https://arxiv.org/abs/2210.03629) (also known as _ReAct_) was published.
+This paper introduced a new approach to developing LLM applications by introducing the concepts of _reasoning_ and _action_ in AI workflows, giving birth to **Agentic workflows**.
+
+Agentic workflows consist of leveraging LLMs to take actions on the workflow state, making the workflow more autonomous and reducing hallucinations.
+A good example of an Agentic workflow is the SafeGuard pattern, which adds LLM reasoning and action capabilities to review both the input provided by the user and the output of the LLM.
+
+{/* <Frame caption="By getting the user input and the LLM output reviewed by another LLM, the SafeGuard pattern protects the user from hallucinations and the LLM from prompt injection.">
+  <img src="/graphics/ai-agents-in-practice/safeguard-pattern.png" />
+</Frame> */}
+
+While Agentic workflows leverage LLMs to improve AI workflow relevance and reduce hallucinations, a new pattern emerged taking the principles of chain-of-thought reasoning with action-taking to another level: **AI Agents**.
+
+**AI Agents: Fully autonomous AI applications**
+
+The previous AI workflows and Agentic workflows are based on static workflows with some degree of autonomy.
+AI Agents aim for full autonomy of the AI application, enabling it to solve complex problems such as developing complete web applications or fixing issues in production.
+
+{/* _TODO: add a diagram of AI Agents_ */}
+
+AI Agents are still an exploratory field, with few companies having successfully built and deployed them in production (ex: [Devin](https://devin.ai/)).
+Still, it is the most active experimentation space in the LLM ecosystem with multiple open-source projects (ex: [AutoGPT](https://github.com/Significant-Gravitas/AutoGPT)).
+
+## How to use this guide
+
+Developing AI applications leverages multiple patterns from AI workflows with static steps to fully autonomous AI Agents, each fitting specific use cases.
+The best way to start is to begin simple and iterate towards complexity.
+
+This guide features a Code Assistant that will will progressively evolve from a static AI workflow to an autonomous AI Agent.
+
+Below are the different versions of our Code Assistant, each progressively adding more autonomy and complexity:
+
+<div className="pl-4">
+
+<span className="border-primary dark:border-primary-light bg-primary/10 text-primary text-xs dark:text-primary-light dark:bg-primary-light/10 rounded-xl px-2 py-1">v1</span> [Explaining a given code file](/ai-agents-in-practice/ai-workflows): The first version starts as a AI workflow using a tool to provide a file as context to the LLM (RAG).
+
+<span className="border-primary dark:border-primary-light bg-primary/10 text-primary text-xs dark:text-primary-light dark:bg-primary-light/10 rounded-xl px-2 py-1">v2</span> [Performing complex code analysis](/ai-agents-in-practice/agentic-workflows): Then, we will add Agentic capabilities to our assistant to enable it more complex analysis.
+
+<span className="border-primary dark:border-primary-light bg-primary/10 text-primary text-xs dark:text-primary-light dark:bg-primary-light/10 rounded-xl px-2 py-1">v3</span> [Autonomously reviewing a pull request](/ai-agents-in-practice/ai-agents): Finally, we will add more autonomy to our assistant, transforming it into a semi-autonomous AI Agent.
+
+<span className="border-primary dark:border-primary-light bg-primary/10 text-primary text-xs dark:text-primary-light dark:bg-primary-light/10 rounded-xl px-2 py-1">Coming soon</span> **Pushing our Code Assistant to production**: This additional chapter will cover best practices to deploy your AI Agents to production.
+
+</div>
+
+Depending on your experience developing AI applications, you can choose to start directly with the second part covering Agentic workflows.
+
+Happy coding!
+
+
+
