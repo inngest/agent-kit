@@ -5,7 +5,7 @@ settings:
   excludeLinksFromLockfile: false
 
 overrides:
-  '---@inngest/agent-kit': workspace:^
+  '@inngest/agent-kit': workspace:^
 
 importers:
 
@@ -42,11 +42,27 @@ importers:
         specifier: ^3.3.3
         version: 3.3.3
 
+  examples/code-assistant-agent:
+    dependencies:
+      '@inngest/agent-kit':
+        specifier: workspace:^
+        version: link:../../packages/agent-kit
+      zod:
+        specifier: ^3.23.8
+        version: 3.23.8
+    devDependencies:
+      '@types/node':
+        specifier: ^22.9.1
+        version: 22.10.7
+      tsx:
+        specifier: ^4.19.2
+        version: 4.19.2
+
   examples/code-assistant-agentic:
     dependencies:
       '@inngest/agent-kit':
-        specifier: 0.2.2-alpha-20250124160259-8cd3d1c43c7caa0d56005d684d89f8d7ecbfa71c
-        version: 0.2.2-alpha-20250124160259-8cd3d1c43c7caa0d56005d684d89f8d7ecbfa71c(typescript@5.7.3)
+        specifier: workspace:^
+        version: link:../../packages/agent-kit
       zod:
         specifier: ^3.23.8
         version: 3.23.8
@@ -61,8 +77,8 @@ importers:
   examples/code-assistant-rag:
     dependencies:
       '@inngest/agent-kit':
-        specifier: 0.2.2-alpha-20250124160259-8cd3d1c43c7caa0d56005d684d89f8d7ecbfa71c
-        version: 0.2.2-alpha-20250124160259-8cd3d1c43c7caa0d56005d684d89f8d7ecbfa71c(typescript@5.7.3)
+        specifier: workspace:^
+        version: link:../../packages/agent-kit
     devDependencies:
       '@types/node':
         specifier: ^22.9.1
@@ -112,8 +128,8 @@ importers:
   examples/swebench:
     dependencies:
       '@inngest/agent-kit':
-        specifier: ^0.1.2
-        version: 0.1.2(typescript@5.7.3)
+        specifier: workspace:^
+        version: link:../../packages/agent-kit
       inngest:
         specifier: ^3.28.0
         version: 3.30.0(express@4.21.1)(typescript@5.7.3)
@@ -583,12 +599,6 @@ packages:
   '@humanwhocodes/retry@0.4.1':
     resolution: {integrity: sha512-c7hNEllBlenFTHBky65mhq8WD2kbN9Q6gk0bTk8lSBvc554jpXSkST1iePudpt7+A/AQvuHs9EMqjHDXMY1lrA==}
     engines: {node: '>=18.18'}
-
-  '@inngest/agent-kit@0.1.2':
-    resolution: {integrity: sha512-EePplDdeq9kTEV3sdppKMd2UEm9t39ZVWr1cK8OgHg/NBrhq51+sk3QIlwKpHZGIig2KXznBNcdFM44IPXR5ng==}
-
-  '@inngest/agent-kit@0.2.2-alpha-20250124160259-8cd3d1c43c7caa0d56005d684d89f8d7ecbfa71c':
-    resolution: {integrity: sha512-PeXHXlDT4znI+6QGg6ro3wC37vrYBWia/hvapIVedPOVuZxS2O/8aRnCMUdD0TYubzMxC4ennsL9lxe0CRxXTQ==}
 
   '@inngest/ai@0.0.0':
     resolution: {integrity: sha512-Zic5ECvciYFgLyreuAwlD09/QrlHdCLBBZDodf+h9mTicXB1eq6sWgBOMQ4XiR31qVKVj19ADU7mtqF1+f7Lbg==}
@@ -2630,48 +2640,6 @@ snapshots:
   '@humanwhocodes/retry@0.3.1': {}
 
   '@humanwhocodes/retry@0.4.1': {}
-
-  '@inngest/agent-kit@0.1.2(typescript@5.7.3)':
-    dependencies:
-      express: 4.21.1
-      inngest: 3.30.0(express@4.21.1)(typescript@5.7.3)
-      openai-zod-to-json-schema: 1.0.3(zod@3.23.8)
-      zod: 3.23.8
-    transitivePeerDependencies:
-      - '@sveltejs/kit'
-      - '@vercel/node'
-      - aws-lambda
-      - encoding
-      - fastify
-      - h3
-      - hono
-      - koa
-      - next
-      - supports-color
-      - typescript
-
-  '@inngest/agent-kit@0.2.2-alpha-20250124160259-8cd3d1c43c7caa0d56005d684d89f8d7ecbfa71c(typescript@5.7.3)':
-    dependencies:
-      '@dmitryrechkin/json-schema-to-zod': 1.0.0
-      '@inngest/ai': 0.0.0
-      '@modelcontextprotocol/sdk': 1.1.1
-      eventsource: 3.0.2
-      express: 4.21.1
-      inngest: 3.30.0(express@4.21.1)(typescript@5.7.3)
-      openai-zod-to-json-schema: 1.0.3(zod@3.23.8)
-      zod: 3.23.8
-    transitivePeerDependencies:
-      - '@sveltejs/kit'
-      - '@vercel/node'
-      - aws-lambda
-      - encoding
-      - fastify
-      - h3
-      - hono
-      - koa
-      - next
-      - supports-color
-      - typescript
 
   '@inngest/ai@0.0.0':
     dependencies:

@@ -1,0 +1,24 @@
+1. TypeError: Cannot read properties of undefined (reading 'body')
+   at app.post (/project/src/routes/users.ts:10:23)
+   Cause: Incorrect body-parser initialization (missing parentheses)
+   Trigger: POST /users with JSON body
+
+2. TypeError: Cannot read properties of undefined (reading 'toString')
+   at app.get (/project/src/index.ts:28:52)
+   Cause: Accessing non-existent header 'last-request-time'
+   Trigger: GET /status
+
+3. TypeError: Cannot read properties of undefined (reading 'completed')
+   at /project/src/routes/tasks.ts:41:10
+   Cause: Race condition in task status update
+   Trigger: Multiple simultaneous PATCH /task/:id/toggle requests
+
+4. RangeError: Invalid array index: -1
+   at Array.splice (/project/src/routes/users.ts:33:9)
+   Cause: No error handling for invalid array indices
+   Trigger: DELETE /users/-1
+
+5. Error: Cannot set headers after they are sent to the client
+   at ServerResponse.setHeader (/project/src/routes/tasks.ts:42:12)
+   Cause: Attempting to send multiple responses in async operation
+   Trigger: PATCH /task/:id/toggle with slow network connection 
