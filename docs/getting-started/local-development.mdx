@@ -1,0 +1,127 @@
+---
+title: "Local development"
+description: "Run AgentKit locally with live traces and logs."
+---
+
+
+Developing AgentKit applications locally is a breeze when combined with the [Inngest Dev Server](https://www.inngest.com/docs/dev-server).
+
+The Inngest Dev Server is a local development tool that provides live traces and logs for your AgentKit applications, providing a
+quicker feedback loop and full visibility into your AgentKit's state and Agent LLM calls:
+
+<video
+  autoPlay
+  muted
+  loop
+  playsInline
+  className="w-full rounded"
+  src="https://cdn.inngest.com/agent-kit/agentkit-with-inngest-dev-server.mp4"
+></video>
+
+
+## Using AgentKit with the Inngest Dev Server
+
+### 1. Install the `inngest` package
+
+To use AgentKit with the Inngest Dev Server, you need to install the `inngest` package.
+
+<CodeGroup>
+
+```shell npm
+npm install inngest
+```
+
+```shell pnpm
+pnpm install inngest
+```
+
+```shell yarn
+yarn add inngest
+```
+
+</CodeGroup>
+
+### 2. Expose your AgentKit network over HTTP
+
+The Inngest Dev Server needs to be able to trigger your AgentKit network over HTTP.
+If your AgentKit network runs as a CLI, a few lines changes will make it available over HTTP:
+
+```ts {1, 8-13}
+import { createNetwork, createServer } from '@inngest/agent-kit';
+
+const network = createNetwork({
+  name: 'My Network',
+  agents: [/* ... */],
+});
+
+const server = createServer({
+  networks: [network],
+});
+
+server.listen(3010, () => console.log("Agent kit running!"));
+```
+
+Now, starting your AgentKit script will make it available over HTTP.
+
+Let's now trigger our AgentKit network from the Inngest Dev Server.
+
+
+
+### 3. Trigger your AgentKit network from the Inngest Dev Server
+
+You can start the Inngest Dev Server with the following command:
+
+```shell
+npx inngest-cli@latest dev
+```
+
+And navigate to the Inngest Dev Server by opening [http://127.0.0.1:8288](http://127.0.0.1:8288) in your browser.
+
+You can now explore the Inngest Dev Server features:
+
+
+## Features
+
+### Triggering your AgentKit network
+
+You can trigger your AgentKit network by clicking on the "Trigger" button in the Inngest Dev Server from the "Functions" tab.
+In the opened, add an `input` property with the input you want to pass to your AgentKit network:
+
+![Inngest Dev Server function list](/graphics/quick-start/dev-server-agent.png)
+
+Then, click on the "Run" button to trigger your AgentKit network"
+
+![Inngest Dev Server invoke function modal](/graphics/quick-start/dev-server-invoke.png)
+
+
+### Inspect AgentKit Agents token usage, input and output
+
+In the run view of your AgentKit network run, the Agents step will be highlighted with a ✨ green icon.
+By expanding the step, you can inspect the Agents:
+- The **model used**, ex: `gpt-4o`
+- The **token usage** detailed as prompt tokens, completion tokens, and total tokens
+- The **input** provided to the Agent
+- The **output** provided by the Agent
+
+![Inngest Dev Server agent run](/graphics/quick-start/dev-server-agent-step-details.png)
+
+<Info>
+**Tips**
+
+You can force line breaks to **make the input and output more readable** using the following button: ![Inngest Dev Server agent run](/graphics/quick-start/dev-server-network-run-linebreak-btn.png)
+
+You can **expand the input and output view to show its full content** using the following button: ![Inngest Dev Server agent run](/graphics/quick-start/dev-server-network-run-expand-btn.png)
+
+You can **update the input of an AgentKit Agent and trigger a rerun from this step** of the AgentKit network (_see below_)
+</Info>
+
+
+### Rerun an AgentKit Agent with a different prompt
+
+On a given AgentKit Agent run, you can update the input of the Agent and trigger a rerun from this step of the AgentKit network.
+
+First, click on the "Rerun with new prompt" button under the input area.
+Then, the following modal will open:
+
+![Inngest Dev Server agent run](/graphics/quick-start/dev-server-agent-step-rerun-modal.png)
+

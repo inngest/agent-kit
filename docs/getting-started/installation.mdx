@@ -3,20 +3,49 @@ title: "Installation"
 description: "How to install AgentKit"
 ---
 
-Install the AgentKit [npm package](https://www.npmjs.com/package/@inngest/agent-kit) and [Inngest](https://www.npmjs.com/package/inngest) using your favorite package manager:
+Install the AgentKit [npm package](https://www.npmjs.com/package/@inngest/agent-kit) using your favorite package manager:
 
 <CodeGroup>
 
 ```shell npm
-npm install @inngest/agent-kit inngest
+npm install @inngest/agent-kit
 ```
 
 ```shell pnpm
-pnpm install @inngest/agent-kit inngest
+pnpm install @inngest/agent-kit
 ```
 
 ```shell yarn
-yarn add @inngest/agent-kit inngest
+yarn add @inngest/agent-kit
 ```
 
 </CodeGroup>
+
+For a better local developement and production deployment experience, we recommend installing [Inngest](https://www.npmjs.com/package/inngest) alongside AgentKit:
+
+<CodeGroup>
+
+```shell npm
+npm install inngest
+```
+
+```shell pnpm
+pnpm install inngest
+```
+
+```shell yarn
+yarn add inngest
+```
+
+</CodeGroup>
+
+## Beyond installation
+
+<CardGroup>
+<Card title="Local development" href="/getting-started/local-development" icon="laptop">
+Discover Inngest's Dev Server with live traces and logs.
+</Card>
+<Card title="Deployment to production" href="/getting-started/deployment" icon="cloud">
+Add concurrency and throttling to your AgentKit network and deploy it to Inngest.
+</Card>
+</CardGroup>

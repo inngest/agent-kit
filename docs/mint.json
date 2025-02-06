@@ -70,7 +70,8 @@
       "pages": [
         "overview",
         "getting-started/quick-start",
-        "getting-started/installation"
+        "getting-started/installation",
+        "getting-started/local-development"
       ]
     },
     {
@@ -81,7 +82,8 @@
         "concepts/networks",
         "concepts/state",
         "concepts/routers",
-        "concepts/models"
+        "concepts/models",
+        "concepts/deployment"
       ]
     },
     {
@@ -119,6 +121,14 @@
         "ai-agents-in-practice/ai-workflows",
         "ai-agents-in-practice/agentic-workflows",
         "ai-agents-in-practice/ai-agents"
+      ]
+    },
+    {
+      "group": "Advanced Patterns",
+      "pages": [
+        "advanced-patterns/multi-steps-tools",
+        "advanced-patterns/retries",
+        "advanced-patterns/multitenancy"
       ]
     },
     {

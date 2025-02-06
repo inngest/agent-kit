@@ -1,0 +1,69 @@
+---
+title: Configuring Retries
+description: 'Configure retries for your AgentKit network Agents and Tool calls.'
+---
+
+import TransformNetworkIntoInngestFunction from '/snippets/transform-network-into-inngest-function.mdx';
+
+
+Using AgentKit alongside Inngest enables automatic retries for your AgentKit network Agents and Tools calls.
+
+The default retry policy is to retry 4 times with exponential backoff and can be configured by following the steps below.
+
+
+
+<Info>
+**Prerequisites**
+
+Your AgentKit network [must be configured with Inngest](/getting-started/local-development#1-install-the-inngest-package).
+
+</Info>
+
+## Configuring Retries
+
+Configuring a custom retry policy is done by transforming your AgentKit network into an Inngest function.
+
+### Transforming your AgentKit network into an Inngest function
+
+<TransformNetworkIntoInngestFunction />
+
+### Configuring a custom retry policy
+
+We can now configure the capacity by user by adding concurrency and throttling configuration to our Inngest function:
+
+```ts src/inngest/agent-network.ts {8}
+import { createAgent, createNetwork, createServer, openai } from '@inngest/agent-kit';
+import { inngest } from './inngest/client';
+
+// network and agent definitions..
+
+const deepResearchNetworkFunction = inngest.createFunction({ 
+  id: 'deep-research-network',
+  retries: 1
+}, {
+  event: "deep-research-network/run"
+}, async ({ event, step }) => {
+    const { input } = event.data;
+
+    return network.run(input);
+})
+
+const server = createServer({
+  functions: [deepResearchNetworkFunction],
+});
+
+server.listen(3010, () => console.log("Agent kit running!"));
+```
+
+Your AgentKit network will now retry once on any failure happening during a single execution cycle of your network.
+
+
+## Going further
+
+<CardGroup>
+
+<Card title="Configuring Multitenancy"  icon="arrows-rotate" href="/advanced-patterns/multitenancy">
+    Learn how to configure user-based capacity for your AgentKit network.
+</Card>
+
+</CardGroup>
