@@ -1,6 +1,6 @@
 ---
 title: Configuring Retries
-description: 'Configure retries for your AgentKit network Agents and Tools calls.'
+description: 'Configure retries for your AgentKit network Agents and Tool calls.'
 ---
 
 import TransformNetworkIntoInngestFunction from '/snippets/transform-network-into-inngest-function.mdx';
@@ -55,7 +55,7 @@ const server = createServer({
 server.listen(3010, () => console.log("Agent kit running!"));
 ```
 
-Your AgentKit network will now be **retry once** any failure happening during a single execution cycle of your network.
+Your AgentKit network will now retry once on any failure happening during a single execution cycle of your network.
 
 
 ## Going further

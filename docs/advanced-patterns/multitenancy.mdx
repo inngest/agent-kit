@@ -6,7 +6,7 @@ description: 'Configure capacity based on users or organizations.'
 import TransformNetworkIntoInngestFunction from '/snippets/transform-network-into-inngest-function.mdx';
 
 
-As covered in the [deployment guide](/concepts/deployment), moving an AgentKit network into users' hands requires configuring usage limits.
+As discussed in the [deployment guide](/concepts/deployment), moving an AgentKit network into users' hands requires configuring usage limits.
 
 To avoid having one user's usage affect another, you can configure multi-tenancy.
 
@@ -62,7 +62,7 @@ const server = createServer({
 server.listen(3010, () => console.log("Agent kit running!"));
 ```
 
-Your AgentKit network will now be able to run 10 requests per user.
+Your AgentKit network will now be limited to 10 concurrent requests per user.
 
 The same can be done to add [throttling](https://www.inngest.com/docs/guides/throttling?ref=agentkit-docs-multitenancy), [rate limiting](https://www.inngest.com/docs/guides/rate-limiting?ref=agentkit-docs-multitenancy) or [priority](https://www.inngest.com/docs/guides/priority?ref=agentkit-docs-multitenancy).
 
