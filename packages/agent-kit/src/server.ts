@@ -29,8 +29,26 @@ export const createServer = ({
   functions: manualFns = [],
 }: {
   appId?: string;
-  networks?: Network[];
-  agents?: Agent[];
+  networks?: (
+    | Network
+    | {
+        options: Omit<
+          InngestFunction.Options,
+          "id" | "triggers" | "middleware" | "onFailure"
+        >;
+        network: Network;
+      }
+  )[];
+  agents?: (
+    | Agent
+    | {
+        options: Omit<
+          InngestFunction.Options,
+          "id" | "triggers" | "middleware" | "onFailure"
+        >;
+        agent: Agent;
+      }
+  )[];
   functions?: InngestFunction.Any[];
   client?: Inngest.Any;
 }) => {
@@ -46,12 +64,16 @@ export const createServer = ({
     {}
   );
 
-  for (const agent of agents) {
+  for (const agentOrObject of agents) {
+    const agent =
+      "agent" in agentOrObject ? agentOrObject.agent : agentOrObject;
+    const customFunctionConfig =
+      "agent" in agentOrObject ? agentOrObject.options : undefined;
     const slug = slugify(agent.name);
     const id = `agent-${slug}`;
 
     functions[id] = inngest.createFunction(
-      { id, name: agent.name },
+      { id, name: agent.name, ...customFunctionConfig },
       { event: `${inngest.id}/${id}` },
       async ({ event }) => {
         // eslint-disable-next-line
@@ -60,12 +82,16 @@ export const createServer = ({
     );
   }
 
-  for (const network of networks) {
+  for (const networkOrObject of networks) {
+    const network =
+      "network" in networkOrObject ? networkOrObject.network : networkOrObject;
+    const customFunctionConfig =
+      "network" in networkOrObject ? networkOrObject.options : undefined;
     const slug = slugify(network.name);
     const id = `network-${slug}`;
 
     functions[id] = inngest.createFunction(
-      { id, name: network.name },
+      { id, name: network.name, ...customFunctionConfig },
       { event: `${inngest.id}/${id}` },
       async ({ event }) => {
         // eslint-disable-next-line
