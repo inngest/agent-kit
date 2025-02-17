@@ -115,12 +115,12 @@
       ]
     },
     {
-      "group": "Learn AI Agents in Practice",
+      "group": "Guided Tour",
       "pages": [
-        "ai-agents-in-practice/overview",
-        "ai-agents-in-practice/ai-workflows",
-        "ai-agents-in-practice/agentic-workflows",
-        "ai-agents-in-practice/ai-agents"
+        "guided-tour/overview",
+        "guided-tour/ai-workflows",
+        "guided-tour/agentic-workflows",
+        "guided-tour/ai-agents"
       ]
     },
     {
@@ -140,6 +140,22 @@
     {
       "source": "/reference/create-typed-tool",
       "destination": "/reference/create-tool"
+    },
+    {
+      "source": "ai-agents-in-practice/overview",
+      "destination": "guided-tour/overview"
+    },
+    {
+      "source": "ai-agents-in-practice/ai-agents",
+      "destination": "guided-tour/ai-agents"
+    },
+    {
+      "source": "ai-agents-in-practice/ai-workflows",
+      "destination": "guided-tour/ai-workflows"
+    },
+    {
+      "source": "ai-agents-in-practice/agentic-workflows",
+      "destination": "guided-tour/agentic-workflows"
     }
   ],
   "footerSocials": {
