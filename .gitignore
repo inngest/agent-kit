@@ -2,6 +2,7 @@
 dist
 *.tgz
 .eslintcache
+.env
 
 # Node packages
 node_modules
