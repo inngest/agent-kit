@@ -86,7 +86,8 @@ In this tutorial you will create an [Agent](/concepts/agents) and run it within 
     Next, we'll create an http server in order to run our agent. In the same file as our _Agent_ definition:
 
     ```ts index.ts
-    import { createAgent, anthropic, createServer } from '@inngest/agent-kit';
+    import { createAgent, anthropic } from '@inngest/agent-kit';
+    import { createServer } from '@inngest/agent-kit/server';
     // ...
     const server = createServer({
       agents: [dbaAgent],

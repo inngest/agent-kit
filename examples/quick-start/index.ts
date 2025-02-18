@@ -1,9 +1,5 @@
-import {
-  anthropic,
-  createAgent,
-  createNetwork,
-  createServer,
-} from "@inngest/agent-kit";
+import { anthropic, createAgent, createNetwork } from "@inngest/agent-kit";
+import { createServer } from "@inngest/agent-kit/server";
 
 const dbaAgent = createAgent({
   name: "Database administrator",
