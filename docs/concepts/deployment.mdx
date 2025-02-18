@@ -49,7 +49,8 @@ yarn add inngest
 Update your AgentKit network to serve over HTTP as follows:
 
 ```ts {1, 8-13}
-import { createNetwork, createServer } from '@inngest/agent-kit';
+import { createNetwork } from '@inngest/agent-kit';
+import { createServer } from '@inngest/agent-kit/server';
 
 const network = createNetwork({
   name: 'My Network',
