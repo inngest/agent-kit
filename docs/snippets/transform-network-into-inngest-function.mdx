@@ -11,7 +11,9 @@ const inngest = new Inngest({
 Then, transform your AgentKit network into an Inngest function as follows:
 
 ```ts src/inngest/agent-network.ts {16-23, 26}
-import { createAgent, createNetwork, createServer, openai } from '@inngest/agent-kit';
+import { createAgent, createNetwork, openai } from '@inngest/agent-kit';
+import { createServer } from '@inngest/agent-kit/server';
+
 import { inngest } from './inngest/client';
 
 

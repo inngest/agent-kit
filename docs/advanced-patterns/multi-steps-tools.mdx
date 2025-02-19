@@ -88,7 +88,9 @@ All the above steps will be retried automatically in case of failure, resuming t
 We can now add our `researchWebTool` to our AgentKit network:
 
 ```ts src/inngest/agent-network.ts {2, 7, 18}
-import { createAgent, createNetwork, createServer, openai } from '@inngest/agent-kit';
+import { createAgent, createNetwork, openai } from '@inngest/agent-kit';
+import { createServer } from '@inngest/agent-kit/server';
+
 import { researchWebTool } from './inngest/tools/research-web';
 
 
