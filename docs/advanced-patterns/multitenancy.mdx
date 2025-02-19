@@ -34,7 +34,9 @@ Adding multi-tenancy to your AgentKit network is done by transforming your Agent
 We can now configure the capacity by user by adding concurrency and throttling configuration to our Inngest function:
 
 ```ts src/inngest/agent-network.ts {8-13}
-import { createAgent, createNetwork, createServer, openai } from '@inngest/agent-kit';
+import { createAgent, createNetwork, openai } from '@inngest/agent-kit';
+import { createServer } from '@inngest/agent-kit/server';
+
 import { inngest } from './inngest/client';
 
 // network and agent definitions..
