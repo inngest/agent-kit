@@ -1,71 +1,17 @@
 /* eslint-disable */
 import "dotenv/config";
 
-import { Sandbox } from "@e2b/code-interpreter";
 import { z } from "zod";
 import {
   createAgent,
   createNetwork,
   createTool,
   anthropic,
-  TextMessage,
-  InferenceResult,
 } from "@inngest/agent-kit";
 
-async function runSandboxCommand(sandboxId: string, command: string) {
-  const buffers = { stdout: "", stderr: "" };
-
-  try {
-    const s = await Sandbox.connect(sandboxId);
-    const result = await s.commands.run(command, {
-      onStdout: (data) => {
-        buffers.stdout += data;
-      },
-      onStderr: (data) => {
-        buffers.stderr += data;
-      },
-    });
-    console.log("result", result.stdout);
-    return result.stdout;
-  } catch (e) {
-    console.error(
-      `Command failed: ${e} \nstdout: ${buffers.stdout}\nstderr: ${buffers.stderr}`
-    );
-    return `Command failed: ${e} \nstdout: ${buffers.stdout}\nstderr: ${buffers.stderr}`;
-  }
-}
-
-function lastAssistantTextMessageContent(result: InferenceResult) {
-  const lastAssistantMessageIndex = result.output.findLastIndex(
-    (message) => message.role === "assistant"
-  );
-  const message = result.output[lastAssistantMessageIndex] as
-    | TextMessage
-    | undefined;
-  return message?.content
-    ? typeof message.content === "string"
-      ? message.content
-      : message.content.map((c) => c.text).join("")
-    : undefined;
-}
-
-let sandboxId: string;
-
-// ANGLE: Building Coding Agent with E2B
-// Experiment: Rebuild Cursors Agent with E2B and Agent Kit
-
-// PRD:
-// We want to create a network of agents that generates unit tests with high coverage for a given codebase.
-// The steps will be the following:
-// 1. upload the project .zip file into a persisted e2b sandbox
-// 2. run the network of agents to generate unit tests with high coverage
+import { getSandbox, lastAssistantTextMessageContent } from "./utils.js";
 
 async function main() {
-  const sandbox = await Sandbox.create();
-
-  console.log("sandbox", sandbox.sandboxId);
-  sandboxId = sandbox.sandboxId;
-
   const agent = createAgent({
     name: "Coding Agent",
     description: "An expert coding agent",
@@ -79,15 +25,10 @@ async function main() {
 
     Think step-by-step before you start the task.
     `,
-    // mcpServers: [
-    //   {
-    //     name: "neon",
-    //     transport: {
-    //       type: "sse",
-    //       url: "https://neon.tech/mcp",
-    //     },
-    //   },
-    // ],
+    model: anthropic({
+      model: "claude-3-5-sonnet-latest",
+      max_tokens: 4096,
+    }),
     tools: [
       // terminal use
       createTool({
@@ -96,9 +37,30 @@ async function main() {
         parameters: z.object({
           command: z.string(),
         }),
-        handler: async ({ command }) => {
-          console.log("terminal", command);
-          return await runSandboxCommand(sandboxId, command);
+        handler: async ({ command }, { network }) => {
+          console.log("terminal < ", command);
+          const buffers = { stdout: "", stderr: "" };
+
+          try {
+            const sandbox = await getSandbox(network);
+            const result = await sandbox.commands.run(command, {
+              onStdout: (data: string) => {
+                // console.log("terminal stdout >", data);
+                buffers.stdout += data;
+              },
+              onStderr: (data: string) => {
+                // console.log("terminal stderr >", data);
+                buffers.stderr += data;
+              },
+            });
+            console.log("terminal result >", result.stdout);
+            return result.stdout;
+          } catch (e) {
+            console.error(
+              `Command failed: ${e} \nstdout: ${buffers.stdout}\nstderr: ${buffers.stderr}`
+            );
+            return `Command failed: ${e} \nstdout: ${buffers.stdout}\nstderr: ${buffers.stderr}`;
+          }
         },
       }),
       // create or update file
@@ -113,15 +75,15 @@ async function main() {
             })
           ),
         }),
-        handler: async ({ files }) => {
+        handler: async ({ files }, { network }) => {
           console.log(
-            "createOrUpdateFiles",
+            "createOrUpdateFiles <",
             files.map((f) => f.path)
           );
           try {
-            const s = await Sandbox.connect(sandboxId);
+            const sandbox = await getSandbox(network);
             for (const file of files) {
-              await s.files.write(file.path, file.content);
+              await sandbox.files.write(file.path, file.content);
             }
             return `Files created or updated: ${files.map((f) => f.path).join(", ")}`;
           } catch (e) {
@@ -137,13 +99,13 @@ async function main() {
         parameters: z.object({
           files: z.array(z.string()),
         }),
-        handler: async ({ files }) => {
-          console.log("readFiles", files);
+        handler: async ({ files }, { network }) => {
+          console.log("readFiles <", files);
           try {
-            const s = await Sandbox.connect(sandboxId);
+            const sandbox = await getSandbox(network);
             const contents = [];
             for (const file of files) {
-              const content = await s.files.read(file);
+              const content = await sandbox.files.read(file);
               contents.push({ path: file, content });
             }
             return JSON.stringify(contents);
@@ -160,13 +122,13 @@ async function main() {
         parameters: z.object({
           code: z.string(),
         }),
-        handler: async ({ code }) => {
-          console.log("runCode", code);
+        handler: async ({ code }, { network }) => {
+          console.log("runCode <", code);
 
           try {
-            const s = await Sandbox.connect(sandboxId);
-            const result = await s.runCode(code);
-            console.log("result", result);
+            const sandbox = await getSandbox(network);
+            const result = await sandbox.runCode(code);
+            console.log("runCode result >", result);
 
             return result.logs.stdout.join("\n");
           } catch (e) {
@@ -180,6 +142,7 @@ async function main() {
       onResponse: async ({ result, network }) => {
         const lastAssistantMessageText =
           lastAssistantTextMessageContent(result);
+        console.log("Agent response >", lastAssistantMessageText);
         if (lastAssistantMessageText) {
           if (lastAssistantMessageText.includes("<task_summary>")) {
             network?.state.kv.set("task_summary", lastAssistantMessageText);
@@ -189,41 +152,13 @@ async function main() {
         return result;
       },
     },
-    //  lifecycle: {
-    //    // ensure we got a Sandbox available
-    //    onStart: async ({ network, history, prompt }) => {
-    //      if (!network?.state.kv.has("sandboxId")) {
-    //        const s = await Sandbox.create();
-    //        network?.state.kv.set("sandboxId", s.sandboxId);
-    //        console.log("created sandbox", s.sandboxId);
-    //      }
-
-    //      if (
-    //        !network?.state.kv.has("sandbox") &&
-    //        network?.state.kv.has("sandboxId")
-    //      ) {
-    //        const s = await Sandbox.connect(network!.state.kv.get("sandboxId")!);
-    //        network?.state.kv.set("sandbox", s);
-    //        console.log("connected to sandbox", s.sandboxId);
-    //      }
-
-    //      return {
-    //        history: history || [],
-    //        prompt: prompt || [],
-    //        stop: false,
-    //      };
-    //    },
-    //  },
   });
 
   const network = createNetwork({
     name: "coding-agent-network",
     agents: [agent],
-    defaultModel: anthropic({
-      model: "claude-3-5-sonnet-latest",
-      max_tokens: 1000,
-    }),
-    defaultRouter: ({ network }) => {
+    defaultRouter: ({ network, callCount }) => {
+      console.log(` --- Iteration #${callCount} ---`);
       if (network?.state.kv.has("task_summary")) {
         return;
       }
@@ -236,8 +171,8 @@ async function main() {
 
   console.log(result.state.kv.get("task_summary"));
 
-  const ss = await Sandbox.connect(sandboxId);
-  await ss.kill();
+  const sandbox = await getSandbox(result);
+  await sandbox?.kill();
 }
 
 main();
