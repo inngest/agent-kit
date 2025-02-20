@@ -1,0 +1,180 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "theme": "palm",
+  "name": "AgentKit by Inngest",
+  "colors": {
+    "primary": "#189c70",
+    "light": "#2fe4a8",
+    "dark": "#2fe4a8"
+  },
+  "favicon": "/brand/favicon-june-2024-dark.png",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "overview",
+              "getting-started/quick-start",
+              "getting-started/installation",
+              "getting-started/local-development"
+            ]
+          },
+          {
+            "group": "Concepts",
+            "pages": [
+              "concepts/agents",
+              "concepts/tools",
+              "concepts/networks",
+              "concepts/state",
+              "concepts/routers",
+              "concepts/models",
+              "concepts/deployment"
+            ]
+          },
+          {
+            "group": "Guided Tour",
+            "pages": [
+              "guided-tour/overview",
+              "guided-tour/ai-workflows",
+              "guided-tour/agentic-workflows",
+              "guided-tour/ai-agents"
+            ]
+          },
+          {
+            "group": "Integrations",
+            "pages": ["integrations/e2b"]
+          },
+          {
+            "group": "Advanced Patterns",
+            "pages": [
+              "advanced-patterns/multi-steps-tools",
+              "advanced-patterns/retries",
+              "advanced-patterns/multitenancy"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Examples",
+        "groups": [
+          {
+            "group": "Examples",
+            "pages": ["examples/overview"]
+          }
+        ]
+      },
+      {
+        "tab": "Reference",
+        "groups": [
+          {
+            "group": "Introduction",
+            "pages": ["reference/introduction"]
+          },
+          {
+            "group": "Agent",
+            "pages": ["reference/create-agent", "reference/create-tool"]
+          },
+          {
+            "group": "Network",
+            "pages": [
+              "reference/create-network",
+              "reference/state",
+              "reference/network-router"
+            ]
+          },
+          {
+            "group": "Models",
+            "pages": [
+              "reference/model-openai",
+              "reference/model-anthropic",
+              "reference/model-gemini"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Changelog",
+        "groups": [
+          {
+            "group": "Changelog",
+            "pages": ["changelog/overview"]
+          }
+        ]
+      },
+      {
+        "tab": "Inngest documentation",
+        "href": "https://www.inngest.com/docs"
+      }
+    ],
+    "global": {
+      "anchors": [
+        {
+          "anchor": "Community",
+          "href": "https://www.inngest.com/discord",
+          "icon": "discord"
+        },
+        {
+          "anchor": "GitHub",
+          "href": "https://github.com/inngest/agent-kit",
+          "icon": "github"
+        }
+      ]
+    }
+  },
+  "styling": {
+    "codeblocks": "system"
+  },
+  "logo": {
+    "light": "/brand/logo-light.svg",
+    "dark": "/brand/logo-dark.svg"
+  },
+  "background": {
+    "color": {
+      "light": "#fefefe",
+      "dark": "#020202"
+    }
+  },
+  "navbar": {
+    "links": [
+      {
+        "label": "Inngest.com",
+        "href": "https://www.inngest.com/ai?ref=agent-kit-docs"
+      }
+    ],
+    "primary": {
+      "type": "github",
+      "href": "https://github.com/inngest/agent-kit"
+    }
+  },
+  "footer": {
+    "socials": {
+      "github": "https://github.com/inngest",
+      "x": "https://x.com/inngest"
+    }
+  },
+  "redirects": [
+    {
+      "source": "/reference/create-typed-tool",
+      "destination": "/reference/create-tool"
+    },
+    {
+      "source": "ai-agents-in-practice/overview",
+      "destination": "guided-tour/overview"
+    },
+    {
+      "source": "ai-agents-in-practice/ai-agents",
+      "destination": "guided-tour/ai-agents"
+    },
+    {
+      "source": "ai-agents-in-practice/ai-workflows",
+      "destination": "guided-tour/ai-workflows"
+    },
+    {
+      "source": "ai-agents-in-practice/agentic-workflows",
+      "destination": "guided-tour/agentic-workflows"
+    }
+  ]
+}
