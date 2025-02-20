@@ -46,11 +46,11 @@
   },
   "dependencies": {
     "@dmitryrechkin/json-schema-to-zod": "^1.0.0",
-    "@inngest/ai": "^0.0.0",
+    "@inngest/ai": "0.0.4",
     "@modelcontextprotocol/sdk": "^1.1.1",
     "eventsource": "^3.0.2",
     "express": "^4.21.1",
-    "inngest": "^3.31.0",
+    "inngest": "3.31.10",
     "openai-zod-to-json-schema": "^1.0.3",
     "zod": "^3.23.8"
   },
