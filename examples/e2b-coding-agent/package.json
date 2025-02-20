@@ -4,8 +4,7 @@
   "type": "module",
   "scripts": {
     "start": "tsx src/index.ts",
-    "dev": "nodemon --watch 'src/**/*.ts' --exec tsx src/index.ts",
-    "build": "tsc"
+    "dev": "nodemon --watch 'src/**/*.ts' --exec tsx src/index.ts"
   },
   "dependencies": {
     "@e2b/code-interpreter": "^1.0.4",
