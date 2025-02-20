@@ -1,5 +1,16 @@
 # @inngest/agent-kit
 
+## 0.3.0
+
+### Minor Changes
+
+- 1da7554: fix(index.ts): remove `server` export to allow non-Node runtimes
+
+### Patch Changes
+
+- 9a9f500: fix(openai): tools with no parameters
+- 07f2634: feat(models): handle error reponses
+
 ## 0.2.2
 
 ### Patch Changes
