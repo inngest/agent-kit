@@ -6,7 +6,7 @@ import { type AiAdapter } from "@inngest/ai";
 import { Client as MCPClient } from "@modelcontextprotocol/sdk/client/index.js";
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
 import { WebSocketClientTransport } from "@modelcontextprotocol/sdk/client/websocket.js";
-import { type Transport } from "@modelcontextprotocol/sdk/shared/transport";
+import { type Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import { ListToolsResultSchema } from "@modelcontextprotocol/sdk/types.js";
 import { EventSource } from "eventsource";
 import { referenceFunction, type Inngest } from "inngest";
