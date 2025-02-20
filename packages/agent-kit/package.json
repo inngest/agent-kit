@@ -46,13 +46,17 @@
   },
   "dependencies": {
     "@dmitryrechkin/json-schema-to-zod": "^1.0.0",
-    "@inngest/ai": "pr-850",
+    "@inngest/ai": "0.0.4-pr-850.1",
     "@modelcontextprotocol/sdk": "^1.1.1",
     "eventsource": "^3.0.2",
     "express": "^4.21.1",
-    "inngest": "^3.31.0",
+    "inngest": "pr-852",
     "openai-zod-to-json-schema": "^1.0.3",
     "zod": "^3.23.8"
+  },
+  "overrides": {
+    "@inngest/ai": "0.0.4-pr-850.1",
+    "inngest": "pr-852"
   },
   "packageManager": "pnpm@9.14.2",
   "devDependencies": {
