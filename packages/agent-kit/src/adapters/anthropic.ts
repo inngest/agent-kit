@@ -120,6 +120,11 @@ export const requestParser: AgenticModel.RequestParser<Anthropic.AiModel> = (
 export const responseParser: AgenticModel.ResponseParser<Anthropic.AiModel> = (
   input
 ) => {
+  
+  if (input.type === "error") {
+    throw new Error(input.error.message || `Anthropic request failed: ${input.error}`);
+  }
+
   return (input?.content ?? []).reduce<Message[]>((acc, item) => {
     if (!item.type) {
       return acc;
