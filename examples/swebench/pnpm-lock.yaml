@@ -9,7 +9,7 @@ importers:
   .:
     dependencies:
       '@inngest/agent-kit':
-        specifier: workspace:^0.2.2
+        specifier: workspace:^0.3.0
         version: link:../../packages/agent-kit
       express:
         specifier: ^4.21.1
@@ -567,6 +567,7 @@ packages:
 
   serialize-error-cjs@0.1.3:
     resolution: {integrity: sha512-GXwbHkufrNZ87O7DUEvWhR8eBnOqiXtHsOXakkJliG7eLDmjh6gDlbJbMZFFbUx0J5sXKgwq4NFCs41dF5MhiA==}
+    deprecated: Rolling release, please update to 0.2.0
 
   serve-static@1.16.2:
     resolution: {integrity: sha512-VqpjJZKadQB/PEbEwvFdO43Ax5dFBZ2UECszz8bQ7pi7wt//PWe1P6MN7eCnjsatYtBT6EuiClbjSWP2WrIoTw==}

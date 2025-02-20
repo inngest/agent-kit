@@ -12,8 +12,8 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@inngest/agent-kit": "workspace:^0.2.2",
-    "inngest": "^3.31.0",
+    "@inngest/agent-kit": "workspace:^0.3.0",
+    "inngest": "^3.31.10",
     "zod": "^3.23.8"
   },
   "devDependencies": {

@@ -9,11 +9,11 @@ importers:
   .:
     dependencies:
       '@inngest/agent-kit':
-        specifier: workspace:^0.2.2
+        specifier: workspace:^0.3.0
         version: link:../../packages/agent-kit
       inngest:
-        specifier: ^3.31.0
-        version: 3.31.0(express@4.21.2)(typescript@5.7.3)
+        specifier: ^3.31.10
+        version: 3.31.10(express@4.21.2)(typescript@5.7.3)
       zod:
         specifier: ^3.23.8
         version: 3.24.1
@@ -174,8 +174,8 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@inngest/ai@0.0.0':
-    resolution: {integrity: sha512-Zic5ECvciYFgLyreuAwlD09/QrlHdCLBBZDodf+h9mTicXB1eq6sWgBOMQ4XiR31qVKVj19ADU7mtqF1+f7Lbg==}
+  '@inngest/ai@0.0.4':
+    resolution: {integrity: sha512-LZcKfMB8QWBFwO+ZvwYmpX/mxI4OhTfL1YNhQPiOX7Fb1PGOOw8cjvLB/y8bQf3XOqzjpjIk8FpsgzuIFMkpBQ==}
 
   '@jpwilliams/waitgroup@2.1.1':
     resolution: {integrity: sha512-0CxRhNfkvFCTLZBKGvKxY2FYtYW1yWhO2McLqBL0X5UWvYjIf9suH8anKW/DNutl369A75Ewyoh2iJMwBZ2tRg==}
@@ -381,8 +381,8 @@ packages:
   inherits@2.0.4:
     resolution: {integrity: sha512-k/vGaX4/Yla3WzyMCvTQOXYeIHvqOKtnqBduzTHpzpQZzAskKMhZ2K+EnBiSM9zGSoIFeMpXKxa4dYeZIQqewQ==}
 
-  inngest@3.31.0:
-    resolution: {integrity: sha512-mp2O2numpT/lBDMPSktcgFgf0AlEKJLUv6b1/3Rq0xNq4zqVHepmuIawuXiGSYh48jD3/R/Wrxl2gEo68vdRCw==}
+  inngest@3.31.10:
+    resolution: {integrity: sha512-9wwMWH1cQr3QoF6QyR/zW9hmMBtNuTwFs8GxMiswqIUX2YcQcaT1MHoRaY8SeyTVIfua+3W0OpO1sXiOvYojPw==}
     engines: {node: '>=14'}
     peerDependencies:
       '@sveltejs/kit': '>=1.27.3'
@@ -520,6 +520,7 @@ packages:
 
   serialize-error-cjs@0.1.3:
     resolution: {integrity: sha512-GXwbHkufrNZ87O7DUEvWhR8eBnOqiXtHsOXakkJliG7eLDmjh6gDlbJbMZFFbUx0J5sXKgwq4NFCs41dF5MhiA==}
+    deprecated: Rolling release, please update to 0.2.0
 
   serve-static@1.16.2:
     resolution: {integrity: sha512-VqpjJZKadQB/PEbEwvFdO43Ax5dFBZ2UECszz8bQ7pi7wt//PWe1P6MN7eCnjsatYtBT6EuiClbjSWP2WrIoTw==}
@@ -684,7 +685,7 @@ snapshots:
   '@esbuild/win32-x64@0.23.1':
     optional: true
 
-  '@inngest/ai@0.0.0':
+  '@inngest/ai@0.0.4':
     dependencies:
       '@types/node': 22.12.0
       typescript: 5.7.3
@@ -977,10 +978,10 @@ snapshots:
 
   inherits@2.0.4: {}
 
-  inngest@3.31.0(express@4.21.2)(typescript@5.7.3):
+  inngest@3.31.10(express@4.21.2)(typescript@5.7.3):
     dependencies:
       '@bufbuild/protobuf': 2.2.3
-      '@inngest/ai': 0.0.0
+      '@inngest/ai': 0.0.4
       '@jpwilliams/waitgroup': 2.1.1
       '@types/debug': 4.1.12
       canonicalize: 1.0.8

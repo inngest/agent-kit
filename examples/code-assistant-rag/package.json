@@ -12,7 +12,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@inngest/agent-kit": "workspace:^0.2.2"
+    "@inngest/agent-kit": "workspace:^0.3.0"
   },
   "devDependencies": {
     "@types/node": "^22.9.1",
