@@ -88,9 +88,11 @@ export const requestParser: AgenticModel.RequestParser<OpenAi.AiModel> = (
 export const responseParser: AgenticModel.ResponseParser<OpenAi.AiModel> = (
   input
 ) => {
-
   if (input.error) {
-    throw new Error(input.error.message || `OpenAI request failed: ${input.error});
+    throw new Error(
+      input.error.message ||
+        `OpenAI request failed: ${JSON.stringify(input.error)}`
+    );
   }
 
   return (input?.choices ?? []).reduce<Message[]>((acc, choice) => {
