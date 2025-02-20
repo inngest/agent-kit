@@ -4,9 +4,10 @@ import {
   createAgent,
   createNetwork,
   createRoutingAgent,
-  createServer,
   createTool,
 } from "@inngest/agent-kit";
+import { createServer } from "@inngest/agent-kit/server";
+
 import { z } from "zod";
 
 import { readdirSync, readFileSync, statSync, writeFileSync } from "fs";

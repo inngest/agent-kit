@@ -10,13 +10,20 @@ The `State` is accessible to all Agents, Tools and Routers as a `state` or `netw
 ## Creating a State
 
 ```ts
-import { createState } from '@inngest/agent-kit';
+import { State } from '@inngest/agent-kit';
 
-const state = createState({
+const state = new State({
   foo: 'bar',
 });
 
 console.log(state.kv.get('foo')); // 'bar'
+
+
+const network = createNetwork({
+  // ...
+});
+
+network.run("<query>", { state })
 ```
 
 ## Reading and Modifying State (`state.kv`)
