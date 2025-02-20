@@ -44,6 +44,10 @@
             ]
           },
           {
+            "group": "Integrations",
+            "pages": ["integrations/e2b"]
+          },
+          {
             "group": "Advanced Patterns",
             "pages": [
               "advanced-patterns/multi-steps-tools",

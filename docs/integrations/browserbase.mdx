@@ -1,0 +1,91 @@
+---
+title: Using AgentKit with Browserbase
+description: "Develop AI Agents that can browse the web"
+sidebarTitle: "Browserbase - AI Browser"
+---
+
+[E2B](https://e2b.dev) is an open-source runtime for executing AI-generated code in secure cloud sandboxes. Made for agentic & AI use cases.
+
+E2B is a perfect fit to build Coding Agents that can write code, fix bugs, and more.
+
+## Setup
+
+<Steps>
+  <Step title="Install AgentKit">
+    Within an existing project, Install AgentKit from npm:
+
+    <CodeGroup>
+
+    ```shell npm
+    npm install @inngest/agent-kit
+    ```
+
+    ```shell pnpm
+    pnpm install @inngest/agent-kit
+    ```
+
+    ```shell yarn
+    yarn add @inngest/agent-kit
+    ```
+
+    </CodeGroup>
+
+    You can always find the latest release version on [npm](https://www.npmjs.com/package/@inngest/agent-kit).
+
+    <Accordion title="Don't have an existing project?">
+      To create a new project, create a new directory then initialize using your package manager:
+
+    <CodeGroup>
+
+    ```shell npm
+    mkdir my-agent-kit-project && npm init
+    ```
+
+    ```shell pnpm
+    mkdir my-agent-kit-project && pnpm init
+    ```
+
+    ```shell yarn
+    mkdir my-agent-kit-project && yarn init
+    ```
+
+    </CodeGroup>
+    </Accordion>
+
+  </Step>
+
+</Steps>
+
+## Examples
+
+<CardGroup cols={2}>
+
+  <Card title="Replicate Cursor's Agent mode" href="https://github.com/inngest/agent-kit/tree/main/examples/e2b-coding-agent#readme" icon="github">
+    This examples shows how to use E2B sandboxes to build a coding agent that can write code and run commands to generate complete project, complete refactoring and fix bugs.
+
+    <br />
+
+    <span className="mr-2 border-primary dark:border-primary-light bg-primary/10 text-primary text-xs dark:text-primary-light dark:bg-primary-light/10 rounded-xl px-2 py-1">Agents</span>
+    <span className="mr-2 border-primary dark:border-primary-light bg-primary/10 text-primary text-xs dark:text-primary-light dark:bg-primary-light/10 rounded-xl px-2 py-1">Tools</span>
+    <span className="mr-2 border-primary dark:border-primary-light bg-primary/10 text-primary text-xs dark:text-primary-light dark:bg-primary-light/10 rounded-xl px-2 py-1">Network</span>
+    <span className="mr-2 border-primary dark:border-primary-light bg-primary/10 text-primary text-xs dark:text-primary-light dark:bg-primary-light/10 rounded-xl px-2 py-1">Integrations</span>
+    <br/>
+    <span className="mr-2 border-primary dark:border-primary-light bg-primary/10 text-primary text-xs dark:text-primary-light dark:bg-primary-light/10 rounded-xl px-2 py-1">Code-based Router</span>
+
+  </Card>
+
+  <Card title="AI-powered CSV contacts importer" href="https://github.com/inngest/agent-kit/tree/main/examples/e2b-csv-contacts-importer#readme" icon="github">
+    Let's reinvent the CSV upload UX with an AgentKit network leveraging E2B sandboxes.
+
+    <br />
+
+    <span className="mr-2 border-primary dark:border-primary-light bg-primary/10 text-primary text-xs dark:text-primary-light dark:bg-primary-light/10 rounded-xl px-2 py-1">Agents</span>
+    <span className="mr-2 border-primary dark:border-primary-light bg-primary/10 text-primary text-xs dark:text-primary-light dark:bg-primary-light/10 rounded-xl px-2 py-1">Tools</span>
+    <span className="mr-2 border-primary dark:border-primary-light bg-primary/10 text-primary text-xs dark:text-primary-light dark:bg-primary-light/10 rounded-xl px-2 py-1">Network</span>
+    <span className="mr-2 border-primary dark:border-primary-light bg-primary/10 text-primary text-xs dark:text-primary-light dark:bg-primary-light/10 rounded-xl px-2 py-1">Integrations</span>
+    <br/>
+    <span className="mr-2 border-primary dark:border-primary-light bg-primary/10 text-primary text-xs dark:text-primary-light dark:bg-primary-light/10 rounded-xl px-2 py-1">Code-based Router</span>
+
+  </Card>
+
+</CardGroup>

@@ -1,6 +1,6 @@
 ---
 title: AgentKit
-description: 'A TypeScript library to create and orchestrate AI Agents.'
+description: "A TypeScript library to create and orchestrate AI Agents."
 sidebarTitle: Overview
 mode: "wide"
 ---
@@ -9,21 +9,21 @@ AgentKit is a framework to build AI Agents, from single model inference calls to
 
 With AgentKit, you get:
 
-✨ **Simple and composable primitives** to build from simple chat-based Support Agents to semi-autonomous Coding Agents.
+✨ **Simple and composable primitives** to build from simple Support Agents to semi-autonomous Coding Agents.
 
 🧠 **Support for OpenAI, Anthropic, Gemini** and all OpenAI API compatible models.
 
-🛠️ **Powerful tools building API** with support for Claude MCP.
+🛠️ **Powerful tools building API** with support for [Claude MCP](/advanced-patterns/mcp-tools).
+
+🔌 **Integrates** with your favorite AI libraries and products (ex: [E2B](/integrations/e2b), [Browserbase](/integrations/browserbase), [Neon](/integrations/neon)).
 
 📊 **Local Live traces and input/output logs** when combined with the Inngest Dev Server.
 
 <br />
 
-
 New to AI Agents? Follow our [guided tour](/guided-tour/overview) to learn how to build your first AgentKit application.
 
 All the above sounds familiar? Check our **[Getting started section](#getting-started)** or the **["How AgentKit works" section](#how-agentkit-works)** to learn more about AgentKit's architecture.
-
 
 ## Getting started
 
@@ -34,7 +34,8 @@ All the above sounds familiar? Check our **[Getting started section](#getting-st
 </Card>
 
 <Card title="Examples" href="/examples/overview">
-Looking for inspiration? Check out our examples to see how AgentKit can be used.
+  Looking for inspiration? Check out our examples to see how AgentKit can be
+  used.
 </Card>
 
 <Card title="Concepts" href="/concepts/agents">
@@ -42,27 +43,32 @@ Looking for inspiration? Check out our examples to see how AgentKit can be used.
 </Card>
 
 <Card title="SDK Reference" href="/reference/introduction">
-Ready to dive into the code? Browse the SDK reference to learn more about AgentKit's primitives.
+  Ready to dive into the code? Browse the SDK reference to learn more about
+  AgentKit's primitives.
 </Card>
 
-
-
 </CardGroup>
-
-
 
 ## How AgentKit works
 
 <div className="flex gap-4">
 
 <div className="flex-1 py-8 mr-5">
-AgentKit enables developers to compose simple single-agent systems or entire _systems of agents_ in which multiple agents can work together. **[Agents](/concepts/agents)** are combined into **[Networks](concepts/networks)** which include a **[Router](concepts/routers)** to determine which Agent should be called. Their system's memory is recorded as Network **[State](concepts/state)** which can be used by the Router, Agents or **[Tools](concepts/tools)** to collaborate on tasks.
+  AgentKit enables developers to compose simple single-agent systems or entire
+  _systems of agents_ in which multiple agents can work together.
+  **[Agents](/concepts/agents)** are combined into
+  **[Networks](concepts/networks)** which include a
+  **[Router](concepts/routers)** to determine which Agent should be called.
+  Their system's memory is recorded as Network **[State](concepts/state)** which
+  can be used by the Router, Agents or **[Tools](concepts/tools)** to
+  collaborate on tasks.
 </div>
 
 <div className="flex-1">
 
 <Frame>
-![A diagram with the components of AgentKit in an AgentKit Network](/graphics/system.svg)
+  ![A diagram with the components of AgentKit in an AgentKit
+  Network](/graphics/system.svg)
 </Frame>
 
 </div>
@@ -72,30 +78,35 @@ AgentKit enables developers to compose simple single-agent systems or entire _sy
 The entire system is orchestration-aware and allows for customization at runtime for dynamic, powerful AI workflows and agentic systems. Here is what a simple Network looks like in code:
 
 ```ts
-import { createNetwork, createAgent, openai, anthropic } from '@inngest/agent-kit';
-import { searchWebTool } from './tools';
+import {
+  createNetwork,
+  createAgent,
+  openai,
+  anthropic,
+} from "@inngest/agent-kit";
+import { searchWebTool } from "./tools";
 
 const navigator = createAgent({
-  name: 'Navigator',
-  system: 'You are a navigator...',
+  name: "Navigator",
+  system: "You are a navigator...",
   tools: [searchWebTool],
 });
 
 const classifier = createAgent({
-  name: 'Classifier',
-  system: 'You are a classifier...',
-  model: openai('gpt-3.5-turbo'),
+  name: "Classifier",
+  system: "You are a classifier...",
+  model: openai("gpt-3.5-turbo"),
 });
 
 const summarizer = createAgent({
-  model: anthropic('claude-3-5-haiku-latest'),
-  name: 'Summarizer',
-  system: 'You are a summarizer...',
+  model: anthropic("claude-3-5-haiku-latest"),
+  name: "Summarizer",
+  system: "You are a summarizer...",
 });
 
 const network = createNetwork({
   agents: [navigator, classifier, summarizer],
-  defaultModel: openai({ model: 'gpt-4o' }),
+  defaultModel: openai({ model: "gpt-4o" }),
 });
 
 const input = `Classify then summarize the latest 10 blog posts
