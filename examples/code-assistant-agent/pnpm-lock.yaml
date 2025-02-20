@@ -9,7 +9,7 @@ importers:
   .:
     dependencies:
       '@inngest/agent-kit':
-        specifier: workspace:^0.2.2
+        specifier: workspace:^0.3.0
         version: link:../../packages/agent-kit
       zod:
         specifier: ^3.23.8
