@@ -10,7 +10,7 @@
   },
   "dependencies": {
     "@e2b/code-interpreter": "^1.0.4",
-    "@inngest/agent-kit": "workspace:^0.2.2",
+    "@inngest/agent-kit": "workspace:^0.3.0",
     "inngest": "^3.31.4",
     "next": "15.1.6",
     "react": "^19.0.0",
