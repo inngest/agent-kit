@@ -23,8 +23,6 @@ export default tseslint.config(
     rules: {
       "prettier/prettier": "warn",
       "@typescript-eslint/no-namespace": "off",
-      "@typescript-eslint/no-unsafe-member-access": "off",
-      "@typescript-eslint/no-unsafe-argument": "off",
       "@typescript-eslint/consistent-type-imports": [
         "error",
         { fixStyle: "inline-type-imports" },
