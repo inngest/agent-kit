@@ -2,15 +2,14 @@
   "compilerOptions": {
     "target": "es2017",
     "lib": ["ES2021", "DOM"],
-    "module": "commonjs",
-    "declaration": true,
-    "declarationMap": true,
-    "sourceMap": true,
-    "rootDir": "./src",
-    "outDir": "./dist",
+    "module": "Preserve",
+    "noEmit": true,
     "types": ["node"],
-    "moduleResolution": "node",
+    "moduleResolution": "bundler",
     "esModuleInterop": true,
+    "isolatedModules": true,
+    "verbatimModuleSyntax": true,
+    "moduleDetection": "force",
     "forceConsistentCasingInFileNames": true,
     "strict": true,
     "skipLibCheck": true,
@@ -19,6 +18,6 @@
     "noUncheckedIndexedAccess": true,
     "strictNullChecks": true
   },
-  "include": ["./src/**/*.ts"],
+  "include": ["./src/**/*.ts", "./tsup.config.ts"],
   "exclude": ["node_modules", "dist"]
 }
