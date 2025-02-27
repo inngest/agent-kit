@@ -12,7 +12,7 @@ importers:
         specifier: ^1.0.4
         version: 1.0.4
       '@inngest/agent-kit':
-        specifier: workspace:^0.3.0
+        specifier: workspace:^0.3.1
         version: link:../../packages/agent-kit
       dotenv:
         specifier: ^16.4.7
