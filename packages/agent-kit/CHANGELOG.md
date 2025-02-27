@@ -1,5 +1,11 @@
 # @inngest/agent-kit
 
+## 0.3.1
+
+### Patch Changes
+
+- bbb5d1c: Dual publish ESM and CJS
+
 ## 0.3.0
 
 ### Minor Changes
