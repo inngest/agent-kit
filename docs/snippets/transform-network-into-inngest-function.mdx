@@ -1,41 +1,46 @@
 First, you'll need to create an Inngest Client:
 
 ```ts src/inngest/client.ts
-import { Inngest } from 'inngest';
+import { Inngest } from "inngest";
 
 const inngest = new Inngest({
-  id: 'my-agentkit-network',
+  id: "my-agentkit-network",
 });
 ```
 
 Then, transform your AgentKit network into an Inngest function as follows:
 
-```ts src/inngest/agent-network.ts {16-23, 26}
-import { createAgent, createNetwork, openai } from '@inngest/agent-kit';
-import { createServer } from '@inngest/agent-kit/server';
+```ts src/inngest/agent-network.ts {19-30, 33}
+import { createAgent, createNetwork, openai } from "@inngest/agent-kit";
+import { createServer } from "@inngest/agent-kit/server";
 
-import { inngest } from './inngest/client';
+import { inngest } from "./inngest/client";
 
-
-const deepResearchAgent = createAgent({ 
-  name: 'Deep Research Agent',
-  tools: [/* ... */],
+const deepResearchAgent = createAgent({
+  name: "Deep Research Agent",
+  tools: [
+    /* ... */
+  ],
 });
 
 const network = createNetwork({
-  name: 'My Network',
+  name: "My Network",
   defaultModel: openai({ model: "gpt-4o" }),
   agents: [deepResearchAgent],
 });
 
-const deepResearchNetworkFunction = inngest.createFunction({ 
-  id: 'deep-research-network',
-}, {
-  event: "deep-research-network/run"
-}, async ({ event, step }) => {
+const deepResearchNetworkFunction = inngest.createFunction(
+  {
+    id: "deep-research-network",
+  },
+  {
+    event: "deep-research-network/run",
+  },
+  async ({ event, step }) => {
     const { input } = event.data;
     return network.run(input);
-})
+  }
+);
 
 const server = createServer({
   functions: [deepResearchNetworkFunction],
