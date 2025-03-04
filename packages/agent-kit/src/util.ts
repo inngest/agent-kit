@@ -126,3 +126,13 @@ const helpers = {
     return typeof value === "object" && value !== null && !Array.isArray(value);
   },
 };
+
+/**
+ * We dual-build CJS and ESM, so use this to dynamically import the
+ * JSONSchemaToZod module, which is ESM-only.
+ */
+export const getJsonSchemaToZod = async (): Promise<typeof JSONSchemaToZod> => {
+  const { JSONSchemaToZod } = await import("@dmitryrechkin/json-schema-to-zod");
+
+  return JSONSchemaToZod;
+};

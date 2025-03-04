@@ -1,7 +1,4 @@
-import {
-  JSONSchemaToZod,
-  type JSONSchema,
-} from "@dmitryrechkin/json-schema-to-zod";
+import { type JSONSchema } from "@dmitryrechkin/json-schema-to-zod";
 import { type AiAdapter } from "@inngest/ai";
 import { Client as MCPClient } from "@modelcontextprotocol/sdk/client/index.js";
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
@@ -25,6 +22,7 @@ import {
 import { type MCP, type Tool } from "./tool";
 import {
   getInngestFnInput,
+  getJsonSchemaToZod,
   getStepTools,
   isInngestFn,
   type AnyZodType,
@@ -104,6 +102,8 @@ export class Agent {
 
   // _mcpInit records whether the MCP tool list has been initialized.
   private _mcpClients: MCPClient[];
+
+  #jsonSchemaToZod = getJsonSchemaToZod();
 
   constructor(opts: Agent.Constructor | Agent.RoutingConstructor) {
     this.name = opts.name;
@@ -422,10 +422,10 @@ export class Agent {
   private async listMCPTools(server: MCP.Server) {
     const client = await this.mcpClient(server);
     try {
-      const results = await client.request(
-        { method: "tools/list" },
-        ListToolsResultSchema
-      );
+      const [results, JSONSchemaToZod] = await Promise.all([
+        client.request({ method: "tools/list" }, ListToolsResultSchema),
+        this.#jsonSchemaToZod,
+      ]);
       results.tools.forEach((t) => {
         const name = `${server.name}: ${t.name}`;
 
