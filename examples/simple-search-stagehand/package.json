@@ -1,0 +1,23 @@
+{
+  "name": "support-agent-human-in-the-loop",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "tsx src/index.ts",
+    "dev": "nodemon --watch 'src/**/*.ts' --exec tsx src/index.ts"
+  },
+  "dependencies": {
+    "@browserbasehq/sdk": "^2.3.0",
+    "@browserbasehq/stagehand": "^1.13.1",
+    "@inngest/agent-kit": "^0.3.1",
+    "dotenv": "^16.4.7",
+    "inngest": "^3.31.11",
+    "nodemon": "^3.0.0",
+    "tsx": "^4.7.0",
+    "typescript": "^5.0.0",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.9.1"
+  }
+}
