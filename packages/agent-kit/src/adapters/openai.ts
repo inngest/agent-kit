@@ -66,7 +66,7 @@ export const requestParser: AgenticModel.RequestParser<OpenAi.AiModel> = (
     // OpenAI o3 models have several issues with tool calling.
     //  one of them is not supporting the `parallel_tool_calls` parameter
     //  https://community.openai.com/t/o3-mini-api-with-tools-only-ever-returns-1-tool-no-matter-prompt/1112390/6
-    if (!model.options.model?.includes("o3")) {
+    if (!model.options.model?.includes("o3") && !model.options.model?.includes("o1")) {
       // it is recommended to disable parallel tool calls with structured output
       // https://platform.openai.com/docs/guides/function-calling#parallel-function-calling-and-structured-outputs
       request.parallel_tool_calls = false;
