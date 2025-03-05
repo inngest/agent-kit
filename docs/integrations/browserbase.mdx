@@ -1,36 +1,40 @@
 ---
 title: Using AgentKit with Browserbase
 description: "Develop AI Agents that can browse the web"
-sidebarTitle: "Browserbase - AI Browser"
+sidebarTitle: "Browserbase - AI Browsers"
 ---
 
-[E2B](https://e2b.dev) is an open-source runtime for executing AI-generated code in secure cloud sandboxes. Made for agentic & AI use cases.
+[Browserbase](https://www.browserbase.com/) provides managed [headless browsers](https://docs.browserbase.com/introduction/what-is-headless-browser) to
+enable Agents to browse the web autonomously.
 
-E2B is a perfect fit to build Coding Agents that can write code, fix bugs, and more.
+There are two ways to use Browserbase with AgentKit:
 
-## Setup
+- **Create your own Browserbase tools**: useful if you want to build simple actions on webpages with manual browser control.
+- **Use Browserbase's [Stagehand](https://www.stagehand.dev/) library as tools**: a better approach for autonomous browsing and resilient scraping.
+
+## Building AgentKit tools using Browserbase
+
+Creating AgentKit [tools](/concepts/tools) using the Browserbase TypeScript SDK is straightforward.
 
 <Steps>
   <Step title="Install AgentKit">
-    Within an existing project, Install AgentKit from npm:
+    Within an existing project, install AgentKit, Browserbase and Playwright core:
 
     <CodeGroup>
 
     ```shell npm
-    npm install @inngest/agent-kit
+    npm install @inngest/agent-kit @browserbasehq/sdk playwright-core
     ```
 
     ```shell pnpm
-    pnpm install @inngest/agent-kit
+    pnpm install @inngest/agent-kit @browserbasehq/sdk playwright-core
     ```
 
     ```shell yarn
-    yarn add @inngest/agent-kit
+    yarn add @inngest/agent-kit @browserbasehq/sdk playwright-core
     ```
 
     </CodeGroup>
-
-    You can always find the latest release version on [npm](https://www.npmjs.com/package/@inngest/agent-kit).
 
     <Accordion title="Don't have an existing project?">
       To create a new project, create a new directory then initialize using your package manager:
@@ -54,38 +58,259 @@ E2B is a perfect fit to build Coding Agents that can write code, fix bugs, and m
 
   </Step>
 
+  <Step title="2. Setup an AgentKit Newtork with an Agent">
+    Create a Agent and its associated Network, for example a Reddit Search Agent:
+
+```typescript
+import {
+  anthropic,
+  createAgent,
+  createNetwork,
+} from "@inngest/agent-kit";
+
+const searchAgent = createAgent({
+  name: "reddit_searcher",
+  description: "An agent that searches Reddit for relevant information",
+  system:
+  "You are a helpful assistant that searches Reddit for relevant information.",
+});
+
+// Create the network
+const redditSearchNetwork = createNetwork({
+  name: "reddit_search_network",
+  description: "A network that searches Reddit using Browserbase",
+  agents: [searchAgent],
+  maxIter: 2,
+  defaultModel: anthropic({
+  model: "claude-3-5-sonnet-latest",
+  max_tokens: 4096,
+});
+
+```
+
+  </Step>
+
+  <Step title="Create a Browserbase tool">
+    Let's configure the Browserbase SDK and create a tool that can search Reddit:
+
+```typescript {5, 8-9, 11-13}
+import {
+  anthropic,
+  createAgent,
+  createNetwork,
+  createTool,
+} from "@inngest/agent-kit";
+import { z } from "zod";
+import { chromium } from "playwright-core";
+import Browserbase from "@browserbasehq/sdk";
+
+const bb = new Browserbase({
+  apiKey: process.env.BROWSERBASE_API_KEY as string,
+});
+
+// Create a tool to search Reddit using Browserbase
+const searchReddit = createTool({
+  name: "search_reddit",
+  description: "Search Reddit posts and comments",
+  parameters: z.object({
+    query: z.string().describe("The search query for Reddit"),
+  }),
+  handler: async ({ query }, { step }) => {
+    return await step?.run("search-on-reddit", async () => {
+      // Create a new session
+      const session = await bb.sessions.create({
+        projectId: process.env.BROWSERBASE_PROJECT_ID as string,
+      });
+
+      // Connect to the session
+      const browser = await chromium.connectOverCDP(session.connectUrl);
+      try {
+        const page = await browser.newPage();
+
+        // Construct the search URL
+        const searchUrl = `https://search-new.pullpush.io/?type=submission&q=${query}`;
+
+        console.log(searchUrl);
+
+        await page.goto(searchUrl);
+
+        // Wait for results to load
+        await page.waitForSelector("div.results", { timeout: 10000 });
+
+        // Extract search results
+        const results = await page.evaluate(() => {
+          const posts = document.querySelectorAll("div.results div:has(h1)");
+          return Array.from(posts).map((post) => ({
+            title: post.querySelector("h1")?.textContent?.trim(),
+            content: post.querySelector("div")?.textContent?.trim(),
+          }));
+        });
+
+        console.log("results", JSON.stringify(results, null, 2));
+
+        return results.slice(0, 5); // Return top 5 results
+      } finally {
+        await browser.close();
+      }
+    });
+  },
+});
+```
+
+<Info>
+  Configure your `BROWSERBASE_API_KEY` and `BROWSERBASE_PROJECT_ID` in the
+  `.env` file. You can find your API key and project ID from the [Browserbase
+  dashboard](https://docs.browserbase.com/introduction/getting-started#creating-your-account).
+</Info>
+
+<Tip>
+  We recommend building tools using Browserbase using Inngest's `step.run()` function. This ensures that the tool will only run once across multiple runs.
+
+More information about using `step.run()` can be found in the [Multi steps tools](/advanced-patterns/multi-steps-tools) page.
+
+</Tip>
+
+  </Step>
+
 </Steps>
 
-## Examples
+### Example: Reddit Search Agent using Browserbase
 
-<CardGroup cols={2}>
+You will find a complete example of a Reddit search agent using Browserbase in the Reddit Search Agent using Browserbase example:
 
-  <Card title="Replicate Cursor's Agent mode" href="https://github.com/inngest/agent-kit/tree/main/examples/e2b-coding-agent#readme" icon="github">
-    This examples shows how to use E2B sandboxes to build a coding agent that can write code and run commands to generate complete project, complete refactoring and fix bugs.
+<Card title="Reddit Search Agent using Browserbase" href="https://github.com/inngest/agent-kit/tree/main/examples/reddit-search-browserbase-tools#readme" icon="github">
+  This examples shows how to build tools using Browserbase to power a Reddit search agent.
 
-    <br />
+<br />
+<span className="mr-2 border-primary dark:border-primary-light bg-primary/10 text-primary text-xs dark:text-primary-light dark:bg-primary-light/10 rounded-xl px-2 py-1">Agents</span>
+<span className="mr-2 border-primary dark:border-primary-light bg-primary/10 text-primary text-xs dark:text-primary-light dark:bg-primary-light/10 rounded-xl px-2 py-1">Tools</span>
+<span className="mr-2 border-primary dark:border-primary-light bg-primary/10 text-primary text-xs dark:text-primary-light dark:bg-primary-light/10 rounded-xl px-2 py-1">Network</span>
+<span className="mr-2 border-primary dark:border-primary-light bg-primary/10 text-primary text-xs dark:text-primary-light dark:bg-primary-light/10 rounded-xl px-2 py-1">Integrations</span>
 
-    <span className="mr-2 border-primary dark:border-primary-light bg-primary/10 text-primary text-xs dark:text-primary-light dark:bg-primary-light/10 rounded-xl px-2 py-1">Agents</span>
-    <span className="mr-2 border-primary dark:border-primary-light bg-primary/10 text-primary text-xs dark:text-primary-light dark:bg-primary-light/10 rounded-xl px-2 py-1">Tools</span>
-    <span className="mr-2 border-primary dark:border-primary-light bg-primary/10 text-primary text-xs dark:text-primary-light dark:bg-primary-light/10 rounded-xl px-2 py-1">Network</span>
-    <span className="mr-2 border-primary dark:border-primary-light bg-primary/10 text-primary text-xs dark:text-primary-light dark:bg-primary-light/10 rounded-xl px-2 py-1">Integrations</span>
-    <br/>
-    <span className="mr-2 border-primary dark:border-primary-light bg-primary/10 text-primary text-xs dark:text-primary-light dark:bg-primary-light/10 rounded-xl px-2 py-1">Code-based Router</span>
+</Card>
 
-  </Card>
+## Enable autonomous browsing with Stagehand
 
-  <Card title="AI-powered CSV contacts importer" href="https://github.com/inngest/agent-kit/tree/main/examples/e2b-csv-contacts-importer#readme" icon="github">
-    Let's reinvent the CSV upload UX with an AgentKit network leveraging E2B sandboxes.
+Building AgentKit tools using [Stagehand](https://www.stagehand.dev/) gives more autonomy to your agents.
 
-    <br />
+Stagehand comes with 4 primary API that can be directly used as tools:
 
-    <span className="mr-2 border-primary dark:border-primary-light bg-primary/10 text-primary text-xs dark:text-primary-light dark:bg-primary-light/10 rounded-xl px-2 py-1">Agents</span>
-    <span className="mr-2 border-primary dark:border-primary-light bg-primary/10 text-primary text-xs dark:text-primary-light dark:bg-primary-light/10 rounded-xl px-2 py-1">Tools</span>
-    <span className="mr-2 border-primary dark:border-primary-light bg-primary/10 text-primary text-xs dark:text-primary-light dark:bg-primary-light/10 rounded-xl px-2 py-1">Network</span>
-    <span className="mr-2 border-primary dark:border-primary-light bg-primary/10 text-primary text-xs dark:text-primary-light dark:bg-primary-light/10 rounded-xl px-2 py-1">Integrations</span>
-    <br/>
-    <span className="mr-2 border-primary dark:border-primary-light bg-primary/10 text-primary text-xs dark:text-primary-light dark:bg-primary-light/10 rounded-xl px-2 py-1">Code-based Router</span>
+- `goto()`: navigate to a specific URL
+- `observe()`: observe the current page
+- `extract()`: extract data from the current page
+- `act()`: take action on the current page
 
-  </Card>
+These methods can be easily directly be used as tools in AgentKit, enabling agents to browse the web autonomously.
 
-</CardGroup>
+Below is an example of a simple search agent that uses Stagehand to search the web:
+
+```ts {22, 46-49, 66, 83}
+import { createAgent, createTool } from "@inngest/agent-kit";
+import { z } from "zod";
+import { getStagehand, stringToZodSchema } from "./utils.js";
+
+const webSearchAgent = createAgent({
+  name: "web_search_agent",
+  description: "I am a web search agent.",
+  system: `You are a web search agent.
+  `,
+  tools: [
+    createTool({
+      name: "navigate",
+      description: "Navigate to a given URL",
+      parameters: z.object({
+        url: z.string().describe("the URL to navigate to"),
+      }),
+      handler: async ({ url }, { step, network }) => {
+        return await step?.run("navigate", async () => {
+          const stagehand = await getStagehand(
+            network?.state.kv.get("browserbaseSessionID")!
+          );
+          await stagehand.page.goto(url);
+          return `Navigated to ${url}.`;
+        });
+      },
+    }),
+    createTool({
+      name: "extract",
+      description: "Extract data from the page",
+      parameters: z.object({
+        instruction: z
+          .string()
+          .describe("Instructions for what data to extract from the page"),
+        schema: z
+          .string()
+          .describe(
+            "A string representing the properties and types of data to extract, for example: '{ name: string, age: number }'"
+          ),
+      }),
+      handler: async ({ instruction, schema }, { step, network }) => {
+        return await step?.run("extract", async () => {
+          const stagehand = await getStagehand(
+            network?.state.kv.get("browserbaseSessionID")!
+          );
+          const zodSchema = stringToZodSchema(schema);
+          return await stagehand.page.extract({
+            instruction,
+            schema: zodSchema,
+          });
+        });
+      },
+    }),
+    createTool({
+      name: "act",
+      description: "Perform an action on the page",
+      parameters: z.object({
+        action: z
+          .string()
+          .describe("The action to perform (e.g. 'click the login button')"),
+      }),
+      handler: async ({ action }, { step, network }) => {
+        return await step?.run("act", async () => {
+          const stagehand = await getStagehand(
+            network?.state.kv.get("browserbaseSessionID")!
+          );
+          return await stagehand.page.act({ action });
+        });
+      },
+    }),
+    createTool({
+      name: "observe",
+      description: "Observe the page",
+      parameters: z.object({
+        instruction: z
+          .string()
+          .describe("Specific instruction for what to observe on the page"),
+      }),
+      handler: async ({ instruction }, { step, network }) => {
+        return await step?.run("observe", async () => {
+          const stagehand = await getStagehand(
+            network?.state.kv.get("browserbaseSessionID")!
+          );
+          return await stagehand.page.observe({ instruction });
+        });
+      },
+    }),
+  ],
+});
+```
+
+<Info>
+  These 4 AgentKit tools using Stagehand enables the Web Search Agent to browse the web autonomously.
+
+  The `getStagehand()` helper function is used to retrieve the persisted instance created for the network execution (_see full code below_).
+</Info>
+
+You will find the complete example on GitHub:
+
+<Card title="Simple Search Agent using Stagehand" href="https://github.com/inngest/agent-kit/tree/main/examples/simple-search-stagehand/#readme" icon="github">
+  This examples shows how to build tools using Stagehand to power a simple search agent.
+
+<br />
+<span className="mr-2 border-primary dark:border-primary-light bg-primary/10 text-primary text-xs dark:text-primary-light dark:bg-primary-light/10 rounded-xl px-2 py-1">Agents</span>
+<span className="mr-2 border-primary dark:border-primary-light bg-primary/10 text-primary text-xs dark:text-primary-light dark:bg-primary-light/10 rounded-xl px-2 py-1">Tools</span>
+<span className="mr-2 border-primary dark:border-primary-light bg-primary/10 text-primary text-xs dark:text-primary-light dark:bg-primary-light/10 rounded-xl px-2 py-1">Network</span>
+<span className="mr-2 border-primary dark:border-primary-light bg-primary/10 text-primary text-xs dark:text-primary-light dark:bg-primary-light/10 rounded-xl px-2 py-1">Integrations</span>
+
+
+</Card>
