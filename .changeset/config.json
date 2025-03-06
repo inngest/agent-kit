@@ -13,7 +13,11 @@
     "swebench",
     "code-assistant-rag",
     "code-assistant-agentic",
-    "code-assistant-agent"
+    "code-assistant-agent",
+    "reddit-search-browserbase-tools",
+    "simple-search-stagehand",
+    "support-agent-human-in-the-loop",
+    "e2b-csv-contacts-importer"
   ],
   "snapshot": {
     "useCalculatedVersion": true,
