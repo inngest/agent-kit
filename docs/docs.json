@@ -45,7 +45,7 @@
           },
           {
             "group": "Integrations",
-            "pages": ["integrations/e2b"]
+            "pages": ["integrations/e2b", "integrations/browserbase"]
           },
           {
             "group": "Advanced Patterns",
