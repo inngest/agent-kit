@@ -11,7 +11,7 @@ import { createAgent, openai } from "@inngest/agent-kit";
 const agent = createAgent({
   name: "Code writer",
   system: "You are an expert TypeScript programmer.",
-  model: openai("gpt-4"),
+  model: openai({ model: "gpt-4" }),
 });
 ```
 

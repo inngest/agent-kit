@@ -92,7 +92,7 @@ export const requestParser: AgenticModel.RequestParser<Anthropic.AiModel> = (
   const request: AiAdapter.Input<Anthropic.AiModel> = {
     system,
     model: model.options.model,
-    max_tokens: model.options.max_tokens,
+    max_tokens: model.options.defaultParameters.max_tokens,
     messages: anthropicMessages,
   };
 

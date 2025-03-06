@@ -11,7 +11,11 @@ import { createAgent, anthropic } from "@inngest/agent-kit";
 const agent = createAgent({
   name: "Code writer",
   system: "You are an expert TypeScript programmer.",
-  model: anthropic("claude-3-opus"),
+  model: anthropic({
+    model: "claude-3-opus",
+    // Note: max_tokens is required for Anthropic models
+    defaultParameters: { max_tokens: 4096 },
+  }),
 });
 ```
 
@@ -30,6 +34,8 @@ const agent = createAgent({
   }),
 });
 ```
+
+<Warning>**Note: `defaultParameters.max_tokens` is required.**</Warning>
 
 ### Options
 
@@ -62,9 +68,11 @@ const agent = createAgent({
   The base URL for the Anthropic API.
 </ParamField>
 
-<ParamField path="defaultParameters" type="object">
+<ParamField path="defaultParameters" type="object" required>
   The default parameters to use for the model (ex: `temperature`, `max_tokens`,
   etc).
+  <br />
+  **Note: `defaultParameters.max_tokens` is required.**
 </ParamField>
 
 ### Available Models

@@ -11,7 +11,7 @@ import { createAgent, gemini } from "@inngest/agent-kit";
 const agent = createAgent({
   name: "Code writer",
   system: "You are an expert TypeScript programmer.",
-  model: gemini("gemini-pro"),
+  model: gemini({ model: "gemini-pro" }),
 });
 ```
 

@@ -45,6 +45,8 @@ const modelWithBetaFlags = anthropic({
 const modelWithApiKey = anthropic({
   model: "claude-3-5-haiku-latest",
   apiKey: "sk-...",
+  // Note: max_tokens is required for Anthropic models
+  defaultParameters: { max_tokens: 4096 },
 });
 ```
 
@@ -76,12 +78,7 @@ import { anthropic, createAgent } from "@inngest/agent-kit";
 
 const model = anthropic({
   model: "claude-3-5-haiku-latest",
-  defaultParameters: { temperature: 0.5 },
-});
-
-const modelWithMaxTokens = anthropic({
-  model: "claude-3-5-haiku-latest",
-  defaultParameters: { maxTokens: 1000 },
+  defaultParameters: { temperature: 0.5, max_tokens: 4096 },
 });
 ```
 
