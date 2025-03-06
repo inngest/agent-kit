@@ -18,8 +18,9 @@ import { openai, anthropic, gemini } from "@inngest/agent-kit";
 ### Create a model instance
 
 <Info>
- Each model helper will first try to get the API Key from the environment variable.
- The API Key can also be provided with the `apiKey` option to the model helper.
+  Each model helper will first try to get the API Key from the environment
+  variable. The API Key can also be provided with the `apiKey` option to the
+  model helper.
 </Info>
 
 <CodeGroup>
@@ -27,34 +28,84 @@ import { openai, anthropic, gemini } from "@inngest/agent-kit";
 ```ts OpenAI
 import { openai, createAgent } from "@inngest/agent-kit";
 
-const model = openai('gpt-3.5-turbo')
-const modelWithApiKey = openai('gpt-3.5-turbo', { apiKey: 'sk-...' })
+const model = openai({ model: "gpt-3.5-turbo" });
+const modelWithApiKey = openai({ model: "gpt-3.5-turbo", apiKey: "sk-..." });
 ```
 
 ```ts Anthropic
-import { anthropic, createAgent } from '@inngest/agent-kit';
+import { anthropic, createAgent } from "@inngest/agent-kit";
 
-const model = anthropic('claude-3-5-haiku-latest')
+const model = anthropic({ model: "claude-3-5-haiku-latest" });
 
-const modelWithMaxTokens = anthropic('claude-3-5-haiku-latest', { maxTokens: 1000 })
+const modelWithBetaFlags = anthropic({
+  model: "claude-3-5-haiku-latest",
+  betaHeaders: ["prompt-caching-2024-07-31"],
+});
 
-const modelWithBetaFlags = anthropic('claude-3-5-haiku-latest', { betaHeaders: ["prompt-caching-2024-07-31"] })
-
-const modelWithApiKey = anthropic('claude-3-5-haiku-latest', { apiKey: 'sk-...' })
+const modelWithApiKey = anthropic({
+  model: "claude-3-5-haiku-latest",
+  apiKey: "sk-...",
+});
 ```
 
 ```ts Gemini
-import { gemini, createAgent } from '@inngest/agent-kit';
+import { gemini, createAgent } from "@inngest/agent-kit";
 
-const model = gemini('gemini-1.5-flash')
+const model = gemini({ model: "gemini-1.5-flash" });
 ```
 
 </CodeGroup>
 
+### Configure model hyper parameters (temperature, etc.)
+
+You can configure the model hyper parameters (temperature, etc.) by passing the `defaultParameters` option:
+
+<CodeGroup>
+
+```ts OpenAI
+import { openai, createAgent } from "@inngest/agent-kit";
+
+const model = openai({
+  model: "gpt-3.5-turbo",
+  defaultParameters: { temperature: 0.5 },
+});
+```
+
+```ts Anthropic
+import { anthropic, createAgent } from "@inngest/agent-kit";
+
+const model = anthropic({
+  model: "claude-3-5-haiku-latest",
+  defaultParameters: { temperature: 0.5 },
+});
+
+const modelWithMaxTokens = anthropic({
+  model: "claude-3-5-haiku-latest",
+  defaultParameters: { maxTokens: 1000 },
+});
+```
+
+```ts Gemini
+import { gemini, createAgent } from "@inngest/agent-kit";
+
+const model = gemini({
+  model: "gemini-1.5-flash",
+  defaultParameters: { temperature: 0.5 },
+});
+```
+
+</CodeGroup>
+
+<Info>
+  The full list of hyper parameters can be found in the [types definition of
+  each
+  model](https://github.com/inngest/inngest-js/tree/main/packages/ai/src/models).
+</Info>
+
 ### Providing a model instance to an Agent
 
 ```ts
-import { createAgent } from '@inngest/agent-kit';
+import { createAgent } from "@inngest/agent-kit";
 
 const supportAgent = createAgent({
   model: openai("gpt-3.5-turbo"),
@@ -64,20 +115,21 @@ const supportAgent = createAgent({
 });
 ```
 
-
 ### Providing a model instance to a Network
 
 <Info>
-  The provided `defaultModel` will be used for all Agents without a model specified.
-  It will also be used by the "[Default Routing Agent](/concepts/routers#default-routing-agent-autonomous-routing)" if enabled.
+  The provided `defaultModel` will be used for all Agents without a model
+  specified. It will also be used by the "[Default Routing
+  Agent](/concepts/routers#default-routing-agent-autonomous-routing)" if
+  enabled.
 </Info>
 
 ```ts
-import { createNetwork } from '@inngest/agent-kit';
+import { createNetwork } from "@inngest/agent-kit";
 
 const network = createNetwork({
   agents: [supportAgent],
-  defaultModel: openai('gpt-4o'),
+  defaultModel: openai("gpt-4o"),
 });
 ```
 
