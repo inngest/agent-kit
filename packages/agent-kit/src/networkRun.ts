@@ -1,5 +1,5 @@
 import { RoutingAgent, type Agent } from "./agent";
-import { getDefaultRoutingAgent, Network } from "./network";
+import { Network } from "./network";
 import { type State } from "./state";
 
 export class NetworkRun extends Network {
@@ -12,7 +12,7 @@ export class NetworkRun extends Network {
       agents: Array.from(network.agents.values()),
       defaultModel: network.defaultModel,
       defaultState: network.defaultState,
-      defaultRouter: network.defaultRouter,
+      router: network.router,
       maxIter: network.maxIter,
     });
 
@@ -45,7 +45,7 @@ export class NetworkRun extends Network {
     // off of the network.
     const next = await this.getNextAgents(
       input,
-      overrides?.router || this.defaultRouter
+      overrides?.router || this.router
     );
     if (!next?.length) {
       // TODO: If call count is 0, error.
@@ -94,7 +94,7 @@ export class NetworkRun extends Network {
       // custom code.
       const next = await this.getNextAgents(
         input,
-        overrides?.router || this.defaultRouter
+        overrides?.router || this.router
       );
       for (const a of next || []) {
         this.schedule(a.name);
@@ -120,7 +120,7 @@ export class NetworkRun extends Network {
       );
     }
     if (!router) {
-      router = getDefaultRoutingAgent();
+      throw new Error("Since v0.5.0, a router must be provided to the network");
     }
     if (router instanceof RoutingAgent) {
       return await this.getNextAgentsViaRoutingAgent(router, input);
