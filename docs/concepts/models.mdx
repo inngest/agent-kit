@@ -28,35 +28,81 @@ import { openai, anthropic, gemini } from "@inngest/agent-kit";
 ```ts OpenAI
 import { openai, createAgent } from "@inngest/agent-kit";
 
-const model = openai("gpt-3.5-turbo");
-const modelWithApiKey = openai("gpt-3.5-turbo", { apiKey: "sk-..." });
+
+const model = openai({ model: "gpt-3.5-turbo" });
+const modelWithApiKey = openai({ model: "gpt-3.5-turbo", apiKey: "sk-..." });
+
 ```
 
 ```ts Anthropic
 import { anthropic, createAgent } from "@inngest/agent-kit";
 
-const model = anthropic("claude-3-5-haiku-latest");
 
-const modelWithMaxTokens = anthropic("claude-3-5-haiku-latest", {
-  maxTokens: 1000,
-});
+const model = anthropic({ model: "claude-3-5-haiku-latest" });
 
-const modelWithBetaFlags = anthropic("claude-3-5-haiku-latest", {
+const modelWithBetaFlags = anthropic({
+  model: "claude-3-5-haiku-latest",
   betaHeaders: ["prompt-caching-2024-07-31"],
 });
 
-const modelWithApiKey = anthropic("claude-3-5-haiku-latest", {
+const modelWithApiKey = anthropic({
+  model: "claude-3-5-haiku-latest",
   apiKey: "sk-...",
+  // Note: max_tokens is required for Anthropic models
+  defaultParameters: { max_tokens: 4096 },
 });
 ```
 
 ```ts Gemini
 import { gemini, createAgent } from "@inngest/agent-kit";
 
-const model = gemini("gemini-1.5-flash");
+const model = gemini({ model: "gemini-1.5-flash" });
 ```
 
 </CodeGroup>
+
+### Configure model hyper parameters (temperature, etc.)
+
+You can configure the model hyper parameters (temperature, etc.) by passing the `defaultParameters` option:
+
+<CodeGroup>
+
+```ts OpenAI
+import { openai, createAgent } from "@inngest/agent-kit";
+
+const model = openai({
+  model: "gpt-3.5-turbo",
+  defaultParameters: { temperature: 0.5 },
+});
+```
+
+```ts Anthropic
+import { anthropic, createAgent } from "@inngest/agent-kit";
+
+const model = anthropic({
+  model: "claude-3-5-haiku-latest",
+  defaultParameters: { temperature: 0.5, max_tokens: 4096 },
+
+});
+```
+
+```ts Gemini
+import { gemini, createAgent } from "@inngest/agent-kit";
+
+
+const model = gemini({
+  model: "gemini-1.5-flash",
+  defaultParameters: { temperature: 0.5 },
+});
+```
+
+</CodeGroup>
+
+<Info>
+  The full list of hyper parameters can be found in the [types definition of
+  each
+  model](https://github.com/inngest/inngest-js/tree/main/packages/ai/src/models).
+</Info>
 
 ### Providing a model instance to an Agent
 
