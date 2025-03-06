@@ -4,6 +4,19 @@ description: Recent releases, new features, and fixes.
 mode: center
 ---
 
+<Update label="2025-03-06" description="v0.5.0">
+  - Add support for model hyper params (ex: temperature, top_p, etc)
+    - Breaking change: `anthropic()` `max_tokens` options has been moved in `defaultParameters`
+  - Add support OpenAI o3-mini, gpt-4.5, and more
+  - [Integration with Browserbase](/integrations/browserbase)
+</Update>
+
+<Update label="2025-02-19" description="v0.4.0">
+  - remove `server` export to allow non-Node runtimes
+  - allow tools with no parameters
+  - [Integration with E2B Code Interpreter](/integrations/e2b)
+</Update>
+
 <Update label="2025-01-29" description="v0.2.2">
   - Allow specifying [Inngest functions as tools](/advanced-patterns/multi-steps-tools)
   - Inngest is now an optional dependency
