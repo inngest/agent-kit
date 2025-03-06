@@ -1,5 +1,16 @@
 # @inngest/agent-kit
 
+## 0.4.0
+
+### Minor Changes
+
+- 7f26053: chore: bump `@inngest/ai` for model hyper params support
+  Breaking change: `anthropic()` `max_tokens` options has been moved in `defaultParameters`
+
+### Patch Changes
+
+- c623d8a: fix(models): avoid `parallel_tool_calls` for o3-mini
+
 ## 0.3.1
 
 ### Patch Changes

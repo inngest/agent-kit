@@ -15,7 +15,7 @@ importers:
         specifier: ^1.13.1
         version: 1.13.1(@playwright/test@1.50.1)(deepmerge@4.3.1)(dotenv@16.4.7)(openai@4.86.1(ws@8.18.1)(zod@3.24.2))(zod@3.24.2)
       '@inngest/agent-kit':
-        specifier: workspace:^0.3.1
+        specifier: workspace:^0.4.0
         version: link:../../packages/agent-kit
       dotenv:
         specifier: ^16.4.7
