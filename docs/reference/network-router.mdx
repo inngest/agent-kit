@@ -4,19 +4,19 @@ sidebarTitle: Router
 description: Controlling the flow of execution between agents in a Network.
 ---
 
-The `defaultRouter` option in `createNetwork` defines how agents are coordinated within a Network. It can be either a [Function Router](#function-router ) or a [Routing Agent](#routing-agent).
+The `router` option in `createNetwork` defines how agents are coordinated within a Network. It can be either a [Function Router](#function-router ) or a [Routing Agent](#routing-agent).
 
 
 ## Function Router
 
-A function router is provided to the `defaultRouter` option in `createNetwork`.
+A function router is provided to the `router` option in `createNetwork`.
 
 ### Example
 
 ```ts
 const network = createNetwork({
   agents: [classifier, writer],
-  defaultRouter: ({ lastResult, callCount, network, stack, input }) => {
+  router: ({ lastResult, callCount, network, stack, input }) => {
     // First call: use the classifier
     if (callCount === 0) {
       return classifier;
@@ -74,7 +74,7 @@ const network = createNetwork({
 
 ## createRoutingAgent()
 
-Creates a new routing agent that can be used as a `defaultRouter` in a network.
+Creates a new routing agent that can be used as a `router` in a network.
 
 ### Example
 
@@ -101,7 +101,7 @@ const routingAgent = createRoutingAgent({
 
 const network = createNetwork({
   agents: [classifier, writer],
-  defaultRouter: routingAgent
+  router: routingAgent
 });
 ```
 
@@ -140,7 +140,7 @@ const network = createNetwork({
 
 ### Returns
 
-Returns a `RoutingAgent` instance that can be used as a network's `defaultRouter`.
+Returns a `RoutingAgent` instance that can be used as a network's `router`.
 
 
 

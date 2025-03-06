@@ -39,7 +39,7 @@ Providing a custom Router to your Network can be achieved using 3 different patt
 
 ## Creating a custom Router
 
-Custom Routers can be provided by defining a `defaultRouter` function returning either an instance of an `Agent` object or `undefined`.
+Custom Routers can be provided by defining a `router` function returning either an instance of an `Agent` object or `undefined`.
 
 ```ts
 import { createNetwork } from '@inngest/agent-kit';
@@ -48,7 +48,7 @@ import { createNetwork } from '@inngest/agent-kit';
 
 const network = createNetwork({
   agents: [classifier, writer],
-  defaultRouter: ({ lastResult, callCount }) => {
+  router: ({ lastResult, callCount }) => {
     // retrieve the last message from the output
     const lastMessage = lastResult?.output[lastResult?.output.length - 1];
     const content = lastMessage?.type === 'text' ? lastMessage?.content as string : '';
@@ -66,7 +66,7 @@ const network = createNetwork({
 });
 ```
 
-The `defaultRouter` function receives a number of arguments:
+The `router` function receives a number of arguments:
 
 ```ts @inngest/agent-kit
 interface RouterArgs {
@@ -105,7 +105,7 @@ import { createNetwork } from '@inngest/agent-kit';
 
 const network = createNetwork({
   agents: [classifier, writer],
-  defaultRouter: ({ lastResult, callCount }) => {
+  router: ({ lastResult, callCount }) => {
     // retrieve the last message from the output
     const lastMessage = lastResult?.output[lastResult?.output.length - 1];
     const content = lastMessage?.type === 'text' ? lastMessage?.content as string : '';
@@ -127,7 +127,7 @@ Code-based routing is great when you want deterministic, predictable behavior. I
 
 ### Routing Agent (autonomous routing)
 
-Without a `defaultRouter` defined, the network will use the "Default Routing Agent" to decide which agent to call next.
+Without a `router` defined, the network will use the "Default Routing Agent" to decide which agent to call next.
 The "Default Routing Agent" is a Routing Agent provided by Agent Kit to handle the default routing logic.
 
 You can create your own Routing Agent by using the [`createRoutingAgent`](/reference/network-router#createroutingagent) helper function:
@@ -149,7 +149,7 @@ const routingAgent = createRoutingAgent({
 
 const network = createNetwork({
   agents: [classifier, writer],
-  defaultRouter: routingAgent,
+  router: routingAgent,
 });
 ```
 
@@ -170,7 +170,7 @@ import { createNetwork, getDefaultRoutingAgent } from '@inngest/agent-kit';
 
 const network = createNetwork({
   agents: [classifier, writer],
-  defaultRouter: ({ callCount }) => {
+  router: ({ callCount }) => {
     // Always start with the classifier
     if (callCount === 0) {
       return classifier;
@@ -197,7 +197,7 @@ import { createNetwork } from '@inngest/agent-kit';
 
 const network = createNetwork({
   agents: [mathAgent, contextAgent],
-  defaultRouter: ({ network, lastResult }): Agent | undefined => {
+  router: ({ network, lastResult }): Agent | undefined => {
     // Check if we've solved the problem
     const solution = network.state.kv.get('solution');
     if (solution) {
