@@ -1,17 +1,17 @@
 ---
 title: OpenAI Model
-description: 'Configure OpenAI as your model provider'
+description: "Configure OpenAI as your model provider"
 ---
 
 The `openai` function configures OpenAI as your model provider.
 
 ```ts
-import { createAgent, openai } from '@inngest/agent-kit';
+import { createAgent, openai } from "@inngest/agent-kit";
 
 const agent = createAgent({
-  name: 'Code writer',
-  system: 'You are an expert TypeScript programmer.',
-  model: openai('gpt-4'),
+  name: "Code writer",
+  system: "You are an expert TypeScript programmer.",
+  model: openai("gpt-4"),
 });
 ```
 
@@ -22,9 +22,10 @@ The `openai` function accepts a model name string or a configuration object:
 ```ts
 const agent = createAgent({
   model: openai({
-    model: 'gpt-4',
+    model: "gpt-4",
     apiKey: process.env.OPENAI_API_KEY,
-    baseUrl: 'https://api.openai.com/v1/',
+    baseUrl: "https://api.openai.com/v1/",
+    defaultParameters: { temperature: 0.5 },
   }),
 });
 ```
@@ -32,7 +33,8 @@ const agent = createAgent({
 ### Options
 
 <ParamField path="model" type="string" required>
-  ID of the model to use. See the [model endpoint compatibility](https://platform.openai.com/docs/models#model-endpoint-compatibility)
+  ID of the model to use. See the [model endpoint
+  compatibility](https://platform.openai.com/docs/models#model-endpoint-compatibility)
   table for details on which models work with the Chat API.
 </ParamField>
 
@@ -45,13 +47,19 @@ const agent = createAgent({
   The base URL for the OpenAI API.
 </ParamField>
 
+<ParamField path="defaultParameters" type="object">
+  The default parameters to use for the model (ex: `temperature`, `max_tokens`,
+  etc).
+</ParamField>
+
 ### Available Models
 
-- `gpt-4o`
-- `chatgpt-4o-latest`
-- `gpt-4o-mini`
-- `gpt-4`
-- `o1-preview`
-- `o1-mini`
-- `gpt-3.5-turbo`
-
+```plaintext OpenAI
+"gpt-4o"
+"chatgpt-4o-latest"
+"gpt-4o-mini"
+"gpt-4"
+"o1-preview"
+"o1-mini"
+"gpt-3.5-turbo"
+```
