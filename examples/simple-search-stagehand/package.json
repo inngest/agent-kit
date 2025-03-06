@@ -1,5 +1,5 @@
 {
-  "name": "support-agent-human-in-the-loop",
+  "name": "simple-search-stagehand",
   "private": true,
   "type": "module",
   "scripts": {
