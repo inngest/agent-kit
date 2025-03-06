@@ -8,7 +8,7 @@
   },
   "dependencies": {
     "inngest": "^3.31.11",
-    "@inngest/agent-kit": "^0.3.1",
+    "@inngest/agent-kit": "workspace:^0.3.1",
     "dotenv": "^16.4.7",
     "nodemon": "^3.0.0",
     "tsx": "^4.7.0",
