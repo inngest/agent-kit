@@ -117,7 +117,9 @@ const network = createNetwork({
 
 ### Routing
 
-A Network can specify an optional `defaultRouter` function that will be used to determine the next Agent to run.
+A Network must specify a  `router` that will be used to determine the next Agent to run.
+
+A `router` can be a [Routing Agent](/concepts/routers#routing-agent) or a [Router Function](/concepts/routers#router-function).
 
 ```ts
 import { createNetwork } from '@inngest/agent-kit';
@@ -126,7 +128,7 @@ import { createNetwork } from '@inngest/agent-kit';
 
 const network = createNetwork({
   agents: [classifier, writer],
-  defaultRouter: ({ lastResult, callCount }) => {
+  router: ({ lastResult, callCount }) => {
     // retrieve the last message from the output
     const lastMessage = lastResult?.output[lastResult?.output.length - 1];
     const content = lastMessage?.type === 'text' ? lastMessage?.content as string : '';
@@ -169,11 +171,11 @@ Specifying a `maxIter` option is useful when using a [Default Routing Agent](/co
 A Routing Agent or Hybrid Router rely on LLM calls to make decisions, which means that they can sometimes fail to identify a final condition.
 </Info>
 
-### Combining `maxIter` and `defaultRouter`
+### Combining `maxIter` and `router`
 
-You can combine `maxIter` and `defaultRouter` to create a Network that will stop after a certain number of iterations or when a condition is met.
+You can combine `maxIter` and `router` to create a Network that will stop after a certain number of iterations or when a condition is met.
 
-However, please note that the `maxIter` option can prevent the `defaultRouter` from being called (For example, if `maxIter` is set to 1, the `defaultRouter` will only be called once).
+However, please note that the `maxIter` option can prevent the `router` from being called (For example, if `maxIter` is set to 1, the `router` will only be called once).
 
 
 ## Providing a default State

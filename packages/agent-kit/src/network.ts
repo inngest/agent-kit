@@ -1,11 +1,5 @@
 import { type AiAdapter } from "@inngest/ai";
-import { z } from "zod";
-import {
-  createRoutingAgent,
-  createTool,
-  type Agent,
-  type RoutingAgent,
-} from "./agent";
+import { type Agent, type RoutingAgent } from "./agent";
 import { NetworkRun } from "./networkRun";
 import { State, type InferenceResult } from "./state";
 import { type MaybePromise } from "./util";
@@ -43,7 +37,12 @@ export class Network {
    */
   defaultModel?: AiAdapter.Any;
 
+  /**
+   * @deprecated Use `router` instead
+   */
   defaultRouter?: Network.Router;
+
+  router: Network.Router;
 
   /**
    * maxIter is the maximum number of times the we can call agents before ending
@@ -70,13 +69,14 @@ export class Network {
     maxIter,
     defaultState,
     defaultRouter,
+    router,
   }: Network.Constructor) {
     this.name = name;
     this.description = description;
     this.agents = new Map();
     this._agents = new Map();
     this.defaultModel = defaultModel;
-    this.defaultRouter = defaultRouter;
+    this.router = router || defaultRouter;
     this.maxIter = maxIter || 0;
     this._stack = [];
 
@@ -135,119 +135,6 @@ export class Network {
   }
 }
 
-/**
- * defaultRoutingAgent is an AI agent that selects the appropriate agent from
- * the network to handle the incoming request.
- *
- * It is no set model and so relies on the presence of a default model in the
- * network or being explicitly given one.
- */
-let defaultRoutingAgent: RoutingAgent | undefined;
-export const getDefaultRoutingAgent = () => {
-  defaultRoutingAgent ??= createRoutingAgent({
-    name: "Default routing agent",
-
-    description:
-      "Selects which agents to work on based off of the current prompt and input.",
-
-    lifecycle: {
-      onRoute: ({ result }) => {
-        const tool = result.toolCalls[0];
-        if (!tool) {
-          return;
-        }
-        if (
-          typeof tool.content === "object" &&
-          tool.content !== null &&
-          "data" in tool.content &&
-          typeof tool.content.data === "string"
-        ) {
-          return [tool.content.data];
-        }
-        return;
-      },
-    },
-
-    tools: [
-      // This tool does nothing but ensure that the model responds with the
-      // agent name as valid JSON.
-      createTool({
-        name: "select_agent",
-        description:
-          "select an agent to handle the input, based off of the current conversation",
-        parameters: z
-          .object({
-            name: z
-              .string()
-              .describe("The name of the agent that should handle the request"),
-          })
-          .strict(),
-        handler: ({ name }, { network }) => {
-          if (!network) {
-            throw new Error(
-              "The routing agent can only be used within a network of agents"
-            );
-          }
-
-          if (typeof name !== "string") {
-            throw new Error("The routing agent requested an invalid agent");
-          }
-
-          const agent = network.agents.get(name);
-          if (agent === undefined) {
-            throw new Error(
-              `The routing agent requested an agent that doesn't exist: ${name}`
-            );
-          }
-
-          // This returns the agent name to call.  The default routing functon
-          // schedules this agent by inpsecting this name via the tool call output.
-          return agent.name;
-        },
-      }),
-    ],
-
-    tool_choice: "select_agent",
-
-    system: async ({ network }): Promise<string> => {
-      if (!network) {
-        throw new Error(
-          "The routing agent can only be used within a network of agents"
-        );
-      }
-
-      const agents = await network?.availableAgents();
-
-      return `You are the orchestrator between a group of agents.  Each agent is suited for a set of specific tasks, and has a name, instructions, and a set of tools.
-
-The following agents are available:
-<agents>
-  ${agents
-    .map((a) => {
-      return `
-    <agent>
-      <name>${a.name}</name>
-      <description>${a.description}</description>
-      <tools>${JSON.stringify(Array.from(a.tools.values()))}</tools>
-    </agent>`;
-    })
-    .join("\n")}
-</agents>
-
-Follow the set of instructions:
-
-<instructions>
-  Think about the current history and status.  Determine which agent to use to handle the user's request, based off of the current agents and their tools.
-
-  Your aim is to thoroughly complete the request, thinking step by step, choosing the right agent based off of the context.
-</instructions>
-    `;
-    },
-  });
-
-  return defaultRoutingAgent;
-};
-
 export namespace Network {
   export type Constructor = {
     name: string;
@@ -258,7 +145,11 @@ export namespace Network {
     // state is any pre-existing network state to use in this Network instance.  By
     // default, new state is created without any history for every Network.
     defaultState?: State;
+    /**
+     * @deprecated Use `router` instead
+     */
     defaultRouter?: Router;
+    router: Router;
   };
 
   export type RunArgs = [
