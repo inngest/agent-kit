@@ -3,20 +3,20 @@
   "private": true,
   "version": "1.0.0",
   "description": "",
+  "type": "module",
   "main": "index.js",
   "scripts": {
-    "start": "tsx ./index.ts",
+    "start": "tsc; node dist/index.js",
     "inngest-dev": "npx inngest-cli@latest dev -u http://localhost:3000/api/inngest"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@inngest/agent-kit": "workspace:^0.4.1",
+    "@inngest/agent-kit": "latest",
     "zod": "^3.23.8"
   },
   "devDependencies": {
-    "@types/node": "^22.9.1",
-    "tsx": "^4.19.2"
+    "@types/node": "^22.9.1"
   }
 }

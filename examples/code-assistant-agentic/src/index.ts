@@ -131,7 +131,9 @@ const network = createNetwork({
   },
   defaultModel: anthropic({
     model: "claude-3-5-sonnet-latest",
-    max_tokens: 4096,
+    defaultParameters: {
+      max_tokens: 4096,
+    },
   }),
 });
 

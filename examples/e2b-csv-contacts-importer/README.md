@@ -24,7 +24,7 @@ The agent uses E2B's secure sandbox to safely execute the generated JavaScript c
 ### 1. Install Dependencies
 
 ```bash
-pnpm install
+npm install
 ```
 
 ### 2. Configure Environment Variables
@@ -49,10 +49,6 @@ E2B_API_KEY=your_e2b_api_key
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
 ```
 
 2. Start the Inngest development server (in a separate terminal):

@@ -1,24 +1,16 @@
 {
   "compilerOptions": {
-    "target": "es2017",
-    "lib": ["ES2021", "DOM"],
-    "module": "commonjs",
-    "declaration": true,
-    "declarationMap": true,
-    "sourceMap": true,
-    "rootDir": "./",
+    "target": "es2023",
+    "module": "Node16",
+    "lib": ["es2023", "DOM"],
     "outDir": "./dist",
-    "types": ["node"],
-    "moduleResolution": "node",
-    "esModuleInterop": true,
-    "forceConsistentCasingInFileNames": true,
+    "rootDir": "./src",
     "strict": true,
+    "esModuleInterop": true,
     "skipLibCheck": true,
-    "noImplicitOverride": true,
-    "resolveJsonModule": true,
-    "noUncheckedIndexedAccess": true,
-    "strictNullChecks": true
+    "forceConsistentCasingInFileNames": true,
+    "moduleResolution": "Node16"
   },
-  "include": ["./**/*.ts"],
-  "exclude": ["node_modules", "dist"]
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "**/*.test.ts"]
 }

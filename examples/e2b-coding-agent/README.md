@@ -15,7 +15,7 @@ This example demonstrates how to create an AI coding agent using AgentKit and E2
 Before running this example, you'll need:
 
 - Node.js (v16 or higher)
-- pnpm package manager
+- npm package manager
 - An [E2B API key](https://e2b.dev/docs)
 - An [Anthropic API key](https://console.anthropic.com/settings/keys)
 
@@ -24,7 +24,7 @@ Before running this example, you'll need:
 1. Install dependencies:
 
 ```bash
-pnpm install
+npm install
 ```
 
 2. Configure environment variables:
@@ -41,7 +41,7 @@ ANTHROPIC_API_KEY=your_anthropic_api_key
 To start the coding agent in development mode with hot reloading:
 
 ```bash
-pnpm run start "Create a Next.js TodoList demo and its associated unit tests. Finally run the tests with coverage"
+npm run start "Create a Next.js TodoList demo and its associated unit tests. Finally run the tests with coverage"
 ```
 
 ## How It Works
