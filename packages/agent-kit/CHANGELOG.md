@@ -1,5 +1,11 @@
 # @inngest/agent-kit
 
+## 0.4.1
+
+### Patch Changes
+
+- cc44a77: chore: update `inngest` and `@inngest/ai` to latest
+
 ## 0.4.0
 
 ### Minor Changes
