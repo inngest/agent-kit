@@ -12,8 +12,8 @@ importers:
         specifier: ^1.0.0
         version: 1.0.0
       '@inngest/ai':
-        specifier: 0.1.2-pr-884.2
-        version: 0.1.2-pr-884.2
+        specifier: 0.1.2-pr-884.3
+        version: 0.1.2-pr-884.3
       '@modelcontextprotocol/sdk':
         specifier: ^1.1.1
         version: 1.4.1
@@ -24,8 +24,8 @@ importers:
         specifier: ^4.21.1
         version: 4.21.2
       inngest:
-        specifier: 3.32.5-pr-885.3
-        version: 3.32.5-pr-885.3(express@4.21.2)(typescript@5.7.3)
+        specifier: 3.32.5-pr-885.4
+        version: 3.32.5-pr-885.4(express@4.21.2)(typescript@5.7.3)
       openai-zod-to-json-schema:
         specifier: ^1.0.3
         version: 1.0.3(zod@3.24.1)
@@ -416,8 +416,8 @@ packages:
     resolution: {integrity: sha512-xeO57FpIu4p1Ri3Jq/EXq4ClRm86dVF2z/+kvFnyqVYRavTZmaFaUBbWCOuuTh0o/g7DSsk6kc2vrS4Vl5oPOQ==}
     engines: {node: '>=18.18'}
 
-  '@inngest/ai@0.1.2-pr-884.2':
-    resolution: {integrity: sha512-uheFQ62R96SwaGT98Y4ZyHNyCzzK8NSCIMvUsA0vjgJpUh/+xTNtp0fs5LnLhCYBFxJVvC9PfmaxYSYarSmFVg==}
+  '@inngest/ai@0.1.2-pr-884.3':
+    resolution: {integrity: sha512-fUno26FHuf33eT3enelVeHmILWtMUmLODDa1djzGcE62GprLsvbCv4SJb4uvc5Eqgt8thhpjljt0IujXqH2MQw==}
 
   '@isaacs/cliui@8.0.2':
     resolution: {integrity: sha512-O8jcjabXaleOG9DQ0+ARXWZBTfnP4WNAqzuiJK7ll44AmxGKv/J2M4TPjxjY3znBCfvBXFzucm1twdyFybFqEA==}
@@ -1268,8 +1268,8 @@ packages:
   inherits@2.0.4:
     resolution: {integrity: sha512-k/vGaX4/Yla3WzyMCvTQOXYeIHvqOKtnqBduzTHpzpQZzAskKMhZ2K+EnBiSM9zGSoIFeMpXKxa4dYeZIQqewQ==}
 
-  inngest@3.32.5-pr-885.3:
-    resolution: {integrity: sha512-nX71ygm8O5Yilbo+yrE/Kjt2smj2TOfPCf/ysuOKyx5N5wcBvHENgZ/4up31btU16csUDjnrIB3yyprxY33OHQ==}
+  inngest@3.32.5-pr-885.4:
+    resolution: {integrity: sha512-IDifnX0rDajt95u2r0sXeVMnZmYl/P+kbNUebS9jGgmBrMwTH7+n03vfpZ/zarLSPnirq4EEUFCXByREx4aLnw==}
     engines: {node: '>=14'}
     peerDependencies:
       '@sveltejs/kit': '>=1.27.3'
@@ -2239,7 +2239,7 @@ snapshots:
 
   '@humanwhocodes/retry@0.4.2': {}
 
-  '@inngest/ai@0.1.2-pr-884.2':
+  '@inngest/ai@0.1.2-pr-884.3':
     dependencies:
       '@types/node': 22.12.0
       typescript: 5.7.3
@@ -3143,10 +3143,10 @@ snapshots:
 
   inherits@2.0.4: {}
 
-  inngest@3.32.5-pr-885.3(express@4.21.2)(typescript@5.7.3):
+  inngest@3.32.5-pr-885.4(express@4.21.2)(typescript@5.7.3):
     dependencies:
       '@bufbuild/protobuf': 2.2.3
-      '@inngest/ai': 0.1.2-pr-884.2
+      '@inngest/ai': 0.1.2-pr-884.3
       '@jpwilliams/waitgroup': 2.1.1
       '@types/debug': 4.1.12
       canonicalize: 1.0.8
