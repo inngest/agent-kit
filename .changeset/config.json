@@ -7,18 +7,7 @@
   "access": "public",
   "baseBranch": "main",
   "updateInternalDependencies": "patch",
-  "ignore": [
-    "demo",
-    "quick-start",
-    "swebench",
-    "code-assistant-rag",
-    "code-assistant-agentic",
-    "code-assistant-agent",
-    "reddit-search-browserbase-tools",
-    "simple-search-stagehand",
-    "support-agent-human-in-the-loop",
-    "e2b-csv-contacts-importer"
-  ],
+  "ignore": [],
   "snapshot": {
     "useCalculatedVersion": true,
     "prereleaseTemplate": "{tag}-{datetime}-{commit}"
