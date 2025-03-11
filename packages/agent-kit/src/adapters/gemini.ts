@@ -23,18 +23,22 @@ export const requestParser: AgenticModel.RequestParser<Gemini.AiModel> = (
 ) => {
   const contents = messages.map((m) => messageToContent(m));
 
+  const functionDeclarations = tools.map((t) => ({
+    name: t.name,
+    description: t.description,
+    parameters: t.parameters
+      ? zodToJsonSchema(t.parameters, { target: "openApi3" })
+      : // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (zodToJsonSchema(z.object({}), { target: "openApi3" }) as any),
+  }));
+
+  console.log(JSON.stringify(functionDeclarations, null, 2));
+
   return {
     contents,
     tools: [
       {
-        functionDeclarations: tools.map((t) => ({
-          name: t.name,
-          description: t.description,
-          parameters: t.parameters
-            ? zodToJsonSchema(t.parameters, { target: "openApi3" })
-            : // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              (zodToJsonSchema(z.object({})) as any),
-        })),
+        functionDeclarations,
       },
     ],
     tool_config: toolChoice(tool_choice),
@@ -54,7 +58,12 @@ const messageContentToString = (content: string | TextContent[]): string => {
 export const responseParser: AgenticModel.ResponseParser<Gemini.AiModel> = (
   input
 ) => {
-  // TODO: handle errors
+  if (input.error) {
+    throw new Error(
+      input.error?.message ||
+        `Gemini request failed: ${JSON.stringify(input.error)}`
+    );
+  }
 
   const messages: Message[] = [];
 

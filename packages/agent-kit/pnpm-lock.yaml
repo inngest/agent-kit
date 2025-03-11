@@ -12,8 +12,8 @@ importers:
         specifier: ^1.0.0
         version: 1.0.0
       '@inngest/ai':
-        specifier: 0.1.2-pr-884.1
-        version: 0.1.2-pr-884.1
+        specifier: 0.1.2-pr-884.2
+        version: 0.1.2-pr-884.2
       '@modelcontextprotocol/sdk':
         specifier: ^1.1.1
         version: 1.4.1
@@ -415,9 +415,6 @@ packages:
   '@humanwhocodes/retry@0.4.2':
     resolution: {integrity: sha512-xeO57FpIu4p1Ri3Jq/EXq4ClRm86dVF2z/+kvFnyqVYRavTZmaFaUBbWCOuuTh0o/g7DSsk6kc2vrS4Vl5oPOQ==}
     engines: {node: '>=18.18'}
-
-  '@inngest/ai@0.1.2-pr-884.1':
-    resolution: {integrity: sha512-M8CwbV6F1OWDNjL4Zzqx5t1MtTZEZg15QsQ8Khn67aN2p+ugu3aS5eUXQIFsYNfj+s+Do/GkPvsrNcAWE9nAhA==}
 
   '@inngest/ai@0.1.2-pr-884.2':
     resolution: {integrity: sha512-uheFQ62R96SwaGT98Y4ZyHNyCzzK8NSCIMvUsA0vjgJpUh/+xTNtp0fs5LnLhCYBFxJVvC9PfmaxYSYarSmFVg==}
@@ -2241,11 +2238,6 @@ snapshots:
   '@humanwhocodes/retry@0.3.1': {}
 
   '@humanwhocodes/retry@0.4.2': {}
-
-  '@inngest/ai@0.1.2-pr-884.1':
-    dependencies:
-      '@types/node': 22.12.0
-      typescript: 5.7.3
 
   '@inngest/ai@0.1.2-pr-884.2':
     dependencies:
