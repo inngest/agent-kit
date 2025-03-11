@@ -3,6 +3,7 @@ import { type AgenticModel } from "../model";
 import * as anthropic from "./anthropic";
 import * as openai from "./openai";
 import * as gemini from "./gemini";
+import * as grok from "./grok";
 
 export type Adapters = {
   [Format in AiAdapter.Format]: {
@@ -23,5 +24,9 @@ export const adapters: Adapters = {
   gemini: {
     request: gemini.requestParser,
     response: gemini.responseParser,
+  },
+  grok: {
+    request: grok.requestParser,
+    response: grok.responseParser,
   },
 };
