@@ -234,7 +234,7 @@ const toolChoice = (
       if (typeof choice === "string") {
         return {
           functionCallingConfig: {
-            mode: "AUTO",
+            mode: "ANY",
             allowedFunctionNames: [choice],
           },
         };
