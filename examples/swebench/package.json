@@ -11,9 +11,9 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@inngest/agent-kit": "workspace:^0.4.1",
+    "@inngest/agent-kit": "latest",
+    "inngest": "latest",
     "express": "^4.21.1",
-    "inngest": "^3.31.0",
     "tree-sitter": "^0.22.1",
     "tree-sitter-python": "^0.23.5",
     "zod": "^3.23.8"

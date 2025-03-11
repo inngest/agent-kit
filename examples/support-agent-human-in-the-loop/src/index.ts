@@ -68,7 +68,9 @@ Your goal is to assist customers with their questions and concerns.
 Be professional, courteous, and thorough in your responses.`,
   model: anthropic({
     model: "claude-3-5-haiku-latest",
-    max_tokens: 1000,
+    defaultParameters: {
+      max_tokens: 1000,
+    },
   }),
   tools: [
     searchKnowledgeBase,
@@ -100,7 +102,9 @@ Use your expertise to diagnose problems and suggest solutions.
 If you need developer input, use the ask_developer tool.`,
   model: anthropic({
     model: "claude-3-5-haiku-latest",
-    max_tokens: 1000,
+    defaultParameters: {
+      max_tokens: 1000,
+    },
   }),
   tools: [
     searchLatestReleaseNotes,
@@ -157,7 +161,9 @@ Think step by step and reason through your decision.
 When an agent as answered the ticket initial request or updated the ticket, call the "done" tool.`,
   model: anthropic({
     model: "claude-3-5-haiku-latest",
-    max_tokens: 1000,
+    defaultParameters: {
+      max_tokens: 1000,
+    },
   }),
   tools: [
     createTool({
@@ -213,7 +219,9 @@ const supportNetwork = createNetwork({
   agents: [customerSupportAgent, technicalSupportAgent],
   defaultModel: anthropic({
     model: "claude-3-5-haiku-latest",
-    max_tokens: 1000,
+    defaultParameters: {
+      max_tokens: 1000,
+    },
   }),
   defaultRouter: supervisorRoutingAgent,
 });

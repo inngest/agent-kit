@@ -116,7 +116,9 @@ const network = createNetwork({
   agents: [plannerAgent, editorAgent],
   defaultModel: anthropic({
     model: "claude-3-5-sonnet-latest",
-    max_tokens: 4096,
+    defaultParameters: {
+      max_tokens: 4096,
+    },
   }),
   defaultRouter: createRoutingAgent({
     name: "Code Assistant routing agent",

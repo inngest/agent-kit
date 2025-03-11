@@ -7,9 +7,9 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
-    "@inngest/agent-kit": "workspace:^0.4.1",
+    "@inngest/agent-kit": "latest",
     "express": "^4.21.1",
-    "inngest": "^3.31.0",
+    "inngest": "latest",
     "zod": "^3.23.8"
   },
   "devDependencies": {

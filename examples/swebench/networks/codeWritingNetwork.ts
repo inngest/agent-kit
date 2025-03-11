@@ -9,7 +9,9 @@ export const codeWritingNetwork = createNetwork({
   // Use Claude as the base model of the network.
   defaultModel: anthropic({
     model: "claude-3-5-haiku-latest",
-    max_tokens: 1000,
+    defaultParameters: {
+      max_tokens: 1000,
+    },
   }),
   defaultRouter: ({ network }) => {
     if (network.state.kv.get("done")) {
