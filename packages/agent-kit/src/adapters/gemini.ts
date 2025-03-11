@@ -6,11 +6,12 @@
  * @module
  */
 import { type AiAdapter, type Gemini } from "@inngest/ai";
+import { z, type ZodSchema } from "zod";
+import { zodToJsonSchema } from "openai-zod-to-json-schema";
+
 import { type AgenticModel } from "../model";
 import type { Tool } from "../tool";
 import type { Message, TextContent } from "../state";
-import { zodToJsonSchema } from "openai-zod-to-json-schema";
-import { z } from "zod";
 
 /**
  * Parse a request from internal network messages to an Gemini input.
@@ -27,9 +28,9 @@ export const requestParser: AgenticModel.RequestParser<Gemini.AiModel> = (
     name: t.name,
     description: t.description,
     parameters: t.parameters
-      ? zodToJsonSchema(t.parameters, { target: "openApi3" })
+      ? geminiZodToJsonSchema(t.parameters)
       : // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (zodToJsonSchema(z.object({}), { target: "openApi3" }) as any),
+        (geminiZodToJsonSchema(z.object({})) as any),
   }));
 
   console.log(JSON.stringify(functionDeclarations, null, 2));
@@ -239,4 +240,11 @@ const toolChoice = (
         };
       }
   }
+};
+
+const geminiZodToJsonSchema = (zod: ZodSchema) => {
+  const schema = zodToJsonSchema(zod, { target: "openApi3" });
+  // @ts-expect-error this prop does exists and Gemini don't like it
+  delete schema["additionalProperties"];
+  return schema;
 };
