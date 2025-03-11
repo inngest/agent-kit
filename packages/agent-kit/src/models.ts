@@ -1,1 +1,1 @@
-export { anthropic, gemini, openai } from "@inngest/ai";
+export { anthropic, gemini, openai, grok } from "@inngest/ai";

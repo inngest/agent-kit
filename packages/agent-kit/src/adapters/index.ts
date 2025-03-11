@@ -2,6 +2,7 @@ import { type AiAdapter, type AiAdapters } from "@inngest/ai";
 import { type AgenticModel } from "../model";
 import * as anthropic from "./anthropic";
 import * as openai from "./openai";
+import * as gemini from "./gemini";
 
 export type Adapters = {
   [Format in AiAdapter.Format]: {
@@ -18,5 +19,9 @@ export const adapters: Adapters = {
   anthropic: {
     request: anthropic.requestParser,
     response: anthropic.responseParser,
+  },
+  gemini: {
+    request: gemini.requestParser,
+    response: gemini.responseParser,
   },
 };
