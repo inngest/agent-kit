@@ -33,8 +33,6 @@ export const requestParser: AgenticModel.RequestParser<Gemini.AiModel> = (
         (geminiZodToJsonSchema(z.object({})) as any),
   }));
 
-  console.log(JSON.stringify(functionDeclarations, null, 2));
-
   return {
     contents,
     tools: [
@@ -227,7 +225,7 @@ const toolChoice = (
     case "any":
       return {
         functionCallingConfig: {
-          mode: "AUTO",
+          mode: "ANY",
         },
       };
     default:
