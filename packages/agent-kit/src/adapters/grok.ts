@@ -6,7 +6,7 @@
  * @module
  */
 
-import type { AiAdapter, Grok } from "inngest";
+import type { AiAdapter, Grok, OpenAi } from "inngest";
 import type { AgenticModel } from "../model";
 import {
   requestParser as openaiRequestParser,
@@ -23,7 +23,7 @@ export const requestParser: AgenticModel.RequestParser<Grok.AiModel> = (
   tool_choice = "auto"
 ) => {
   const request: AiAdapter.Input<Grok.AiModel> = openaiRequestParser(
-    model,
+    model as unknown as OpenAi.AiModel,
     messages,
     tools,
     tool_choice
@@ -45,4 +45,4 @@ export const requestParser: AgenticModel.RequestParser<Grok.AiModel> = (
  * Parse a response from OpenAI output to internal network messages.
  */
 export const responseParser: AgenticModel.ResponseParser<Grok.AiModel> =
-  openaiResponseParser as AgenticModel.ResponseParser<Grok.AiModel>;
+  openaiResponseParser as unknown as AgenticModel.ResponseParser<Grok.AiModel>;
