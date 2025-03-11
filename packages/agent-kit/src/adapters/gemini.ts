@@ -137,7 +137,7 @@ const messageToContent = (
   switch (m.role) {
     case "system":
       return {
-        role: "system",
+        role: "user",
         parts: [{ text: messageContentToString(m.content) }],
       };
     case "user":
