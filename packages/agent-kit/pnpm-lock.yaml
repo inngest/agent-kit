@@ -24,8 +24,8 @@ importers:
         specifier: ^4.21.1
         version: 4.21.2
       inngest:
-        specifier: 3.32.5-pr-885.2
-        version: 3.32.5-pr-885.2(express@4.21.2)(typescript@5.7.3)
+        specifier: 3.32.5-pr-885.3
+        version: 3.32.5-pr-885.3(express@4.21.2)(typescript@5.7.3)
       openai-zod-to-json-schema:
         specifier: ^1.0.3
         version: 1.0.3(zod@3.24.1)
@@ -418,6 +418,9 @@ packages:
 
   '@inngest/ai@0.1.2-pr-884.1':
     resolution: {integrity: sha512-M8CwbV6F1OWDNjL4Zzqx5t1MtTZEZg15QsQ8Khn67aN2p+ugu3aS5eUXQIFsYNfj+s+Do/GkPvsrNcAWE9nAhA==}
+
+  '@inngest/ai@0.1.2-pr-884.2':
+    resolution: {integrity: sha512-uheFQ62R96SwaGT98Y4ZyHNyCzzK8NSCIMvUsA0vjgJpUh/+xTNtp0fs5LnLhCYBFxJVvC9PfmaxYSYarSmFVg==}
 
   '@isaacs/cliui@8.0.2':
     resolution: {integrity: sha512-O8jcjabXaleOG9DQ0+ARXWZBTfnP4WNAqzuiJK7ll44AmxGKv/J2M4TPjxjY3znBCfvBXFzucm1twdyFybFqEA==}
@@ -1268,8 +1271,8 @@ packages:
   inherits@2.0.4:
     resolution: {integrity: sha512-k/vGaX4/Yla3WzyMCvTQOXYeIHvqOKtnqBduzTHpzpQZzAskKMhZ2K+EnBiSM9zGSoIFeMpXKxa4dYeZIQqewQ==}
 
-  inngest@3.32.5-pr-885.2:
-    resolution: {integrity: sha512-o9Bdv5qqSlNgI/hJO58w4KdFWHaXQk6umQjB6PA3vXu6PQw8x2Aaxk03lAkdcwes3VFyfN4LGj8k1JLTKXcDLw==}
+  inngest@3.32.5-pr-885.3:
+    resolution: {integrity: sha512-nX71ygm8O5Yilbo+yrE/Kjt2smj2TOfPCf/ysuOKyx5N5wcBvHENgZ/4up31btU16csUDjnrIB3yyprxY33OHQ==}
     engines: {node: '>=14'}
     peerDependencies:
       '@sveltejs/kit': '>=1.27.3'
@@ -2244,6 +2247,11 @@ snapshots:
       '@types/node': 22.12.0
       typescript: 5.7.3
 
+  '@inngest/ai@0.1.2-pr-884.2':
+    dependencies:
+      '@types/node': 22.12.0
+      typescript: 5.7.3
+
   '@isaacs/cliui@8.0.2':
     dependencies:
       string-width: 5.1.2
@@ -3143,10 +3151,10 @@ snapshots:
 
   inherits@2.0.4: {}
 
-  inngest@3.32.5-pr-885.2(express@4.21.2)(typescript@5.7.3):
+  inngest@3.32.5-pr-885.3(express@4.21.2)(typescript@5.7.3):
     dependencies:
       '@bufbuild/protobuf': 2.2.3
-      '@inngest/ai': 0.1.2-pr-884.1
+      '@inngest/ai': 0.1.2-pr-884.2
       '@jpwilliams/waitgroup': 2.1.1
       '@types/debug': 4.1.12
       canonicalize: 1.0.8

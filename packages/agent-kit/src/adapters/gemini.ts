@@ -31,7 +31,7 @@ export const requestParser: AgenticModel.RequestParser<Gemini.AiModel> = (
           name: t.name,
           description: t.description,
           parameters: t.parameters
-            ? zodToJsonSchema(t.parameters)
+            ? zodToJsonSchema(t.parameters, { target: "openApi3" })
             : // eslint-disable-next-line @typescript-eslint/no-explicit-any
               (zodToJsonSchema(z.object({})) as any),
         })),
