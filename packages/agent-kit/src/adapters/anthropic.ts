@@ -8,7 +8,7 @@ import {
   type Anthropic,
   type AnthropicAiAdapter,
 } from "@inngest/ai";
-import { zodToJsonSchema } from "openai-zod-to-json-schema";
+import { zodToJsonSchema } from "zod-to-json-schema";
 import { z } from "zod";
 import { type AgenticModel } from "../model";
 import { type Message, type TextMessage } from "../state";

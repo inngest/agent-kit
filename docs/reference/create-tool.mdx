@@ -50,6 +50,10 @@ const tool = createTool({
   The function that executes when the tool is called. It receives the validated parameters as its first argument and a context object as its second argument.
 </ParamField>
 
+<ParamField path="strict" type="boolean" default={true}>
+  Option to disable strict validation of the tool parameters.
+</ParamField>
+
 <ParamField path="lifecycle" type="Lifecycle">
   Lifecycle hooks that can intercept and modify inputs and outputs throughout the stages of tool execution.
 </ParamField>
