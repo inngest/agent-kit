@@ -1,5 +1,15 @@
 # @inngest/agent-kit
 
+## 0.5.0
+
+### Minor Changes
+
+- 9688973: Gemini and Grok support
+
+### Patch Changes
+
+- 13643d9: fix(tools): better support for strict mode + option to opt-out
+
 ## 0.4.1
 
 ### Patch Changes
