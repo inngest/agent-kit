@@ -2,4 +2,4 @@
 "@inngest/agent-kit": minor
 ---
 
-feat(network): deprecated `defaultRouter`, introduce a mandatory `router` and remove `getDefaultRoutingAgent()`
+feat(network): replace `defaultRouter` with a mandatory `router` and remove `getDefaultRoutingAgent()`
