@@ -7,7 +7,7 @@
  */
 import { type AiAdapter, type Gemini } from "@inngest/ai";
 import { z, type ZodSchema } from "zod";
-import { zodToJsonSchema } from "openai-zod-to-json-schema";
+import { zodToJsonSchema } from "zod-to-json-schema";
 
 import { type AgenticModel } from "../model";
 import type { Tool } from "../tool";
