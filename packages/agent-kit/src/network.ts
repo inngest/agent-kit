@@ -38,10 +38,8 @@ export class Network {
   defaultModel?: AiAdapter.Any;
 
   /**
-   * @deprecated Use `router` instead
+   * router used to determine which agent to call next.
    */
-  defaultRouter?: Network.Router;
-
   router: Network.Router;
 
   /**
@@ -68,7 +66,6 @@ export class Network {
     defaultModel,
     maxIter,
     defaultState,
-    defaultRouter,
     router,
   }: Network.Constructor) {
     this.name = name;
@@ -76,7 +73,7 @@ export class Network {
     this.agents = new Map();
     this._agents = new Map();
     this.defaultModel = defaultModel;
-    this.router = router || defaultRouter;
+    this.router = router;
     this.maxIter = maxIter || 0;
     this._stack = [];
 
@@ -145,10 +142,6 @@ export namespace Network {
     // state is any pre-existing network state to use in this Network instance.  By
     // default, new state is created without any history for every Network.
     defaultState?: State;
-    /**
-     * @deprecated Use `router` instead
-     */
-    defaultRouter?: Router;
     router: Router;
   };
 
