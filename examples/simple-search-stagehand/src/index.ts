@@ -93,7 +93,7 @@ const searchNetwork = createNetwork({
   defaultModel: openai({
     model: "gpt-4o",
   }),
-  defaultRouter: supervisorRoutingAgent,
+  router: supervisorRoutingAgent,
 });
 
 const inngest = new Inngest({

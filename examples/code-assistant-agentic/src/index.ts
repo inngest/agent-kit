@@ -113,7 +113,7 @@ const network = createNetwork({
     analysisAgent,
     summarizationAgent,
   ],
-  defaultRouter: ({ network }) => {
+  router: ({ network }) => {
     if (!network?.state.kv.has("code") || !network?.state.kv.has("plan")) {
       return codeAssistantAgent;
     } else {

@@ -13,7 +13,7 @@ export const codeWritingNetwork = createNetwork({
       max_tokens: 1000,
     },
   }),
-  defaultRouter: ({ network }) => {
+  router: ({ network }) => {
     if (network.state.kv.get("done")) {
       // We're done editing.  This is set when the editing agent finishes
       // implementing the plan.

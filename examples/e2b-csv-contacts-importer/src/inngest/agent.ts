@@ -82,7 +82,7 @@ const contactsImporterNetwork = createNetwork({
   defaultModel: openai({
     model: "gpt-4o",
   }),
-  defaultRouter: ({ network }) => {
+  router: ({ network }) => {
     return network?.state.kv.has("mapped-contacts")
       ? undefined
       : contactsMapperAgent;

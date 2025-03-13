@@ -169,7 +169,7 @@ async function main() {
     name: "coding-agent-network",
     agents: [agent],
     maxIter: 15,
-    defaultRouter: ({ network, callCount }) => {
+    router: ({ network, callCount }) => {
       console.log(` --- Iteration #${callCount} ---`);
       if (network?.state.kv.has("task_summary")) {
         return;

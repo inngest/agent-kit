@@ -120,7 +120,7 @@ const network = createNetwork({
       max_tokens: 4096,
     },
   }),
-  defaultRouter: createRoutingAgent({
+  router: createRoutingAgent({
     name: "Code Assistant routing agent",
     lifecycle: {
       onRoute: ({ result }) => {
