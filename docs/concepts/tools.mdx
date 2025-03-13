@@ -1,8 +1,8 @@
 ---
 title: Tools
 description: Extending the functionality of Agents for structured output or performing tasks.
-icon: 'screwdriver-wrench'
-iconType: 'light'
+icon: "screwdriver-wrench"
+iconType: "light"
 ---
 
 Tools are functions that extend the capabilities of an [Agent](/concepts/agents). Tools have two core uses:
@@ -40,6 +40,29 @@ const listChargesTool = createTool({
 ```
 
 Writing quality `name` and `description` parameters help the model determine when the particular Tool should be called.
+
+### Optional parameters
+
+Optional parameters should be defined using `.nullable()` (not `.optional()`):
+
+```ts {7-10}
+const listChargesTool = createTool({
+  name: 'list_charges',
+  description:
+    "Returns all of a user's charges. Call this whenever you need to find one or more charges between a date range.",
+  parameters: z.object({
+    userId: z.string(),
+    created: z.object({
+      gte: z.string().date(),
+      lte: z.string().date(),
+    }).nullable(),
+  }),
+  handler: async ({ userId, created }, { network, agent, step }) => {
+    // output is strongly typed to match the parameter type.
+    return [{...}]
+  },
+});
+```
 
 ## Examples
 
