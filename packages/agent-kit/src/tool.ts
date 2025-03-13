@@ -16,6 +16,8 @@ export type Tool<TInput extends Tool.Input> = {
     tool: MCP.Tool;
   };
 
+  strict?: boolean;
+
   // TODO: Handler input types based off of JSON above.
   //
   // Handlers get their input arguments from inference calls, and can also

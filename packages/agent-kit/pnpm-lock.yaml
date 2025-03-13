@@ -26,12 +26,12 @@ importers:
       inngest:
         specifier: 3.32.5
         version: 3.32.5(express@4.21.2)(typescript@5.7.3)
-      openai-zod-to-json-schema:
-        specifier: ^1.0.3
-        version: 1.0.3(zod@3.24.1)
       zod:
         specifier: ^3.23.8
         version: 3.24.1
+      zod-to-json-schema:
+        specifier: ^3.24.3
+        version: 3.24.3(zod@3.24.1)
     devDependencies:
       '@types/express':
         specifier: ^5.0.0
@@ -1498,12 +1498,6 @@ packages:
     resolution: {integrity: sha512-oVlzkg3ENAhCk2zdv7IJwd/QUD4z2RxRwpkcGY8psCVcCYZNq4wYnVWALHM+brtuJjePWiYF/ClmuDr8Ch5+kg==}
     engines: {node: '>= 0.8'}
 
-  openai-zod-to-json-schema@1.0.3:
-    resolution: {integrity: sha512-CFU+KtOmX1dk2nPCZcGYgbrI3YLJJgMSehx1mLbH1A2fsRmZevHzMau6vFIhtkCpHWkGQ3ossA4a0OzVHlGrkw==}
-    engines: {node: '>=18'}
-    peerDependencies:
-      zod: ^3.23.8
-
   optionator@0.9.4:
     resolution: {integrity: sha512-6IpQ7mKUxRcZNLIObR0hz7lxsapSSIYNZJwXPGeF0mTVqGKFIXj1DQcMoT22S3ROcLyY/rz0PWaWZ9ayWmad9g==}
     engines: {node: '>= 0.8.0'}
@@ -2013,8 +2007,8 @@ packages:
     resolution: {integrity: sha512-rVksvsnNCdJ/ohGc6xgPwyN8eheCxsiLM8mxuE/t/mOVqJewPuO1miLpTHQiRgTKCLexL4MeAFVagts7HmNZ2Q==}
     engines: {node: '>=10'}
 
-  zod-to-json-schema@3.24.1:
-    resolution: {integrity: sha512-3h08nf3Vw3Wl3PK+q3ow/lIil81IT2Oa7YpQyUUDsEWbXveMesdfK1xBd2RhCkynwZndAxixji/7SYJJowr62w==}
+  zod-to-json-schema@3.24.3:
+    resolution: {integrity: sha512-HIAfWdYIt1sssHfYZFCXp4rU1w2r8hVVXYIlmoa0r0gABLs5di3RCqPU5DDROogVz1pAdYBaz7HK5n9pSUNs3A==}
     peerDependencies:
       zod: ^3.24.1
 
@@ -2283,7 +2277,7 @@ snapshots:
       eventsource: 3.0.5
       raw-body: 3.0.0
       zod: 3.24.1
-      zod-to-json-schema: 3.24.1(zod@3.24.1)
+      zod-to-json-schema: 3.24.3(zod@3.24.1)
 
   '@nodelib/fs.scandir@2.1.5':
     dependencies:
@@ -3318,10 +3312,6 @@ snapshots:
     dependencies:
       ee-first: 1.1.1
 
-  openai-zod-to-json-schema@1.0.3(zod@3.24.1):
-    dependencies:
-      zod: 3.24.1
-
   optionator@0.9.4:
     dependencies:
       deep-is: 0.1.4
@@ -3851,7 +3841,7 @@ snapshots:
 
   yocto-queue@0.1.0: {}
 
-  zod-to-json-schema@3.24.1(zod@3.24.1):
+  zod-to-json-schema@3.24.3(zod@3.24.1):
     dependencies:
       zod: 3.24.1
 
