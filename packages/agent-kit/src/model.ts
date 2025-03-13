@@ -71,6 +71,8 @@ export class AgenticModel<TAiAdapter extends AiAdapter.Any> {
           headers["x-api-key"] = modelCopy.authKey;
           headers["anthropic-version"] = "2023-06-01";
         },
+        gemini: () => {},
+        grok: () => {},
       };
 
       formatHandlers[modelCopy.format as AiAdapter.Format]();
