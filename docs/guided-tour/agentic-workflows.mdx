@@ -401,7 +401,7 @@ As stated in the [workflow overview](#overview-of-the-agentic-workflow), our Cod
 2. Depending on the plan, the Network will run the next Agent in the plan (_ex: `analysis_agent` and `documentation_agent`_)
 3. Finally, the `summarization_agent` will generate a summary of the suggestions made by other agents
 
-AgentKit's Router enables us to implement such dynamic workflow with code by providing a `defaultRouter` function:
+AgentKit's Router enables us to implement such dynamic workflow with code by providing a `router` function:
 
 ```typescript {9-24}
 const network = createNetwork({
@@ -412,7 +412,7 @@ const network = createNetwork({
     analysisAgent,
     summarizationAgent,
   ],
-  defaultRouter: ({ network }) => {
+  router: ({ network }) => {
     if (!network?.state.kv.has("code") || !network?.state.kv.has("plan")) {
       return codeAssistantAgent;
     } else {
@@ -439,7 +439,7 @@ const network = createNetwork({
 
 The Router is a function called by the Network when starting a new run and between each Agent call.
 
-The provided Router function (`defaultRouter`) receives a `network` argument granting access to the Network's state and Agents.
+The provided Router function (`router`) receives a `network` argument granting access to the Network's state and Agents.
 
 Learn more about the [Router](/concepts/router).
 </Note>

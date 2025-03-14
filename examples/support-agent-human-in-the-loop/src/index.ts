@@ -223,7 +223,7 @@ const supportNetwork = createNetwork({
       max_tokens: 1000,
     },
   }),
-  defaultRouter: supervisorRoutingAgent,
+  router: supervisorRoutingAgent,
 });
 
 const inngest = new Inngest({
