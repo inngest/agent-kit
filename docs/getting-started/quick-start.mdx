@@ -69,7 +69,9 @@ In this tutorial you will create an [Agent](/concepts/agents) and run it within 
         'You only provide answers to questions linked to Postgres database schema, indexes, extensions.',
       model: anthropic({
         model: 'claude-3-5-haiku-latest',
-        max_tokens: 1000,
+        defaultParameters: {
+          max_tokens: 1000,
+        },
       }),
     });
     ```
