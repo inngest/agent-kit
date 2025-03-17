@@ -52,14 +52,13 @@
     }
   },
   "dependencies": {
-    "@dmitryrechkin/json-schema-to-zod": "^1.0.0",
     "@inngest/ai": "0.1.2",
-    "inngest": "3.32.5",
     "@modelcontextprotocol/sdk": "^1.1.1",
     "eventsource": "^3.0.2",
     "express": "^4.21.1",
-    "zod-to-json-schema": "^3.24.3",
-    "zod": "^3.23.8"
+    "inngest": "3.32.5",
+    "zod": "^3.23.8",
+    "zod-to-json-schema": "^3.24.3"
   },
   "packageManager": "pnpm@9.14.2",
   "devDependencies": {
