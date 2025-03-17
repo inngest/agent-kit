@@ -1,5 +1,11 @@
 # @inngest/agent-kit
 
+## 0.5.1
+
+### Patch Changes
+
+- 3257ff2: fix(mcp): emit valid tool name from MCP tools
+
 ## 0.5.0
 
 ### Minor Changes
