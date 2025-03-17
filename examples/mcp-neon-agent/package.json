@@ -1,0 +1,19 @@
+{
+  "name": "mcp-neon-agent",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "tsc; node dist/index.js"
+  },
+  "dependencies": {
+    "@inngest/agent-kit": "0.5.1-alpha-20250317201203-29c1d7f5acce7d5383a93ae6c294966fdf6dc34b",
+    "@smithery/sdk": "^1.0.2",
+    "dotenv": "^16.4.7",
+    "inngest": "^3.31.11",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^22.9.1",
+    "typescript": "^5.0.0"
+  }
+}
