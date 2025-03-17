@@ -45,7 +45,7 @@
           },
           {
             "group": "Integrations",
-            "pages": ["integrations/e2b"]
+            "pages": ["integrations/e2b", "integrations/browserbase"]
           },
           {
             "group": "Advanced Patterns",
@@ -91,7 +91,8 @@
             "pages": [
               "reference/model-openai",
               "reference/model-anthropic",
-              "reference/model-gemini"
+              "reference/model-gemini",
+              "reference/model-grok"
             ]
           }
         ]

@@ -10,7 +10,9 @@ const codeAssistant = createAgent({
     "An AI assistant that helps answer questions about code by reading and analyzing files",
   model: anthropic({
     model: "claude-3-5-sonnet-latest",
-    max_tokens: 4096,
+    defaultParameters: {
+      max_tokens: 4096,
+    },
   }),
 });
 

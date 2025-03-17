@@ -9,7 +9,9 @@ const dbaAgent = createAgent({
     "You only provide answers to questions linked to Postgres database schema, indexes, extensions.",
   model: anthropic({
     model: "claude-3-5-haiku-latest",
-    max_tokens: 1000,
+    defaultParameters: {
+      max_tokens: 4096,
+    },
   }),
 });
 
@@ -22,7 +24,9 @@ const securityAgent = createAgent({
     "You only provide answers to questions linked to PostgreSQL security topics such as encryption, access control, audit logging, and compliance best practices.",
   model: anthropic({
     model: "claude-3-5-haiku-latest",
-    max_tokens: 1000,
+    defaultParameters: {
+      max_tokens: 1000,
+    },
   }),
 });
 
@@ -32,7 +36,9 @@ const devOpsNetwork = createNetwork({
   maxIter: 2,
   defaultModel: anthropic({
     model: "claude-3-5-haiku-latest",
-    max_tokens: 1000,
+    defaultParameters: {
+      max_tokens: 1000,
+    },
   }),
 });
 

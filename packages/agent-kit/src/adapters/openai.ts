@@ -5,7 +5,7 @@
  */
 
 import { type AiAdapter, type OpenAi } from "@inngest/ai";
-import { zodToJsonSchema } from "openai-zod-to-json-schema";
+import { zodToJsonSchema } from "zod-to-json-schema";
 import { type AgenticModel } from "../model";
 import {
   type Message,
@@ -63,17 +63,27 @@ export const requestParser: AgenticModel.RequestParser<OpenAi.AiModel> = (
 
   if (tools?.length) {
     request.tool_choice = toolChoice(tool_choice);
-    // it is recommended to disable parallel tool calls with structured output
-    // https://platform.openai.com/docs/guides/function-calling#parallel-function-calling-and-structured-outputs
-    request.parallel_tool_calls = false;
+    // OpenAI o3 models have several issues with tool calling.
+    //  one of them is not supporting the `parallel_tool_calls` parameter
+    //  https://community.openai.com/t/o3-mini-api-with-tools-only-ever-returns-1-tool-no-matter-prompt/1112390/6
+    if (
+      !model.options.model?.includes("o3") &&
+      !model.options.model?.includes("o1")
+    ) {
+      // it is recommended to disable parallel tool calls with structured output
+      // https://platform.openai.com/docs/guides/function-calling#parallel-function-calling-and-structured-outputs
+      request.parallel_tool_calls = false;
+    }
     request.tools = tools.map((t) => {
       return {
         type: "function",
         function: {
           name: t.name,
           description: t.description,
-          parameters: t.parameters && zodToJsonSchema(t.parameters),
-          strict: Boolean(t.parameters), // strict mode is only supported with parameters
+          parameters:
+            t.parameters && zodToJsonSchema(t.parameters, { target: "openAi" }),
+          strict:
+            typeof t.strict !== "undefined" ? t.strict : Boolean(t.parameters), // strict mode is only supported with parameters
         },
       };
     });

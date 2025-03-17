@@ -18,8 +18,9 @@ import { openai, anthropic, gemini } from "@inngest/agent-kit";
 ### Create a model instance
 
 <Info>
- Each model helper will first try to get the API Key from the environment variable.
- The API Key can also be provided with the `apiKey` option to the model helper.
+  Each model helper will first try to get the API Key from the environment
+  variable. The API Key can also be provided with the `apiKey` option to the
+  model helper.
 </Info>
 
 <CodeGroup>
@@ -27,34 +28,86 @@ import { openai, anthropic, gemini } from "@inngest/agent-kit";
 ```ts OpenAI
 import { openai, createAgent } from "@inngest/agent-kit";
 
-const model = openai('gpt-3.5-turbo')
-const modelWithApiKey = openai('gpt-3.5-turbo', { apiKey: 'sk-...' })
+
+const model = openai({ model: "gpt-3.5-turbo" });
+const modelWithApiKey = openai({ model: "gpt-3.5-turbo", apiKey: "sk-..." });
+
 ```
 
 ```ts Anthropic
-import { anthropic, createAgent } from '@inngest/agent-kit';
+import { anthropic, createAgent } from "@inngest/agent-kit";
 
-const model = anthropic('claude-3-5-haiku-latest')
 
-const modelWithMaxTokens = anthropic('claude-3-5-haiku-latest', { maxTokens: 1000 })
+const model = anthropic({ model: "claude-3-5-haiku-latest" });
 
-const modelWithBetaFlags = anthropic('claude-3-5-haiku-latest', { betaHeaders: ["prompt-caching-2024-07-31"] })
+const modelWithBetaFlags = anthropic({
+  model: "claude-3-5-haiku-latest",
+  betaHeaders: ["prompt-caching-2024-07-31"],
+});
 
-const modelWithApiKey = anthropic('claude-3-5-haiku-latest', { apiKey: 'sk-...' })
+const modelWithApiKey = anthropic({
+  model: "claude-3-5-haiku-latest",
+  apiKey: "sk-...",
+  // Note: max_tokens is required for Anthropic models
+  defaultParameters: { max_tokens: 4096 },
+});
 ```
 
 ```ts Gemini
-import { gemini, createAgent } from '@inngest/agent-kit';
+import { gemini, createAgent } from "@inngest/agent-kit";
 
-const model = gemini('gemini-1.5-flash')
+const model = gemini({ model: "gemini-1.5-flash" });
 ```
 
 </CodeGroup>
 
+### Configure model hyper parameters (temperature, etc.)
+
+You can configure the model hyper parameters (temperature, etc.) by passing the `defaultParameters` option:
+
+<CodeGroup>
+
+```ts OpenAI
+import { openai, createAgent } from "@inngest/agent-kit";
+
+const model = openai({
+  model: "gpt-3.5-turbo",
+  defaultParameters: { temperature: 0.5 },
+});
+```
+
+```ts Anthropic
+import { anthropic, createAgent } from "@inngest/agent-kit";
+
+const model = anthropic({
+  model: "claude-3-5-haiku-latest",
+  defaultParameters: { temperature: 0.5, max_tokens: 4096 },
+
+});
+```
+
+```ts Gemini
+import { gemini, createAgent } from "@inngest/agent-kit";
+
+
+const model = gemini({
+  model: "gemini-1.5-flash",
+  defaultParameters: { temperature: 0.5 },
+});
+```
+
+</CodeGroup>
+
+<Info>
+  The full list of hyper parameters can be found in the [types definition of
+  each
+  model](https://github.com/inngest/inngest-js/tree/main/packages/ai/src/models).
+</Info>
+
 ### Providing a model instance to an Agent
 
 ```ts
-import { createAgent } from '@inngest/agent-kit';
+import { createAgent } from "@inngest/agent-kit";
 
 const supportAgent = createAgent({
   model: openai("gpt-3.5-turbo"),
@@ -64,36 +117,41 @@ const supportAgent = createAgent({
 });
 ```
 
-
 ### Providing a model instance to a Network
 
 <Info>
-  The provided `defaultModel` will be used for all Agents without a model specified.
-  It will also be used by the "[Default Routing Agent](/concepts/routers#default-routing-agent-autonomous-routing)" if enabled.
+  The provided `defaultModel` will be used for all Agents without a model
+  specified. It will also be used by the "[Default Routing
+  Agent](/concepts/routers#default-routing-agent-autonomous-routing)" if
+  enabled.
 </Info>
 
 ```ts
-import { createNetwork } from '@inngest/agent-kit';
+import { createNetwork } from "@inngest/agent-kit";
 
 const network = createNetwork({
   agents: [supportAgent],
-  defaultModel: openai('gpt-4o'),
+  defaultModel: openai("gpt-4o"),
 });
 ```
 
 ## List of supported models
 
-For a full list of supported models, you can always check [the models directory here](https://github.com/inngest/inngest-js/tree/main/packages/inngest/src/components/ai/models).
+For a full list of supported models, you can always check [the models directory here](https://github.com/inngest/inngest-js/tree/main/packages/ai/src/models).
 
 <CodeGroup>
 
 ```plaintext OpenAI
+"gpt-4.5-preview"
 "gpt-4o"
 "chatgpt-4o-latest"
 "gpt-4o-mini"
 "gpt-4"
+"o1"
 "o1-preview"
 "o1-mini"
+"o3-mini"
+"gpt-4-turbo"
 "gpt-3.5-turbo"
 ```
 
@@ -109,7 +167,7 @@ For a full list of supported models, you can always check [the models directory 
 "claude-3-haiku-20240307"
 "claude-2.1"
 "claude-2.0"
-"claude-instant-1.2"
+"claude-instant-1.2";
 ```
 
 ```plaintext Gemini
@@ -121,6 +179,14 @@ For a full list of supported models, you can always check [the models directory 
 "aqa"
 ```
 
+```plaintext Grok
+"grok-2-1212"
+"grok-2"
+"grok-2-latest"
+"grok-3"
+"grok-3-latest"
+```
+
 </CodeGroup>
 
 ### Environment variable used for each model provider
@@ -128,6 +194,7 @@ For a full list of supported models, you can always check [the models directory 
 - OpenAI: `OPENAI_API_KEY`
 - Anthropic: `ANTHROPIC_API_KEY`
 - Gemini: `GEMINI_API_KEY`
+- Grok: `XAI_API_KEY`
 
 ## Contribution
 
@@ -140,4 +207,4 @@ Is there a model that you'd like to see included in AgentKit? Open an issue, cre
 >
   Fork, clone, and open a pull request.
 </Card>
-```
+

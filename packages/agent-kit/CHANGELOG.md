@@ -1,5 +1,32 @@
 # @inngest/agent-kit
 
+## 0.5.0
+
+### Minor Changes
+
+- 9688973: Gemini and Grok support
+
+### Patch Changes
+
+- 13643d9: fix(tools): better support for strict mode + option to opt-out
+
+## 0.4.1
+
+### Patch Changes
+
+- cc44a77: chore: update `inngest` and `@inngest/ai` to latest
+
+## 0.4.0
+
+### Minor Changes
+
+- 7f26053: chore: bump `@inngest/ai` for model hyper params support
+  Breaking change: `anthropic()` `max_tokens` options has been moved in `defaultParameters`
+
+### Patch Changes
+
+- c623d8a: fix(models): avoid `parallel_tool_calls` for o3-mini
+
 ## 0.3.1
 
 ### Patch Changes

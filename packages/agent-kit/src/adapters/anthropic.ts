@@ -8,7 +8,7 @@ import {
   type Anthropic,
   type AnthropicAiAdapter,
 } from "@inngest/ai";
-import { zodToJsonSchema } from "openai-zod-to-json-schema";
+import { zodToJsonSchema } from "zod-to-json-schema";
 import { z } from "zod";
 import { type AgenticModel } from "../model";
 import { type Message, type TextMessage } from "../state";
@@ -92,7 +92,7 @@ export const requestParser: AgenticModel.RequestParser<Anthropic.AiModel> = (
   const request: AiAdapter.Input<Anthropic.AiModel> = {
     system,
     model: model.options.model,
-    max_tokens: model.options.max_tokens,
+    max_tokens: model.options.defaultParameters.max_tokens,
     messages: anthropicMessages,
   };
 

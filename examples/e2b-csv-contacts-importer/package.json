@@ -1,5 +1,5 @@
 {
-  "name": "nextjs-import-contact",
+  "name": "e2b-csv-contacts-importer",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -9,8 +9,8 @@
   },
   "dependencies": {
     "@e2b/code-interpreter": "^1.0.4",
-    "@inngest/agent-kit": "workspace:^0.3.0",
-    "inngest": "^3.31.4",
+    "@inngest/agent-kit": "latest",
+    "inngest": "latest",
     "next": "15.1.6",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
