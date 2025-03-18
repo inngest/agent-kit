@@ -100,8 +100,7 @@ export const requestParser: AgenticModel.RequestParser<Anthropic.AiModel> = (
   };
 
   if (tools?.length) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    request.tools = tools.map((t: Tool.Any<any>) => {
+    request.tools = tools.map((t: Tool.Any) => {
       return {
         name: t.name,
         description: t.description,

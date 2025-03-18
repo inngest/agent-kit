@@ -24,8 +24,7 @@ export const requestParser: AgenticModel.RequestParser<Gemini.AiModel> = (
 ) => {
   const contents = messages.map((m: Message) => messageToContent(m));
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const functionDeclarations = tools.map((t: Tool.Any<any>) => ({
+  const functionDeclarations = tools.map((t: Tool.Any) => ({
     name: t.name,
     description: t.description,
     parameters: t.parameters

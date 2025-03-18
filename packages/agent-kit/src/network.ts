@@ -2,7 +2,6 @@ import { type AiAdapter } from "@inngest/ai";
 import { z } from "zod";
 import {
   createRoutingAgent,
-  createTool,
   type Agent,
   type RoutingAgent,
 } from "./agent";
@@ -13,6 +12,7 @@ import {
   type InferenceResult,
   type StateData,
 } from "./state";
+import { createTool } from "./tool";
 import { type MaybePromise } from "./util";
 
 /**
@@ -195,12 +195,6 @@ export const getDefaultRoutingAgent = () => {
           })
           .strict(),
         handler: ({ name }, { network }) => {
-          if (!network) {
-            throw new Error(
-              "The routing agent can only be used within a network of agents"
-            );
-          }
-
           if (typeof name !== "string") {
             throw new Error("The routing agent requested an invalid agent");
           }

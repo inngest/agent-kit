@@ -75,8 +75,7 @@ export const requestParser: AgenticModel.RequestParser<OpenAi.AiModel> = (
       request.parallel_tool_calls = false;
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    request.tools = tools.map((t: Tool.Any<any>) => {
+    request.tools = tools.map((t: Tool.Any) => {
       return {
         type: "function",
         function: {

@@ -16,6 +16,7 @@ import { type MinimalEventPayload } from "inngest/types";
 import type { ZodType } from "zod";
 import { createAgenticModelFromAiAdapter, type AgenticModel } from "./model";
 import { NetworkRun } from "./networkRun";
+import { createNetwork } from "./network";
 import { InferenceResult, State, type StateData } from "./state";
 import { type MCP, type Tool } from "./tool";
 import type { Message, ToolResultMessage } from "./types";
@@ -23,17 +24,8 @@ import {
   getInngestFnInput,
   getStepTools,
   isInngestFn,
-  type AnyZodType,
   type MaybePromise,
 } from "./util";
-
-/**
- * createTool is a helper that properly types the input argument for a handler
- * based off of the Zod parameter types.
- */
-export const createTool = <T extends AnyZodType, TData extends StateData>(
-  t: Tool<T, TData>
-): Tool<T, TData> => t;
 
 /**
  * Agent represents a single agent, responsible for a set of tasks.
@@ -72,7 +64,7 @@ export class Agent<T extends StateData> {
   /**
    * tools are a list of tools that this specific agent has access to.
    */
-  tools: Map<string, Tool.Any<T>>;
+  tools: Map<string, Tool.Any>;
 
   /**
    * tool_choice allows you to specify whether tools are automatically.  this defaults
@@ -186,7 +178,7 @@ export class Agent<T extends StateData> {
 
     // input state always overrides the network state.
     const s = state || network?.state || new State();
-    const run = network && new NetworkRun(network, s);
+    const run = new NetworkRun(network || createNetwork<T>({ name: "default", agents: [] }), s);
 
     let history = s ? s.format() : [];
     let prompt = await this.agentPrompt(input, run);
@@ -252,7 +244,7 @@ export class Agent<T extends StateData> {
     p: AgenticModel.Any,
     prompt: Message[],
     history: Message[],
-    network?: NetworkRun<T>
+    network: NetworkRun<T>
   ): Promise<InferenceResult> {
     const { output, raw } = await p.infer(
       this.name,
@@ -296,7 +288,7 @@ export class Agent<T extends StateData> {
   private async invokeTools(
     msgs: Message[],
     p: AgenticModel.Any,
-    network?: NetworkRun<T>
+    network: NetworkRun<T>
   ): Promise<ToolResultMessage[]> {
     const output: ToolResultMessage[] = [];
 
@@ -537,7 +529,7 @@ export namespace Agent {
       | string
       | ((ctx: { network?: NetworkRun<T> }) => MaybePromise<string>);
     assistant?: string;
-    tools?: (Tool.Any<T> | InngestFunction.Any)[];
+    tools?: (Tool.Any | InngestFunction.Any)[];
     tool_choice?: Tool.Choice;
     lifecycle?: Lifecycle<T>;
     model?: AiAdapter.Any;

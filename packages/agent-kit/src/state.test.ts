@@ -1,15 +1,18 @@
 import { describe, expect, test } from "vitest";
+import { z } from "zod";
 import { createState } from "./state";
 import { createNetwork } from "./network";
+import { createAgent } from "./agent";
+import { type Tool, createTool } from "./tool";
+
+interface Shape {
+  category?: "refund" | "exchange";
+  sku?: number;
+}
 
 describe("createState", () => {
   test("createState with types", () => {
-    interface State {
-      category?: "refund" | "exchange";
-      sku?: number;
-    }
-
-    const s = createState<State>();
+    const s = createState<Shape>();
     s.data.category = "refund";
     s.data.sku = 123;
     expect(s.data.category).toBe("refund");
@@ -23,13 +26,8 @@ describe("createState", () => {
   });
 
   test("it types network", () => {
-    interface State {
-      category?: "refund" | "exchange";
-      sku?: number;
-    }
-
     // This Network should be fully typed.
-    const network = createNetwork<State>({
+    const network = createNetwork<Shape>({
       name: "test",
       agents: [],
       defaultRouter: (opts) => {
@@ -45,5 +43,38 @@ describe("createState", () => {
 
     expect(network.state.data.category).toBe("refund");
     expect(network.state.data.sku).toBe(123);
+  });
+
+  test("typed tools", () => {
+    const tool = createTool({
+      name: "set_sku",
+      description: "sets a sku",
+      parameters: z.object({ sku: z.number() }),
+      handler: (_input, _opts: Tool.Options<Shape>) => {
+        // input and opts are now fully typed generic tools.
+      },
+    });
+
+    createAgent<Shape>({
+      name: "foo",
+      system: "you are an agent!",
+      tools: [
+        tool,
+        createTool({
+          name: "test",
+          description: "test",
+          parameters: z.object({ title: z.string() }),
+          handler: (_input, _opts: Tool.Options<Shape>) => {
+            // input and _opts are still typed.
+          },
+        }),
+      ],
+    });
+
+    createAgent<{ name: string }>({
+      name: "foo",
+      system: "you are an agent!",
+      tools: [tool],
+    });
   });
 });

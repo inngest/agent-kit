@@ -38,7 +38,7 @@ export class AgenticModel<TAiAdapter extends AiAdapter.Any> {
   async infer(
     stepID: string,
     input: Message[],
-    tools: Tool.Any<any>[], // eslint-disable-line @typescript-eslint/no-explicit-any
+    tools: Tool.Any[],
     tool_choice: Tool.Choice
   ): Promise<AgenticModel.InferenceResponse> {
     const body = this.requestParser(this.#model, input, tools, tool_choice);
@@ -113,7 +113,7 @@ export namespace AgenticModel {
   export type RequestParser<TAiAdapter extends AiAdapter.Any> = (
     model: TAiAdapter,
     state: Message[],
-    tools: Tool.Any<any>[], // eslint-disable-line @typescript-eslint/no-explicit-any
+    tools: Tool.Any[],
     tool_choice: Tool.Choice
   ) => AiAdapter.Input<TAiAdapter>;
 

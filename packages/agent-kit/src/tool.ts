@@ -1,11 +1,35 @@
 import { type GetStepTools, type Inngest } from "inngest";
 import { type output as ZodOutput } from "zod";
 import { type Agent } from "./agent";
-import { type StateData } from "./state";
+import { State, type StateData } from "./state";
 import { type NetworkRun } from "./networkRun";
 import { type AnyZodType, type MaybePromise } from "./util";
 
-export type Tool<TInput extends Tool.Input, TState extends StateData> = {
+/**
+ * createTool is a helper that properly types the input argument for a handler
+ * based off of the Zod parameter types.
+ */
+export function createTool<TInput extends Tool.Input, TState extends StateData>({
+  name,
+  description,
+  parameters,
+  handler,
+}: {
+  name: string;
+  description?: string;
+  parameters: TInput;
+  handler: (input: ZodOutput<TInput>, opts: Tool.Options<TState>) => MaybePromise<any>;
+}): Tool<TInput> {
+  return {
+    name,
+    description,
+    parameters,
+    handler: handler as any as <TState extends StateData>(input: ZodOutput<TInput>, opts: Tool.Options<TState>) => MaybePromise<any>,
+  };
+}
+
+
+export type Tool<TInput extends Tool.Input> = {
   name: string;
   description?: string;
   parameters?: TInput;
@@ -19,24 +43,18 @@ export type Tool<TInput extends Tool.Input, TState extends StateData> = {
 
   strict?: boolean;
 
-  // TODO: Handler input types based off of JSON above.
-  //
-  // Handlers get their input arguments from inference calls, and can also
-  // access the current agent and network.  This allows tools to reference and
-  // schedule future work via the network, if necessary.
-
-  handler: (
+  handler: <TState extends StateData>(
     input: ZodOutput<TInput>,
     opts: Tool.Options<TState>
   ) => MaybePromise<any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 };
 
 export namespace Tool {
-  export type Any<T extends StateData> = Tool<Tool.Input, T>;
+  export type Any = Tool<Tool.Input>;
 
   export type Options<T extends StateData> = {
     agent: Agent<T>;
-    network?: NetworkRun<T>;
+    network: NetworkRun<T>;
     step?: GetStepTools<Inngest.Any>;
   };
 
