@@ -11,7 +11,7 @@ import {
 import { zodToJsonSchema } from "zod-to-json-schema";
 import { z } from "zod";
 import { type AgenticModel } from "../model";
-import { type Message, type TextMessage } from "../state";
+import { type Message, type TextMessage } from "../types";
 import { type Tool } from "../tool";
 
 /**
@@ -26,16 +26,19 @@ export const requestParser: AgenticModel.RequestParser<Anthropic.AiModel> = (
   // Note that Anthropic has a top-level system prompt, then a series of prompts
   // for assistants and users.
   const systemMessage = messages.find(
-    (m) => m.role === "system" && m.type === "text"
+    (m: Message) => m.role === "system" && m.type === "text"
   ) as TextMessage;
   const system =
     typeof systemMessage?.content === "string" ? systemMessage.content : "";
 
   const anthropicMessages: AiAdapter.Input<Anthropic.AiModel>["messages"] =
     messages
-      .filter((m) => m.role !== "system")
+      .filter((m: Message) => m.role !== "system")
       .reduce(
-        (acc, m) => {
+        (
+          acc: AiAdapter.Input<Anthropic.AiModel>["messages"],
+          m: Message
+        ): AiAdapter.Input<Anthropic.AiModel>["messages"] => {
           switch (m.type) {
             case "text":
               return [
@@ -80,7 +83,7 @@ export const requestParser: AgenticModel.RequestParser<Anthropic.AiModel> = (
           }
         },
         [] as AiAdapter.Input<Anthropic.AiModel>["messages"]
-      );
+      ) as AiAdapter.Input<Anthropic.AiModel>["messages"];
 
   // We need to patch the last message if it's an assistant message.  This is a known limitation of Anthropic's API.
   // cf: https://github.com/langchain-ai/langgraph/discussions/952#discussioncomment-10012320
@@ -97,7 +100,8 @@ export const requestParser: AgenticModel.RequestParser<Anthropic.AiModel> = (
   };
 
   if (tools?.length) {
-    request.tools = tools.map((t) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    request.tools = tools.map((t: Tool.Any<any>) => {
       return {
         name: t.name,
         description: t.description,

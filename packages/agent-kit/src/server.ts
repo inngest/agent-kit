@@ -29,8 +29,8 @@ export const createServer = ({
   functions: manualFns = [],
 }: {
   appId?: string;
-  networks?: Network[];
-  agents?: Agent[];
+  networks?: Network<any>[]; // eslint-disable-line @typescript-eslint/no-explicit-any
+  agents?: Agent<any>[]; // eslint-disable-line @typescript-eslint/no-explicit-any
   functions?: InngestFunction.Any[];
   client?: Inngest.Any;
 }) => {

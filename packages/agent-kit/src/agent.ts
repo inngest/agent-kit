@@ -16,13 +16,9 @@ import { type MinimalEventPayload } from "inngest/types";
 import type { ZodType } from "zod";
 import { createAgenticModelFromAiAdapter, type AgenticModel } from "./model";
 import { NetworkRun } from "./networkRun";
-import {
-  InferenceResult,
-  State,
-  type Message,
-  type ToolResultMessage,
-} from "./state";
+import { InferenceResult, State, type StateData } from "./state";
 import { type MCP, type Tool } from "./tool";
+import type { Message, ToolResultMessage } from "./types";
 import {
   getInngestFnInput,
   getStepTools,
@@ -35,20 +31,24 @@ import {
  * createTool is a helper that properly types the input argument for a handler
  * based off of the Zod parameter types.
  */
-export const createTool = <T extends AnyZodType>(t: Tool<T>): Tool<T> => t;
+export const createTool = <T extends AnyZodType, TData extends StateData>(
+  t: Tool<T, TData>
+): Tool<T, TData> => t;
 
 /**
  * Agent represents a single agent, responsible for a set of tasks.
  */
-export const createAgent = (opts: Agent.Constructor) => new Agent(opts);
+export const createAgent = <T extends StateData>(opts: Agent.Constructor<T>) =>
+  new Agent(opts);
 
-export const createRoutingAgent = (opts: Agent.RoutingConstructor) =>
-  new RoutingAgent(opts);
+export const createRoutingAgent = <T extends StateData>(
+  opts: Agent.RoutingConstructor<T>
+) => new RoutingAgent(opts);
 
 /**
  * Agent represents a single agent, responsible for a set of tasks.
  */
-export class Agent {
+export class Agent<T extends StateData> {
   /**
    * name is the name of the agent.
    */
@@ -62,7 +62,7 @@ export class Agent {
   /**
    * system is the system prompt for the agent.
    */
-  system: string | ((ctx: { network?: NetworkRun }) => MaybePromise<string>);
+  system: string | ((ctx: { network?: NetworkRun<T> }) => MaybePromise<string>);
 
   /**
    * Assistant is the assistent message used for completion, if any.
@@ -72,7 +72,7 @@ export class Agent {
   /**
    * tools are a list of tools that this specific agent has access to.
    */
-  tools: Map<string, Tool.Any>;
+  tools: Map<string, Tool.Any<T>>;
 
   /**
    * tool_choice allows you to specify whether tools are automatically.  this defaults
@@ -87,7 +87,7 @@ export class Agent {
   /**
    * lifecycles are programmatic hooks used to manage the agent.
    */
-  lifecycles: Agent.Lifecycle | Agent.RoutingLifecycle | undefined;
+  lifecycles: Agent.Lifecycle<T> | Agent.RoutingLifecycle<T> | undefined;
 
   /**
    * model is the step caller to use for this agent.  This allows the agent
@@ -105,7 +105,7 @@ export class Agent {
   // _mcpInit records whether the MCP tool list has been initialized.
   private _mcpClients: MCPClient[];
 
-  constructor(opts: Agent.Constructor | Agent.RoutingConstructor) {
+  constructor(opts: Agent.Constructor<T> | Agent.RoutingConstructor<T>) {
     this.name = opts.name;
     this.description = opts.description || "";
     this.system = opts.system;
@@ -119,7 +119,7 @@ export class Agent {
     this._mcpClients = [];
   }
 
-  private setTools(tools: Agent.Constructor["tools"]): void {
+  private setTools(tools: Agent.Constructor<T>["tools"]): void {
     for (const tool of tools || []) {
       if (isInngestFn(tool)) {
         this.tools.set(tool["absoluteId"], {
@@ -154,7 +154,7 @@ export class Agent {
     }
   }
 
-  withModel(model: AiAdapter.Any): Agent {
+  withModel(model: AiAdapter.Any): Agent<T> {
     return new Agent({
       name: this.name,
       description: this.description,
@@ -172,7 +172,7 @@ export class Agent {
    */
   async run(
     input: string,
-    { model, network, state, maxIter = 0 }: Agent.RunOptions | undefined = {}
+    { model, network, state, maxIter = 0 }: Agent.RunOptions<T> | undefined = {}
   ): Promise<InferenceResult> {
     // Attempt to resolve the MCP tools, if we haven't yet done so.
     await this.initMCP();
@@ -252,7 +252,7 @@ export class Agent {
     p: AgenticModel.Any,
     prompt: Message[],
     history: Message[],
-    network?: NetworkRun
+    network?: NetworkRun<T>
   ): Promise<InferenceResult> {
     const { output, raw } = await p.infer(
       this.name,
@@ -268,7 +268,7 @@ export class Agent {
       input,
       prompt,
       history,
-      output,
+      output as Message[],
       [],
       typeof raw === "string" ? raw : JSON.stringify(raw)
     );
@@ -296,7 +296,7 @@ export class Agent {
   private async invokeTools(
     msgs: Message[],
     p: AgenticModel.Any,
-    network?: NetworkRun
+    network?: NetworkRun<T>
   ): Promise<ToolResultMessage[]> {
     const output: ToolResultMessage[] = [];
 
@@ -365,7 +365,7 @@ export class Agent {
 
   private async agentPrompt(
     input: string,
-    network?: NetworkRun
+    network?: NetworkRun<T>
   ): Promise<Message[]> {
     // Prompt returns the full prompt for the current agent.  This does NOT
     // include the existing network's state as part of the prompt.
@@ -508,15 +508,15 @@ export class Agent {
   }
 }
 
-export class RoutingAgent extends Agent {
+export class RoutingAgent<T extends StateData> extends Agent<T> {
   type = "routing";
-  override lifecycles: Agent.RoutingLifecycle;
-  constructor(opts: Agent.RoutingConstructor) {
+  override lifecycles: Agent.RoutingLifecycle<T>;
+  constructor(opts: Agent.RoutingConstructor<T>) {
     super(opts);
     this.lifecycles = opts.lifecycle;
   }
 
-  override withModel(model: AiAdapter.Any): RoutingAgent {
+  override withModel(model: AiAdapter.Any): RoutingAgent<T> {
     return new RoutingAgent({
       name: this.name,
       description: this.description,
@@ -530,48 +530,53 @@ export class RoutingAgent extends Agent {
 }
 
 export namespace Agent {
-  export interface Constructor {
+  export interface Constructor<T extends StateData> {
     name: string;
     description?: string;
-    system: string | ((ctx: { network?: NetworkRun }) => MaybePromise<string>);
+    system:
+      | string
+      | ((ctx: { network?: NetworkRun<T> }) => MaybePromise<string>);
     assistant?: string;
-    tools?: (Tool.Any | InngestFunction.Any)[];
+    tools?: (Tool.Any<T> | InngestFunction.Any)[];
     tool_choice?: Tool.Choice;
-    lifecycle?: Lifecycle;
+    lifecycle?: Lifecycle<T>;
     model?: AiAdapter.Any;
     mcpServers?: MCP.Server[];
   }
 
-  export interface RoutingConstructor extends Omit<Constructor, "lifecycle"> {
-    lifecycle: RoutingLifecycle;
+  export interface RoutingConstructor<T extends StateData>
+    extends Omit<Constructor<T>, "lifecycle"> {
+    lifecycle: RoutingLifecycle<T>;
   }
 
-  export interface RoutingConstructor extends Omit<Constructor, "lifecycle"> {
-    lifecycle: RoutingLifecycle;
+  export interface RoutingConstructor<T extends StateData>
+    extends Omit<Constructor<T>, "lifecycle"> {
+    lifecycle: RoutingLifecycle<T>;
   }
 
-  export interface RoutingConstructor extends Omit<Constructor, "lifecycle"> {
-    lifecycle: RoutingLifecycle;
+  export interface RoutingConstructor<T extends StateData>
+    extends Omit<Constructor<T>, "lifecycle"> {
+    lifecycle: RoutingLifecycle<T>;
   }
 
-  export interface RunOptions {
+  export interface RunOptions<T extends StateData> {
     model?: AiAdapter.Any;
-    network?: NetworkRun;
+    network?: NetworkRun<T>;
     /**
      * State allows you to pass custom state into a single agent run call.  This should only
      * be provided if you are running agents outside of a network.  Networks automatically
      * supply their own state.
      */
-    state?: State;
+    state?: State<T>;
     maxIter?: number;
   }
 
-  export interface Lifecycle {
+  export interface Lifecycle<T extends StateData> {
     /**
      * enabled selectively enables or disables this agent based off of network
      * state.  If this function is not provided, the agent is always enabled.
      */
-    enabled?: (args: Agent.LifecycleArgs.Base) => MaybePromise<boolean>;
+    enabled?: (args: Agent.LifecycleArgs.Base<T>) => MaybePromise<boolean>;
 
     /**
      * onStart is called just before an agent starts an inference call.
@@ -584,7 +589,7 @@ export namespace Agent {
      * the agent from making the call altogether.
      *
      */
-    onStart?: (args: Agent.LifecycleArgs.Before) => MaybePromise<{
+    onStart?: (args: Agent.LifecycleArgs.Before<T>) => MaybePromise<{
       prompt: Message[];
       history: Message[];
       // stop, if true, will prevent calling the agent
@@ -597,7 +602,7 @@ export namespace Agent {
      * running tools.
      */
     onResponse?: (
-      args: Agent.LifecycleArgs.Result
+      args: Agent.LifecycleArgs.Result<T>
     ) => MaybePromise<InferenceResult>;
 
     /**
@@ -607,23 +612,23 @@ export namespace Agent {
      *
      */
     onFinish?: (
-      args: Agent.LifecycleArgs.Result
+      args: Agent.LifecycleArgs.Result<T>
     ) => MaybePromise<InferenceResult>;
   }
 
   export namespace LifecycleArgs {
-    export interface Base {
+    export interface Base<T extends StateData> {
       // Agent is the agent that made the call.
-      agent: Agent;
+      agent: Agent<T>;
       // Network represents the network that this agent or lifecycle belongs to.
-      network?: NetworkRun;
+      network?: NetworkRun<T>;
     }
 
-    export interface Result extends Base {
+    export interface Result<T extends StateData> extends Base<T> {
       result: InferenceResult;
     }
 
-    export interface Before extends Base {
+    export interface Before<T extends StateData> extends Base<T> {
       // input is the user request for the entire agentic operation.
       input?: string;
 
@@ -637,14 +642,16 @@ export namespace Agent {
     }
   }
 
-  export interface RoutingLifecycle extends Lifecycle {
-    onRoute: RouterFn;
+  export interface RoutingLifecycle<T extends StateData> extends Lifecycle<T> {
+    onRoute: RouterFn<T>;
   }
 
-  export type RouterFn = (args: Agent.RouterArgs) => string[] | undefined;
+  export type RouterFn<T extends StateData> = (
+    args: Agent.RouterArgs<T>
+  ) => string[] | undefined;
 
   /**
    * Router args are the arguments passed to the onRoute lifecycle hook.
    */
-  export type RouterArgs = Agent.LifecycleArgs.Result;
+  export type RouterArgs<T extends StateData> = Agent.LifecycleArgs.Result<T>;
 }

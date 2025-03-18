@@ -10,8 +10,8 @@ import { z, type ZodSchema } from "zod";
 import { zodToJsonSchema } from "zod-to-json-schema";
 
 import { type AgenticModel } from "../model";
-import type { Tool } from "../tool";
-import type { Message, TextContent } from "../state";
+import type { Message, TextContent } from "../types";
+import { type Tool } from "../tool";
 
 /**
  * Parse a request from internal network messages to an Gemini input.
@@ -22,9 +22,10 @@ export const requestParser: AgenticModel.RequestParser<Gemini.AiModel> = (
   tools,
   tool_choice = "auto"
 ) => {
-  const contents = messages.map((m) => messageToContent(m));
+  const contents = messages.map((m: Message) => messageToContent(m));
 
-  const functionDeclarations = tools.map((t) => ({
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const functionDeclarations = tools.map((t: Tool.Any<any>) => ({
     name: t.name,
     description: t.description,
     parameters: t.parameters

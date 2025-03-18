@@ -1,17 +1,15 @@
 import { RoutingAgent, type Agent } from "./agent";
 import { getDefaultRoutingAgent, Network } from "./network";
-import { type State } from "./state";
+import { type State, type StateData } from "./state";
 
-export class NetworkRun extends Network {
-  public state: State;
-
-  constructor(network: Network, state: State) {
+export class NetworkRun<T extends StateData> extends Network<T> {
+  constructor(network: Network<T>, state: State<T>) {
     super({
       name: network.name,
       description: network.description,
       agents: Array.from(network.agents.values()),
       defaultModel: network.defaultModel,
-      defaultState: network.defaultState,
+      defaultState: network.state,
       defaultRouter: network.defaultRouter,
       maxIter: network.maxIter,
     });
@@ -23,7 +21,7 @@ export class NetworkRun extends Network {
     throw new Error("NetworkRun does not support run");
   }
 
-  public override async availableAgents(): Promise<Agent[]> {
+  public override async availableAgents(): Promise<Agent<T>[]> {
     return super.availableAgents(this);
   }
 
@@ -34,7 +32,9 @@ export class NetworkRun extends Network {
     this["_stack"].push(agentName);
   }
 
-  private async execute(...[input, overrides]: Network.RunArgs): Promise<this> {
+  private async execute(
+    ...[input, overrides]: Network.RunArgs<T>
+  ): Promise<this> {
     const available = await this.availableAgents();
     if (available.length === 0) {
       throw new Error("no agents enabled in network");
@@ -106,8 +106,8 @@ export class NetworkRun extends Network {
 
   private async getNextAgents(
     input: string,
-    router?: Network.Router
-  ): Promise<Agent[] | undefined> {
+    router?: Network.Router<T>
+  ): Promise<Agent<T>[] | undefined> {
     // A router may do one of two things:
     //
     //   1. Return one or more Agents to run
@@ -128,7 +128,7 @@ export class NetworkRun extends Network {
 
     // This is a function call which determines the next agent to call.  Note that the result
     // of this function call may be another RoutingAgent.
-    const stack: Agent[] = this._stack.map((name) => {
+    const stack: Agent<T>[] = this._stack.map((name) => {
       const agent = this._agents.get(name);
       if (!agent) {
         throw new Error(`unknown agent in the network stack: ${name}`);
@@ -163,9 +163,9 @@ export class NetworkRun extends Network {
   }
 
   private async getNextAgentsViaRoutingAgent(
-    routingAgent: RoutingAgent,
+    routingAgent: RoutingAgent<T>,
     input: string
-  ): Promise<Agent[] | undefined> {
+  ): Promise<Agent<T>[] | undefined> {
     const result = await routingAgent.run(input, {
       network: this,
       model: routingAgent.model || this.defaultModel,
@@ -178,6 +178,6 @@ export class NetworkRun extends Network {
 
     return (agentNames || [])
       .map((name) => this.agents.get(name))
-      .filter(Boolean) as Agent[];
+      .filter(Boolean) as Agent<T>[];
   }
 }
