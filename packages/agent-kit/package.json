@@ -53,7 +53,7 @@
   },
   "dependencies": {
     "@inngest/ai": "0.1.2",
-    "@modelcontextprotocol/sdk": "^1.1.1",
+    "@modelcontextprotocol/sdk": "^1.7.0",
     "eventsource": "^3.0.2",
     "express": "^4.21.1",
     "inngest": "3.32.5",
