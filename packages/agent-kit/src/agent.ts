@@ -424,7 +424,7 @@ export class Agent {
         ListToolsResultSchema
       );
       results.tools.forEach((t) => {
-        const name = `${server.name}: ${t.name}`;
+        const name = `${server.name}-${t.name}`;
 
         let zschema: undefined | ZodType;
         try {

@@ -35,6 +35,16 @@
             ]
           },
           {
+            "group": "Advanced Patterns",
+            "pages": [
+              "advanced-patterns/mcp",
+              "advanced-patterns/multi-steps-tools",
+              "advanced-patterns/retries",
+              "advanced-patterns/multitenancy",
+              "advanced-patterns/human-in-the-loop"
+            ]
+          },
+          {
             "group": "Guided Tour",
             "pages": [
               "guided-tour/overview",
@@ -45,15 +55,10 @@
           },
           {
             "group": "Integrations",
-            "pages": ["integrations/e2b", "integrations/browserbase"]
-          },
-          {
-            "group": "Advanced Patterns",
             "pages": [
-              "advanced-patterns/multi-steps-tools",
-              "advanced-patterns/retries",
-              "advanced-patterns/multitenancy",
-              "advanced-patterns/human-in-the-loop"
+              "integrations/e2b",
+              "integrations/browserbase",
+              "integrations/smithery"
             ]
           }
         ]
