@@ -50,6 +50,7 @@ describe("createState", () => {
       name: "set_sku",
       description: "sets a sku",
       parameters: z.object({ sku: z.number() }),
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       handler: (_input, _opts: Tool.Options<Shape>) => {
         // input and opts are now fully typed generic tools.
       },
@@ -64,6 +65,7 @@ describe("createState", () => {
           name: "test",
           description: "test",
           parameters: z.object({ title: z.string() }),
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
           handler: (_input, _opts: Tool.Options<Shape>) => {
             // input and _opts are still typed.
           },

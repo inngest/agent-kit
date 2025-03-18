@@ -178,7 +178,10 @@ export class Agent<T extends StateData> {
 
     // input state always overrides the network state.
     const s = state || network?.state || new State();
-    const run = new NetworkRun(network || createNetwork<T>({ name: "default", agents: [] }), s);
+    const run = new NetworkRun(
+      network || createNetwork<T>({ name: "default", agents: [] }),
+      s
+    );
 
     let history = s ? s.format() : [];
     let prompt = await this.agentPrompt(input, run);

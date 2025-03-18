@@ -1,7 +1,7 @@
 import { type GetStepTools, type Inngest } from "inngest";
 import { type output as ZodOutput } from "zod";
 import { type Agent } from "./agent";
-import { State, type StateData } from "./state";
+import { type StateData } from "./state";
 import { type NetworkRun } from "./networkRun";
 import { type AnyZodType, type MaybePromise } from "./util";
 
@@ -9,7 +9,10 @@ import { type AnyZodType, type MaybePromise } from "./util";
  * createTool is a helper that properly types the input argument for a handler
  * based off of the Zod parameter types.
  */
-export function createTool<TInput extends Tool.Input, TState extends StateData>({
+export function createTool<
+  TInput extends Tool.Input,
+  TState extends StateData,
+>({
   name,
   description,
   parameters,
@@ -18,16 +21,22 @@ export function createTool<TInput extends Tool.Input, TState extends StateData>(
   name: string;
   description?: string;
   parameters: TInput;
-  handler: (input: ZodOutput<TInput>, opts: Tool.Options<TState>) => MaybePromise<any>;
+  handler: (
+    input: ZodOutput<TInput>,
+    opts: Tool.Options<TState>
+  ) => MaybePromise<any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 }): Tool<TInput> {
   return {
     name,
     description,
     parameters,
-    handler: handler as any as <TState extends StateData>(input: ZodOutput<TInput>, opts: Tool.Options<TState>) => MaybePromise<any>,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    handler: handler as any as <TState extends StateData>(
+      input: ZodOutput<TInput>,
+      opts: Tool.Options<TState>
+    ) => MaybePromise<any>, // eslint-disable-line @typescript-eslint/no-explicit-any
   };
 }
-
 
 export type Tool<TInput extends Tool.Input> = {
   name: string;

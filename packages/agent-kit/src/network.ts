@@ -1,10 +1,6 @@
 import { type AiAdapter } from "@inngest/ai";
 import { z } from "zod";
-import {
-  createRoutingAgent,
-  type Agent,
-  type RoutingAgent,
-} from "./agent";
+import { createRoutingAgent, type Agent, type RoutingAgent } from "./agent";
 import { NetworkRun } from "./networkRun";
 import {
   createState,
