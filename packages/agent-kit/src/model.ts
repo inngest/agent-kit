@@ -1,6 +1,6 @@
 import { type AiAdapter } from "@inngest/ai";
 import { adapters } from "./adapters";
-import { type Message } from "./state";
+import { type Message } from "./types";
 import { type Tool } from "./tool";
 import { getStepTools } from "./util";
 
@@ -38,7 +38,7 @@ export class AgenticModel<TAiAdapter extends AiAdapter.Any> {
   async infer(
     stepID: string,
     input: Message[],
-    tools: Tool.Any[],
+    tools: Tool.Any<any>[], // eslint-disable-line @typescript-eslint/no-explicit-any
     tool_choice: Tool.Choice
   ): Promise<AgenticModel.InferenceResponse> {
     const body = this.requestParser(this.#model, input, tools, tool_choice);
@@ -113,7 +113,7 @@ export namespace AgenticModel {
   export type RequestParser<TAiAdapter extends AiAdapter.Any> = (
     model: TAiAdapter,
     state: Message[],
-    tools: Tool.Any[],
+    tools: Tool.Any<any>[], // eslint-disable-line @typescript-eslint/no-explicit-any
     tool_choice: Tool.Choice
   ) => AiAdapter.Input<TAiAdapter>;
 

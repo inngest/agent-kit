@@ -268,7 +268,7 @@ export class Agent<T extends StateData> {
       input,
       prompt,
       history,
-      output as Message[],
+      output,
       [],
       typeof raw === "string" ? raw : JSON.stringify(raw)
     );
