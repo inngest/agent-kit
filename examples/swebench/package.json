@@ -11,9 +11,9 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@inngest/agent-kit": "latest",
-    "inngest": "latest",
+    "@inngest/agent-kit": "0.6.0-alpha-20250318224927-360834c7f5c6cf1ad0f5ceb28b0c0237d65f6580",
     "express": "^4.21.1",
+    "inngest": "latest",
     "tree-sitter": "^0.22.1",
     "tree-sitter-python": "^0.23.5",
     "zod": "^3.23.8"

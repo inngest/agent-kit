@@ -3,7 +3,7 @@ import { execSync } from "node:child_process";
 import fs from "node:fs";
 import { EventSchemas, Inngest } from "inngest";
 import { z } from "zod";
-import { codeWritingNetwork } from "./networks/codeWritingNetwork";
+import { AgentState, codeWritingNetwork } from "./networks/codeWritingNetwork";
 
 export const inngest = new Inngest({
   id: "agents",
@@ -51,8 +51,10 @@ export const fn = inngest.createFunction(
     });
 
     // Create new state and store the repo in KV for access via tools.
-    const state = new State();
-    state.kv.set("repo", event.data.repo);
+    const state = new State<AgentState>({
+      repo: event.data.repo,
+      done: false,
+    });
 
     await codeWritingNetwork.run(event.data.problem_statement, {
       state,
