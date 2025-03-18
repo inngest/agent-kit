@@ -5,33 +5,45 @@ import { createNetwork } from "./network";
 describe("createState", () => {
   test("createState with types", () => {
     interface State {
-      name?: string;
-      age?: number;
+      category?: "refund" | "exchange";
+      sku?: number;
     }
 
     const s = createState<State>();
-    s.data.name = "test";
-    s.data.age = 50;
-    expect(s.data.name).toBe("test");
-    expect(s.data.age).toBe(50);
-
-    // This Network should be fully typed.
-    const network = createNetwork<State>({
-      name: "test",
-      agents: [],
-      defaultState: s,
-      defaultRouter: () => {
-        return undefined;
-      },
-    });
-
-    expect(network.state.data.name).toBe("test");
-    expect(network.state.data.age).toBe(50);
+    s.data.category = "refund";
+    s.data.sku = 123;
+    expect(s.data.category).toBe("refund");
+    expect(s.data.sku).toBe(123);
   });
 
   test("createState without types", () => {
     const s = createState();
     s.data.name = "test";
     expect(s.data.name).toBe("test");
+  });
+
+  test("it types network", () => {
+    interface State {
+      category?: "refund" | "exchange";
+      sku?: number;
+    }
+
+    // This Network should be fully typed.
+    const network = createNetwork<State>({
+      name: "test",
+      agents: [],
+      defaultRouter: (opts) => {
+        if (!opts.network.state.data.category) {
+          // XXX: Run the categorization agent to classify which type of request this is.
+        }
+        return undefined;
+      },
+    });
+
+    network.state.data.category = "refund";
+    network.state.data.sku = 123;
+
+    expect(network.state.data.category).toBe("refund");
+    expect(network.state.data.sku).toBe(123);
   });
 });
