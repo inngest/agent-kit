@@ -46,7 +46,7 @@ export class Network<T extends StateData> {
    */
   defaultModel?: AiAdapter.Any;
 
-  defaultRouter?: Network.Router<T>;
+  router?: Network.Router<T>;
 
   /**
    * maxIter is the maximum number of times the we can call agents before ending
@@ -72,14 +72,14 @@ export class Network<T extends StateData> {
     defaultModel,
     maxIter,
     defaultState,
-    defaultRouter,
+    router,
   }: Network.Constructor<T>) {
     this.name = name;
     this.description = description;
     this.agents = new Map();
     this._agents = new Map();
     this.defaultModel = defaultModel;
-    this.defaultRouter = defaultRouter;
+    this.router = router;
     this.maxIter = maxIter || 0;
     this._stack = [];
 
@@ -261,7 +261,7 @@ export namespace Network {
     // state is any pre-existing network state to use in this Network instance.  By
     // default, new state is created without any history for every Network.
     defaultState?: State<T>;
-    defaultRouter?: Router<T>;
+    router?: Router<T>;
   };
 
   export type RunArgs<T extends StateData> = [

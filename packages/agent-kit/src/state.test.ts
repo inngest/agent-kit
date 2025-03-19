@@ -30,7 +30,7 @@ describe("createState", () => {
     const network = createNetwork<Shape>({
       name: "test",
       agents: [],
-      defaultRouter: (opts) => {
+      router: (opts) => {
         if (!opts.network.state.data.category) {
           // XXX: Run the categorization agent to classify which type of request this is.
         }

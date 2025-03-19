@@ -10,7 +10,7 @@ export class NetworkRun<T extends StateData> extends Network<T> {
       agents: Array.from(network.agents.values()),
       defaultModel: network.defaultModel,
       defaultState: network.state,
-      defaultRouter: network.defaultRouter,
+      router: network.router,
       maxIter: network.maxIter,
     });
 
@@ -45,7 +45,7 @@ export class NetworkRun<T extends StateData> extends Network<T> {
     // off of the network.
     const next = await this.getNextAgents(
       input,
-      overrides?.router || this.defaultRouter
+      overrides?.router || this.router
     );
     if (!next?.length) {
       // TODO: If call count is 0, error.
@@ -94,7 +94,7 @@ export class NetworkRun<T extends StateData> extends Network<T> {
       // custom code.
       const next = await this.getNextAgents(
         input,
-        overrides?.router || this.defaultRouter
+        overrides?.router || this.router
       );
       for (const a of next || []) {
         this.schedule(a.name);
