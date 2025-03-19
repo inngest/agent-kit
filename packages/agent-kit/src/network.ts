@@ -1,24 +1,27 @@
 import { type AiAdapter } from "@inngest/ai";
 import { z } from "zod";
-import {
-  createRoutingAgent,
-  createTool,
-  type Agent,
-  type RoutingAgent,
-} from "./agent";
+import { createRoutingAgent, type Agent, type RoutingAgent } from "./agent";
 import { NetworkRun } from "./networkRun";
-import { State, type InferenceResult } from "./state";
+import {
+  createState,
+  State,
+  type InferenceResult,
+  type StateData,
+} from "./state";
+import { createTool } from "./tool";
 import { type MaybePromise } from "./util";
 
 /**
  * Network represents a network of agents.
  */
-export const createNetwork = (opts: Network.Constructor) => new Network(opts);
+export const createNetwork = <T extends StateData>(
+  opts: Network.Constructor<T>
+) => new Network(opts);
 
 /**
  * Network represents a network of agents.
  */
-export class Network {
+export class Network<T extends StateData> {
   /**
    * The name for the system of agents
    */
@@ -29,12 +32,12 @@ export class Network {
   /**
    * agents are all publicly available agents in the netwrok
    */
-  agents: Map<string, Agent>;
+  agents: Map<string, Agent<T>>;
 
   /**
    * state is the entire agent's state.
    */
-  defaultState?: State;
+  state: State<T>;
 
   /**
    * defaultModel is the default model to use with the network.  This will not
@@ -43,7 +46,7 @@ export class Network {
    */
   defaultModel?: AiAdapter.Any;
 
-  defaultRouter?: Network.Router;
+  router?: Network.Router<T>;
 
   /**
    * maxIter is the maximum number of times the we can call agents before ending
@@ -60,7 +63,7 @@ export class Network {
   // defaultRoutingAgent within the network constructor, and you may return an
   // agent in the router that's not included.  This is okay;  we store all
   // agents referenced in the router here.
-  protected _agents: Map<string, Agent>;
+  protected _agents: Map<string, Agent<T>>;
 
   constructor({
     name,
@@ -69,19 +72,21 @@ export class Network {
     defaultModel,
     maxIter,
     defaultState,
-    defaultRouter,
-  }: Network.Constructor) {
+    router,
+  }: Network.Constructor<T>) {
     this.name = name;
     this.description = description;
     this.agents = new Map();
     this._agents = new Map();
     this.defaultModel = defaultModel;
-    this.defaultRouter = defaultRouter;
+    this.router = router;
     this.maxIter = maxIter || 0;
     this._stack = [];
 
     if (defaultState) {
-      this.defaultState = defaultState;
+      this.state = defaultState;
+    } else {
+      this.state = createState<T>();
     }
 
     for (const agent of agents) {
@@ -93,9 +98,9 @@ export class Network {
   }
 
   async availableAgents(
-    networkRun: NetworkRun = new NetworkRun(this, new State())
-  ): Promise<Agent[]> {
-    const available: Agent[] = [];
+    networkRun: NetworkRun<T> = new NetworkRun(this, new State())
+  ): Promise<Agent<T>[]> {
+    const available: Agent<T>[] = [];
     const all = Array.from(this.agents.values());
     for (const a of all) {
       const enabled = a?.lifecycles?.enabled;
@@ -109,7 +114,7 @@ export class Network {
   /**
    * addAgent adds a new agent to the network.
    */
-  addAgent(agent: Agent) {
+  addAgent(agent: Agent<T>) {
     this.agents.set(agent.name, agent);
   }
 
@@ -119,16 +124,18 @@ export class Network {
    * stateful.
    *
    */
-  public run(...[input, overrides]: Network.RunArgs): Promise<NetworkRun> {
-    let state: State;
+  public run(
+    ...[input, overrides]: Network.RunArgs<T>
+  ): Promise<NetworkRun<T>> {
+    let state: State<T>;
     if (overrides?.state) {
       if (overrides.state instanceof State) {
         state = overrides.state;
       } else {
-        state = new State(overrides.state);
+        state = new State(overrides.state as T);
       }
     } else {
-      state = this.defaultState?.clone() || new State();
+      state = this.state?.clone() || new State();
     }
 
     return new NetworkRun(this, state)["execute"](input, overrides);
@@ -142,7 +149,8 @@ export class Network {
  * It is no set model and so relies on the presence of a default model in the
  * network or being explicitly given one.
  */
-let defaultRoutingAgent: RoutingAgent | undefined;
+let defaultRoutingAgent: RoutingAgent<any> | undefined; // eslint-disable-line @typescript-eslint/no-explicit-any
+
 export const getDefaultRoutingAgent = () => {
   defaultRoutingAgent ??= createRoutingAgent({
     name: "Default routing agent",
@@ -183,12 +191,6 @@ export const getDefaultRoutingAgent = () => {
           })
           .strict(),
         handler: ({ name }, { network }) => {
-          if (!network) {
-            throw new Error(
-              "The routing agent can only be used within a network of agents"
-            );
-          }
-
           if (typeof name !== "string") {
             throw new Error("The routing agent requested an invalid agent");
           }
@@ -223,7 +225,8 @@ export const getDefaultRoutingAgent = () => {
 The following agents are available:
 <agents>
   ${agents
-    .map((a) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    .map((a: Agent<any>) => {
       return `
     <agent>
       <name>${a.name}</name>
@@ -249,22 +252,22 @@ Follow the set of instructions:
 };
 
 export namespace Network {
-  export type Constructor = {
+  export type Constructor<T extends StateData> = {
     name: string;
     description?: string;
-    agents: Agent[];
+    agents: Agent<T>[];
     defaultModel?: AiAdapter.Any;
     maxIter?: number;
     // state is any pre-existing network state to use in this Network instance.  By
     // default, new state is created without any history for every Network.
-    defaultState?: State;
-    defaultRouter?: Router;
+    defaultState?: State<T>;
+    router?: Router<T>;
   };
 
-  export type RunArgs = [
+  export type RunArgs<T extends StateData> = [
     input: string,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    overrides?: { router?: Router; state?: State | Record<string, any> },
+    overrides?: { router?: Router<T>; state?: State<T> | Record<string, any> },
   ];
 
   /**
@@ -276,7 +279,9 @@ export namespace Network {
    * agentic calls, and the last inference result from the network.
    *
    */
-  export type Router = RoutingAgent | Router.FnRouter;
+  export type Router<T extends StateData> =
+    | RoutingAgent<T>
+    | Router.FnRouter<T>;
 
   export namespace Router {
     /**
@@ -287,11 +292,11 @@ export namespace Network {
      * the agent will first be ran, then the `.route` function will be called.
      *
      */
-    export type FnRouter = (
-      args: Args
-    ) => MaybePromise<RoutingAgent | Agent | Agent[] | undefined>;
+    export type FnRouter<T extends StateData> = (
+      args: Args<T>
+    ) => MaybePromise<RoutingAgent<T> | Agent<T> | Agent<T>[] | undefined>;
 
-    export interface Args {
+    export interface Args<T extends StateData> {
       /**
        * input is the input called to the network
        */
@@ -301,12 +306,12 @@ export namespace Network {
        * Network is the network that this router is coordinating.  Network state
        * is accessible via `network.state`.
        */
-      network: NetworkRun;
+      network: NetworkRun<T>;
 
       /**
        * stack is an ordered array of agents that will be called next.
        */
-      stack: Agent[];
+      stack: Agent<T>[];
 
       /**
        * callCount is the number of current agent invocations that the network

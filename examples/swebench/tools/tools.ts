@@ -1,9 +1,10 @@
-import { createTool } from "@inngest/agent-kit";
+import { createTool, type Tool } from "@inngest/agent-kit";
 import fs from "node:fs";
 import path from "node:path";
 import Parser from "tree-sitter";
 import Py from "tree-sitter-python";
 import { z } from "zod";
+import type { AgentState } from "../networks/codeWritingNetwork";
 
 // NOTE:  In this repo, all files are stored in "./opt/" as the prefix.
 const WORKING_DIR = "./opt";
@@ -30,19 +31,22 @@ export const listFilesTool = createTool({
   name: "list_files",
   description:
     "Lists all files within the project, returned as a JSON string containing the path to each file",
-  handler: async (_input, opts) => {
-    const repo = opts.network?.state.kv.get<string>("repo") || "";
+  handler: async (_input, opts: Tool.Options<AgentState>) => {
+    const repo = opts.network?.state.data.repo || "";
     const repoDir = path.join(WORKING_DIR, repo);
 
-    const files = await opts.step.run("list files", () => {
+    const files = await opts.step?.run("list files", () => {
       return fs
         .readdirSync(repoDir, { recursive: true })
-        .filter((name) => name.indexOf(".git") !== 0);
+        .filter((name) => name.indexOf(".git") !== 0)
+        .map(f => f.toString());
     });
 
     // Store all files within state.  Note that this happens outside of steps
     // so that this is not memoized.
-    opts.network?.state.kv.set("files", files);
+    if (opts.network) {
+      opts.network.state.data.files = files;
+    }
 
     return files;
   },
@@ -54,14 +58,10 @@ export const readFileTool = createTool({
   parameters: z.object({
     filename: z.string(),
   }),
-  handler: async ({ filename }, opts) => {
-    const content = await opts.step.run(`read file: ${filename}`, () => {
-      return readFile(opts.network?.state.kv.get("repo") || "", filename);
+  handler: async ({ filename }, opts: Tool.Options<AgentState>) => {
+    const content = await opts.step?.run(`read file: ${filename}`, () => {
+      return readFile(opts.network?.state.data.repo || "", filename);
     });
-
-    // Set state for the filename.  Note that this happens outside of steps
-    // so that this is not memoized.
-    opts.network?.state.kv.set("file:" + filename, content);
     return content;
   },
 });
@@ -73,18 +73,14 @@ export const writeFileTool = createTool({
     filename: z.string(),
     content: z.string(),
   }),
-  handler: async ({ filename, content }, opts) => {
-    await opts.step.run(`read file: ${filename}`, () => {
+  handler: async ({ filename, content }, opts: Tool.Options<AgentState>) => {
+    await opts.step?.run(`write file: ${filename}`, () => {
       return writeFile(
-        opts.network?.state.kv.get("repo") || "",
+        opts.network?.state.data.repo || "",
         filename,
         content
       );
     });
-
-    // Set state for the filename.  Note that this happens outside of steps
-    // so that this is not memoized.
-    opts.network?.state.kv.set("file:" + filename, content);
     return content;
   },
 });
@@ -101,10 +97,10 @@ export const extractClassAndFnsTool = createTool({
   parameters: z.object({
     filename: z.string(),
   }),
-  handler: async (input, opts) => {
-    return await opts.step.run("parse file", () => {
+  handler: async (input, opts: Tool.Options<AgentState>) => {
+    return await opts.step?.run("parse file", () => {
       const contents = readFile(
-        opts.network?.state.kv.get("repo") || "",
+        opts.network?.state.data.repo || "",
         input.filename
       );
       return parseClassAndFns(contents);
@@ -123,14 +119,14 @@ export const replaceClassMethodTool = createTool({
   }),
   handler: async (
     { filename, class_name, function_name, new_contents },
-    opts
+    opts: Tool.Options<AgentState>
   ) => {
-    const updated = await opts?.step.run(
+    const updated = await opts.step?.run(
       `update class method in "${filename}": ${class_name}.${function_name}`,
       () => {
         // Re-parse the contents to find the correct start and end offsets.
         const contents = readFile(
-          opts.network?.state.kv.get("repo") || "",
+          opts.network?.state.data.repo || "",
           filename
         );
         const parsed = parseClassAndFns(contents);
@@ -159,7 +155,7 @@ export const replaceClassMethodTool = createTool({
       }
     );
 
-    writeFile(opts.network?.state.kv.get("repo") || "", filename, updated);
+    writeFile(opts.network?.state.data.repo || "", filename, updated || "");
     return new_contents;
   },
 });

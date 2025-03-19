@@ -1,13 +1,14 @@
-import { createAgent, createTool } from "@inngest/agent-kit";
+import { createAgent, createTool, type Tool } from "@inngest/agent-kit";
 import { z } from "zod";
 import {
   extractClassAndFnsTool,
   listFilesTool,
   readFileTool,
 } from "../tools/tools";
+import type { AgentState } from "../networks/codeWritingNetwork";
 
 // Now that the setup has been completed, we can run the agent properly within that repo.
-export const planningAgent = createAgent({
+export const planningAgent = createAgent<AgentState>({
   name: "Planner",
   description: "Plans the code to write and which files should be edited",
   tools: [
@@ -30,16 +31,18 @@ export const planningAgent = createAgent({
         ),
       }),
 
-      handler: async (plan, opts) => {
+      handler: async (plan, opts:  Tool.Options<AgentState>) => {
         // Store this in the function state for introspection in tracing.
         await opts.step?.run("plan created", () => plan);
-        opts.network?.state.kv.set("plan", plan);
+        if (opts.network) {
+          opts.network.state.data.plan = plan;
+        }
       },
     }),
   ],
 
   system: ({ network }) => `
-    You are an expert Python programmer working on a specific project: ${network?.state.kv.get("repo")}.
+    You are an expert Python programmer working on a specific project: ${network?.state.data.repo}.
 
     You are given an issue reported within the project.  You are planning how to fix the issue by investigating the report,
     the current code, then devising a "plan" - a spec - to modify code to fix the issue.

@@ -12,7 +12,7 @@ import {
   type TextMessage,
   type ToolCallMessage,
   type ToolMessage,
-} from "../state";
+} from "../types";
 import { type Tool } from "../tool";
 import { stringifyError } from "../util";
 
@@ -26,7 +26,7 @@ export const requestParser: AgenticModel.RequestParser<OpenAi.AiModel> = (
   tool_choice = "auto"
 ) => {
   const request: AiAdapter.Input<OpenAi.AiModel> = {
-    messages: messages.map((m) => {
+    messages: messages.map((m: Message) => {
       switch (m.type) {
         case "text":
           return {
@@ -74,7 +74,8 @@ export const requestParser: AgenticModel.RequestParser<OpenAi.AiModel> = (
       // https://platform.openai.com/docs/guides/function-calling#parallel-function-calling-and-structured-outputs
       request.parallel_tool_calls = false;
     }
-    request.tools = tools.map((t) => {
+
+    request.tools = tools.map((t: Tool.Any) => {
       return {
         type: "function",
         function: {

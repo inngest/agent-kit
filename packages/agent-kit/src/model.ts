@@ -1,6 +1,6 @@
 import { type AiAdapter } from "@inngest/ai";
 import { adapters } from "./adapters";
-import { type Message } from "./state";
+import { type Message } from "./types";
 import { type Tool } from "./tool";
 import { getStepTools } from "./util";
 

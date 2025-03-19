@@ -1,57 +1,14 @@
 import { type Agent } from "./agent";
+import { type Message, type ToolResultMessage } from "./types";
 
-export type Message = TextMessage | ToolCallMessage | ToolResultMessage;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type StateData = Record<string, any>;
 
-/**
- * TextMessage represents plain text messages in the chat history, eg. the user's prompt or
- * an assistant's reply.
- */
-export interface TextMessage {
-  type: "text";
-  role: "system" | "user" | "assistant";
-  content: string | Array<TextContent>;
-  // Anthropic:
-  // stop_reason: "end_turn" | "max_tokens" | "stop_sequence" | "tool_use" | null;
-  // OpenAI:
-  // finish_reason: 'stop' | 'length' | 'tool_calls' | 'content_filter' | 'function_call' | null;
-  stop_reason?: "tool" | "stop";
-}
-
-/**
- * ToolCallMessage represents a message for a tool call.
- */
-export interface ToolCallMessage {
-  type: "tool_call";
-  role: "user" | "assistant";
-  tools: ToolMessage[];
-  stop_reason: "tool";
-}
-
-/**
- * ToolResultMessage represents the output of a tool call.
- */
-export interface ToolResultMessage {
-  type: "tool_result";
-  role: "tool_result";
-  // tool contains the tool call request for this result.
-  tool: ToolMessage;
-  content: unknown;
-  stop_reason: "tool";
-}
-
-// Message content.
-
-export interface TextContent {
-  type: "text";
-  text: string;
-}
-
-export interface ToolMessage {
-  type: "tool";
-  id: string;
-  name: string;
-  input: Record<string, unknown>;
-}
+export const createState = <T extends StateData>(
+  initialState?: T
+): State<T> => {
+  return new State(initialState);
+};
 
 /**
  * State stores state (history) for a given network of agents.  The state
@@ -60,47 +17,30 @@ export interface ToolMessage {
  * From this, the chat history can be reconstructed (and manipulated) for each
  * subsequent agentic call.
  */
-export class State {
-  public kv: {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    set: <T = any>(key: string, value: T) => void;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    get: <T = any>(key: string) => T | undefined;
-    delete: (key: string) => boolean;
-    has: (key: string) => boolean;
-    all: () => Record<string, unknown>;
-  };
+export class State<T extends StateData> {
+  public data: T;
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private _kv: Map<string, any>;
-
+  private _data: T;
   private _history: InferenceResult[];
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  constructor(state?: Record<string, any>) {
+  constructor(initialState?: T) {
     this._history = [];
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    this._kv = new Map<string, any>(state && Object.entries(state));
+    this._data = initialState || ({} as T);
 
-    this.kv = {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      set: (key: string, value: any) => {
-        this._kv.set(key, value);
+    // Create a new proxy that allows us to intercept the setting of state.
+    //
+    // This will be used to add middleware hooks to record state
+    // before and after setting.
+    this.data = new Proxy(this._data, {
+      set: (target, prop: string | symbol, value) => {
+        if (typeof prop === "string" && prop in target) {
+          // Update the property
+          Reflect.set(target, prop, value);
+          return true;
+        }
+        return Reflect.set(target, prop, value);
       },
-      get: (key: string) => {
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-return
-        return this._kv.get(key);
-      },
-      delete: (key: string) => {
-        return this._kv.delete(key);
-      },
-      has: (key: string) => {
-        return this._kv.has(key);
-      },
-      all: () => {
-        return Object.fromEntries(this._kv);
-      },
-    };
+    });
   }
 
   /**
@@ -128,9 +68,9 @@ export class State {
   }
 
   clone() {
-    const state = new State();
+    const state = new State<T>();
     state._history = this._history.slice();
-    state._kv = new Map(this._kv);
+    state.data = { ...this.data };
     return state;
   }
 }
@@ -151,7 +91,8 @@ export class InferenceResult {
 
   constructor(
     // agent represents the agent for this inference call.
-    public agent: Agent,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    public agent: Agent<any>,
 
     // input represents the input passed into the agent's run method.
     public input: string,
