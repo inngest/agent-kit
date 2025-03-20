@@ -1,5 +1,16 @@
 # @inngest/agent-kit
 
+## 0.6.0
+
+### Minor Changes
+
+- e32af3d: Implement typed state management
+
+### Patch Changes
+
+- 51a076c: Document typed state, re-add KV for backcompat
+- 7eeadbd: fix(network): add back-compat for `defaultRouter`
+
 ## 0.5.1
 
 ### Patch Changes
