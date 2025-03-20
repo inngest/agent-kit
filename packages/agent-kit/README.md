@@ -2,7 +2,7 @@
 
 _Build multi-agent networks with deterministic routing and rich tooling via MCP._
 
-![AgentKit Tracing](../../AgentKit-Tracing.png)
+![AgentKit Tracing](AgentKit-Tracing.png)
 
 <p align="center">
     <a href="https://agentkit.inngest.com/overview">Documentation</a>
@@ -118,15 +118,17 @@ This state is then accessible from the router, agent lifecycle callbacks, agent 
 
 ```mermaid
 flowchart LR
-	state["State"]
-	subgraph Agents
-		systemp["System prompt"]
-		tools["Tools"]
-		lifecycle["Lifecycle callbacks"]
+	subgraph Network
+		state["State"]
+		subgraph Agent
+			systemp["System prompt"]
+			tools["Tools"]
+			lifecycle["Lifecycle callbacks"]
+		end
+		router["Router"]
 	end
-	router["Router"]
-
-
+	
+	
 	state-->systemp
 	state<-->tools
 	state<-->lifecycle
