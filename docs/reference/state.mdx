@@ -1,5 +1,5 @@
 ---
-title: 'State'
+title: 'createState'
 description: Leverage a Network's State across Routers and Agents.
 ---
 
@@ -7,66 +7,41 @@ The `State` class provides a way to manage state and history across a network of
 
 The `State` is accessible to all Agents, Tools and Routers as a `state` or `network.state` property.
 
-## Creating a State
+## Creating State
 
 ```ts
-import { State } from '@inngest/agent-kit';
+import { createState } from '@inngest/agent-kit';
 
-const state = new State({
-  foo: 'bar',
+export interface NetworkState {
+  // username is undefined until extracted and set by a tool
+  username?: string;
+}
+
+const state = createState<NetworkState>({
+  username: 'bar',
 });
 
-console.log(state.kv.get('foo')); // 'bar'
+console.log(state.data.username); // 'bar'
 
 
 const network = createNetwork({
   // ...
 });
 
+// Pass in state to each run
 network.run("<query>", { state })
 ```
 
-## Reading and Modifying State (`state.kv`)
+## Reading and Modifying State's data (`state.data`)
 
-The `State` class provides a key-value store accessible via the `kv` property.
+The `State` class provides typed data accesible via the `data` property.
 
 <Info>
   Learn more about the State use cases in the [State](/docs/concepts/state) concept guide.
 </Info>
 
-<ParamField path="kv.set" type="function">
-  Set a value in the key-value store.
-  ```ts
-  kv.set<T>(key: string, value: T): void
-  ```
-</ParamField>
-
-<ParamField path="kv.get" type="function">
-  Get a value from the key-value store.
-  ```ts
-  kv.get<T>(key: string): T | undefined
-  ```
-</ParamField>
-
-<ParamField path="kv.delete" type="function">
-  Delete a key from the store.
-  ```ts
-  kv.delete(key: string): boolean
-  ```
-</ParamField>
-
-<ParamField path="kv.has" type="function">
-  Check if a key exists in the store.
-  ```ts
-  kv.has(key: string): boolean
-  ```
-</ParamField>
-
-<ParamField path="kv.all" type="function">
-  Get all key-value pairs as a record.
-  ```ts
-  kv.all(): Record<string, unknown>
-  ```
+<ParamField path="data" type="object<T>">
+  A standard, mutable object which can be updated and modified within tools.
 </ParamField>
 
 ## State History
