@@ -1,0 +1,182 @@
+---
+title: Routing
+description: 'State based routing in Agent Networks'
+---
+
+State based routing is a deterministic approach to managing agent workflows, allowing for more reliable, testable, and maintainable AI agent systems. This documentation covers the core concepts and implementation details based on the Inngest AgentKit framework.
+
+## Core Concepts
+
+State based routing models agent workflows as a state machine where:
+
+* Each agent has a specific goal within a larger network
+* The network combines agents to achieve an overall objective, with shared state modified by each agent
+* The network's router inspects state and determines which agent should run next
+* The network runs in a loop, calling the router on each iteration until all goals are met
+* Agents run with updated conversation history and state on each loop iteration
+
+## Benefits
+
+Unlike fully autonomous agents that rely on complex prompts to determine their own actions, state based routing:
+
+* Makes agent behavior more predictable
+* Simplifies testing and debugging
+* Allows for easier identification of failure points
+* Provides clear separation of concerns between agents
+
+## Implementation Structure
+
+A state based routing system consists of:
+
+1. State Definition
+
+Define structured data that represents the current progress of your workflow:
+
+```typescript
+export interface AgentState {
+  // files stores all files that currently exist in the repo.
+  files?: string[];
+
+  // plan is the plan created by the planning agent.  It is optional
+  // as, to begin with, there is no plan.  This is set by the planning
+  // agent's tool.
+  plan?: {
+    thoughts: string;
+    plan_details: string;
+    edits: Array<{
+      filename: string;
+      idea: string;
+      reasoning: string;
+    }>;
+  },
+
+  // done indicates whether we're done editing files, and terminates the
+  // network when true.
+  done: boolean;
+}
+
+```
+
+2. Network and router implementation
+
+Create a router function that inspects state and returns the appropriate agent:
+
+```
+export const codeWritingNetwork = createNetwork({
+  name: "Code writing network",
+  agents: [], // We'll add these soon.
+  router: ({ network }): Agent | undefined => {
+    // The router inspects network state to figure out which agent to call next.
+
+    if (network.state.data.done) {
+        // We're done editing.  This is set when the editing agent finishes
+        // implementing the plan.
+        //
+        // At this point, we could hand off to another agent that tests, critiques,
+        // and validates the edits.  For now, return undefined to signal that
+        // the network has finished.
+        return;
+    }
+  
+    // By default, there is no plan and we should use the planning agent to read and
+    // understand files.  The planning agent's `create_plan` tool modifies state once
+    // it's gathered enough context, which will then cause the router loop to pass
+    // to the editing agent below.
+    if (network.state.data.plan === undefined) {
+        return planningAgent;
+    }
+  
+    // There is a plan, so switch to the editing agent to begin implementing.
+    //
+    // This lets us separate the concerns of planning vs editing, including using differing
+    // prompts and tools at various stages of the editing process.
+    return editingAgent;
+  }
+}
+```
+
+3. Agent Definition
+
+Define agents with specific goals and tools.  Tools modify the network's state.  For example, a classification agent
+may have a tool which updates the state's `classification` property, so that in the next network loop we can
+determine which new agent to run for the classified request.
+
+```
+// This agent accepts the network state's type, so that tools are properly typed and can
+// modify state correctly.
+export const planningAgent = createAgent<AgentState>({
+  name: "Planner",
+  description: "Plans the code to write and which files should be edited",
+  tools: [
+    listFilesTool,
+
+    createTool({
+      name: "create_plan",
+      description:
+        "Describe a formal plan for how to fix the issue, including which files to edit and reasoning.",
+      parameters: z.object({
+        thoughts: z.string(),
+        plan_details: z.string(),
+        edits: z.array(
+          z.object({
+            filename: z.string(),
+            idea: z.string(),
+            reasoning: z.string(),
+          })
+        ),
+      }),
+
+      handler: async (plan, opts:  Tool.Options<AgentState>) => {
+        // Store this in the function state for introspection in tracing.
+        await opts.step?.run("plan created", () => plan);
+        if (opts.network) {
+          opts.network.state.data.plan = plan;
+        }
+      },
+    }),
+  ],
+
+  // Agent prompts can also inspect network state and conversation history.
+  system: ({ network }) => `
+    You are an expert Python programmer working on a specific project: ${network?.state.data.repo}.
+
+    You are given an issue reported within the project.  You are planning how to fix the issue by investigating the report,
+    the current code, then devising a "plan" - a spec - to modify code to fix the issue.
+
+    Your plan will be worked on and implemented after you create it.   You MUST create a plan to
+    fix the issue.  Be thorough. Think step-by-step using available tools.
+
+    Techniques you may use to create a plan:
+    - Read entire files
+    - Find specific classes and functions within a file
+  `,
+});
+```
+
+## Execution Flow
+
+When the network runs:
+
+* The network router inspects the current state
+* It returns an agent to run based on state conditions (or undefined to quit)
+* The agent executes with access to previous conversation history, current state, and tools
+* Tools update the state with new information
+* The router runs again with updated state and conversation history
+* This continues until the router returns without an agent (workflow complete)
+
+## Best Practices
+
+* *Keep agent goals focused and specific*:  Each agent should have a specific goal, and your network should combine agents to solve a larger problem.  This makes agents easy to design and test, and it makes routing logic far easier.
+* *Design state to clearly represent workflow progress*:  Moving state out of conversation history and into structured data makes debugging agent workflows simple.  
+* *Use tools to update state in a structured way*:  Tools allow you to extract structured data from agents and modify state, making routing easy. 
+* *Implement iteration limits to prevent infinite loops*:  The router has a `callCount` parameter allowing you to quit early.
+
+
+## Error Handling
+
+When deployed to [Ingnest](https://www.inngest.com), AgentKit provides built-in error handling:
+
+* Automatic retries for failed agent executions
+* State persistence between retries
+* Ability to inspect state at any point in the workflow
+* Tracing capabilities for debugging

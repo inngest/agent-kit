@@ -7,7 +7,6 @@ import {
 } from "../tools/tools";
 import type { AgentState } from "../networks/codeWritingNetwork";
 
-// Now that the setup has been completed, we can run the agent properly within that repo.
 export const planningAgent = createAgent<AgentState>({
   name: "Planner",
   description: "Plans the code to write and which files should be edited",
