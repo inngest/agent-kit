@@ -184,5 +184,10 @@
       "source": "ai-agents-in-practice/agentic-workflows",
       "destination": "guided-tour/agentic-workflows"
     }
-  ]
+  ],
+  "integrations": {
+    "ga4": {
+      "measurementId": "G-PPJW3MPTNX"
+    }
+  }
 }
