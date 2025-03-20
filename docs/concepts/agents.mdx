@@ -182,8 +182,7 @@ const agent = createAgent({
       'idiomatic TypeScript code, with comments and tests as necessary.';
 
     // Inspect the Network state, checking for existing code saved as files:
-    const files: Record<string, string> | undefined =
-      network?.state.kv.get('files');
+    const files: Record<string, string> | undefined = network.state.data.files;
     if (!files) {
       return basePrompt;
     }

@@ -198,7 +198,7 @@ const network = createNetwork({
   agents: [mathAgent, contextAgent],
   router: ({ network, lastResult }): Agent | undefined => {
     // Check if we've solved the problem
-    const solution = network.state.kv.get('solution');
+    const solution = network.state.data.solution;
     if (solution) {
       // We're done - return undefined to stop the network
       return undefined;

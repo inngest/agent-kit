@@ -84,7 +84,7 @@ const tool = createTool({
   },
   handler: async ({ path, contents }, { agent, network }) => {
     await fs.writeFile(path, contents);
-    network.state.kv.set('file-written', true);
+    network.state.fileWritten = true;
     return { success: true };
   },
 });
