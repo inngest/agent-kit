@@ -73,13 +73,14 @@ export class Network<T extends StateData> {
     maxIter,
     defaultState,
     router,
+    defaultRouter,
   }: Network.Constructor<T>) {
     this.name = name;
     this.description = description;
     this.agents = new Map();
     this._agents = new Map();
     this.defaultModel = defaultModel;
-    this.router = router;
+    this.router = defaultRouter ?? router;
     this.maxIter = maxIter || 0;
     this._stack = [];
 
@@ -262,12 +263,17 @@ export namespace Network {
     // default, new state is created without any history for every Network.
     defaultState?: State<T>;
     router?: Router<T>;
+    defaultRouter?: Router<T>;
   };
 
   export type RunArgs<T extends StateData> = [
     input: string,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    overrides?: { router?: Router<T>; state?: State<T> | Record<string, any> },
+    overrides?: {
+      router?: Router<T>;
+      defaultRouter?: Router<T>;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      state?: State<T> | Record<string, any>;
+    },
   ];
 
   /**

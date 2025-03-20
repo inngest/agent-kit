@@ -126,7 +126,7 @@ import { createNetwork } from '@inngest/agent-kit';
 
 const network = createNetwork({
   agents: [classifier, writer],
-  defaultRouter: ({ lastResult, callCount }) => {
+  router: ({ lastResult, callCount }) => {
     // retrieve the last message from the output
     const lastMessage = lastResult?.output[lastResult?.output.length - 1];
     const content = lastMessage?.type === 'text' ? lastMessage?.content as string : '';
