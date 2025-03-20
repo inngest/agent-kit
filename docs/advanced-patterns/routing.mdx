@@ -1,5 +1,5 @@
 ---
-title: Routing
+title: Deterministic state routing
 description: 'State based routing in Agent Networks'
 ---
 
@@ -54,15 +54,14 @@ export interface AgentState {
   // network when true.
   done: boolean;
 }
-
 ```
 
 2. Network and router implementation
 
 Create a router function that inspects state and returns the appropriate agent:
 
-```
-export const codeWritingNetwork = createNetwork({
+```typescript
+export const codeWritingNetwork = createNetwork<AgentState>({
   name: "Code writing network",
   agents: [], // We'll add these soon.
   router: ({ network }): Agent | undefined => {
@@ -95,13 +94,34 @@ export const codeWritingNetwork = createNetwork({
 }
 ```
 
+A router has the following definition:
+
+```typescript
+// T represents the network state's type.
+type RouterFunction<T> = (args: {
+  input: string;
+  network: NetworkRun<T>;
+  stack: Agent<T>[];
+  callCount: number;
+  lastResult?: InferenceResult;
+}) => Promise<Agent<T> | undefined>;
+```
+
+The router has access to:
+
+- `input`: The original input string passed to the network
+- `network`: The current network run instance with state
+- `stack`: Array of pending agents to be executed
+- `callCount`: Number of agent invocations made
+- `lastResult`: The most recent inference result from the last agent execution
+
 3. Agent Definition
 
 Define agents with specific goals and tools.  Tools modify the network's state.  For example, a classification agent
 may have a tool which updates the state's `classification` property, so that in the next network loop we can
 determine which new agent to run for the classified request.
 
-```
+```typescript
 // This agent accepts the network state's type, so that tools are properly typed and can
 // modify state correctly.
 export const planningAgent = createAgent<AgentState>({

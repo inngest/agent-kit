@@ -29,7 +29,7 @@ export interface AgentState {
   },
 }
 
-export const codeWritingNetwork = createNetwork({
+export const codeWritingNetwork = createNetwork<AgentState>({
   name: "Code writing network",
   agents: [planningAgent, editingAgent],
   // Use Claude as the base model of the network.
