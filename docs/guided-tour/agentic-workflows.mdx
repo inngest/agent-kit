@@ -11,9 +11,9 @@ The second version of our Code Assistant will introduce reasoning capabilities t
 
 ```typescript
 const {
-    state: { kv },
+  state: { kv },
 } = await network.run(
-`Analyze the files/example.ts file by suggesting improvements and documentation.`
+  `Analyze the files/example.ts file by suggesting improvements and documentation.`
 );
 console.log("Analysis:", kv.get("summary"));
 
@@ -30,7 +30,6 @@ console.log("Analysis:", kv.get("summary"));
 // - Review and optimize critical operations
 // ...
 ```
-
 
 These agentic (reasoning) capabilities are introduced by the following AgentKit concepts:
 
@@ -106,7 +105,6 @@ yarn add -D tsx @types/node
 
 And add the following scripts to your `package.json`:
 
-
 ```json
 "scripts": {
     "start": "tsx ./index.ts"
@@ -132,9 +130,7 @@ cd -
 
 </AccordionGroup>
 
-
 You are now set up, let's implement the v2 of our Code Assistant.
-
 
 ## Implementing our Code Assistant v2
 
@@ -145,8 +141,8 @@ Our Code Assistant v2 introduces reasoning to perform tailored recommendations b
 To achieve this behavior, we will need to:
 
 - Create a `code_assistant_agent` Agent that will load a given filename from disk and plan a workflow using the following available [Agents](/concepts/agents):
-    - `analysis_agent` that will analyze the code file and suggest improvements
-    - `documentation_agent` that will generate documentation for the code file
+  - `analysis_agent` that will analyze the code file and suggest improvements
+  - `documentation_agent` that will generate documentation for the code file
 - Finally, create a `summarization_agent` Agent that will generate a summary of the suggestions made by other agents
 
 {/* _TODO: Add a diagram here_ */}
@@ -165,11 +161,12 @@ Unlike the [Code Assistant v1](/ai-agents-in-practice/ai-workflows), the user pr
 
 ```typescript
 await network.run(
-`Analyze the files/example.ts file by suggesting improvements and documentation.`
+  `Analyze the files/example.ts file by suggesting improvements and documentation.`
 );
 ```
 
 To successfully run, a `Network` relies on:
+
 - A Router to **indicate which Agent should be run next**
 - **A shared State**, updated by the Agents' LLM responses and **tool calls**
 
@@ -180,10 +177,12 @@ Let's start by implementing our Agents and registering them into the Network.
 <Note>
 
 Attaching Tools to an Agent helps to:
+
 - Enrich dynamically the Agent context with dynamic data
 - Store the Agent results in the shared State
 
 Learn more about [Tools](/concepts/tools).
+
 </Note>
 
 **The Analysis and Documentation Agents**
@@ -227,14 +226,16 @@ const saveSuggestions = createTool({
   },
 });
 ```
+
 <Tip>
 A Tool is a function that can be called by an Agent.
 
 The `name`, `description` and `parameters` are used by the Agent to understand what the Tool does and what it expects as input.
 
-The `handler` is the function that will be called when the Tool is used.  `save_suggestions`'s handler relies on the [Network's State `kv` (key-value store)](/reference/state#reading-and-modifying-state-state-kv) API to share information with other Agents.
+The `handler` is the function that will be called when the Tool is used. `save_suggestions`'s handler relies on the [Network's State `kv` (key-value store)](/reference/state#reading-and-modifying-state-state-kv) API to share information with other Agents.
 
 Learn more about the [createTool()](/reference/create-tool) API.
+
 </Tip>
 
 The `save_suggestions` Tool is used by both `documentation_agent` and `analysis_agent` to save their suggestions into the shared State:
@@ -313,11 +314,12 @@ Answer with "done" when you are finished.`;
 The highlighted lines emphasize three important parts of the `code_assistant_agent`:
 
 - The [`system` property](/reference/create-agent#param-system) can take a function receiving the current Network state as argument, enabling more flexibility in the Agent's behavior
-    - Here, the `system` function is used to generate a prompt for the LLM based on the available Agents in the Network, enabling the LLM to plan the workflow to run
+
+  - Here, the `system` function is used to generate a prompt for the LLM based on the available Agents in the Network, enabling the LLM to plan the workflow to run
 
 - The `code_assistant_agent` relies on two Tools to achieve its goal:
-    - `read_file` to read the code file from disk and save it into the shared State
-    - `generate_plan` to generate a plan of agents to run and save it into the shared State
+  - `read_file` to read the code file from disk and save it into the shared State
+  - `generate_plan` to generate a plan of agents to run and save it into the shared State
 
 The pattern of dynamic `system` prompt and tools are also used by the `summarization_agent` to generate a summary of the suggestions made by other agents.
 
@@ -347,17 +349,19 @@ const summarizationAgent = createAgent({
   ],
 });
 ```
+
 <Note>
-The `summarization_agent` is a good example on how the State can be used to store intermediate results and pass them to the next Agent:
-- the `suggestions` are stored in the State by the `documentation_agent` and `analysis_agent`
-- the `summarization_agent` will read the `suggestions` from the State and generate a summary
-- the summary is then stored in the State as the `summary` key
+  The `summarization_agent` is a good example on how the State can be used to
+  store intermediate results and pass them to the next Agent: - the
+  `suggestions` are stored in the State by the `documentation_agent` and
+  `analysis_agent` - the `summarization_agent` will read the `suggestions` from
+  the State and generate a summary - the summary is then stored in the State as
+  the `summary` key
 </Note>
 
 Our four Agents are now propely defined and connected to the Network's State.
 
 Let's now configure our Network to run the Agents with a Router.
-
 
 ### Assembling the Network
 
@@ -388,6 +392,7 @@ The `defaultModel` will be applied to all Agents part of the Network.
 A model can also be set on an individual Agent by setting the `model` property.
 
 Learn more about the [Network Model configuration](/concepts/networks#model-configuration).
+
 </Tip>
 
 Our Code Assistant v2 is missing a final piece: the Router.
@@ -412,7 +417,7 @@ const network = createNetwork({
     analysisAgent,
     summarizationAgent,
   ],
-  defaultRouter: ({ network }) => {
+  router: ({ network }) => {
     if (!network?.state.kv.has("code") || !network?.state.kv.has("plan")) {
       return codeAssistantAgent;
     } else {
@@ -434,6 +439,7 @@ const network = createNetwork({
   }),
 });
 ```
+
 <Note>
 **How does a Router work?**
 
@@ -442,6 +448,7 @@ The Router is a function called by the Network when starting a new run and betwe
 The provided Router function (`defaultRouter`) receives a `network` argument granting access to the Network's state and Agents.
 
 Learn more about the [Router](/concepts/router).
+
 </Note>
 
 Let's have a closer look at the Router implementation:
@@ -460,7 +467,7 @@ const router = ({ network }) => {
     if (nextAgent) {
       network?.state.kv.set("plan", plan);
       return network?.agents.get(nextAgent);
-      // we no agents are left to run, we generate a summary  
+      // we no agents are left to run, we generate a summary
     } else if (!network?.state.kv.has("summary")) {
       return summarizationAgent;
       // if no agent are left to run and a summary is available, we are done
@@ -468,8 +475,9 @@ const router = ({ network }) => {
       return undefined;
     }
   }
-}
+};
 ```
+
 Our Code Assistant v2 iteration is now complete. Let's run it!
 
 ## Running the Code Assistant v2
@@ -523,6 +531,7 @@ Analysis: The code analysis suggests several key areas for improvement:
 Updating the `files/example.ts` by applying the suggestions and running the Code Assistant again will yield a different planning with a different summary.
 
 Try it out!
+
 </Note>
 
 ## What we've learned so far
@@ -540,6 +549,11 @@ This Code Assistant v2 shines by its analysis capabilities, but cannot be qualif
 
 In the next version of our Code Assistant, we will transform it into a semi-autonomous AI Agent that can solve bugs and improve code of a small project.
 
-<Card title="Code Assistant v3: Autonomous Code Assistant" href="/ai-agents-in-practice/ai-agents" icon="brain">
-The final version update of our Code Assistant will transform it into a semi-autonomous AI Agent.
+<Card
+  title="Code Assistant v3: Autonomous Code Assistant"
+  href="/ai-agents-in-practice/ai-agents"
+  icon="brain"
+>
+  The final version update of our Code Assistant will transform it into a
+  semi-autonomous AI Agent.
 </Card>

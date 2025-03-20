@@ -97,7 +97,7 @@ const neonAgentNetwork = createNetwork({
       max_tokens: 1000,
     },
   }),
-  defaultRouter: ({ network }) => {
+  router: ({ network }) => {
     if (!network?.state.kv.get("answer")) {
       return neonAgent;
     }
@@ -111,8 +111,6 @@ const neonAgentNetwork = createNetwork({
   <Step title="Add the Neon MCP Smithery Server to your Agent">
     Add the [Neon MCP Smithery Server](https://smithery.ai/server/neon/) to your Agent by using `createSmitheryUrl()` from the `@smithery/sdk/config.js` module
     and providing it to the Agent via the `mcpServers` option:
-
-
 
 ```typescript {7, 10-12, 31-39}
 import {
@@ -165,7 +163,7 @@ const neonAgentNetwork = createNetwork({
       max_tokens: 1000,
     },
   }),
-  defaultRouter: ({ network }) => {
+  router: ({ network }) => {
     if (!network?.state.kv.get("answer")) {
       return neonAgent;
     }
@@ -177,8 +175,9 @@ const neonAgentNetwork = createNetwork({
 <Warning>
   Integrating Smithery with AgentKit requires using the `createSmitheryUrl()` function to create a valid URL for the MCP server.
 
-  Most Smithery servers instruct to use the `createTransport()` function which is not supported by AgentKit.
-  To use the `createSmitheryUrl()` function, simply append `/ws` to the end of the Smithery server URL provided by Smithery.
+Most Smithery servers instruct to use the `createTransport()` function which is not supported by AgentKit.
+To use the `createSmitheryUrl()` function, simply append `/ws` to the end of the Smithery server URL provided by Smithery.
+
 </Warning>
 
   </Step>
@@ -190,13 +189,25 @@ You will find the complete example on GitHub:
 <Card title="Neon Assistant Agent (using MCP)" href="https://github.com/inngest/agent-kit/tree/main/examples/mcp-neon-agent/#readme" icon="github">
   This examples shows how to use the [Neon MCP Smithery Server](https://smithery.ai/server/neon/) to build a Neon Assistant Agent that can help you manage your Neon databases.
 
-  <br />
+{" "}
+<br />
 
-  <span className="mr-2 border-primary dark:border-primary-light bg-primary/10 text-primary text-xs dark:text-primary-light dark:bg-primary-light/10 rounded-xl px-2 py-1">Agents</span>
-  <span className="mr-2 border-primary dark:border-primary-light bg-primary/10 text-primary text-xs dark:text-primary-light dark:bg-primary-light/10 rounded-xl px-2 py-1">Tools</span>
-  <span className="mr-2 border-primary dark:border-primary-light bg-primary/10 text-primary text-xs dark:text-primary-light dark:bg-primary-light/10 rounded-xl px-2 py-1">Network</span>
-  <span className="mr-2 border-primary dark:border-primary-light bg-primary/10 text-primary text-xs dark:text-primary-light dark:bg-primary-light/10 rounded-xl px-2 py-1">Integrations</span>
-  <br/>
-  <span className="mr-2 border-primary dark:border-primary-light bg-primary/10 text-primary text-xs dark:text-primary-light dark:bg-primary-light/10 rounded-xl px-2 py-1">Code-based Router</span>
+{" "}
+<span className="mr-2 border-primary dark:border-primary-light bg-primary/10 text-primary text-xs dark:text-primary-light dark:bg-primary-light/10 rounded-xl px-2 py-1">
+  Agents
+</span>
+<span className="mr-2 border-primary dark:border-primary-light bg-primary/10 text-primary text-xs dark:text-primary-light dark:bg-primary-light/10 rounded-xl px-2 py-1">
+  Tools
+</span>
+<span className="mr-2 border-primary dark:border-primary-light bg-primary/10 text-primary text-xs dark:text-primary-light dark:bg-primary-light/10 rounded-xl px-2 py-1">
+  Network
+</span>
+<span className="mr-2 border-primary dark:border-primary-light bg-primary/10 text-primary text-xs dark:text-primary-light dark:bg-primary-light/10 rounded-xl px-2 py-1">
+  Integrations
+</span>
+<br />
+<span className="mr-2 border-primary dark:border-primary-light bg-primary/10 text-primary text-xs dark:text-primary-light dark:bg-primary-light/10 rounded-xl px-2 py-1">
+  Code-based Router
+</span>
 
 </Card>

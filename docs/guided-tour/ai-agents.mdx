@@ -40,10 +40,8 @@ Can you help me fix the following error?
 
 Our Code Assistant v3 will autonomously navigate through the codebase and fix the bug by updating the impacted files.
 
-
 This new version relies on previously covered concepts such as [Tools](/concepts/tools), [Agents](/concepts/agent), and [Networks](/concepts/network) but introduces
 the creation of a custom [Router Agent](/concepts/routers#routing-agent-autonomous-routing) bringing routing autonomy to the AI Agent.
-
 
 Let's learn these concepts in practice.
 
@@ -140,7 +138,7 @@ Let's implement each component of our autonomous workflow.
 Our Code Assistant v3 needs to interact with the file system and search through code. Let's implement these capabilities as Tools:
 
 ```typescript {10, 12, 28}
-import { createTool } from '@inngest/agent-kit';
+import { createTool } from "@inngest/agent-kit";
 
 const writeFile = createTool({
   name: "writeFile",
@@ -227,9 +225,8 @@ Some notes on the highlighted lines:
 
 </Note>
 
-
-
 These Tools provide our Agents with the following capabilities:
+
 - `writeFile`: Write content to a file
 - `readFile`: Read content from a file
 - `searchCode`: Search for patterns in project files
@@ -241,7 +238,7 @@ Let's now create our task-specific Agents.
 Our Code Assistant v3 relies on two specialized Agents:
 
 ```typescript
-import { createAgent } from '@inngest/agent-kit';
+import { createAgent } from "@inngest/agent-kit";
 
 const plannerAgent = createAgent({
   name: "planner",
@@ -257,6 +254,7 @@ const editorAgent = createAgent({
 ```
 
 Each Agent has a specific role:
+
 - `plannerAgent` uses the `searchCode` Tool to analyze code and plan fixes
 - `editorAgent` uses the `readFile` and `writeFile` Tools to implement fixes
 
@@ -277,18 +275,18 @@ By doing so, we can leverage the reasoning capabilities of the LLM to autonomous
 Creating a Router Agent is done by using the [`createRoutingAgent`](/reference/network-router#createroutingagent) helper function:
 
 ```typescript {5, 38, 70}
-import { createRoutingAgent } from '@inngest/agent-kit';
+import { createRoutingAgent } from "@inngest/agent-kit";
 
 const router = createRoutingAgent({
-    name: "Code Assistant routing agent",
-    system: async ({ network }): Promise<string> => {
-      if (!network) {
-        throw new Error(
-          "The routing agent can only be used within a network of agents"
-        );
-      }
-      const agents = await network?.availableAgents();
-      return `You are the orchestrator between a group of agents. Each agent is suited for a set of specific tasks, and has a name, instructions, and a set of tools.
+  name: "Code Assistant routing agent",
+  system: async ({ network }): Promise<string> => {
+    if (!network) {
+      throw new Error(
+        "The routing agent can only be used within a network of agents"
+      );
+    }
+    const agents = await network?.availableAgents();
+    return `You are the orchestrator between a group of agents. Each agent is suited for a set of specific tasks, and has a name, instructions, and a set of tools.
       
       The following agents are available:
       <agents>
@@ -313,69 +311,70 @@ const router = createRoutingAgent({
       
       Your aim is to thoroughly complete the request, thinking step by step, choosing the right agent based off of the context.
       </instructions>`;
-    },
-    tools: [
-      createTool({
-        name: "select_agent",
-        description:
-          "select an agent to handle the input, based off of the current conversation",
-        parameters: z
-          .object({
-            name: z
-              .string()
-              .describe("The name of the agent that should handle the request"),
-          })
-          .strict(),
-        handler: ({ name }, { network }) => {
-          if (!network) {
-            throw new Error(
-              "The routing agent can only be used within a network of agents"
-            );
-          }
-          if (name === "finished") {
-            return undefined;
-          }
-          const agent = network.agents.get(name);
-          if (agent === undefined) {
-            throw new Error(
-              `The routing agent requested an agent that doesn't exist: ${name}`
-            );
-          }
-          return agent.name;
-        },
-      }),
-    ],
-    tool_choice: "select_agent",
-    lifecycle: {
-      onRoute: ({ result }) => {
-        const tool = result.toolCalls[0];
-        if (!tool) {
-          return;
+  },
+  tools: [
+    createTool({
+      name: "select_agent",
+      description:
+        "select an agent to handle the input, based off of the current conversation",
+      parameters: z
+        .object({
+          name: z
+            .string()
+            .describe("The name of the agent that should handle the request"),
+        })
+        .strict(),
+      handler: ({ name }, { network }) => {
+        if (!network) {
+          throw new Error(
+            "The routing agent can only be used within a network of agents"
+          );
         }
-        const agentName =
-          (tool.content as any).data || (tool.content as string);
-        if (agentName === "finished") {
-          return;
-        } else {
-          return [agentName];
+        if (name === "finished") {
+          return undefined;
         }
+        const agent = network.agents.get(name);
+        if (agent === undefined) {
+          throw new Error(
+            `The routing agent requested an agent that doesn't exist: ${name}`
+          );
+        }
+        return agent.name;
       },
+    }),
+  ],
+  tool_choice: "select_agent",
+  lifecycle: {
+    onRoute: ({ result }) => {
+      const tool = result.toolCalls[0];
+      if (!tool) {
+        return;
+      }
+      const agentName = (tool.content as any).data || (tool.content as string);
+      if (agentName === "finished") {
+        return;
+      } else {
+        return [agentName];
+      }
     },
+  },
 });
 ```
 
 Looking at the highlighted lines, we can see that a Router Agent mixes features from regular Agents and a function Router:
+
 1. A Router Agent is a regular Agent with a `system` function that returns a prompt
 2. A Router Agent can use [Tools](/concepts/tools) to interact with the environment
 3. Finally, a Router Agent can also define lifecycle callbacks, [like Agents do](/concepts/agents#lifecycle-hooks)
 
 Let's now dissect how this Router Agent works:
+
 1. The `system` function is used to define the prompt dynamically based on the Agents available in the Network
-    - You will notice that the prompt explicitly ask to call a "finished" tool when the user issue has been fixed
+   - You will notice that the prompt explicitly ask to call a "finished" tool when the user issue has been fixed
 2. The `select_agent` Tool is used to validate that the Agent selected is available in the Network
-    - The tool ensures that the "finished" edge case is handled
+   - The tool ensures that the "finished" edge case is handled
 3. The `onRoute` lifecycle callback is used to determine which Agent to call next
-    - This callback stops the conversation when the user issue has been fixed (when the "finished" Agent is called)
+   - This callback stops the conversation when the user issue has been fixed (when the "finished" Agent is called)
 
 This is it! Using this prompt, our Router Agent will orchestrate the Agents until the given bug is fixed.
 
@@ -391,7 +390,7 @@ const network = createNetwork({
     model: "claude-3-5-sonnet-latest",
     max_tokens: 4096,
   }),
-  defaultRouter: router,
+  router: router,
 });
 ```
 

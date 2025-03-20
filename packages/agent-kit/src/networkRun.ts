@@ -45,7 +45,7 @@ export class NetworkRun<T extends StateData> extends Network<T> {
     // off of the network.
     const next = await this.getNextAgents(
       input,
-      overrides?.router || this.router
+      overrides?.router || overrides?.defaultRouter || this.router
     );
     if (!next?.length) {
       // TODO: If call count is 0, error.
@@ -94,7 +94,7 @@ export class NetworkRun<T extends StateData> extends Network<T> {
       // custom code.
       const next = await this.getNextAgents(
         input,
-        overrides?.router || this.router
+        overrides?.router || overrides?.defaultRouter || this.router
       );
       for (const a of next || []) {
         this.schedule(a.name);
