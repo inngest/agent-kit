@@ -37,6 +37,7 @@
           {
             "group": "Advanced Patterns",
             "pages": [
+              "advanced-patterns/routing",
               "advanced-patterns/mcp",
               "advanced-patterns/multi-steps-tools",
               "advanced-patterns/retries",
