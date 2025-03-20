@@ -5,16 +5,16 @@ icon: "database"
 iconType: "regular"
 ---
 
-State is shared memory, or context, that is be passed between different [Agents](/concepts/agents) in a [Networks](/concepts/networks). State is used to store message history and any arbitrary data from Tools.
+State is shared memory, or context, that is be passed between different [Agents](/concepts/agents) in a [Networks](/concepts/networks). State is used to store message history and build up structured data from tools.
 
-State is what enables agent workflows to execute in a loop and contextually make decisions. Agents continuously build upon and leverage this context to complete complex tasks.
+State enables agent workflows to execute in a loop and contextually make decisions. Agents continuously build upon and leverage this context to complete complex tasks.
 
 AgentKit's State stores data in two ways:
 
 - **History of messages** - A list of prompts, responses, and tool calls.
-- **Key-value storage** - Simple storage for sharing data between agent calls and tool calls.
+- **Fully typed state data** - Typed state that allows you to build up structured data from agent calls, then implement [deterministic state-based routing](/advanced-patterns/routing) to easily model complex agent workflows.
 
-Both history and key-value data are used automatically by the Network to store and provide context to the next Agent.
+Both history and state data are used automatically by the Network to store and provide context to the next Agent.
 
 ## History
 

@@ -23,6 +23,21 @@ export class State<T extends StateData> {
   private _data: T;
   private _history: InferenceResult[];
 
+  /**
+   * @deprecated Fully type state instead of using the KV.
+   */
+  public kv: {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    set: <T = any>(key: string, value: T) => void;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    get: <T = any>(key: string) => T | undefined;
+    delete: (key: string) => boolean;
+    has: (key: string) => boolean;
+    all: () => Record<string, unknown>;
+  };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private _kv: Map<string, any>;
+
   constructor(initialState?: T) {
     this._history = [];
     this._data = initialState || ({} as T);
@@ -41,6 +56,31 @@ export class State<T extends StateData> {
         return Reflect.set(target, prop, value);
       },
     });
+
+    // NOTE: KV is deprecated and should be fully typed.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    this._kv = new Map<string, any>(
+      initialState && Object.entries(initialState)
+    );
+    this.kv = {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      set: (key: string, value: any) => {
+        this._kv.set(key, value);
+      },
+      get: (key: string) => {
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+        return this._kv.get(key);
+      },
+      delete: (key: string) => {
+        return this._kv.delete(key);
+      },
+      has: (key: string) => {
+        return this._kv.has(key);
+      },
+      all: () => {
+        return Object.fromEntries(this._kv);
+      },
+    };
   }
 
   /**
@@ -71,6 +111,7 @@ export class State<T extends StateData> {
     const state = new State<T>();
     state._history = this._history.slice();
     state.data = { ...this.data };
+    state._kv = new Map(this._kv);
     return state;
   }
 }
