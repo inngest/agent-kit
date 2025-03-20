@@ -22,39 +22,47 @@ The history system maintains a chronological record of all Agent interactions in
 
 Each interaction is stored as an `InferenceResult`. Refer to the [InferenceResult reference](/reference/state#inferenceresult) for more information.
 
-## Key-value store
+## Typed state
 
-The key-value store can be used to store information between Agent calls. It's API contains all the simple methods you might expect:
+State contains typed data that can be used to store information between Agent calls, update agent prompts, and manage routing.  Networks, agents,
+and tools use this type in order to set data:
 
 ```ts
-// Set a value
-state.kv.set("user-name", "Alice");
 
-// Get a value
-const name = state.kv.get("user-name");
+export interface NetworkState {
+  // username is undefined until extracted and set by a tool
+  username?: string;
+}
 
-// Delete a value
-state.kv.delete("user-name");
+// You can construct typed state with optional defaults, eg. from memory.
+const state = createState<NetworkState>({
+  username: "default-username",
+});
 
-// Check if a value exists
-const usernameExists = network.state.kv.has("user-name");
+console.log(state.data.username); // 'default-username'
+state.data.username = "Alice";
+console.log(state.data.username); // 'Alice'
 ```
 
-Common uses for the key-value store include:
+Common uses for data include:
 
 - Storing intermediate results that other Agents might need within lifecycles
 - Storing user preferences or context
 - Passing data between Tools and Agents
+- State based routing
 
 <Tip>
-  The `State`'s key-value store is only retained for a single `Network`'s run.
+  The `State`'s data is only retained for a single `Network`'s run.
   This means that it is only short-term memory and is not persisted across
   different Network `run()` calls.
+
+  You can implement memory by inspecting a network's state after it has
+  finished running.
 </Tip>
 
 State, which is required by [Networks](/concepts/networks), has many uses across various AgentKit components.
 
-Refer to the [State key-value store reference](/reference/state#reading-and-modifying-state-state-kv) for more information.
+Refer to the [State reference](/reference/state#reading-and-modifying-state-state-kv) for more information.
 
 ## Using state in tools
 
@@ -75,11 +83,11 @@ const writeFiles = createTool({
   handler: (output, { network }) => {
     // files is the output from the model's response in the format above.
     // Here, we store OpenAI's generated files in the response.
-    const files = network?.state.kv.get("files") || {};
+    const files = network.state.data.files || {};
     for (const file of output.files) {
       files[file.filename] = file.content;
     }
-    network?.state.kv.set("files", files);
+    network.state.data.files = files;
   },
 });
 ```
