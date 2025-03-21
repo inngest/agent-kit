@@ -180,30 +180,5 @@ export namespace State {
 }
 
 const defaultResultFormatter = (r: AgentResult): Message[] => {
-  // Return the default format, which turns all system prompts into assistant
-  // prompts.
-  // const messages = r.prompt
-  //   .map((msg) => {
-  //     if (msg.type !== "text") {
-  //       return;
-  //     }
-
-  //     let content: string = "";
-  //     if (typeof msg.content === "string") {
-  //       content = msg.content;
-  //     } else if (Array.isArray(msg.content)) {
-  //       content = msg.content.map((m) => m.text).join("\n");
-  //     }
-
-  //     // Ensure that system prompts are always as an assistant in history
-  //     return {
-  //       ...msg,
-  //       type: "text",
-  //       role: "assistant",
-  //       content: `<agent>${r.agentName}</agent>\n${content}`,
-  //     };
-  //   })
-  //   .filter(Boolean);
-
   return ([] as Message[]).concat(r.output).concat(r.toolCalls);
 };

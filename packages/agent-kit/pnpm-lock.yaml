@@ -26,6 +26,9 @@ importers:
       inngest:
         specifier: 3.32.5
         version: 3.32.5(express@4.21.2)(typescript@5.7.3)
+      xxhashjs:
+        specifier: ^0.2.2
+        version: 0.2.2
       zod:
         specifier: ^3.23.8
         version: 3.24.1
@@ -39,6 +42,9 @@ importers:
       '@types/node':
         specifier: ^22.9.1
         version: 22.12.0
+      '@types/xxhashjs':
+        specifier: ^0.2.4
+        version: 0.2.4
       nodemon:
         specifier: ^3.0.2
         version: 3.1.9
@@ -714,6 +720,9 @@ packages:
   '@types/serve-static@1.15.7':
     resolution: {integrity: sha512-W8Ym+h8nhuRwaKPaDw34QUkwsGi6Rc4yYqvKFo5rm2FUEhCFbzVWrxXUxuKK8TASjWsysJY0nsmNCGhCOIsrOw==}
 
+  '@types/xxhashjs@0.2.4':
+    resolution: {integrity: sha512-E2+ZoJY2JjmVPN0iQM5gJvZkk98O2PYXSi6HrciEk3EKF34+mauEk/HgwTeCz+2r8HXHMKpucrwy4qTT12OPaQ==}
+
   '@typescript-eslint/eslint-plugin@8.22.0':
     resolution: {integrity: sha512-4Uta6REnz/xEJMvwf72wdUnC3rr4jAQf5jnTkeRQ9b6soxLxhDEbS/pfMPoJLDfFPNVRdryqWUIV/2GZzDJFZw==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
@@ -963,6 +972,9 @@ packages:
   cross-spawn@7.0.6:
     resolution: {integrity: sha512-uV2QOWP2nWzsy2aMp8aRibhi9dlzF5Hgh5SHaB9OiTGEyDTiJJyx0uy51QXdyWbtAHNua4XJzUKca3OzKUd3vA==}
     engines: {node: '>= 8'}
+
+  cuint@0.2.2:
+    resolution: {integrity: sha512-d4ZVpCW31eWwCMe1YT3ur7mUDnTXbgwyzaL320DrcRT45rfjYxkt5QWLrmOJ+/UEAI2+fQgKe/fCjR8l4TpRgw==}
 
   debug@2.6.9:
     resolution: {integrity: sha512-bC7ElrdJaJnPbAP+1EotYvqZsb3ecl5wi6Bfi6BJTUcNowp6cvspg0jXznRTKDjm/E7AdgFBVeAPVMNcKGsHMA==}
@@ -1999,6 +2011,9 @@ packages:
     resolution: {integrity: sha512-si7QWI6zUMq56bESFvagtmzMdGOtoxfR+Sez11Mobfc7tm+VkUckk9bW2UeffTGVUbOksxmSw0AA2gs8g71NCQ==}
     engines: {node: '>=12'}
 
+  xxhashjs@0.2.2:
+    resolution: {integrity: sha512-AkTuIuVTET12tpsVIQo+ZU6f/qDmKuRUcjaqR+OIvm+aCBsZ95i7UVY5WJ9TMsSaZ0DA2WxoZ4acu0sPH+OKAw==}
+
   yn@3.1.1:
     resolution: {integrity: sha512-Ux4ygGWsu2c7isFWe8Yu1YluJmqVhxqK2cLXNQA5AcC3QfbGNpM7fu0Y8b/z16pXLnFxZYvWhd3fhBY9DLmC6Q==}
     engines: {node: '>=6'}
@@ -2472,6 +2487,10 @@ snapshots:
       '@types/node': 22.12.0
       '@types/send': 0.17.4
 
+  '@types/xxhashjs@0.2.4':
+    dependencies:
+      '@types/node': 22.12.0
+
   '@typescript-eslint/eslint-plugin@8.22.0(@typescript-eslint/parser@8.22.0(eslint@9.19.0)(typescript@5.7.3))(eslint@9.19.0)(typescript@5.7.3)':
     dependencies:
       '@eslint-community/regexpp': 4.12.1
@@ -2761,6 +2780,8 @@ snapshots:
       path-key: 3.1.1
       shebang-command: 2.0.0
       which: 2.0.2
+
+  cuint@0.2.2: {}
 
   debug@2.6.9:
     dependencies:
@@ -3836,6 +3857,10 @@ snapshots:
       ansi-styles: 6.2.1
       string-width: 5.1.2
       strip-ansi: 7.1.0
+
+  xxhashjs@0.2.2:
+    dependencies:
+      cuint: 0.2.2
 
   yn@3.1.1: {}
 

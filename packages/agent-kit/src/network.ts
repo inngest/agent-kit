@@ -2,13 +2,9 @@ import { type AiAdapter } from "@inngest/ai";
 import { z } from "zod";
 import { createRoutingAgent, type Agent, type RoutingAgent } from "./agent";
 import { NetworkRun } from "./networkRun";
-import {
-  createState,
-  State,
-  type InferenceResult,
-  type StateData,
-} from "./state";
+import { createState, State, type StateData } from "./state";
 import { createTool } from "./tool";
+import type { AgentResult } from "./types";
 import { type MaybePromise } from "./util";
 
 /**
@@ -329,7 +325,7 @@ export namespace Network {
        * lastResult is the last inference result that the network made.  This is
        * a shorthand for `network.state.results.pop()`.
        */
-      lastResult?: InferenceResult;
+      lastResult?: AgentResult;
     }
   }
 }
