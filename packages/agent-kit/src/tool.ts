@@ -20,7 +20,7 @@ export function createTool<
 }: {
   name: string;
   description?: string;
-  parameters: TInput;
+  parameters?: TInput;
   handler: (
     input: ZodOutput<TInput>,
     opts: Tool.Options<TState>

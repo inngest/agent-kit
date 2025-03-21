@@ -82,7 +82,7 @@ export class NetworkRun<T extends StateData> extends Network<T> {
       this._counter += 1;
 
       // Ensure that we store the call network history.
-      this.state.append(call);
+      this.state.appendResult(call);
 
       // Here we face a problem: what's the definition of done?   An agent may
       // have just been called with part of the information to solve an input.

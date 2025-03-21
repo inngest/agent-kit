@@ -1,18 +1,34 @@
-import { type Agent } from "./agent";
-import { type Message, type ToolResultMessage } from "./types";
+import { type AgentResult, type Message } from "./types";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type StateData = Record<string, any>;
 
+/**
+ * createState creates new state for a given network.  You can add any
+ * initial state data for routing, plus provide an object of previous
+ * AgentResult objects or conversation history within Message.
+ *
+ * To store chat history, we strongly recommend serializing and storing
+ * the list of AgentResult items from state after each network run.
+ *
+ * You can then load and pass those messages into this constructor to
+ * create conversational memory.
+ *
+ * You can optionally pass a list of Message types in this constructor.
+ * Any messages in this State will always be added after the system and
+ * user prompt.
+ */
 export const createState = <T extends StateData>(
-  initialState?: T
+  initialState?: T,
+  opts?: Omit<State.Constructor<T>, "data">
 ): State<T> => {
-  return new State(initialState);
+  return new State({ ...opts, data: initialState });
 };
 
 /**
  * State stores state (history) for a given network of agents.  The state
- * includes key-values, plus a stack of all agentic calls.
+ * includes a stack of all AgentResult items and strongly-typed data
+ * modified via tool calls.
  *
  * From this, the chat history can be reconstructed (and manipulated) for each
  * subsequent agentic call.
@@ -21,26 +37,24 @@ export class State<T extends StateData> {
   public data: T;
 
   private _data: T;
-  private _history: InferenceResult[];
 
   /**
-   * @deprecated Fully type state instead of using the KV.
+   * _results stores all agent results.  This is internal and is used to
+   * track each call made in the network loop.
    */
-  public kv: {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    set: <T = any>(key: string, value: T) => void;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    get: <T = any>(key: string) => T | undefined;
-    delete: (key: string) => boolean;
-    has: (key: string) => boolean;
-    all: () => Record<string, unknown>;
-  };
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private _kv: Map<string, any>;
+  private _results: AgentResult[];
 
-  constructor(initialState?: T) {
-    this._history = [];
-    this._data = initialState || ({} as T);
+  /**
+   * _messages stores a linear history of ALL messages from the current
+   * network.  You can seed this with initial messages to create conversation
+   * history.
+   */
+  private _messages: Message[];
+
+  constructor({ data, messages }: State.Constructor<T> = {}) {
+    this._results = [];
+    this._messages = messages || [];
+    this._data = data ? { ...data } : ({} as T);
 
     // Create a new proxy that allows us to intercept the setting of state.
     //
@@ -59,26 +73,24 @@ export class State<T extends StateData> {
 
     // NOTE: KV is deprecated and should be fully typed.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    this._kv = new Map<string, any>(
-      initialState && Object.entries(initialState)
-    );
+    this.#_kv = new Map<string, any>(Object.entries(this._data));
     this.kv = {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       set: (key: string, value: any) => {
-        this._kv.set(key, value);
+        this.#_kv.set(key, value);
       },
       get: (key: string) => {
         // eslint-disable-next-line @typescript-eslint/no-unsafe-return
-        return this._kv.get(key);
+        return this.#_kv.get(key);
       },
       delete: (key: string) => {
-        return this._kv.delete(key);
+        return this.#_kv.delete(key);
       },
       has: (key: string) => {
-        return this._kv.has(key);
+        return this.#_kv.has(key);
       },
       all: () => {
-        return Object.fromEntries(this._kv);
+        return Object.fromEntries(this.#_kv);
       },
     };
   }
@@ -87,120 +99,111 @@ export class State<T extends StateData> {
    * Results returns a new array containing all past inference results in the
    * network. This array is safe to modify.
    */
-  get results() {
-    return this._history.slice();
+  get results(): AgentResult[] {
+    return this._results.slice();
   }
 
   /**
-   * format returns the memory used for agentic calls based off of prior
+   * formatHistory returns the memory used for agentic calls based off of prior
    * agentic calls.
    *
    * This is used to format the current State as a conversation log when
    * calling an individual agent.
    *
    */
-  format(): Message[] {
-    return this._history.map((call) => call.format()).flat();
+  formatHistory(formatter?: (r: AgentResult) => Message[]): Message[] {
+    if (!formatter) {
+      formatter = defaultResultFormatter;
+    }
+
+    // Always add any messages before any AgentResult items.  This allows
+    // you to preload any
+    return this._messages.concat(
+      this._results.map((result) => formatter(result)).flat()
+    );
   }
 
-  append(call: InferenceResult) {
-    this._history.push(call);
+  /**
+   * appendResult appends a given result to the current state.  This
+   * is called by the network after each iteration.
+   */
+  appendResult(call: AgentResult) {
+    this._results.push(call);
   }
 
+  /**
+   * clone allows you to safely clone the state.
+   */
   clone() {
-    const state = new State<T>();
-    state._history = this._history.slice();
-    state.data = { ...this.data };
-    state._kv = new Map(this._kv);
+    const state = new State<T>(this.data);
+    state._results = this._results.slice();
+    state._messages = this._messages.slice();
     return state;
   }
-}
 
-/**
- * InferenceResult represents a single agentic call as part of the network
- * state.  This stores every input and ouput for a call.
- *
- */
-export class InferenceResult {
-  // toHistory is a function which formats this given call to history for future
-  // agentic calls.
-  //
-  // You can set a custom history adapter by calling .withFormatter() within
-  // lifecycles.  This allows you to change how future agentic calls interpret
-  // past agentic calls.
-  private _historyFormatter: ((a: InferenceResult) => Message[]) | undefined;
-
-  constructor(
-    // agent represents the agent for this inference call.
+  /**
+   * @deprecated Fully type state instead of using the KV.
+   */
+  public kv: {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    public agent: Agent<any>,
+    set: <T = any>(key: string, value: T) => void;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    get: <T = any>(key: string) => T | undefined;
+    delete: (key: string) => boolean;
+    has: (key: string) => boolean;
+    all: () => Record<string, unknown>;
+  };
 
-    // input represents the input passed into the agent's run method.
-    public input: string,
-
-    // prompt represents the input instructions - without any additional history
-    // - as created by the agent.  This includes the system prompt, the user input,
-    // and any initial agent assistant message.
-    public prompt: Message[],
-
-    // history represents the history sent to the inference call, appended to the
-    // prompt to form a complete conversation log
-    public history: Message[],
-
-    // output represents the parsed output from the inference call.  This may be blank
-    // if the agent responds with tool calls only.
-    public output: Message[],
-
-    // toolCalls represents output from any tools called by the agent.
-    public toolCalls: ToolResultMessage[],
-
-    // raw represents the raw API response from the call.  This is a JSON
-    // string, and the format depends on the agent's model.
-    public raw: string
-  ) {}
-
-  withFormatter(f: (a: InferenceResult) => Message[]) {
-    this._historyFormatter = f;
-  }
-
-  // format
-  format(): Message[] {
-    if (this._historyFormatter) {
-      return this._historyFormatter(this);
-    }
-
-    if (this.raw === "") {
-      // There is no call to the agent, so ignore this.
-      return [];
-    }
-
-    // Return the default format, which turns all system prompts into assistant
-    // prompts.
-    const agent = this.agent;
-
-    const messages = this.prompt
-      .map((msg) => {
-        if (msg.type !== "text") {
-          return;
-        }
-
-        let content: string = "";
-        if (typeof msg.content === "string") {
-          content = msg.content;
-        } else if (Array.isArray(msg.content)) {
-          content = msg.content.map((m) => m.text).join("\n");
-        }
-
-        // Ensure that system prompts are always as an assistant in history
-        return {
-          ...msg,
-          type: "text",
-          role: "assistant",
-          content: `<agent>${agent.name}</agent>\n${content}`,
-        };
-      })
-      .filter(Boolean);
-
-    return (messages as Message[]).concat(this.output).concat(this.toolCalls);
-  }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  #_kv: Map<string, any>;
 }
+
+export namespace State {
+  export type Constructor<T extends StateData> = {
+    /**
+     * Data represents initial typed data
+     */
+    data?: T;
+
+    /**
+     * Results represents any previous AgentResult entries for
+     * conversation history and memory.
+     */
+    results?: AgentResult[];
+
+    /**
+     * Messages allows you to pas custom messages which will be appended
+     * after the system and user message to each agent.
+     */
+    messages?: Message[];
+  };
+}
+
+const defaultResultFormatter = (r: AgentResult): Message[] => {
+  // Return the default format, which turns all system prompts into assistant
+  // prompts.
+  // const messages = r.prompt
+  //   .map((msg) => {
+  //     if (msg.type !== "text") {
+  //       return;
+  //     }
+
+  //     let content: string = "";
+  //     if (typeof msg.content === "string") {
+  //       content = msg.content;
+  //     } else if (Array.isArray(msg.content)) {
+  //       content = msg.content.map((m) => m.text).join("\n");
+  //     }
+
+  //     // Ensure that system prompts are always as an assistant in history
+  //     return {
+  //       ...msg,
+  //       type: "text",
+  //       role: "assistant",
+  //       content: `<agent>${r.agentName}</agent>\n${content}`,
+  //     };
+  //   })
+  //   .filter(Boolean);
+
+  return ([] as Message[]).concat(r.output).concat(r.toolCalls);
+};
