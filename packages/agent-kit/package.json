@@ -54,17 +54,19 @@
   "dependencies": {
     "@dmitryrechkin/json-schema-to-zod": "^1.0.0",
     "@inngest/ai": "0.1.2",
-    "inngest": "3.32.5",
     "@modelcontextprotocol/sdk": "^1.1.1",
     "eventsource": "^3.0.2",
     "express": "^4.21.1",
-    "zod-to-json-schema": "^3.24.3",
-    "zod": "^3.23.8"
+    "inngest": "3.32.5",
+    "xxhashjs": "^0.2.2",
+    "zod": "^3.23.8",
+    "zod-to-json-schema": "^3.24.3"
   },
   "packageManager": "pnpm@9.14.2",
   "devDependencies": {
     "@types/express": "^5.0.0",
     "@types/node": "^22.9.1",
+    "@types/xxhashjs": "^0.2.4",
     "nodemon": "^3.0.2",
     "ts-node": "^10.9.2",
     "tsup": "^8.3.6",

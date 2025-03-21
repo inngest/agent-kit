@@ -15,11 +15,10 @@ import { serializeError } from "inngest/helpers/errors";
 import { type MinimalEventPayload } from "inngest/types";
 import type { ZodType } from "zod";
 import { createAgenticModelFromAiAdapter, type AgenticModel } from "./model";
-import { NetworkRun } from "./networkRun";
-import { createNetwork } from "./network";
-import { InferenceResult, State, type StateData } from "./state";
+import { createNetwork, NetworkRun } from "./network";
+import { State, type StateData } from "./state";
 import { type MCP, type Tool } from "./tool";
-import type { Message, ToolResultMessage } from "./types";
+import { AgentResult, type Message, type ToolResultMessage } from "./types";
 import {
   getInngestFnInput,
   getStepTools,
@@ -165,7 +164,7 @@ export class Agent<T extends StateData> {
   async run(
     input: string,
     { model, network, state, maxIter = 0 }: Agent.RunOptions<T> | undefined = {}
-  ): Promise<InferenceResult> {
+  ): Promise<AgentResult> {
     // Attempt to resolve the MCP tools, if we haven't yet done so.
     await this.initMCP();
 
@@ -183,9 +182,17 @@ export class Agent<T extends StateData> {
       s
     );
 
-    let history = s ? s.format() : [];
+    let history = s ? s.formatHistory() : [];
     let prompt = await this.agentPrompt(input, run);
-    let result = new InferenceResult(this, input, prompt, history, [], [], "");
+    let result = new AgentResult(
+      this.name,
+      [],
+      [],
+      new Date(),
+      prompt,
+      history,
+      ""
+    );
     let hasMoreActions = true;
     let iter = 0;
 
@@ -209,13 +216,7 @@ export class Agent<T extends StateData> {
         history = modified.history;
       }
 
-      const inference = await this.performInference(
-        input,
-        p,
-        prompt,
-        history,
-        run
-      );
+      const inference = await this.performInference(p, prompt, history, run);
 
       hasMoreActions = Boolean(
         this.tools.size > 0 &&
@@ -243,12 +244,11 @@ export class Agent<T extends StateData> {
   }
 
   private async performInference(
-    input: string,
     p: AgenticModel.Any,
     prompt: Message[],
     history: Message[],
     network: NetworkRun<T>
-  ): Promise<InferenceResult> {
+  ): Promise<AgentResult> {
     const { output, raw } = await p.infer(
       this.name,
       prompt.concat(history),
@@ -256,15 +256,15 @@ export class Agent<T extends StateData> {
       this.tool_choice || "auto"
     );
 
-    // Now that we've made the call, we instantiate a new InferenceResult for
+    // Now that we've made the call, we instantiate a new AgentResult for
     // lifecycles and history.
-    let result = new InferenceResult(
-      this,
-      input,
-      prompt,
-      history,
+    let result = new AgentResult(
+      this.name,
       output,
       [],
+      new Date(),
+      prompt,
+      history,
       typeof raw === "string" ? raw : JSON.stringify(raw)
     );
     if (this.lifecycles?.onResponse) {
@@ -276,7 +276,7 @@ export class Agent<T extends StateData> {
     }
 
     // And ensure we invoke any call from the agent
-    const toolCallOutput = await this.invokeTools(result.output, p, network);
+    const toolCallOutput = await this.invokeTools(result.output, network);
     if (toolCallOutput.length > 0) {
       result.toolCalls = result.toolCalls.concat(toolCallOutput);
     }
@@ -290,7 +290,6 @@ export class Agent<T extends StateData> {
    */
   private async invokeTools(
     msgs: Message[],
-    p: AgenticModel.Any,
     network: NetworkRun<T>
   ): Promise<ToolResultMessage[]> {
     const output: ToolResultMessage[] = [];
@@ -598,17 +597,17 @@ export namespace Agent {
      */
     onResponse?: (
       args: Agent.LifecycleArgs.Result<T>
-    ) => MaybePromise<InferenceResult>;
+    ) => MaybePromise<AgentResult>;
 
     /**
-     * onFinish is called with a finalized InferenceResult, including any tool
-     * call results. The returned InferenceResult will be saved to network
+     * onFinish is called with a finalized AgentResult, including any tool
+     * call results. The returned AgentResult will be saved to network
      * history, if the agent is part of the network.
      *
      */
     onFinish?: (
       args: Agent.LifecycleArgs.Result<T>
-    ) => MaybePromise<InferenceResult>;
+    ) => MaybePromise<AgentResult>;
   }
 
   export namespace LifecycleArgs {
@@ -620,7 +619,7 @@ export namespace Agent {
     }
 
     export interface Result<T extends StateData> extends Base<T> {
-      result: InferenceResult;
+      result: AgentResult;
     }
 
     export interface Before<T extends StateData> extends Base<T> {
