@@ -1,5 +1,11 @@
 # @inngest/agent-kit
 
+## 0.7.0
+
+### Minor Changes
+
+- a5f2fea: Refactor AgentResult, and allow conversational history + short term mem
+
 ## 0.6.0
 
 ### Minor Changes
