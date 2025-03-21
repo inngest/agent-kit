@@ -70,6 +70,14 @@ describe("createState", () => {
             // input and _opts are still typed.
           },
         }),
+        createTool({
+          name: "another",
+          description: "test",
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          handler: (_input, _opts: Tool.Options<Shape>) => {
+            // input and _opts are still typed.
+          },
+        }),
       ],
     });
 

@@ -2,7 +2,7 @@ import { type GetStepTools, type Inngest } from "inngest";
 import { type output as ZodOutput } from "zod";
 import { type Agent } from "./agent";
 import { type StateData } from "./state";
-import { type NetworkRun } from "./networkRun";
+import { type NetworkRun } from "./network";
 import { type AnyZodType, type MaybePromise } from "./util";
 
 /**
