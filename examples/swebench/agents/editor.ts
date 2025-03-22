@@ -1,4 +1,4 @@
-import { createAgent, createTool } from "@inngest/agent-kit";
+import { createAgent, createTool, type Tool } from "@inngest/agent-kit";
 import {
   extractClassAndFnsTool,
   readFileTool,
@@ -23,7 +23,7 @@ export const editingAgent = createAgent<AgentState>({
     createTool({
       name: "done",
       description: "Saves the current project and finishes editing",
-      handler: (_input, opts) => {
+      handler: (_input, opts: Tool.Options<AgentState>) => {
         if (!opts.network) {
           return;
         }
@@ -43,7 +43,7 @@ export const editingAgent = createAgent<AgentState>({
     // plan via network state.
     onStart: ({ agent, prompt, network }) => {
       const history = (network?.state.results || [])
-        .filter((i) => i.agent === agent) // Return the current history from this agent only.
+        .filter((i) => i.agentName === agent.name) // Return the current history from this agent only.
         .map((i) => i.output.concat(i.toolCalls)) // Only add the output and tool calls to the conversation history
         .flat();
 

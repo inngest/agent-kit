@@ -1,4 +1,4 @@
-import { State } from "@inngest/agent-kit";
+import { createState } from "@inngest/agent-kit";
 import { execSync } from "node:child_process";
 import fs from "node:fs";
 import { EventSchemas, Inngest } from "inngest";
@@ -51,13 +51,20 @@ export const fn = inngest.createFunction(
     });
 
     // Create new state and store the repo in KV for access via tools.
-    const state = new State<AgentState>({
+    const state = createState<AgentState>({
       repo: event.data.repo,
       done: false,
     });
 
     await codeWritingNetwork.run(event.data.problem_statement, {
       state,
+    });
+
+    await step.run("history", () => {
+      return state.results.map(r => ({
+        ...r.export(),
+        checksum: r.checksum,
+      }));
     });
   }
 );

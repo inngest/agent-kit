@@ -9,8 +9,8 @@ importers:
   .:
     dependencies:
       '@inngest/agent-kit':
-        specifier: 0.6.0-alpha-20250318202528-15584b711d42e91e2d6213a31deba2179036d602
-        version: 0.6.0-alpha-20250318202528-15584b711d42e91e2d6213a31deba2179036d602(typescript@5.7.3)
+        specifier: 0.7.0
+        version: 0.7.0(typescript@5.7.3)
       express:
         specifier: ^4.21.1
         version: 4.21.2
@@ -186,8 +186,8 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@inngest/agent-kit@0.6.0-alpha-20250318202528-15584b711d42e91e2d6213a31deba2179036d602':
-    resolution: {integrity: sha512-/R1NVpjIG2xFMp3o1c/S8iqPNvX/ODUMdU8aS59yhZrSN1rDD3XGRuabEzVjc0XUv2bYaSlJqiDDL6RlwprwMg==}
+  '@inngest/agent-kit@0.7.0':
+    resolution: {integrity: sha512-+IQBDvriRXatQRWZrKUJAL80udqMpMPWuszf8h3mazKJoNMs9c7tMgeO35V622FsO68Wd89UaHlrN/1JoGjDIA==}
 
   '@inngest/ai@0.1.2':
     resolution: {integrity: sha512-79Ez/2142GU5Fo44fMxo8rW6PaeVvIFnYqePdEeGTiymTGMMmcsAtrMTfnvq4AnMorFnrtTh6rr6P9xlSdhPJA==}
@@ -323,6 +323,9 @@ packages:
 
   cross-fetch@4.1.0:
     resolution: {integrity: sha512-uKm5PU+MHTootlWEY+mZ4vvXoCn4fLQxT9dSc1sXVMSFkINTJVN8cAQROpwcKm8bJ/c7rgZVIBWzH5T78sNZZw==}
+
+  cuint@0.2.2:
+    resolution: {integrity: sha512-d4ZVpCW31eWwCMe1YT3ur7mUDnTXbgwyzaL320DrcRT45rfjYxkt5QWLrmOJ+/UEAI2+fQgKe/fCjR8l4TpRgw==}
 
   debug@2.6.9:
     resolution: {integrity: sha512-bC7ElrdJaJnPbAP+1EotYvqZsb3ecl5wi6Bfi6BJTUcNowp6cvspg0jXznRTKDjm/E7AdgFBVeAPVMNcKGsHMA==}
@@ -844,6 +847,9 @@ packages:
   wrappy@1.0.2:
     resolution: {integrity: sha512-l4Sp/DRseor9wL6EvV2+TuQn63dMkPjZ/sp9XkghTEbV9KlPS1xUsZ3u7/IQO4wxtcFB4bgpQPRcR3QCvezPcQ==}
 
+  xxhashjs@0.2.2:
+    resolution: {integrity: sha512-AkTuIuVTET12tpsVIQo+ZU6f/qDmKuRUcjaqR+OIvm+aCBsZ95i7UVY5WJ9TMsSaZ0DA2WxoZ4acu0sPH+OKAw==}
+
   zod-to-json-schema@3.24.4:
     resolution: {integrity: sha512-0uNlcvgabyrni9Ag8Vghj21drk7+7tp7VTwwR7KxxXXc/3pbXz2PHlDgj3cICahgF1kHm4dExBFj7BXrZJXzig==}
     peerDependencies:
@@ -935,7 +941,7 @@ snapshots:
   '@esbuild/win32-x64@0.23.1':
     optional: true
 
-  '@inngest/agent-kit@0.6.0-alpha-20250318202528-15584b711d42e91e2d6213a31deba2179036d602(typescript@5.7.3)':
+  '@inngest/agent-kit@0.7.0(typescript@5.7.3)':
     dependencies:
       '@dmitryrechkin/json-schema-to-zod': 1.0.1
       '@inngest/ai': 0.1.2
@@ -943,6 +949,7 @@ snapshots:
       eventsource: 3.0.5
       express: 4.21.2
       inngest: 3.32.5(express@4.21.2)(typescript@5.7.3)
+      xxhashjs: 0.2.2
       zod: 3.24.1
       zod-to-json-schema: 3.24.4(zod@3.24.1)
     transitivePeerDependencies:
@@ -1136,6 +1143,8 @@ snapshots:
       node-fetch: 2.7.0
     transitivePeerDependencies:
       - encoding
+
+  cuint@0.2.2: {}
 
   debug@2.6.9:
     dependencies:
@@ -1694,6 +1703,10 @@ snapshots:
       webidl-conversions: 3.0.1
 
   wrappy@1.0.2: {}
+
+  xxhashjs@0.2.2:
+    dependencies:
+      cuint: 0.2.2
 
   zod-to-json-schema@3.24.4(zod@3.24.1):
     dependencies:
