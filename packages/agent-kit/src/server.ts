@@ -51,7 +51,7 @@ export const createServer = ({
     const id = `agent-${slug}`;
 
     functions[id] = inngest.createFunction(
-      { id, name: agent.name },
+      { id, name: agent.name, optimizeParallelism: true },
       { event: `${inngest.id}/${id}` },
       async ({ event }) => {
         // eslint-disable-next-line
@@ -65,7 +65,7 @@ export const createServer = ({
     const id = `network-${slug}`;
 
     functions[id] = inngest.createFunction(
-      { id, name: network.name },
+      { id, name: network.name, optimizeParallelism: true },
       { event: `${inngest.id}/${id}` },
       async ({ event }) => {
         // eslint-disable-next-line
