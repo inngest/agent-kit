@@ -110,7 +110,7 @@ const model = gemini({
 import { createAgent } from "@inngest/agent-kit";
 
 const supportAgent = createAgent({
-  model: openai("gpt-3.5-turbo"),
+  model: openai({ model: "gpt-3.5-turbo" }),
   name: "Customer support specialist",
   system: "You are an customer support specialist...",
   tools: [listChargesTool],
@@ -131,7 +131,7 @@ import { createNetwork } from "@inngest/agent-kit";
 
 const network = createNetwork({
   agents: [supportAgent],
-  defaultModel: openai("gpt-4o"),
+  defaultModel: openai({ model: "gpt-4o" }),
 });
 ```
 
