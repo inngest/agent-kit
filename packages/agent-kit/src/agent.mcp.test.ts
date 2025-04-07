@@ -10,6 +10,7 @@ import {
   type ListToolsResult,
 } from "@modelcontextprotocol/sdk/types.js";
 import express from "express";
+import { openai } from "inngest";
 
 describe("mcp", () => {
   test("initMCP should update tools", async () => {
@@ -34,26 +35,39 @@ describe("mcp", () => {
   });
 
   // TODO: We need a mock AI model to test this.
-  // test("it should pass tools into models", async () => {
-  //   const server = await newMCPServer(3001);
-  //   const agent = new Agent({
-  //     name: "test",
-  //     system: "noop",
-  //     mcpServers: [
-  //       {
-  //         name: "test",
-  //         transport: {
-  //           type: "sse",
-  //           url: "http://localhost:3000/server",
-  //         },
-  //       },
-  //     ],
-  //   });
-
-  //   await agent.run("test");
-  // });
+  test.only("it should pass tools into models", async () => {
+    const server = await newMCPServer(30000);
+    const agent = new Agent({
+      name: "test",
+      system: "noop",
+      mcpServers: [
+        {
+          name: "test",
+          transport: {
+            type: "sse",
+            url: "http://localhost:30000/server",
+          },
+        },
+      ],
+      model: openai({
+        model: "gpt-4o",
+        baseUrl: process.env.OPENAI_BASE_URL,
+        apiKey: process.env.OPENAI_API_KEY,
+      }),
+      lifecycle: {
+        onFinish: ({ result }) => {
+          if (result?.toolCalls[0]?.content?.error) {
+            throw new Error(JSON.stringify(result.toolCalls[0].content.error));
+          }
+          return result;
+        },
+      },
+    });
+    await agent["initMCP"]();
+    await agent.run("do a tool call test: call printf with hello world");
+  });
 });
-
+let instanceId = 1;
 const newMCPServer = async (port: number) => {
   const server = new Server(
     {
@@ -86,6 +100,12 @@ const newMCPServer = async (port: number) => {
 
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
     if (request.params.name === "printf") {
+      console.log("MCP: Recvd the tool call", JSON.stringify(request));
+      if (instanceId > 1) {
+        throw new Error(
+          `Multiple instances created. this instanceId: ${instanceId}`
+        );
+      }
       return request.params?.arguments?.format || "";
     } else {
       throw new Error("Resource not found");
@@ -97,10 +117,14 @@ const newMCPServer = async (port: number) => {
 
   app.get("/server", async (req, res) => {
     transport = new SSEServerTransport("/events", res);
+    console.log(
+      `MCP: creating instance: ${instanceId++} with sessionId: ${transport.sessionId}`
+    );
     await server.connect(transport);
   });
 
   app.post("/events", async (req, res) => {
+    console.log("MCP: Received POST request", JSON.stringify(req.url));
     await transport.handlePostMessage(req, res);
   });
 
