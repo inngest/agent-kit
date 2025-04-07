@@ -1,5 +1,11 @@
 # @inngest/agent-kit
 
+## 0.7.1
+
+### Patch Changes
+
+- f630722: Optimize parallelism in `createServer()`, removing risk of parallel indexing
+
 ## 0.7.0
 
 ### Minor Changes
