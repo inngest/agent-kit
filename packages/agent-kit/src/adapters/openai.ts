@@ -128,7 +128,7 @@ export const responseParser: AgenticModel.ResponseParser<OpenAi.AiModel> = (
         } as TextMessage,
       ];
     }
-    if (message.tool_calls.length > 0) {
+    if ((message.tool_calls?.length ?? 0) > 0) {
       return [
         ...acc,
         {
