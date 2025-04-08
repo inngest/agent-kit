@@ -1,6 +1,6 @@
 {
   "name": "@inngest/agent-kit",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "description": "AgentKit is a framework for creating and orchestrating AI agents and AI workflows",
   "main": "dist/index.js",
   "type": "module",
