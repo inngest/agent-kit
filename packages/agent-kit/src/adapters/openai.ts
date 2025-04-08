@@ -118,7 +118,7 @@ export const responseParser: AgenticModel.ResponseParser<OpenAi.AiModel> = (
         openAiStopReasonToStateStopReason[finish_reason ?? ""] || "stop",
     };
 
-    if (message.content) {
+    if (message.content && message.content.trim() !== "") {
       return [
         ...acc,
         {
