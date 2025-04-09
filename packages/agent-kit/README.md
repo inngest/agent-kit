@@ -86,7 +86,7 @@ const neonAgentNetwork = createNetwork({
       max_tokens: 1000,
     },
   }),
-  router:work }) => {
+  router: ({ network }) => {
     if (!network?.state.kv.get("answer")) {
       return neonAgent;
     }
@@ -267,7 +267,7 @@ const network = createNetwork({
   // our routing function relies on the shared state to orchestrate agents
   //   first, the codeAssistantAgent is called and then, its plan gets
   //   executed step by step until a summary gets written in the state.
-  router:work }) => {
+  router: ({ network }) => {
     if (!network?.state.kv.has("code") || !network?.state.kv.has("plan")) {
       return codeAssistantAgent;
     } else {
@@ -487,7 +487,7 @@ const supportNetwork = createNetwork({
       max_tokens: 1000,
     },
   }),
-  router: isorRoutingAgent,
+  router: supervisorRoutingAgent,
 });
 ```
 
