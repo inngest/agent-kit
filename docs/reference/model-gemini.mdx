@@ -25,7 +25,11 @@ const agent = createAgent({
     model: "gemini-pro",
     apiKey: process.env.GOOGLE_API_KEY,
     baseUrl: "https://generativelanguage.googleapis.com/v1/",
-    defaultParameters: { temperature: 0.5 },
+    defaultParameters: {
+      generationConfig: {
+        temperature: 1.5,
+      },
+    },
   }),
 });
 ```
@@ -52,8 +56,9 @@ const agent = createAgent({
 </ParamField>
 
 <ParamField path="defaultParameters" type="object">
-  The default parameters to use for the model (ex: `temperature`, `max_tokens`,
-  etc).
+  The default parameters to use for the model.
+
+  See Gemini's [`models.generateContent` reference](https://ai.google.dev/api/generate-content#method:-models.generatecontent).
 </ParamField>
 
 ### Available Models
