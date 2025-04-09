@@ -1,5 +1,12 @@
 # @inngest/agent-kit
 
+## 0.7.2
+
+### Patch Changes
+
+- b983424: Add safety checks to openai response parser
+- bf01b2f: fix(gemini): do not send `tools` and `tool_config` if not tools are provided
+
 ## 0.7.1
 
 ### Patch Changes
