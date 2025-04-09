@@ -67,7 +67,7 @@ describe("mcp", () => {
     await agent.run("do a tool call test: call printf with hello world");
   });
 });
-let instanceId = 1;
+let instanceId = 0;
 const newMCPServer = async (port: number) => {
   const server = new Server(
     {
@@ -106,7 +106,11 @@ const newMCPServer = async (port: number) => {
           `Multiple instances created. this instanceId: ${instanceId}`
         );
       }
-      return request.params?.arguments?.format || "";
+      return {
+        content: [
+          { type: "text", text: `${request.params.arguments?.format}` },
+        ],
+      };
     } else {
       throw new Error("Resource not found");
     }
