@@ -35,12 +35,16 @@ export const requestParser: AgenticModel.RequestParser<Gemini.AiModel> = (
 
   return {
     contents,
-    tools: [
-      {
-        functionDeclarations,
-      },
-    ],
-    tool_config: toolChoice(tool_choice),
+    ...(tools.length > 0
+      ? {
+          tools: [
+            {
+              functionDeclarations,
+            },
+          ],
+          tool_config: toolChoice(tool_choice),
+        }
+      : {}),
   };
 };
 
