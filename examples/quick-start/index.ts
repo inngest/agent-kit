@@ -48,4 +48,4 @@ const server = createServer({
   networks: [devOpsNetwork],
 });
 
-server.listen(3011, () => console.log("Agent kit running!"));
+server.listen(3010, () => console.log("Agent kit running!"));
