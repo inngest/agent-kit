@@ -139,26 +139,27 @@ In this tutorial you will create an [Agent](/concepts/agents) and run it within 
   "[Network](/concepts/networks)." "Networks" are used to create stateful
   workflows with one or more Agents that can call tools.
 
-We'll start by creating a second _"Database Security"_ Agent:
 
-```ts index.ts
-import { createAgent, anthropic } from "@inngest/agent-kit";
+  We'll start by creating a second _"Database Security"_ Agent:
 
-// ...
-
-const securityAgent = createAgent({
-  name: "Database Security Expert",
-  description:
-    "Provides expert guidance on PostgreSQL security, access control, audit logging, and compliance best practices",
-  system:
-    "You are a PostgreSQL security expert. " +
-    "You only provide answers to questions linked to PostgreSQL security topics such as encryption, access control, audit logging, and compliance best practices.",
-  model: anthropic({
-    model: "claude-3-5-haiku-latest",
-    max_tokens: 1000,
-  }),
-});
-```
+  ```ts index.ts
+  import { createAgent, anthropic } from '@inngest/agent-kit';
+  
+  // ...
+ 
+  const securityAgent = createAgent({
+    name: 'Database Security Expert',
+    description: 'Provides expert guidance on PostgreSQL security, access control, audit logging, and compliance best practices',
+    system: 'You are a PostgreSQL security expert. ' +
+      'You only provide answers to questions linked to PostgreSQL security topics such as encryption, access control, audit logging, and compliance best practices.',
+    model: anthropic({
+      model: 'claude-3-5-haiku-latest',
+      defaultParameters: {
+        max_tokens: 1000,
+      },
+    }),
+  });
+  ```
 
 We can now create a network combining our _"Database Administrator"_ and _"Database Security"_ Agents, which enables us to answer more complex questions.
 
@@ -172,7 +173,9 @@ const devOpsNetwork = createNetwork({
   agents: [dbaAgent, securityAgent],
   defaultModel: anthropic({
     model: "claude-3-5-haiku-latest",
-    max_tokens: 1000,
+    defaultParameters: {
+      max_tokens: 1000,
+    },
   }),
 });
 const server = createServer({
