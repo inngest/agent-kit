@@ -153,7 +153,9 @@ In this tutorial you will create an [Agent](/concepts/agents) and run it within 
       'You only provide answers to questions linked to PostgreSQL security topics such as encryption, access control, audit logging, and compliance best practices.',
     model: anthropic({
       model: 'claude-3-5-haiku-latest',
-      max_tokens: 1000,
+      defaultParameters: {
+        max_tokens: 1000,
+      },
     }),
   });
   ```
@@ -170,7 +172,9 @@ const devOpsNetwork = createNetwork({
   agents: [dbaAgent, securityAgent],
   defaultModel: anthropic({
     model: "claude-3-5-haiku-latest",
-    max_tokens: 1000,
+    defaultParameters: {
+      max_tokens: 1000,
+    },
   }),
 });
 const server = createServer({
