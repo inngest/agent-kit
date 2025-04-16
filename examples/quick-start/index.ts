@@ -1,3 +1,4 @@
+import "dotenv/config";
 import { anthropic, createAgent, createNetwork } from "@inngest/agent-kit";
 import { createServer } from "@inngest/agent-kit/server";
 
@@ -47,4 +48,4 @@ const server = createServer({
   networks: [devOpsNetwork],
 });
 
-server.listen(3010, () => console.log("Agent kit running!"));
+server.listen(3011, () => console.log("Agent kit running!"));
