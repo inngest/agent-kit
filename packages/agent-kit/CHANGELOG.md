@@ -1,5 +1,12 @@
 # @inngest/agent-kit
 
+## 0.7.3
+
+### Patch Changes
+
+- 5e3e74f: Export types
+- 5e3e74f: Export types from `index.ts`
+
 ## 0.7.2
 
 ### Patch Changes
