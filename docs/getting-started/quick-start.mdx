@@ -139,6 +139,7 @@ In this tutorial you will create an [Agent](/concepts/agents) and run it within 
   "[Network](/concepts/networks)." "Networks" are used to create stateful
   workflows with one or more Agents that can call tools.
 
+
   We'll start by creating a second _"Database Security"_ Agent:
 
   ```ts index.ts
@@ -206,16 +207,10 @@ const server = createServer({
 
     ![Inngest Dev Server agent run](/graphics/quick-start/dev-server-network-run.png)
 
-    And provide the final answer in two parts:
 
-    ```txt
-    As a PostgreSQL expert focused on database schema, indexes, and extensions, I'll provide database-specific recommendations:
-    ...
+    You can inspect the result of each Agent in the top output of the network run:
 
-    Thank you for waiting. As a PostgreSQL security expert, I'll focus specifically on the security aspects of your schema design and data isolation:
-    ...
-
-    ```
+    ![Inngest Dev Server agent run](/graphics/quick-start/dev-server-network-run-result.png)
 
   </Step>
 
@@ -248,8 +243,11 @@ The following guides will help you to build more advanced AI Agents:
   <Card title="Adding Tools to Agents" href="/concepts/tools" icon="gear">
     Let your Agent access fresh data with tools
   </Card>
-  <Card title="Add a custom router to your Network" href="/concepts/routers" icon="route">
+  <Card
+    title="Add a custom router to your Network"
+    href="/concepts/routers"
+    icon="route"
+  >
     Learn how to dynamically route between agents.
   </Card>
 </CardGroup>
-
