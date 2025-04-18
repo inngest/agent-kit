@@ -73,6 +73,9 @@ export class AgenticModel<TAiAdapter extends AiAdapter.Any> {
         },
         gemini: () => {},
         grok: () => {},
+        "azure-openai": () => {
+          headers["api-key"] = modelCopy.authKey;
+        },
       };
 
       formatHandlers[modelCopy.format as AiAdapter.Format]();
