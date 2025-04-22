@@ -200,7 +200,7 @@ const supportNetwork = createNetwork({
   defaultModel: openai({
     model: "gpt-4.1",
   }),
-  // maxIter: 10,
+     maxIter: 10,
   router: supervisorRoutingAgent,
 });
 
