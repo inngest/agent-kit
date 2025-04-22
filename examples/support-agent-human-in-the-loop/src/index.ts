@@ -8,10 +8,8 @@ import {
   createTool,
 } from "@inngest/agent-kit";
 import { createServer } from "@inngest/agent-kit/server";
-import { Inngest, NonRetriableError } from "inngest";
+import { Inngest, NonRetriableError, openai } from "inngest";
 import { z } from "zod";
-
-import { isLastMessageOfType, lastResult } from "./utils.js";
 
 import { knowledgeBaseDB, releaseNotesDB, ticketsDB } from "./databases.js";
 // Create shared tools
@@ -19,15 +17,15 @@ const searchKnowledgeBase = createTool({
   name: "search_knowledge_base",
   description: "Search the knowledge base for relevant articles",
   parameters: z.object({
-    query: z.string().describe("The search query"),
+    keyword: z.string().describe("A keyword to search for"),
   }),
-  handler: async ({ query }, { step }) => {
+  handler: async ({ keyword }, { step }) => {
     return await step?.run("search_knowledge_base", async () => {
       // Simulate knowledge base search
       const results = knowledgeBaseDB.filter(
         (article) =>
-          article.title.toLowerCase().includes(query.toLowerCase()) ||
-          article.content.toLowerCase().includes(query.toLowerCase())
+          article.title.toLowerCase().includes(keyword.toLowerCase()) ||
+          article.content.toLowerCase().includes(keyword.toLowerCase())
       );
       return results;
     });
@@ -53,6 +51,17 @@ const searchLatestReleaseNotes = createTool({
   },
 });
 
+const replyToCustomer = createTool({
+  name: "reply_to_customer",
+  description: "Call this when the ticket is solved, escalated or if more information is needed",
+  parameters: z.object({
+    message: z.string().describe("The message to reply to the customer"),
+  }),
+  handler: async ({ message }, { network }) => {
+    network?.state.kv.set("reply_to_customer", message);
+  },
+});
+
 const getTicketDetails = async (ticketId: string) => {
   const ticket = ticketsDB.find((t) => t.id === ticketId);
   return ticket || { error: "Ticket not found" };
@@ -66,30 +75,9 @@ const customerSupportAgent = createAgent({
   system: `You are a helpful customer support agent.
 Your goal is to assist customers with their questions and concerns.
 Be professional, courteous, and thorough in your responses.`,
-  model: anthropic({
-    model: "claude-3-5-haiku-latest",
-    defaultParameters: {
-      max_tokens: 1000,
-    },
-  }),
   tools: [
     searchKnowledgeBase,
-    createTool({
-      name: "update_ticket",
-      description: "Update a ticket with a note",
-      parameters: z.object({
-        ticketId: z.string().describe("The ID of the ticket to update"),
-        priority: z.string().describe("The priority of the ticket"),
-        status: z.string().describe("The status of the ticket"),
-        note: z.string().describe("A note to update the ticket with"),
-      }),
-      handler: async ({ ticketId, priority, status, note }, { step }) => {
-        return await step?.run("update_ticket", async () => {
-          // TODO: Update the ticket in the database
-          return { message: "Ticket updated successfully" };
-        });
-      },
-    }),
+    replyToCustomer,
   ],
 });
 
@@ -97,20 +85,14 @@ const technicalSupportAgent = createAgent({
   name: "Technical Support",
   description: "I am a technical support agent that helps critical tickets.",
   system: `You are a technical support specialist.
-Your goal is to help resolve critical tickets.
-Use your expertise to diagnose problems and suggest solutions.
-If you need developer input, use the ask_developer tool.`,
-  model: anthropic({
-    model: "claude-3-5-haiku-latest",
-    defaultParameters: {
-      max_tokens: 1000,
-    },
-  }),
+Your goal is to help resolve technical issues.
+Use your expertise to quickly diagnose problems, do not ask the customer for more information.`,
   tools: [
     searchLatestReleaseNotes,
+    replyToCustomer,
     createTool({
       name: "ask_developer",
-      description: "Ask a developer for input on a technical issue",
+      description: "Ask a developer for context on a technical issue",
       parameters: z.object({
         question: z
           .string()
@@ -151,24 +133,17 @@ If you need developer input, use the ask_developer tool.`,
 const supervisorRoutingAgent = createRoutingAgent({
   name: "Supervisor",
   description: "I am a Support supervisor.",
-  system: `You are a supervisor.
-Your goal is to answer customer initial request or escalate the ticket if no answer can be provided.
-Choose to route tickets to the appropriate agent using the following instructions:
-- Critical tickets should be routed to the "Technical Support" agent.
-- Actions such as updating the ticket or handling non-critical tickets should be routed to the "Customer Support" agent.
+  system: `You are a Support supervisor.
+Your goal is to answer customer initial request using the following instructions:
 
-Think step by step and reason through your decision.
-When an agent as answered the ticket initial request or updated the ticket, call the "done" tool.`,
-  model: anthropic({
-    model: "claude-3-5-haiku-latest",
-    defaultParameters: {
-      max_tokens: 1000,
-    },
-  }),
+- Critical tickets can be resolved by the "Technical Support" agent.
+- Non-technical tickets can be resolved by the "Customer Support" agent.
+
+Think step by step and reason through your decision.`,
   tools: [
     createTool({
-      name: "done",
-      description: "Call this when the ticket is solved or escalated",
+      name: "reply_to_customer",
+      description: "Call this when the ticket is solved, escalated or if the agents need more information",
       handler: async () => {},
     }),
     createTool({
@@ -184,11 +159,16 @@ When an agent as answered the ticket initial request or updated the ticket, call
   ],
   lifecycle: {
     onRoute: ({ result, network }) => {
-      const lastMessage = lastResult(network?.state.results);
+      if (network?.state.kv.get("reply_to_customer")) {
+        return;
+      }
+
+      const lastAgentResult = network?.state.results?.[network.state.results.length - 1];
+      const lastMessage = lastAgentResult?.output[lastAgentResult.output.length - 1];
 
       // ensure to loop back to the last executing agent if a tool has been called
-      if (lastMessage && isLastMessageOfType(lastMessage, "tool_call")) {
-        return [lastMessage?.agent.name];
+      if (lastMessage && lastMessage.type === "tool_call") {
+        return [lastAgentResult.agentName];
       }
 
       const tool = result.toolCalls[0];
@@ -196,7 +176,7 @@ When an agent as answered the ticket initial request or updated the ticket, call
         return;
       }
       const toolName = tool.tool.name;
-      if (toolName === "done") {
+      if (toolName === "reply_to_customer") {
         return;
       } else if (toolName === "route_to_agent") {
         if (
@@ -217,13 +197,11 @@ When an agent as answered the ticket initial request or updated the ticket, call
 const supportNetwork = createNetwork({
   name: "Support Network",
   agents: [customerSupportAgent, technicalSupportAgent],
-  defaultModel: anthropic({
-    model: "claude-3-5-haiku-latest",
-    defaultParameters: {
-      max_tokens: 1000,
-    },
+  defaultModel: openai({
+    model: "gpt-4.1",
   }),
-  defaultRouter: supervisorRoutingAgent,
+  // maxIter: 10,
+  router: supervisorRoutingAgent,
 });
 
 const inngest = new Inngest({
@@ -247,7 +225,7 @@ const supportAgentWorkflow = inngest.createFunction(
       throw new NonRetriableError(`Ticket not found: ${ticket.error}`);
     }
 
-    const response = await supportNetwork.run(ticket.title);
+    const response = await supportNetwork.run(`A customer has opened a ticket with the following title: ${ticket.title}`);
 
     return {
       response,

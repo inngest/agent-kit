@@ -3,16 +3,18 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "start": "tsc; node dist/index.js"
+    "start": "tsc; node dist/index.js",
+    "dev": "tsx watch src/index.ts"
   },
   "dependencies": {
-    "inngest": "^3.31.11",
-    "@inngest/agent-kit": "latest",
+    "@inngest/agent-kit": "^0.7.2",
     "dotenv": "^16.4.7",
+    "inngest": "^3.35.0",
     "zod": "^3.23.8"
   },
   "devDependencies": {
     "@types/node": "^22.9.1",
+    "tsx": "^4.7.1",
     "typescript": "^5.0.0"
   }
 }
