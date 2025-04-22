@@ -1,3 +1,4 @@
+import "dotenv/config";
 import { anthropic, createAgent, createNetwork } from "@inngest/agent-kit";
 import { createServer } from "@inngest/agent-kit/server";
 
