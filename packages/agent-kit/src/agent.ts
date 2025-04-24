@@ -400,7 +400,6 @@ export class Agent<T extends StateData> {
 
     const promises = [];
     for (const server of this.mcpServers) {
-      // await this.listMCPTools(server);
       promises.push(this.listMCPTools(server));
     }
 
