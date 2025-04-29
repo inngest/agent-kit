@@ -276,8 +276,6 @@ export const recursiveGeminiZodToJsonSchema = <T>(
 
 const geminiZodToJsonSchema = (zod: ZodSchema) => {
   let schema = zodToJsonSchema(zod, { target: "openApi3" });
-  // @ts-expect-error this prop does exists and Gemini don't like it
-  delete schema["additionalProperties"];
 
   schema = recursiveGeminiZodToJsonSchema(schema);
   return schema;
