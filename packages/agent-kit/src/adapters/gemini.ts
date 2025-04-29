@@ -244,20 +244,20 @@ const toolChoice = (
   }
 };
 
+type Removed<T, Drop = "additionalProperties"> = T extends object
+  ? { [K in Exclude<keyof T, Drop>]: Removed<T[K], Drop> }
+  : T;
+
 /**
  * Recursively remove `additionalProperties` from Zod schema objects.
  */
-export const recursiveGeminiZodToJsonSchema = <T>(
-  obj: T
-): Omit<T, "additionalProperties"> => {
+export const recursiveGeminiZodToJsonSchema = <T>(obj: T): Removed<T> => {
   if (obj === null || obj === undefined || typeof obj !== "object") {
-    return obj;
+    return obj as Removed<T>;
   }
 
   if (Array.isArray(obj)) {
-    return obj.map((item) =>
-      recursiveGeminiZodToJsonSchema(item)
-    ) as unknown as Omit<T, "additionalProperties">;
+    return obj.map(recursiveGeminiZodToJsonSchema) as unknown as Removed<T>;
   }
   const newObj: T = { ...obj }; // Create a shallow copy for the current level
 
@@ -271,7 +271,7 @@ export const recursiveGeminiZodToJsonSchema = <T>(
   if (newObj?.["additionalProperties" as keyof typeof newObj] != null) {
     delete newObj["additionalProperties" as keyof typeof newObj];
   }
-  return newObj;
+  return newObj as Removed<T>;
 };
 
 const geminiZodToJsonSchema = (zod: ZodSchema) => {
