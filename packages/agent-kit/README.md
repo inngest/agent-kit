@@ -518,7 +518,7 @@ pnpm -v # should be > 9.x
 2. Install dependencies:
 
 ```tsx
-pnpm;
+pnpm i
 ```
 
 3. Build the package or run tests:

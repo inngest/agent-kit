@@ -16,7 +16,7 @@ export const ticketsDB = [
   },
   {
     id: "T125",
-    title: "API is not working and crashes my app",
+    title: "the /api/v1/users endpoint is not working and crashes my app",
     status: "open",
     priority: "critical",
     notes: "",
@@ -27,17 +27,26 @@ export const knowledgeBaseDB = [
   {
     id: "KB1",
     title: "Login troubleshooting",
-    content: "Common login issues and solutions...",
+    content:
+      "If you're having trouble logging in, try clearing your browser cache and cookies. If the problem persists, contact support.",
   },
   {
     id: "KB2",
     title: "API Documentation",
-    content: "Complete API reference and examples...",
+    content:
+      "The API can be found here: https://api.example.com/docs",
   },
   {
     id: "KB3",
     title: "System Requirements",
-    content: "Minimum system requirements...",
+    content:
+      "Using the app requires Chrome or Edge browsers with a fast internet connection.",
+  },
+  {
+    id: "KB4",
+    title: "How to upvote an item",
+    content:
+      "To upvote an item, click the upvote button next to the item. You can only upvote an item once.",
   },
 ];
 
