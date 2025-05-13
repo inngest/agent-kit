@@ -395,16 +395,12 @@ export class Agent<T extends StateData> {
   // initMCP fetches all tools from the agent's MCP servers, adding them to the tool list.
   // This is all that's necessary in order to enable MCP tool use within agents
   private async initMCP() {
-    if (
-      !this.mcpServers ||
-      this._mcpClients.length === this.mcpServers.length
-    ) {
+    if (!this.mcpServers || this._mcpClients.length >= this.mcpServers.length) {
       return;
     }
 
     const promises = [];
     for (const server of this.mcpServers) {
-      await this.listMCPTools(server);
       promises.push(this.listMCPTools(server));
     }
 
@@ -416,6 +412,7 @@ export class Agent<T extends StateData> {
    */
   private async listMCPTools(server: MCP.Server) {
     const client = await this.mcpClient(server);
+    this._mcpClients.push(client);
     try {
       const results = await client.request(
         { method: "tools/list" },
@@ -508,7 +505,6 @@ export class Agent<T extends StateData> {
       // The transport closed.
       console.warn("mcp server disconnected", server, e);
     }
-    this._mcpClients.push(client);
     return client;
   }
 }
