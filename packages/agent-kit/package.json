@@ -54,7 +54,7 @@
   "dependencies": {
     "@dmitryrechkin/json-schema-to-zod": "^1.0.0",
     "@inngest/ai": "0.1.2",
-    "@modelcontextprotocol/sdk": "^1.1.1",
+    "@modelcontextprotocol/sdk": "^1.11.2",
     "eventsource": "^3.0.2",
     "express": "^4.21.1",
     "inngest": "3.32.5",
