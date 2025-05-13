@@ -10,9 +10,11 @@ import {
   type ListToolsResult,
 } from "@modelcontextprotocol/sdk/types.js";
 import express from "express";
+import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+import { randomUUID } from "crypto";
 
 describe("mcp", () => {
-  test("initMCP should update tools", async () => {
+  test("initMCP should update tools using SSE Transport", async () => {
     await newMCPServer(3000);
     const agent = new Agent({
       name: "test",
@@ -51,10 +53,104 @@ describe("mcp", () => {
   //   });
 
   //   await agent.run("test");
+  test("initMCP should update tools using StreamableHTTP Transport", async () => {
+    await newMCPServer(3001, createStreamableHTTPTransport);
+
+    const agent = new Agent({
+      name: "test",
+      system: "noop",
+      mcpServers: [
+        {
+          name: "test",
+          transport: {
+            type: "streamable-http",
+            url: "http://localhost:3001/mcp",
+          },
+        },
+      ],
+    });
+
+    expect(agent.tools.size).toEqual(0);
+    await agent["initMCP"]();
+    expect(agent.tools.size).toEqual(1);
+  });
+
   // });
 });
 
-const newMCPServer = async (port: number) => {
+/**
+ * Interface for transport providers
+ */
+interface TransportProvider {
+  createServer: (port: number) => Promise<{
+    server: ReturnType<express.Express["listen"]>;
+    url: string;
+  }>;
+}
+
+/**
+ * Creates an SSE transport setup for an MCP server
+ */
+const createSSETransport = (server: Server): TransportProvider => {
+  let transport: SSEServerTransport;
+
+  return {
+    createServer: async (port: number) => {
+      const app = express();
+
+      app.get("/server", async (_req, res) => {
+        transport = new SSEServerTransport("/events", res);
+        await server.connect(transport);
+      });
+
+      app.post("/events", async (req, res) => {
+        await transport.handlePostMessage(req, res);
+      });
+
+      const httpServer = app.listen(port, () => {});
+      return {
+        server: httpServer,
+        url: `http://localhost:${port}/server`,
+      };
+    },
+  };
+};
+
+/**
+ * Creates a StreamableHTTP transport setup for an MCP server
+ */
+const createStreamableHTTPTransport = (server: Server): TransportProvider => {
+  return {
+    createServer: async (port: number) => {
+      const app = express();
+      const transport = new StreamableHTTPServerTransport({
+        sessionIdGenerator: () => randomUUID(),
+      });
+
+      // Handle all MCP requests through the transport
+      app.all("/mcp", async (req, res) => {
+        await transport.handleRequest(req, res);
+      });
+
+      // Connect the transport to the MCP server
+      await server.connect(transport);
+
+      const httpServer = app.listen(port, () => {});
+      return {
+        server: httpServer,
+        url: `http://localhost:${port}/mcp`,
+      };
+    },
+  };
+};
+
+/**
+ * Creates a new MCP server with the specified transport
+ */
+const newMCPServer = async (
+  port: number,
+  createTransport?: (server: Server) => TransportProvider
+) => {
   const server = new Server(
     {
       name: "test server",
@@ -92,17 +188,13 @@ const newMCPServer = async (port: number) => {
     }
   });
 
-  let transport: SSEServerTransport;
-  const app = express();
+  // Create the transport provider with the server
+  const transportProvider = createTransport
+    ? createTransport(server)
+    : createSSETransport(server);
 
-  app.get("/server", async (req, res) => {
-    transport = new SSEServerTransport("/events", res);
-    await server.connect(transport);
-  });
+  // Set up the server using the transport provider and return it
+  const { server: httpServer } = await transportProvider.createServer(port);
 
-  app.post("/events", async (req, res) => {
-    await transport.handlePostMessage(req, res);
-  });
-
-  return app.listen(port, () => {});
+  return httpServer;
 };

@@ -4,6 +4,7 @@ import {
 } from "@dmitryrechkin/json-schema-to-zod";
 import { type AiAdapter } from "@inngest/ai";
 import { Client as MCPClient } from "@modelcontextprotocol/sdk/client/index.js";
+import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
 import { WebSocketClientTransport } from "@modelcontextprotocol/sdk/client/websocket.js";
 import { type Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
@@ -467,6 +468,16 @@ export class Agent<T extends StateData> {
     // Does this client already exist?
     const transport: Transport = (() => {
       switch (server.transport.type) {
+        case "streamable-http":
+          return new StreamableHTTPClientTransport(
+            new URL(server.transport.url),
+            {
+              requestInit: server.transport.requestInit,
+              authProvider: server.transport.authProvider,
+              reconnectionOptions: server.transport.reconnectionOptions,
+              sessionId: server.transport.sessionId,
+            }
+          );
         case "sse":
           // Check if EventSource is defined.  If not, we use a polyfill.
           if (global.EventSource === undefined) {
