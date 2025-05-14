@@ -11,7 +11,7 @@ provides a registry of MCP servers for common use cases, with more than 2,000 se
 
 ## Using MCP as tools
 
-AgentKit supports configuring MCP servers via `SSE` or `WS` transports:
+AgentKit supports configuring MCP servers via `Streamable HTTP`, `SSE` or `WS` transports:
 
 <CodeGroup>
 
@@ -50,8 +50,8 @@ const neonAgent = createAgent({
     {
       name: "neon",
       transport: {
-        type: "ws",
-        url: smitheryUrl.toString(),
+        type: "streamable-http",
+        url: neonServerUrl.toString(),
       },
     },
   ],
@@ -108,19 +108,30 @@ The `mcpServers` parameter allows you to configure Model Context Protocol server
   The WebSocket URL of the MCP server.
 </ParamField>
 
-
 ## Examples
 
 <Card title="Neon Assistant Agent (using MCP)" href="https://github.com/inngest/agent-kit/tree/main/examples/mcp-neon-agent/#readme" icon="github">
   This examples shows how to use the [Neon MCP Smithery Server](https://smithery.ai/server/neon/) to build a Neon Assistant Agent that can help you manage your Neon databases.
 
-  <br />
+{" "}
+<br />
 
-  <span className="mr-2 border-primary dark:border-primary-light bg-primary/10 text-primary text-xs dark:text-primary-light dark:bg-primary-light/10 rounded-xl px-2 py-1">Agents</span>
-  <span className="mr-2 border-primary dark:border-primary-light bg-primary/10 text-primary text-xs dark:text-primary-light dark:bg-primary-light/10 rounded-xl px-2 py-1">Tools</span>
-  <span className="mr-2 border-primary dark:border-primary-light bg-primary/10 text-primary text-xs dark:text-primary-light dark:bg-primary-light/10 rounded-xl px-2 py-1">Network</span>
-  <span className="mr-2 border-primary dark:border-primary-light bg-primary/10 text-primary text-xs dark:text-primary-light dark:bg-primary-light/10 rounded-xl px-2 py-1">Integrations</span>
-  <br/>
-  <span className="mr-2 border-primary dark:border-primary-light bg-primary/10 text-primary text-xs dark:text-primary-light dark:bg-primary-light/10 rounded-xl px-2 py-1">Code-based Router</span>
+{" "}
+<span className="mr-2 border-primary dark:border-primary-light bg-primary/10 text-primary text-xs dark:text-primary-light dark:bg-primary-light/10 rounded-xl px-2 py-1">
+  Agents
+</span>
+<span className="mr-2 border-primary dark:border-primary-light bg-primary/10 text-primary text-xs dark:text-primary-light dark:bg-primary-light/10 rounded-xl px-2 py-1">
+  Tools
+</span>
+<span className="mr-2 border-primary dark:border-primary-light bg-primary/10 text-primary text-xs dark:text-primary-light dark:bg-primary-light/10 rounded-xl px-2 py-1">
+  Network
+</span>
+<span className="mr-2 border-primary dark:border-primary-light bg-primary/10 text-primary text-xs dark:text-primary-light dark:bg-primary-light/10 rounded-xl px-2 py-1">
+  Integrations
+</span>
+<br />
+<span className="mr-2 border-primary dark:border-primary-light bg-primary/10 text-primary text-xs dark:text-primary-light dark:bg-primary-light/10 rounded-xl px-2 py-1">
+  Code-based Router
+</span>
 
 </Card>
