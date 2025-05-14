@@ -45,9 +45,9 @@ import { createServer } from "@inngest/agent-kit/server";
 import { createSmitheryUrl } from "@smithery/sdk/config.js";
 import { z } from "zod";
 
-const smitheryUrl = createSmitheryUrl("https://server.smithery.ai/neon/ws", {
-  neonApiKey: process.env.NEON_API_KEY,
-});
+const neonServerUrl = createSmitheryUrl(
+  "https://server.smithery.ai/neon/mcp?profile=bored-catshark-da8hf&api_key=123123123"
+);
 
 const neonAgent = createAgent({
   name: "neon-agent",
@@ -70,8 +70,8 @@ const neonAgent = createAgent({
     {
       name: "neon",
       transport: {
-        type: "ws",
-        url: smitheryUrl.toString(),
+        type: "streamable-http",
+        url: neonServerUrl.toString(),
       },
     },
   ],
