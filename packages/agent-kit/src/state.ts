@@ -135,7 +135,7 @@ export class State<T extends StateData> {
    * clone allows you to safely clone the state.
    */
   clone() {
-    const state = new State<T>(this.data);
+    const state = new State<T>({data: this.data});
     state._results = this._results.slice();
     state._messages = this._messages.slice();
     return state;
