@@ -3,11 +3,22 @@ title: Quick start
 description: "Learn the basics of AgentKit in a few minutes."
 ---
 
-In this tutorial you will create an [Agent](/concepts/agents) and run it within a [Network](/concepts/networks) with AgentKit.
+In this tutorial, you will create an [Agent](/concepts/agents) and run it within a [Network](/concepts/networks) using AgentKit.
+
+<Info>
+  Follow this guide by forking the [quick-start](https://github.com/inngest/agent-kit/tree/main/examples/quick-start) example locally by running:
+
+```shell
+npx git-ripper https://github.com/inngest/agent-kit/tree/main/examples/quick-start
+```
+
+</Info>
+
+## Creating a single agent
 
 <Steps>
   <Step title="Install AgentKit">
-    Within an existing project, Install AgentKit from npm:
+    Within an existing project, install AgentKit from npm:
 
     <CodeGroup>
 
@@ -28,7 +39,7 @@ In this tutorial you will create an [Agent](/concepts/agents) and run it within 
     You can always find the latest release version on [npm](https://www.npmjs.com/package/@inngest/agent-kit).
 
     <Accordion title="Don't have an existing project?">
-      To create a new project, create a new directory then initialize using your package manager:
+      To create a new project, create a new directory and initialize it using your package manager:
 
     <CodeGroup>
 
@@ -50,13 +61,13 @@ In this tutorial you will create an [Agent](/concepts/agents) and run it within 
   </Step>
 
   <Step title="Create an agent">
-    To start, we'll create our first "[Agent](/concepts/agents)." An "Agent" is an entity that has a specific role to answer questions or perform tasks (See "tools" further below).
+    To start, we'll create our first "[Agent](/concepts/agents)." An Agent is an entity that has a specific role to answer questions or perform tasks (see "tools" below).
 
-    To start, let's create a new file, `index.ts`. Using the `createAgent` constructor, give your agent a `name`, a `description` and it's initial `system` prompt. The `name` and `description` properties are used to allow the LLM to determine which Agent to call.
+    Let's create a new file, `index.ts`. Using the `createAgent` constructor, give your agent a `name`, a `description`, and its initial `system` prompt. The `name` and `description` properties are used to help the LLM determine which Agent to call.
 
     You'll also specify which `model` you want the agent to use. Here we'll use Anthropic's [Claude 3.5 Haiku](https://docs.anthropic.com/en/docs/about-claude/models) model. ([Model reference](/concepts/models))
 
-    Your agent can be whatever you want, but in this quick start, we'll create a Postgres database administrator agent:
+    Your agent can be whatever you want, but in this quick start, we'll create a PostgreSQL database administrator agent:
 
     ```ts index.ts
     import { createAgent, anthropic } from '@inngest/agent-kit';
@@ -66,7 +77,7 @@ In this tutorial you will create an [Agent](/concepts/agents) and run it within 
       description: 'Provides expert support for managing PostgreSQL databases',
       system:
         'You are a PostgreSQL expert database administrator. ' +
-        'You only provide answers to questions linked to Postgres database schema, indexes, extensions.',
+        'You only provide answers to questions related to PostgreSQL database schema, indexes, and extensions.',
       model: anthropic({
         model: 'claude-3-5-haiku-latest',
         defaultParameters: {
@@ -76,7 +87,7 @@ In this tutorial you will create an [Agent](/concepts/agents) and run it within 
     });
     ```
 
-    We'll also have to set any provider API keys as environment variables.
+    You'll also need to set your provider API keys as environment variables:
 
     ```shell terminal
     export ANTHROPIC_API_KEY=sk-ant-api03-XXXXXX....
@@ -85,7 +96,7 @@ In this tutorial you will create an [Agent](/concepts/agents) and run it within 
   </Step>
   <Step title="Run the server">
 
-    Next, we'll create an http server in order to run our agent. In the same file as our _Agent_ definition:
+    Next, we'll create an HTTP server to run our agent. In the same file as our Agent definition:
 
     ```ts index.ts
     import { createAgent, anthropic } from '@inngest/agent-kit';
@@ -94,10 +105,10 @@ In this tutorial you will create an [Agent](/concepts/agents) and run it within 
     const server = createServer({
       agents: [dbaAgent],
     });
-    server.listen(3000, () => console.log('Agent kit running!'));
+    server.listen(3000, () => console.log('AgentKit server running!'));
     ```
 
-    Now we can run our AgentKit server using [`npx`](https://docs.npmjs.com/cli/v8/commands/npx) and [`tsx`](https://tsx.is/) (for easy TypeScript execution).
+    Now we can run our AgentKit server using [`npx`](https://docs.npmjs.com/cli/v8/commands/npx) and [`tsx`](https://tsx.is/) (for easy TypeScript execution):
 
     ```shell terminal
     npx tsx ./index.ts
@@ -106,17 +117,17 @@ In this tutorial you will create an [Agent](/concepts/agents) and run it within 
   </Step>
 
   <Step title="Test our agent">
-    To test our agent, we'll use the [Inngest dev server](https://www.inngest.com/docs/local-development) to allow us to visually debug our agents. Using `npx`, we'll start the server and point it to our AgentKit server:
+    To test our agent, we'll use the [Inngest dev server](https://www.inngest.com/docs/local-development) to visually debug our agents. Using `npx`, we'll start the server and point it to our AgentKit server:
 
     ```shell terminal
     npx inngest-cli@latest dev -u http://localhost:3000/api/inngest
     ```
 
-    Now, open the dev server and select the function's tab (`http://localhost:8288/functions`) and click the "Invoke" button:
+    Now, open the dev server and select the functions tab (`http://localhost:8288/functions`) and click the "Invoke" button:
 
     ![Inngest Dev Server function list](/graphics/quick-start/dev-server-agent.png)
 
-    In the Invoke function modal, specify the input prompt for your agent and click the "Invoke function" button.
+    In the Invoke function modal, specify the input prompt for your agent and click the "Invoke function" button:
 
     ![Inngest Dev Server invoke function modal](/graphics/quick-start/dev-server-invoke.png)
 
@@ -134,120 +145,209 @@ In this tutorial you will create an [Agent](/concepts/agents) and run it within 
 
   </Step>
 
-<Step title="Creating a Network">
-  A key benefit of AgentKit is the ability to create a system of agents called a
-  "[Network](/concepts/networks)." "Networks" are used to create stateful
-  workflows with one or more Agents that can call tools.
+  </Steps>
 
+A key benefit of AgentKit is the ability to create a system of agents called a
+"[Network](/concepts/networks)." Networks are used to create AI Agents by combining
+multiple specialized [Agents](/concepts/agents) to answer more complex questions.
+Let's transform our single agent into a network of two agents, capable of helping with
+both database administration and security questions.
 
-  We'll start by creating a second _"Database Security"_ Agent:
+## Creating a multi-agent network
 
-  ```ts index.ts
-  import { createAgent, anthropic } from '@inngest/agent-kit';
-  
-  // ...
- 
-  const securityAgent = createAgent({
-    name: 'Database Security Expert',
-    description: 'Provides expert guidance on PostgreSQL security, access control, audit logging, and compliance best practices',
-    system: 'You are a PostgreSQL security expert. ' +
-      'You only provide answers to questions linked to PostgreSQL security topics such as encryption, access control, audit logging, and compliance best practices.',
-    model: anthropic({
-      model: 'claude-3-5-haiku-latest',
-      defaultParameters: {
-        max_tokens: 1000,
+<Steps>
+<Step title="Adding a second Agent">
+Agents collaborate in a Network by sharing a common [State](/concepts/state).
+
+Let's update our Database Administrator Agent to include a tool to save the answer to the question in the database:
+
+```ts {13-24}
+const dbaAgent = createAgent({
+  name: "Database administrator",
+  description: "Provides expert support for managing PostgreSQL databases",
+  system:
+    "You are a PostgreSQL expert database administrator. " +
+    "You only provide answers to questions related to PostgreSQL database schema, indexes, and extensions.",
+  model: anthropic({
+    model: "claude-3-5-haiku-latest",
+    defaultParameters: {
+      max_tokens: 4096,
+    },
+  }),
+  tools: [
+    createTool({
+      name: "save_answer",
+      description: "Save the answer to the questions",
+      parameters: z.object({
+        answer: z.string(),
+      }),
+      handler: async ({ answer }, { network }: Tool.Options<NetworkState>) => {
+        network.state.data.dba_agent_answer = answer;
       },
     }),
-  });
-  ```
+  ],
+});
+```
 
-We can now create a network combining our _"Database Administrator"_ and _"Database Security"_ Agents, which enables us to answer more complex questions.
+<Info>
+  [Tools](/concepts/tools) are based on [Tool
+  Calling](https://docs.anthropic.com/en/docs/agents-and-tools/tool-use/overview),
+  enabling your Agent to interact with the [State](/concepts/state) of the
+  Network, store data in external databases, or dynamically fetch data from
+  third-party APIs.
+</Info>
 
-Create a network using the `createNetwork` constructor. Define a `name` include our agent from the previous step in the `agents` array. You must also configure the `defaultModel` for which the "[router](/concepts/routers)" will use to determine which agent to call.
+Let's now create a second _Database Security_ Agent:
 
-```ts index.ts
-import { /*...*/ createNetwork } from "@inngest/agent-kit";
+```ts {6-11, 26}
+import { createAgent, anthropic } from "@inngest/agent-kit";
+
 // ...
-const devOpsNetwork = createNetwork({
-  name: "DevOps team",
-  agents: [dbaAgent, securityAgent],
-  defaultModel: anthropic({
+
+const securityAgent = createAgent({
+  name: "Database Security Expert",
+  description:
+    "Provides expert guidance on PostgreSQL security, access control, audit logging, and compliance best practices",
+  system:
+    "You are a PostgreSQL security expert. " +
+    "You only provide answers to questions related to PostgreSQL security topics such as encryption, access control, audit logging, and compliance best practices.",
+  model: anthropic({
     model: "claude-3-5-haiku-latest",
     defaultParameters: {
       max_tokens: 1000,
     },
   }),
+  tools: [
+    createTool({
+      name: "save_answer",
+      description: "Save the answer to the questions",
+      parameters: z.object({
+        answer: z.string(),
+      }),
+      handler: async ({ answer }, { network }: Tool.Options<NetworkState>) => {
+        network.state.data.security_agent_answer = answer;
+      },
+    }),
+  ],
 });
+```
+
+Our second Security Expert Agent is similar to the first, but with a different system prompt specifically for security questions.
+
+We can now create a network combining our "Database Administrator" and "Database Security" Agents, which enables us to answer more complex questions.
+
+</Step>
+
+<Step title="Creating a Network">
+Create a network using the `createNetwork` constructor. Define a `name` and include our agents from the previous step in the `agents` array.
+
+You must also configure a `router` that the [_Router_](/concepts/routers) will use to determine which agent to call:
+
+```ts {14, 15-25}
+import { /*...*/ createNetwork } from "@inngest/agent-kit";
+
+export interface NetworkState {
+  // answer from the Database Administrator Agent
+  dba_agent_answer?: string;
+
+  // answer from the Security Expert Agent
+  security_agent_answer?: string;
+}
+
+// ...
+const devOpsNetwork = createNetwork<NetworkState>({
+  name: "DevOps team",
+  agents: [dbaAgent, securityAgent],
+  router: async ({ network }) => {
+    if (!network.state.data.security_agent_answer) {
+      return securityAgent;
+    } else if (
+      network.state.data.security_agent_answer &&
+      network.state.data.dba_agent_answer
+    ) {
+      return;
+    }
+    return dbaAgent;
+  },
+});
+
 const server = createServer({
   agents: [dbaAgent, securityAgent],
   networks: [devOpsNetwork],
 });
 ```
 
-  </Step>
+The highlighted lines are the key parts of our AI Agent behavior:
+
+- The `agents` property defines the agents that are part of the network
+- The `router` function defines the logic for which agent to call next. In this example, we call the Database Administrator Agent followed by the Security Expert Agent before ending the network (by returning `undefined`).
+
+</Step>
 
   <Step title="Test our network">
-    We'll use the same approach to test our network as we did above to test our network, with the Inngest dev server's.
+We'll use the same approach to test our network as we did above.
 
-    <Tip>
-      Networks are powerful as they include "[routing agents](/concepts/routers)" that can coordinate between a system of multiple agents, enabling networks to complete more complex tasks.
-    </Tip>
+With your Inngest dev server running, open the dev server and select the functions tab (`http://localhost:8288/functions`) and click the "Invoke" button of the _DevOps team_ function with the following payload:
 
-    Our network enables us to answer more complex or multiple questions such as:
+```json Invoke payload
+{
+  "data": {
+    "input": "I am building a Finance application. Help me answer the following 2 questions: \n - How can I scale my application to millions of requests per second? \n - How should I design my schema to ensure the safety of each organization's data?"
+  }
+}
+```
 
-    ```json Invoke payload
-    {
-      "data": {
-        "input": "I am building a Finance application. Help me answer the following 2 questions: \n - How can I scale my application to millions of request per second? \n - How should I design my schema to ensure the safety of each organization's data?"
-      }
-    }
-    ```
+The network will now run through the Agents to answer the questions:
 
-    The network will now run through the Agents to answer the questions:
+![Inngest Dev Server agent run](/graphics/quick-start/dev-server-network-run.png)
 
-    ![Inngest Dev Server agent run](/graphics/quick-start/dev-server-network-run.png)
+You can inspect the answers of each Agent by selecting the _Finalization_ step and inspecting the JSON payload in the right panel:
 
-
-    You can inspect the result of each Agent in the top output of the network run:
-
-    ![Inngest Dev Server agent run](/graphics/quick-start/dev-server-network-run-result.png)
+![Inngest Dev Server agent run](/graphics/quick-start/dev-server-network-run-result.png)
 
   </Step>
 
 </Steps>
 
-{// TODO:
-// - Create an agent
-// - Set env vars
-// - Run the agent (hello world - it worked!)
-// - Create a network w/ the agent
-// - Run it e2e -
-// - Add 2nd agent to Network
-// - Run it
-// - Next steps (learn about tools, agents, state, custom routing)
-// todo should we reference tools or use a separate guide?
-}
-
 ## Next steps
 
-Congratulations! You've now created your first AgentKit Agents and Network.
+Congratulations! You've now created your first AI Agent with AgentKit.
 
-In this guide you've learned that:
+In this guide, you've learned that:
 
-- **Agents** are the building blocks of AgentKit. They are used to call a single model to answer specific questions or perform tasks.
-- **Networks** are a group of agents that can work together to achieve more complex goals.
+- [**Agents**](/concepts/agents) are the building blocks of AgentKit. They are used to call a single model to answer specific questions or perform tasks.
+- [**Networks**](/concepts/networks) are groups of agents that can work together to achieve more complex goals.
+- [**Routers**](/concepts/routers), combined with [**State**](/concepts/state), enable you to control the flow of your Agents.
 
-The following guides will help you to build more advanced AI Agents:
+The following guides will help you build more advanced AI Agents:
 
 <CardGroup>
   <Card title="Adding Tools to Agents" href="/concepts/tools" icon="gear">
-    Let your Agent access fresh data with tools
+    Let your Agent act and gather data with tools
   </Card>
   <Card
-    title="Add a custom router to your Network"
+    title="Implementing reasoning-based routing"
     href="/concepts/routers"
-    icon="route"
+    icon="brain"
   >
-    Learn how to dynamically route between agents.
+    Learn how to dynamically route between agents
+  </Card>
+</CardGroup>
+
+You can also explore the following examples to see how to use AgentKit in more complex scenarios:
+
+<CardGroup cols={2}>
+
+<Card
+  title={`Support Agent with "Human in the loop"`}
+  href="https://github.com/inngest/agent-kit/tree/main/examples/support-agent-human-in-the-loop#readme"
+  icon="github"
+>
+  This AgentKit example shows how to build a Support Agent Network with a "Human
+  in the loop" pattern.
+</Card>
+
+  <Card title="AgentKit SWE-bench" href="https://github.com/inngest/agent-kit/tree/main/examples/swebench#readme" icon="github">
+    This AgentKit example uses the SWE-bench dataset to train an agent to solve coding problems. It uses advanced tools to interact with files and codebases.
   </Card>
 </CardGroup>
