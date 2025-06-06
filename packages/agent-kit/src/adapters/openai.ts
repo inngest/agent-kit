@@ -36,17 +36,24 @@ export const requestParser: AgenticModel.RequestParser<OpenAi.AiModel> = (
         case "tool_call":
           return {
             role: "assistant",
-            content: null,
-            tool_calls: m.tools
-              ? m.tools?.map((tool) => ({
-                  id: tool.id,
-                  type: "function",
-                  function: {
-                    name: tool.name,
-                    arguments: JSON.stringify(tool.input),
-                  },
-                }))
-              : undefined,
+            content: `These are the tools you have access to, call them when you need:
+${m.tools.map((tool) => `{
+  id: ${tool.id},
+  function: {
+    name: ${tool.name},
+    arguments: ${tool.input}
+  }
+}`).join(',\n')}`,
+            // tool_calls: m.tools
+            //   ? m.tools?.map((tool) => ({
+            //       id: tool.id,
+            //       type: "function",
+            //       function: {
+            //         name: tool.name,
+            //         arguments: JSON.stringify(tool.input),
+            //       },
+            //     }))
+            //   : undefined,
           };
         case "tool_result":
           return {
