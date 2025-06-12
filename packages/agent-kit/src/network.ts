@@ -78,6 +78,7 @@ export class Network<T extends StateData> {
     defaultState,
     router,
     defaultRouter,
+    history,
   }: Network.Constructor<T>) {
     this.name = name;
     this.description = description;
@@ -87,6 +88,7 @@ export class Network<T extends StateData> {
     this.router = defaultRouter ?? router;
     this.maxIter = maxIter || 0;
     this._stack = [];
+    this.history = history;
 
     if (defaultState) {
       this.state = defaultState;
@@ -349,6 +351,7 @@ export class NetworkRun<T extends StateData> extends Network<T> {
       defaultState: network.state,
       router: network.router,
       maxIter: network.maxIter,
+      history: network.history,
     });
 
     this.state = state;
@@ -372,6 +375,20 @@ export class NetworkRun<T extends StateData> extends Network<T> {
   private async execute(
     ...[input, overrides]: Network.RunArgs<T>
   ): Promise<this> {
+    // If history.get is configured AND the state is empty, use it to load initial history
+    // When passing passing in messages from the client, history.get() is disabled - allowing the client to maintain conversation state and send it with each request
+    // Enables a client-authoritative pattern where the UI maintains conversation state and sends it with each request. Allows `history.get()` to serve as a fallback for new threads or recovery 
+    if (this.history?.get && this.state.results.length === 0) {
+      // Get esults from history.get function provided in the network's history config
+      const historyResults = await this.history.get({
+        state: this.state,
+        network: this,
+        step: await getStepTools(),
+      });
+      // Replace any existing results with those from history
+      this.state.setResults(historyResults);
+    }
+
     const available = await this.availableAgents();
     if (available.length === 0) {
       throw new Error("no agents enabled in network");
