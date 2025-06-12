@@ -394,6 +394,10 @@ export class NetworkRun<T extends StateData> extends Network<T> {
       throw new Error("no agents enabled in network");
     }
 
+    // Store initial result count to track new results
+    // Used to track new results in history.appendResults
+    const initialResultCount = this.state.results.length;
+
     // If there's no default agent used to run the request, use our internal
     // routing agent which attempts to figure out the best agent to choose based
     // off of the network.
@@ -453,6 +457,17 @@ export class NetworkRun<T extends StateData> extends Network<T> {
       for (const a of next || []) {
         this.schedule(a.name);
       }
+    }
+
+    // If history.appendResults is configured, call it with only the new results
+    if (this.history?.appendResults) {
+      const newResults = this.state.getResultsFrom(initialResultCount);
+      await this.history.appendResults({
+        state: this.state,
+        network: this,
+        step: await getStepTools(),
+        newResults,
+      });
     }
 
     return this;
