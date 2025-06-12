@@ -56,16 +56,14 @@ export class Network<T extends StateData> {
 
   protected _counter = 0;
 
-  // _agents stores all agents.  note that you may not include eg. the
+  // _agents atores all egents.  note that you may not include eg. the
   // defaultRoutingAgent within the network constructor, and you may return an
   // agent in the router that's not included.  This is okay;  we store all
   // agents referenced in the router here.
   protected _agents: Map<string, Agent<T>>;
 
   /**
-   * history config for managing thread creation and persistence
-   * used to create a new thread, load initial results/history and
-   * append new results to your database
+   * history configuration for managing conversation history
    */
   public history?: HistoryConfig<T>;
 
