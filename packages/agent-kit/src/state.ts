@@ -104,6 +104,22 @@ export class State<T extends StateData> {
   }
 
   /**
+   * Replaces all results with the provided array
+   * used when loading initial results from history.get()
+   */
+  setResults(results: AgentResult[]) {
+    this._results = results;
+  }
+
+  /**
+   * Returns a slice of results from the given start index
+   * used when saving results to a database via history.appendResults()
+   */
+  getResultsFrom(startIndex: number): AgentResult[] {
+    return this._results.slice(startIndex);
+  }
+
+  /**
    * formatHistory returns the memory used for agentic calls based off of prior
    * agentic calls.
    *
