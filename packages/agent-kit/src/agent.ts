@@ -26,6 +26,7 @@ import {
   isInngestFn,
   type MaybePromise,
 } from "./util";
+import { type HistoryConfig } from "./history";
 
 /**
  * Agent represents a single agent, responsible for a set of tasks.
@@ -194,7 +195,6 @@ export class Agent<T extends StateData> {
     if (this.history?.get && s.results.length === 0) {
       const historyResults = await this.history.get({
         state: s,
-        agent: this,
         network: run,
         step: await getStepTools(),
       });
