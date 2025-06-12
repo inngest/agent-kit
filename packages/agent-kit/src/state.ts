@@ -51,8 +51,8 @@ export class State<T extends StateData> {
    */
   private _messages: Message[];
 
-  constructor({ data, messages }: State.Constructor<T> = {}) {
-    this._results = [];
+  constructor({ data, messages, results }: State.Constructor<T> = {}) {
+    this._results = results || [];
     this._messages = messages || [];
     this._data = data ? { ...data } : ({} as T);
 
