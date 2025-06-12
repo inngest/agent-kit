@@ -94,6 +94,11 @@ export class Agent<T extends StateData> {
    */
   mcpServers?: MCP.Server[];
 
+  /**
+   * history configuration for managing conversation history
+   */
+  private history?: HistoryConfig<T>;
+
   // _mcpInit records whether the MCP tool list has been initialized.
   private _mcpClients: MCPClient[];
 
@@ -106,6 +111,7 @@ export class Agent<T extends StateData> {
     this.tool_choice = opts.tool_choice;
     this.lifecycles = opts.lifecycle;
     this.model = opts.model;
+    this.history = opts.history;
     this.setTools(opts.tools);
     this.mcpServers = opts.mcpServers;
     this._mcpClients = [];
@@ -183,6 +189,20 @@ export class Agent<T extends StateData> {
       s
     );
 
+    // If history.get is configured AND the state is empty, use it to load initial history.
+    // This allows passing in state to override history loading.
+    if (this.history?.get && s.results.length === 0) {
+      const historyResults = await this.history.get({
+        state: s,
+        agent: this,
+        network: run,
+        step: await getStepTools(),
+      });
+      // Replace any existing results with those from history
+      s.setResults(historyResults);
+    }
+
+    // Get formatted history and initial prompt
     let history = s ? s.formatHistory() : [];
     let prompt = await this.agentPrompt(input, run);
     let result = new AgentResult(
@@ -196,6 +216,9 @@ export class Agent<T extends StateData> {
     );
     let hasMoreActions = true;
     let iter = 0;
+
+    // Store initial result count to track new results
+    const initialResultCount = s.results.length;
 
     do {
       // Call lifecycles each time we perform inference.
@@ -240,6 +263,17 @@ export class Agent<T extends StateData> {
 
     // Note that the routing lifecycles aren't called by the agent.  They're called
     // by the network.
+
+    // If history.appendResults is configured, call it with only the new results
+    if (this.history?.appendResults) {
+      const newResults = s.getResultsFrom(initialResultCount);
+      await this.history.appendResults({
+        state: s,
+        network: run,
+        step: await getStepTools(),
+        newResults,
+      });
+    }
 
     return result;
   }
@@ -543,6 +577,7 @@ export namespace Agent {
     lifecycle?: Lifecycle<T>;
     model?: AiAdapter.Any;
     mcpServers?: MCP.Server[];
+    history?: HistoryConfig<T>;
   }
 
   export interface RoutingConstructor<T extends StateData>
