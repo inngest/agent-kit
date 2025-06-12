@@ -268,6 +268,7 @@ export namespace Network {
     defaultState?: State<T>;
     router?: Router<T>;
     defaultRouter?: Router<T>;
+    history?: HistoryConfig<T>;
   };
 
   export type RunArgs<T extends StateData> = [
