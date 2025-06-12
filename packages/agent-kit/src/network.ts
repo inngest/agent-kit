@@ -5,6 +5,8 @@ import { createState, State, type StateData } from "./state";
 import { createTool } from "./tool";
 import type { AgentResult } from "./types";
 import { type MaybePromise } from "./util";
+import { type HistoryConfig } from "./history";
+import { getStepTools } from "./util";
 
 /**
  * Network represents a network of agents.
@@ -59,6 +61,13 @@ export class Network<T extends StateData> {
   // agent in the router that's not included.  This is okay;  we store all
   // agents referenced in the router here.
   protected _agents: Map<string, Agent<T>>;
+
+  /**
+   * history config for managing thread creation and persistence
+   * used to create a new thread, load initial results/history and
+   * append new results to your database
+   */
+  public history?: HistoryConfig<T>;
 
   constructor({
     name,
