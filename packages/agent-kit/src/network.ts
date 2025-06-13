@@ -5,7 +5,7 @@ import { createState, State, type StateData } from "./state";
 import { createTool } from "./tool";
 import type { AgentResult } from "./types";
 import { type MaybePromise } from "./util";
-import { type HistoryConfig } from "./history";
+import { type HistoryConfig, initializeThread, loadThreadFromStorage, saveThreadToStorage } from "./history";
 import { getStepTools } from "./util";
 
 /**
@@ -378,16 +378,22 @@ export class NetworkRun<T extends StateData> extends Network<T> {
     // If history.get is configured AND the state is empty, use it to load initial history
     // When passing passing in messages from the client, history.get() is disabled - allowing the client to maintain conversation state and send it with each request
     // Enables a client-authoritative pattern where the UI maintains conversation state and sends it with each request. Allows `history.get()` to serve as a fallback for new threads or recovery 
-    if (this.history?.get && this.state.results.length === 0) {
-      // Get esults from history.get function provided in the network's history config
-      const historyResults = await this.history.get({
-        state: this.state,
-        network: this,
-        step: await getStepTools(),
-      });
-      // Replace any existing results with those from history
-      this.state.setResults(historyResults);
-    }
+    
+    // Initialize conversation thread: Creates a new thread or auto-generates if needed
+    await initializeThread({
+      state: this.state,
+      history: this.history,
+      input,
+      network: this,
+    });
+
+    // Load existing conversation history from storage: If threadId exists and history.get() is configured
+    await loadThreadFromStorage({
+      state: this.state,
+      history: this.history,
+      input,
+      network: this,
+    });
 
     const available = await this.availableAgents();
     if (available.length === 0) {
@@ -459,16 +465,16 @@ export class NetworkRun<T extends StateData> extends Network<T> {
       }
     }
 
-    // If history.appendResults is configured, call it with only the new results
-    if (this.history?.appendResults) {
-      const newResults = this.state.getResultsFrom(initialResultCount);
-      await this.history.appendResults({
-        state: this.state,
-        network: this,
-        step: await getStepTools(),
-        newResults,
-      });
-    }
+    // Save new network results to storage: Persists all new AgentResults generated 
+    // during this network run (from all agents that executed). Only saves the new 
+    // results, excluding any historical results that were loaded at the start.
+    await saveThreadToStorage({
+      state: this.state,
+      history: this.history,
+      input,
+      initialResultCount,
+      network: this,
+    });
 
     return this;
   }

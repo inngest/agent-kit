@@ -26,7 +26,7 @@ import {
   isInngestFn,
   type MaybePromise,
 } from "./util";
-import { type HistoryConfig } from "./history";
+import { type HistoryConfig, initializeThread, loadThreadFromStorage, saveThreadToStorage } from "./history";
 
 /**
  * Agent represents a single agent, responsible for a set of tasks.
@@ -189,18 +189,22 @@ export class Agent<T extends StateData> {
       network || createNetwork<T>({ name: "default", agents: [] }),
       s
     );
+    
+    // Initialize conversation thread: Creates a new thread or auto-generates if needed
+    await initializeThread({
+      state: s,
+      history: this.history,
+      input,
+      network: run,
+    });
 
-    // If history.get is configured AND the state is empty, use it to load initial history.
-    // This allows passing in state to override history loading.
-    if (this.history?.get && s.results.length === 0) {
-      const historyResults = await this.history.get({
-        state: s,
-        network: run,
-        step: await getStepTools(),
-      });
-      // Replace any existing results with those from history
-      s.setResults(historyResults);
-    }
+    // Load existing conversation history from storage: If threadId exists and history.get() is configured
+    await loadThreadFromStorage({
+      state: s,
+      history: this.history,
+      input,
+      network: run,
+    });
 
     // Get formatted history and initial prompt
     let history = s ? s.formatHistory() : [];
@@ -264,16 +268,16 @@ export class Agent<T extends StateData> {
     // Note that the routing lifecycles aren't called by the agent.  They're called
     // by the network.
 
-    // If history.appendResults is configured, call it with only the new results
-    if (this.history?.appendResults) {
-      const newResults = s.getResultsFrom(initialResultCount);
-      await this.history.appendResults({
-        state: s,
-        network: run,
-        step: await getStepTools(),
-        newResults,
-      });
-    }
+    // Save new conversation results to storage: Persists only the new AgentResults 
+    // generated during this run (excluding any historical results that were loaded).
+    // This allows the conversation to be continued in future runs with full context.
+    await saveThreadToStorage({
+      state: s,
+      history: this.history,
+      input,
+      initialResultCount,
+      network: run,
+    });
 
     return result;
   }
