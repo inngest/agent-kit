@@ -57,7 +57,7 @@
     "@modelcontextprotocol/sdk": "^1.11.2",
     "eventsource": "^3.0.2",
     "express": "^4.21.1",
-    "inngest": "3.32.5",
+    "inngest": "3.39.1",
     "xxhashjs": "^0.2.2",
     "zod": "^3.23.8",
     "zod-to-json-schema": "^3.24.3"
