@@ -35,6 +35,7 @@ export const createState = <T extends StateData>(
  */
 export class State<T extends StateData> {
   public data: T;
+  public threadId?: string;
 
   private _data: T;
 
@@ -51,10 +52,11 @@ export class State<T extends StateData> {
    */
   private _messages: Message[];
 
-  constructor({ data, messages, results }: State.Constructor<T> = {}) {
+  constructor({ data, messages, results, threadId }: State.Constructor<T> = {}) {
     this._results = results || [];
     this._messages = messages || [];
     this._data = data ? { ...data } : ({} as T);
+    this.threadId = threadId;
 
     // Create a new proxy that allows us to intercept the setting of state.
     //
@@ -151,7 +153,7 @@ export class State<T extends StateData> {
    * clone allows you to safely clone the state.
    */
   clone() {
-    const state = new State<T>({data: this.data});
+    const state = new State<T>({ data: this.data, threadId: this.threadId });
     state._results = this._results.slice();
     state._messages = this._messages.slice();
     return state;
@@ -192,6 +194,11 @@ export namespace State {
      * after the system and user message to each agent.
      */
     messages?: Message[];
+
+    /**
+     * threadId is the unique identifier for a conversation thread.
+     */
+    threadId?: string;
   };
 }
 
