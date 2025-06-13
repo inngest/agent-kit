@@ -75,7 +75,7 @@ export interface HistoryConfig<T extends StateData> {
    * that triggered this conversation turn, enabling you to store complete conversation
    * history including both user and assistant messages.
    * 
-   * @param ctx - Context containing state, threadId, execution tools, new results, and user message
+   * @param ctx - Context containing state, threadId, step, new results and user message
    * @returns Promise that resolves when results are successfully saved
    */
   appendResults?: (
