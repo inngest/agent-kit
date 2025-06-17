@@ -1,6 +1,6 @@
 import * as http from 'http';
 import { InngestFunction, Inngest } from 'inngest';
-import { N as Network, A as Agent } from './agent-QzIKahV1.js';
+import { N as Network, A as Agent } from './agent-Dj_N1sbR.js';
 import '@inngest/ai';
 import 'inngest/components/InngestFunction';
 import 'zod';

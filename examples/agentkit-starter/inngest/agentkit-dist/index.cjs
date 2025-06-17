@@ -219,6 +219,13 @@ var _State = class _State {
     return this._results.slice(startIndex);
   }
   /**
+   * Messages returns a new array containing all initial messages that were
+   * provided to the constructor. This array is safe to modify.
+   */
+  get messages() {
+    return this._messages.slice();
+  }
+  /**
    * formatHistory returns the memory used for agentic calls based off of prior
    * agentic calls.
    *
@@ -355,7 +362,7 @@ async function initializeThread(config) {
 }
 async function loadThreadFromStorage(config) {
   const { state, history, input, network } = config;
-  if (!(history == null ? void 0 : history.get) || !state.threadId || state.results.length > 0) {
+  if (!(history == null ? void 0 : history.get) || !state.threadId || state.results.length > 0 || state.messages.length > 0) {
     return;
   }
   const step = await getStepTools();

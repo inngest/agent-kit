@@ -132,6 +132,13 @@ var _State = class _State {
     return this._results.slice(startIndex);
   }
   /**
+   * Messages returns a new array containing all initial messages that were
+   * provided to the constructor. This array is safe to modify.
+   */
+  get messages() {
+    return this._messages.slice();
+  }
+  /**
    * formatHistory returns the memory used for agentic calls based off of prior
    * agentic calls.
    *
@@ -236,6 +243,10 @@ var helpers = {
   }
 };
 
+// src/network.ts
+import "@inngest/ai";
+import { z as z3 } from "zod";
+
 // src/agent.ts
 import {
   JSONSchemaToZod
@@ -262,295 +273,11 @@ import "@inngest/ai";
 // src/adapters/anthropic.ts
 import "@inngest/ai";
 import { zodToJsonSchema } from "zod-to-json-schema";
-import { z as z2 } from "zod";
+import { z } from "zod";
 
 // src/tool.ts
 import "inngest";
 import "zod";
-
-// src/network.ts
-import "@inngest/ai";
-import { z } from "zod";
-var createNetwork = (opts) => new Network(opts);
-var Network = class {
-  constructor({
-    name,
-    description,
-    agents,
-    defaultModel,
-    maxIter,
-    defaultState,
-    router,
-    defaultRouter,
-    history
-  }) {
-    this._counter = 0;
-    this.name = name;
-    this.description = description;
-    this.agents = /* @__PURE__ */ new Map();
-    this._agents = /* @__PURE__ */ new Map();
-    this.defaultModel = defaultModel;
-    this.router = defaultRouter != null ? defaultRouter : router;
-    this.maxIter = maxIter || 0;
-    this._stack = [];
-    this.history = history;
-    if (defaultState) {
-      this.state = defaultState;
-    } else {
-      this.state = createState();
-    }
-    for (const agent of agents) {
-      this.agents.set(agent.name, agent);
-      this._agents.set(agent.name, agent);
-    }
-  }
-  async availableAgents(networkRun = new NetworkRun(this, new State())) {
-    var _a;
-    const available = [];
-    const all = Array.from(this.agents.values());
-    for (const a of all) {
-      const enabled = (_a = a == null ? void 0 : a.lifecycles) == null ? void 0 : _a.enabled;
-      if (!enabled || await enabled({ agent: a, network: networkRun })) {
-        available.push(a);
-      }
-    }
-    return available;
-  }
-  /**
-   * addAgent adds a new agent to the network.
-   */
-  addAgent(agent) {
-    this.agents.set(agent.name, agent);
-  }
-  /**
-   * run handles a given request using the network of agents.  It is not
-   * concurrency-safe; you can only call run on a network once, as networks are
-   * stateful.
-   *
-   */
-  run(...[input, overrides]) {
-    var _a;
-    let state;
-    if (overrides == null ? void 0 : overrides.state) {
-      if (overrides.state instanceof State) {
-        state = overrides.state;
-      } else {
-        state = new State(overrides.state);
-      }
-    } else {
-      state = ((_a = this.state) == null ? void 0 : _a.clone()) || new State();
-    }
-    return new NetworkRun(this, state)["execute"](input, overrides);
-  }
-};
-var defaultRoutingAgent;
-var getDefaultRoutingAgent = () => {
-  defaultRoutingAgent != null ? defaultRoutingAgent : defaultRoutingAgent = createRoutingAgent({
-    name: "Default routing agent",
-    description: "Selects which agents to work on based off of the current prompt and input.",
-    lifecycle: {
-      onRoute: ({ result }) => {
-        const tool = result.toolCalls[0];
-        if (!tool) {
-          return;
-        }
-        if (typeof tool.content === "object" && tool.content !== null && "data" in tool.content && typeof tool.content.data === "string") {
-          return [tool.content.data];
-        }
-        return;
-      }
-    },
-    tools: [
-      // This tool does nothing but ensure that the model responds with the
-      // agent name as valid JSON.
-      createTool({
-        name: "select_agent",
-        description: "select an agent to handle the input, based off of the current conversation",
-        parameters: z.object({
-          name: z.string().describe("The name of the agent that should handle the request")
-        }).strict(),
-        handler: ({ name }, { network }) => {
-          if (typeof name !== "string") {
-            throw new Error("The routing agent requested an invalid agent");
-          }
-          const agent = network.agents.get(name);
-          if (agent === void 0) {
-            throw new Error(
-              `The routing agent requested an agent that doesn't exist: ${name}`
-            );
-          }
-          return agent.name;
-        }
-      })
-    ],
-    tool_choice: "select_agent",
-    system: async ({ network }) => {
-      if (!network) {
-        throw new Error(
-          "The routing agent can only be used within a network of agents"
-        );
-      }
-      const agents = await (network == null ? void 0 : network.availableAgents());
-      return `You are the orchestrator between a group of agents.  Each agent is suited for a set of specific tasks, and has a name, instructions, and a set of tools.
-
-The following agents are available:
-<agents>
-  ${agents.map((a) => {
-        return `
-    <agent>
-      <name>${a.name}</name>
-      <description>${a.description}</description>
-      <tools>${JSON.stringify(Array.from(a.tools.values()))}</tools>
-    </agent>`;
-      }).join("\n")}
-</agents>
-
-Follow the set of instructions:
-
-<instructions>
-  Think about the current history and status.  Determine which agent to use to handle the user's request, based off of the current agents and their tools.
-
-  Your aim is to thoroughly complete the request, thinking step by step, choosing the right agent based off of the context.
-</instructions>
-    `;
-    }
-  });
-  return defaultRoutingAgent;
-};
-var NetworkRun = class extends Network {
-  constructor(network, state) {
-    super({
-      name: network.name,
-      description: network.description,
-      agents: Array.from(network.agents.values()),
-      defaultModel: network.defaultModel,
-      defaultState: network.state,
-      router: network.router,
-      maxIter: network.maxIter,
-      history: network.history
-    });
-    this.state = state;
-  }
-  run() {
-    throw new Error("NetworkRun does not support run");
-  }
-  async availableAgents() {
-    return super.availableAgents(this);
-  }
-  /**
-   * Schedule is used to push an agent's run function onto the stack.
-   */
-  schedule(agentName) {
-    this["_stack"].push(agentName);
-  }
-  async execute(...[input, overrides]) {
-    await initializeThread({
-      state: this.state,
-      history: this.history,
-      input,
-      network: this
-    });
-    await loadThreadFromStorage({
-      state: this.state,
-      history: this.history,
-      input,
-      network: this
-    });
-    const available = await this.availableAgents();
-    if (available.length === 0) {
-      throw new Error("no agents enabled in network");
-    }
-    const initialResultCount = this.state.results.length;
-    const next = await this.getNextAgents(
-      input,
-      (overrides == null ? void 0 : overrides.router) || (overrides == null ? void 0 : overrides.defaultRouter) || this.router
-    );
-    if (!(next == null ? void 0 : next.length)) {
-      return this;
-    }
-    for (const agent of next) {
-      this.schedule(agent.name);
-    }
-    while (this._stack.length > 0 && (this.maxIter === 0 || this._counter < this.maxIter)) {
-      const agentName = this._stack.shift();
-      const agent = agentName && this._agents.get(agentName);
-      if (!agent) {
-        return this;
-      }
-      const call = await agent.run(input, { network: this, maxIter: 0 });
-      this._counter += 1;
-      this.state.appendResult(call);
-      const next2 = await this.getNextAgents(
-        input,
-        (overrides == null ? void 0 : overrides.router) || (overrides == null ? void 0 : overrides.defaultRouter) || this.router
-      );
-      for (const a of next2 || []) {
-        this.schedule(a.name);
-      }
-    }
-    await saveThreadToStorage({
-      state: this.state,
-      history: this.history,
-      input,
-      initialResultCount,
-      network: this
-    });
-    return this;
-  }
-  async getNextAgents(input, router) {
-    if (!router && !this.defaultModel) {
-      throw new Error(
-        "No router or model defined in network.  You must pass a router or a default model to use the built-in agentic router."
-      );
-    }
-    if (!router) {
-      router = getDefaultRoutingAgent();
-    }
-    if (router instanceof RoutingAgent) {
-      return await this.getNextAgentsViaRoutingAgent(router, input);
-    }
-    const stack = this._stack.map((name) => {
-      const agent2 = this._agents.get(name);
-      if (!agent2) {
-        throw new Error(`unknown agent in the network stack: ${name}`);
-      }
-      return agent2;
-    });
-    const agent = await router({
-      input,
-      network: this,
-      stack,
-      lastResult: this.state.results.pop(),
-      callCount: this._counter
-    });
-    if (!agent) {
-      return;
-    }
-    if (agent instanceof RoutingAgent) {
-      return await this.getNextAgentsViaRoutingAgent(agent, input);
-    }
-    for (const a of Array.isArray(agent) ? agent : [agent]) {
-      if (!this._agents.has(a.name)) {
-        this._agents.set(a.name, a);
-      }
-    }
-    return Array.isArray(agent) ? agent : [agent];
-  }
-  async getNextAgentsViaRoutingAgent(routingAgent, input) {
-    const result = await routingAgent.run(input, {
-      network: this,
-      model: routingAgent.model || this.defaultModel
-    });
-    const agentNames = routingAgent.lifecycles.onRoute({
-      result,
-      agent: routingAgent,
-      network: this
-    });
-    return (agentNames || []).map((name) => this.agents.get(name)).filter(Boolean);
-  }
-};
-
-// src/tool.ts
 function createTool({
   name,
   description,
@@ -631,7 +358,7 @@ var requestParser = (model, messages, tools, tool_choice = "auto") => {
         name: t.name,
         description: t.description,
         input_schema: t.parameters ? zodToJsonSchema(t.parameters) : zodToJsonSchema(
-          z2.object({})
+          z.object({})
         )
       };
     });
@@ -849,7 +576,7 @@ var toolChoice2 = (choice) => {
 
 // src/adapters/gemini.ts
 import "@inngest/ai";
-import { z as z3 } from "zod";
+import { z as z2 } from "zod";
 import { zodToJsonSchema as zodToJsonSchema3 } from "zod-to-json-schema";
 var requestParser3 = (_model2, messages, tools, tool_choice = "auto") => {
   const contents = messages.map((m) => messageToContent(m));
@@ -858,7 +585,7 @@ var requestParser3 = (_model2, messages, tools, tool_choice = "auto") => {
     description: t.description,
     parameters: t.parameters ? geminiZodToJsonSchema(t.parameters) : (
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      geminiZodToJsonSchema(z3.object({}))
+      geminiZodToJsonSchema(z2.object({}))
     )
   }));
   return __spreadValues({
@@ -1498,6 +1225,286 @@ var RoutingAgent = class _RoutingAgent extends Agent {
   }
 };
 
+// src/network.ts
+var createNetwork = (opts) => new Network(opts);
+var Network = class {
+  constructor({
+    name,
+    description,
+    agents,
+    defaultModel,
+    maxIter,
+    defaultState,
+    router,
+    defaultRouter,
+    history
+  }) {
+    this._counter = 0;
+    this.name = name;
+    this.description = description;
+    this.agents = /* @__PURE__ */ new Map();
+    this._agents = /* @__PURE__ */ new Map();
+    this.defaultModel = defaultModel;
+    this.router = defaultRouter != null ? defaultRouter : router;
+    this.maxIter = maxIter || 0;
+    this._stack = [];
+    this.history = history;
+    if (defaultState) {
+      this.state = defaultState;
+    } else {
+      this.state = createState();
+    }
+    for (const agent of agents) {
+      this.agents.set(agent.name, agent);
+      this._agents.set(agent.name, agent);
+    }
+  }
+  async availableAgents(networkRun = new NetworkRun(this, new State())) {
+    var _a;
+    const available = [];
+    const all = Array.from(this.agents.values());
+    for (const a of all) {
+      const enabled = (_a = a == null ? void 0 : a.lifecycles) == null ? void 0 : _a.enabled;
+      if (!enabled || await enabled({ agent: a, network: networkRun })) {
+        available.push(a);
+      }
+    }
+    return available;
+  }
+  /**
+   * addAgent adds a new agent to the network.
+   */
+  addAgent(agent) {
+    this.agents.set(agent.name, agent);
+  }
+  /**
+   * run handles a given request using the network of agents.  It is not
+   * concurrency-safe; you can only call run on a network once, as networks are
+   * stateful.
+   *
+   */
+  run(...[input, overrides]) {
+    var _a;
+    let state;
+    if (overrides == null ? void 0 : overrides.state) {
+      if (overrides.state instanceof State) {
+        state = overrides.state;
+      } else {
+        state = new State(overrides.state);
+      }
+    } else {
+      state = ((_a = this.state) == null ? void 0 : _a.clone()) || new State();
+    }
+    return new NetworkRun(this, state)["execute"](input, overrides);
+  }
+};
+var defaultRoutingAgent;
+var getDefaultRoutingAgent = () => {
+  defaultRoutingAgent != null ? defaultRoutingAgent : defaultRoutingAgent = createRoutingAgent({
+    name: "Default routing agent",
+    description: "Selects which agents to work on based off of the current prompt and input.",
+    lifecycle: {
+      onRoute: ({ result }) => {
+        const tool = result.toolCalls[0];
+        if (!tool) {
+          return;
+        }
+        if (typeof tool.content === "object" && tool.content !== null && "data" in tool.content && typeof tool.content.data === "string") {
+          return [tool.content.data];
+        }
+        return;
+      }
+    },
+    tools: [
+      // This tool does nothing but ensure that the model responds with the
+      // agent name as valid JSON.
+      createTool({
+        name: "select_agent",
+        description: "select an agent to handle the input, based off of the current conversation",
+        parameters: z3.object({
+          name: z3.string().describe("The name of the agent that should handle the request")
+        }).strict(),
+        handler: ({ name }, { network }) => {
+          if (typeof name !== "string") {
+            throw new Error("The routing agent requested an invalid agent");
+          }
+          const agent = network.agents.get(name);
+          if (agent === void 0) {
+            throw new Error(
+              `The routing agent requested an agent that doesn't exist: ${name}`
+            );
+          }
+          return agent.name;
+        }
+      })
+    ],
+    tool_choice: "select_agent",
+    system: async ({ network }) => {
+      if (!network) {
+        throw new Error(
+          "The routing agent can only be used within a network of agents"
+        );
+      }
+      const agents = await (network == null ? void 0 : network.availableAgents());
+      return `You are the orchestrator between a group of agents.  Each agent is suited for a set of specific tasks, and has a name, instructions, and a set of tools.
+
+The following agents are available:
+<agents>
+  ${agents.map((a) => {
+        return `
+    <agent>
+      <name>${a.name}</name>
+      <description>${a.description}</description>
+      <tools>${JSON.stringify(Array.from(a.tools.values()))}</tools>
+    </agent>`;
+      }).join("\n")}
+</agents>
+
+Follow the set of instructions:
+
+<instructions>
+  Think about the current history and status.  Determine which agent to use to handle the user's request, based off of the current agents and their tools.
+
+  Your aim is to thoroughly complete the request, thinking step by step, choosing the right agent based off of the context.
+</instructions>
+    `;
+    }
+  });
+  return defaultRoutingAgent;
+};
+var NetworkRun = class extends Network {
+  constructor(network, state) {
+    super({
+      name: network.name,
+      description: network.description,
+      agents: Array.from(network.agents.values()),
+      defaultModel: network.defaultModel,
+      defaultState: network.state,
+      router: network.router,
+      maxIter: network.maxIter,
+      history: network.history
+    });
+    this.state = state;
+  }
+  run() {
+    throw new Error("NetworkRun does not support run");
+  }
+  async availableAgents() {
+    return super.availableAgents(this);
+  }
+  /**
+   * Schedule is used to push an agent's run function onto the stack.
+   */
+  schedule(agentName) {
+    this["_stack"].push(agentName);
+  }
+  async execute(...[input, overrides]) {
+    await initializeThread({
+      state: this.state,
+      history: this.history,
+      input,
+      network: this
+    });
+    await loadThreadFromStorage({
+      state: this.state,
+      history: this.history,
+      input,
+      network: this
+    });
+    const available = await this.availableAgents();
+    if (available.length === 0) {
+      throw new Error("no agents enabled in network");
+    }
+    const initialResultCount = this.state.results.length;
+    const next = await this.getNextAgents(
+      input,
+      (overrides == null ? void 0 : overrides.router) || (overrides == null ? void 0 : overrides.defaultRouter) || this.router
+    );
+    if (!(next == null ? void 0 : next.length)) {
+      return this;
+    }
+    for (const agent of next) {
+      this.schedule(agent.name);
+    }
+    while (this._stack.length > 0 && (this.maxIter === 0 || this._counter < this.maxIter)) {
+      const agentName = this._stack.shift();
+      const agent = agentName && this._agents.get(agentName);
+      if (!agent) {
+        return this;
+      }
+      const call = await agent.run(input, { network: this, maxIter: 0 });
+      this._counter += 1;
+      this.state.appendResult(call);
+      const next2 = await this.getNextAgents(
+        input,
+        (overrides == null ? void 0 : overrides.router) || (overrides == null ? void 0 : overrides.defaultRouter) || this.router
+      );
+      for (const a of next2 || []) {
+        this.schedule(a.name);
+      }
+    }
+    await saveThreadToStorage({
+      state: this.state,
+      history: this.history,
+      input,
+      initialResultCount,
+      network: this
+    });
+    return this;
+  }
+  async getNextAgents(input, router) {
+    if (!router && !this.defaultModel) {
+      throw new Error(
+        "No router or model defined in network.  You must pass a router or a default model to use the built-in agentic router."
+      );
+    }
+    if (!router) {
+      router = getDefaultRoutingAgent();
+    }
+    if (router instanceof RoutingAgent) {
+      return await this.getNextAgentsViaRoutingAgent(router, input);
+    }
+    const stack = this._stack.map((name) => {
+      const agent2 = this._agents.get(name);
+      if (!agent2) {
+        throw new Error(`unknown agent in the network stack: ${name}`);
+      }
+      return agent2;
+    });
+    const agent = await router({
+      input,
+      network: this,
+      stack,
+      lastResult: this.state.results.pop(),
+      callCount: this._counter
+    });
+    if (!agent) {
+      return;
+    }
+    if (agent instanceof RoutingAgent) {
+      return await this.getNextAgentsViaRoutingAgent(agent, input);
+    }
+    for (const a of Array.isArray(agent) ? agent : [agent]) {
+      if (!this._agents.has(a.name)) {
+        this._agents.set(a.name, a);
+      }
+    }
+    return Array.isArray(agent) ? agent : [agent];
+  }
+  async getNextAgentsViaRoutingAgent(routingAgent, input) {
+    const result = await routingAgent.run(input, {
+      network: this,
+      model: routingAgent.model || this.defaultModel
+    });
+    const agentNames = routingAgent.lifecycles.onRoute({
+      result,
+      agent: routingAgent,
+      network: this
+    });
+    return (agentNames || []).map((name) => this.agents.get(name)).filter(Boolean);
+  }
+};
+
 // src/history.ts
 import "inngest";
 async function initializeThread(config) {
@@ -1526,7 +1533,7 @@ async function initializeThread(config) {
 }
 async function loadThreadFromStorage(config) {
   const { state, history, input, network } = config;
-  if (!(history == null ? void 0 : history.get) || !state.threadId || state.results.length > 0) {
+  if (!(history == null ? void 0 : history.get) || !state.threadId || state.results.length > 0 || state.messages.length > 0) {
     return;
   }
   const step = await getStepTools();
@@ -1585,4 +1592,4 @@ export {
   Agent,
   RoutingAgent
 };
-//# sourceMappingURL=chunk-GYWLIL5A.js.map
+//# sourceMappingURL=chunk-T5KSRF6P.js.map

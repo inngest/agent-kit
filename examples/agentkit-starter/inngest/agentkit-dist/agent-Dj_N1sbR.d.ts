@@ -238,6 +238,11 @@ declare class State<T extends StateData> {
      */
     getResultsFrom(startIndex: number): AgentResult[];
     /**
+     * Messages returns a new array containing all initial messages that were
+     * provided to the constructor. This array is safe to modify.
+     */
+    get messages(): Message[];
+    /**
      * formatHistory returns the memory used for agentic calls based off of prior
      * agentic calls.
      *
@@ -381,7 +386,7 @@ interface HistoryConfig<T extends StateData> {
      * that triggered this conversation turn, enabling you to store complete conversation
      * history including both user and assistant messages.
      *
-     * @param ctx - Context containing state, threadId, execution tools, new results, and user message
+     * @param ctx - Context containing state, threadId, step, new results and user message
      * @returns Promise that resolves when results are successfully saved
      */
     appendResults?: (ctx: History.Context<T> & {
@@ -494,7 +499,10 @@ declare function initializeThread<T extends StateData>(config: ThreadOperationCo
  * the state with historical context. It will only load history if:
  * 1. A history.get hook is configured
  * 2. A threadId exists in the state
- * 3. The state doesn't already have results (to avoid overwriting)
+ * 3. The state doesn't already have results OR messages (to avoid overwriting client-provided data)
+ *
+ * When either results or messages are provided to createState, this enables client-authoritative
+ * mode where the client maintains conversation state and sends it with each request.
  *
  * @param config - Configuration containing state, history, input, and optional network
  * @returns Promise that resolves when history loading is complete
