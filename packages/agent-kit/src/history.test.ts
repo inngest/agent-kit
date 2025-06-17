@@ -447,6 +447,12 @@ describe("History Module", () => {
         step: expect.any(Object),
         newResults: [newResult1, newResult2],
         input: "test input",
+        threadId: mockState.threadId,
+        userMessage: {
+          content: "test input",
+          role: "user",
+          timestamp: expect.any(Date),
+        },
       });
     });
 
@@ -476,6 +482,12 @@ describe("History Module", () => {
         step: expect.any(Object),
         newResults: [],
         input: "test input",
+        threadId: mockState.threadId,
+        userMessage: {
+          content: "test input",
+          role: "user",
+          timestamp: expect.any(Date),
+        },
       });
     });
 
@@ -506,6 +518,12 @@ describe("History Module", () => {
         step: expect.any(Object),
         newResults: allResults,
         input: "test input",
+        threadId: mockState.threadId,
+        userMessage: {
+          content: "test input",
+          role: "user",
+          timestamp: expect.any(Date),
+        },
       });
     });
   });
@@ -580,6 +598,12 @@ describe("History Module", () => {
         step: expect.any(Object),
         newResults: [newResult],
         input: "Hello",
+        threadId: mockState.threadId,
+        userMessage: {
+          content: "Hello",
+          role: "user",
+          timestamp: expect.any(Date),
+        },
       });
     });
 
@@ -635,6 +659,12 @@ describe("History Module", () => {
         step: expect.any(Object),
         newResults: [newResult],
         input: "How are you?",
+        threadId: mockState.threadId,
+        userMessage: {
+          content: "How are you?",
+          role: "user",
+          timestamp: expect.any(Date),
+        },
       });
     });
   });
@@ -798,6 +828,12 @@ describe("History Module", () => {
         step: expect.any(Object),
         newResults: largeResultArray.slice(500),
         input: "test input",
+        threadId: mockState.threadId,
+        userMessage: {
+          content: "test input",
+          role: "user",
+          timestamp: expect.any(Date),
+        },
       });
     });
   });
