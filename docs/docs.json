@@ -29,6 +29,7 @@
               "concepts/tools",
               "concepts/networks",
               "concepts/state",
+              "concepts/history",
               "concepts/routers",
               "concepts/models",
               "concepts/deployment"
