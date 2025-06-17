@@ -8,8 +8,7 @@
     "start": "next start",
     "lint": "next lint",
     "setup-db": "tsx --env-file .env.local --env-file .env scripts/setup-db.ts",
-    "debug-db": "tsx --env-file .env.local --env-file .env scripts/debug-db.ts",
-    "test-api": "tsx --env-file .env.local --env-file .env scripts/test-api.ts"
+    "debug-db": "tsx --env-file .env.local --env-file .env scripts/debug-db.ts"
   },
   "dependencies": {
     "@ai-sdk/openai": "^1.3.21",
