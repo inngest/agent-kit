@@ -1,198 +1,274 @@
-# AgentKit - Deep Research
+# AgentKit Starter: Conversational Chat with History
 
-A NextJS application showcasing a deep research agent network built using [AgentKit](https://github.com/inngest/agent-kit). This project contains two distinct implementations: a simple conversational chat and an advanced deep research system.
+This Next.js starter application demonstrates how to build a full-featured chat application with persistent conversation history using AgentKit. It showcases thread management, conversation switching, and history rehydration backed by a PostgreSQL database.
 
 ## Features
 
-- **Simple Chat** (`/`) - Conversational AI with persistent conversation history
-- **Deep Research** (`/research`) - Multi-agent deep research system using Exa API
-- **Real-time** - Live updates using Inngest realtime
-- **Configurable Research Parameters** - Customizable depth, breadth, and scope for research tasks
-- **Durable Workflows** - Powered by Inngest for reliable, resumable agent execution
+- **ChatGPT-Style Interface**: A familiar and intuitive chat UI.
+- **Persistent Conversations**: Conversation context is maintained across multiple sessions.
+- **Thread Management**: Create, switch between, and delete conversations from a sidebar.
+- **History Rehydration**: Full message history is restored from the database on page load.
+- **Real-time Streaming**: Responses are streamed from AgentKit to the UI in real-time.
+- **Optimized Persistence**: Supports both client-authoritative and server-authoritative history patterns to balance performance and reliability.
+- **Durable Workflows**: Powered by Inngest for reliable, resumable agent execution.
 
 ## Getting Started
 
 ### Prerequisites
 
 - Node.js 18+
-- pnpm package manager
+- npm
+- A PostgreSQL database
 
-### Installation
-
-1. Clone the repository:
-
-```bash
-git clone <repository-url>
-cd agentkit-chat
-```
-
-2. Install dependencies:
+### 1. Installation & Setup
 
 ```bash
-pnpm install
+# Clone this repository and navigate into the starter example
+git clone https://github.com/inngest/agent-kit.git
+cd agent-kit/examples/agentkit-starter
+
+# Install dependencies
+npm install
+
+# Setup environment variables
+cp .env.example .env
 ```
 
-3. Set up environment variables:
-   Create a `.env` file in the root directory with the following variables:
+Now, open the `.env` file and add your `OPENAI_API_KEY` and your PostgreSQL database connection string (`DATABASE_URL`).
 
-```env
-# Required: OpenAI API key for AI model inference
-OPENAI_API_KEY=your_openai_api_key_here
+### 2. Initialize the Database
 
-# Required: Exa API key for web search in deep research
-EXA_API_KEY=your_exa_api_key_here
-
-```
-
-### Development
-
-Start the development server:
+Run the setup script to create the necessary tables in your database:
 
 ```bash
+npm run setup-db
+```
+
+### 3. Start the Development Environment
+
+You'll need two terminal windows running concurrently:
+
+```bash
+# Terminal 1: Start Inngest dev server
+npx inngest-cli@latest dev
+```
+
+```bash
+# Terminal 2: Start Next.js app
 pnpm run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) to view the application.
 
-### Building for Production
+## Architecture: Conversation Persistence with History Adapters
 
-Build the application:
+This starter uses AgentKit's history system to manage conversation state. We are using a **History Adapter** as a configuration object that bridges AgentKit's lifecycle with your database.
 
-```bash
-pnpm run build
+#### History Adapter Interface
+
+You define how to create, load, and save conversations by implementing these methods:
+
+```typescript
+interface HistoryConfig<T extends StateData> {
+  createThread?: (ctx: CreateThreadContext<T>) => Promise<{ threadId: string }>;
+  get?: (ctx: Context<T>) => Promise<AgentResult[]>;
+  appendResults?: (
+    ctx: Context<T> & {
+      newResults: AgentResult[];
+      userMessage?: { content: string; role: "user"; timestamp: Date };
+    }
+  ) => Promise<void>;
+}
 ```
 
-Start the production server:
+1.  **`createThread`**: Creates a new conversation thread record in your database.
+2.  **`get`**: Retrieves a conversation's full message history from your database.
+3.  **`appendResults`**: Saves new user and agent messages from the current turn to your database.
 
-```bash
-pnpm run start
+#### Persistence Patterns
+
+There are two patterns for managing history in your application:
+
+**1. Server-Authoritative (Reliable Fallback)**
+
+- **How it works:** The client sends a message with a `threadId`. AgentKit uses the `history.get()` hook to load the full context from the database before the agent runs.
+- **Use case:** Ideal for restoring a conversation after a page refresh or when opening the app on a new device.
+
+**2. Client-Authoritative (Optimized Performance)**
+
+- **How it works:** The client (the Next.js app) maintains the conversation state locally. It sends the new message _and_ the entire conversation history to the agent.
+- **Benefit:** AgentKit detects the provided history and **skips** the `history.get()` database call, reducing latency for a faster user experience. The `history.appendResults()` hook is still called at the end to ensure new messages are saved.
+
+## Application Structure
+
+Key files in this example:
+
+- **`inngest/db.ts`**: The PostgreSQL history adapter implementation.
+- **`inngest/functions/simple-agent.ts`**: The main agent function, configured with the history adapter.
+- **`app/api/chat/route.ts`**: The API endpoint that receives messages from the UI and invokes the agent.
+- `app/api/threads/**`: API routes for managing conversation threads (creating, listing, deleting).
+- **`components/chat/Chat.tsx`**: The main React component for the chat interface.
+- **`components/chat/ChatSidebar.tsx`**: The component for listing and managing threads.
+- **`scripts/setup-db.ts`**: The database initialization script.
+
+### Creating Your Own History Adapter
+
+AgentKit is unopinionated about your persistence layer. You can connect to any database (like MongoDB, a different relational DB, or even a simple file) by creating your own history adapter.
+
+A history adapter is simply a JavaScript object that conforms to the `HistoryConfig` interface. You can implement three optional methods to tell AgentKit how to manage conversations.
+
+Here's an example of how to create a durable history adapter using Inngest:
+
+```typescript
+import { type HistoryConfig, type AgentResult } from "@inngest/agent-kit";
+// Assume you have a postgres client initialized, e.g., using 'pg' or 'drizzle-orm'
+import { db } from "./db";
+
+const postgresHistoryAdapter: HistoryConfig<any> = {
+  // 1. Create a new thread durably
+  createThread: async ({ step, state }) => {
+    // `step.run` makes this database call durable
+    const { threadId } = await step.run("create-thread-in-db", async () => {
+      // Pseudo-code for creating a thread record.
+      // You might associate it with a user ID from the state.
+      const newThread = await db
+        .insertInto("threads")
+        .values({ userId: state.data.userId })
+        .returning("id")
+        .execute();
+      return { threadId: newThread.id };
+    });
+    return { threadId };
+  },
+
+  // 2. Get messages for a thread durably
+  get: async ({ step, threadId }) => {
+    if (!threadId) return [];
+
+    // Wrap the database query in `step.run` for durability.
+    const messages = await step.run("fetch-history-from-db", async () => {
+      // Pseudo-code for fetching messages. Your schema might differ.
+      // This should return data in the AgentResult[] format.
+      const historicalMessages = await db
+        .selectFrom("messages")
+        .where("threadId", "=", threadId)
+        .orderBy("createdAt", "asc")
+        .selectAll()
+        .execute();
+      // You would need to transform this data into AgentResult[]
+      return transformToAgentResults(historicalMessages);
+    });
+
+    return messages;
+  },
+
+  // 3. Append new messages to a thread durably
+  appendResults: async ({ step, threadId, newResults, userMessage }) => {
+    if (!threadId) return;
+
+    // Use `step.run` for the final database write to ensure it's saved.
+    await step.run("append-results-to-db", async () => {
+      console.log(
+        `Saving ${newResults.length} new results to thread: ${threadId}`
+      );
+
+      // Pseudo-code for a transaction
+      await db.transaction(async (tx) => {
+        if (userMessage) {
+          await tx
+            .insertInto("messages")
+            .values({
+              threadId,
+              role: "user",
+              content: userMessage.content,
+              createdAt: userMessage.timestamp,
+            })
+            .execute();
+        }
+
+        // You'd loop through newResults and save each part,
+        // transforming it to fit your database schema.
+        for (const result of newResults) {
+          await tx
+            .insertInto("messages")
+            .values({
+              threadId,
+              role: "assistant",
+              // ... serialize result data
+            })
+            .execute();
+        }
+      });
+    });
+  },
+};
 ```
 
-### Additional Scripts
+#### Passing the Adapter to a Network or Agent
 
-- `pnpm run lint` - Run ESLint for code quality checks
+Once you've created your adapter, you pass it to the `history` property when creating an agent or a network. AgentKit then automatically calls your adapter's methods at specific points during the execution lifecycle to manage the conversation state.
 
-## Application Routes
+Here's when each function is called during an `agent.run()` or `network.run()`:
 
-### Simple Chat (`/`)
+1.  **At the Start of a Run**:
 
-The root route provides a basic conversational AI interface featuring:
+    - AgentKit first calls an internal `initializeThread` utility.
+    - If no `threadId` exists on the state, this utility will invoke your **`createThread()`** hook to generate a new conversation record in your database before any processing happens.
 
-- **Persistent History**: Conversation context is maintained across messages
-- **Real-time Responses**: Streaming responses from the AI agent
-- **AgentKit Integration**: Demonstrates E2E integration with Inngest AgentKit
+2.  **Immediately After Thread Initialization**:
 
-**Implementation Details:**
+    - Next, AgentKit calls the `loadThreadFromStorage` utility.
+    - This invokes your **`get()`** hook to fetch the conversation's message history and populate the agent's memory.
+    - _(Note: This step is automatically skipped if you provide `messages` or `results` directly to `createState`, which enables the client-authoritative optimization pattern)._
 
-- Uses a single `simple_agent` with GPT-4o
-- Maintains conversation history through AgentKit's state management
-- Streams responses via Inngest's real-time capabilities
+3.  **At the End of a Run**:
+    - After all agents and tools have completed their work, AgentKit calls the `saveThreadToStorage` utility.
+    - This invokes your **`appendResults()`** hook, passing only the _new_ messages that were generated during that specific run. This prevents you from saving duplicate data.
 
-### Deep Research (`/research`)
+This gives you precise control over your database interactions while letting AgentKit handle the orchestration during a network or agent run.
 
-An advanced research system that performs comprehensive analysis on any topic using a multi-agent approach:
+```typescript
+import { createNetwork, createAgent } from "@inngest/agent-kit";
+import { postgresHistoryAdapter } from "./my-postgres-adapter"; // Assuming you saved it in a file
 
-- **Multi-Stage Research**: Breaks down complex topics into logical research stages
-- **Web Search Integration**: Uses Exa API for high-quality web searches
-- **Citation Management**: Automatic IEEE-style citation formatting
-- **Configurable Parameters**: Adjustable research depth and breadth
-- **Real-time Progress**: Live updates showing research progress and findings
+const someAgent = createAgent({
+  name: "some-agent",
+  system: "You are a helpful assistant.",
+});
 
-## Deep Research System Architecture
+const myNetwork = createNetwork({
+  name: "My Chat Network",
+  agents: [someAgent],
+  // Pass the adapter here
+  history: postgresHistoryAdapter,
+});
 
-The deep research system employs a sophisticated multi-agent architecture with three specialized agents:
+// Now, when you run the network, it will use your durable adapter
+// to manage conversation history.
+myNetwork.run("Hello, world!");
+```
 
-### 1. Staging Agent
+This modular approach gives you full control over how and where your conversation data is stored.
 
-**Responsibility**: Creates the research plan and initial query structure
+## How to Test
 
-- Analyzes the research topic and context
-- Generates a configurable number of research stages (1-5)
-- Creates initial depth-0 queries for each stage
-- Each stage builds upon insights from previous stages
+#### Basic Conversation Persistence
 
-### 2. Reasoning Agent
+1.  Navigate to `http://localhost:3000`.
+2.  Start a conversation and send a few messages.
+3.  Refresh the page. The conversation history should be fully restored.
+4.  You can use `pnpm run debug-db` to inspect the database and verify messages are stored.
 
-**Responsibility**: Executes the research by building reasoning trees
+#### Thread Management
 
-- **Depth 0 Research**: Performs web searches for initial queries
-- **Follow-up Generation**: Creates deeper queries based on initial findings
-- **Depth 1+ Research**: Searches for follow-up queries to expand knowledge
-- **Stage Analysis**: Synthesizes all findings into comprehensive stage reports
+1.  Use the "New Chat" button to create several conversations.
+2.  Switch between them using the sidebar and see that each one maintains its own context.
+3.  Delete a conversation and confirm it's removed from the UI and the database.
 
-**Research Process:**
+## Future Enhancements
 
-1. Search web for initial queries (depth 0)
-2. Analyze search results and extract key insights
-3. Generate follow-up queries based on findings
-4. Search for follow-up queries (depth 1+)
-5. Create comprehensive stage analysis
+This project provides a solid foundation for more advanced features, such as:
 
-### 3. Reporting Agent
-
-**Responsibility**: Synthesizes all research into a final report
-
-- Creates structured report outline based on stage analyses
-- Generates detailed sections with proper citations
-- Maintains IEEE citation formatting throughout
-- Produces a polished, comprehensive research document
-
-## Research Configuration Parameters
-
-The deep research system offers four configurable parameters to customize the research process:
-
-### 1. Max Depth (1-3, default: 2)
-
-Controls how many levels deep the reasoning tree can go:
-
-- **Depth 1**: Only initial queries
-- **Depth 2**: Initial queries + one level of follow-ups
-- **Depth 3**: Initial queries + two levels of follow-ups
-
-### 2. Max Breadth (2-5, default: 3)
-
-Determines the maximum number of nodes at each depth level:
-
-- Controls parallel search capacity
-- Higher values = more comprehensive coverage
-- Each node represents a unique search query
-
-### 3. Stage Count (1-5, default: 3)
-
-Number of distinct research stages:
-
-- Each stage focuses on different aspects of the topic
-- Stages build progressively from foundational to advanced insights
-- More stages = more comprehensive topic coverage
-
-### 4. Queries per Stage (1-5, default: 3)
-
-Initial queries generated for each stage:
-
-- Forms the foundation (depth 0) of each stage's reasoning tree
-- Higher values = broader initial coverage per stage
-
-**Example Research Scale:**
-With default settings (depth=2, breadth=3, stages=3, queries=3):
-
-- 9 initial queries (3 stages × 3 queries)
-- 9 follow-up queries (3 stages × 3 follow-ups)
-- **Total: 18 web searches** across 3 comprehensive research stages
-
-## Development Notes
-
-### Inngest Development
-
-The application uses Inngest for durable agent workflows. For local development:
-
-1. Run Inngest dev server: `npx inngest-cli@latest dev`
-2. The dev server will automatically discover and register inngest functions`
-
-### Adding New Agents
-
-To add new agents:
-
-1. Create an inngest function and agent network in `inngest/functions/`
-2. Register it in `app/api/inngest/route.ts`
-3. Create a new API route to stream responses if needed
-4. Update your UI to invoke this new endpoint and handle any events you're returning
+- **Database Adapters**: Out-of-the-box adapters for various database providers
+- **Progressive Summarization**: Automatic conversation compression for long threads
+- **Search & Retrieval**: Semantic search / agentic RAG across conversation history
