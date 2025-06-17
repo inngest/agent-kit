@@ -1,20 +1,21 @@
-import { simpleAgentFunction } from "@/inngest/functions/simple-agent";
 import { inngest } from "@/inngest/client";
 import { subscribe } from "@inngest/realtime";
+import { type Message } from "@inngest/agent-kit";
 
 // Allow responses up to 5 minutes
 export const maxDuration = 300;
 
 interface ChatRequest {
   query: string;
-  threadId?: string; // Optional - AgentKit will create if not provided
+  threadId?: string; // Optional - AgentKit will create if not provided (for persistence)
   userId?: string; // Optional - will use default if not provided
-  agentResults?: any[]; // Optional - client-provided conversation history
+  messages?: Message[]; // Optional - simple message objects for conversation history
+  streamId: string; // Required - unique identifier for this request's real-time stream
 }
 
 export async function POST(req: Request) {
   const body = (await req.json()) as ChatRequest;
-  const { query, threadId, userId, agentResults = [] } = body;
+  const { query, threadId, userId, messages = [], streamId } = body;
 
   if (!query) {
     return new Response(
@@ -28,23 +29,29 @@ export async function POST(req: Request) {
     );
   }
 
-  // For real-time subscription, we need a channel ID
-  // If threadId provided, use it; otherwise use a temporary channel
-  const channelId =
-    threadId || `temp-${Date.now()}-${Math.random().toString(36).substring(2)}`;
+  if (!streamId) {
+    return new Response(
+      JSON.stringify({ error: "Missing required field: streamId" }),
+      {
+        status: 400,
+        headers: {
+          "Content-Type": "application/json",
+        },
+      }
+    );
+  }
 
-  // AgentKit pattern: threadId is optional
-  // - If provided: Use existing conversation
-  // - If not provided: AgentKit calls history.createThread automatically
+  // Testing: Using simple-agent-2 to test messages-based client-authoritative mode
+  // Instead of converting messages to AgentResults, we pass them directly to createState
   try {
     await inngest.send({
-      name: "simple-agent/run",
+      name: "simple-agent-2/run",
       data: {
         query,
-        threadId, // May be undefined - AgentKit will handle
+        threadId, // May be undefined - AgentKit will handle persistence
         userId,
-        agentResults,
-        tempChannelId: !threadId ? channelId : undefined, // Pass temp channel for new conversations
+        messages, // Simple Message objects instead of AgentResults
+        streamId, // Single channel for all real-time communication
       },
     });
   } catch (error) {
@@ -56,9 +63,12 @@ export async function POST(req: Request) {
     });
   }
 
+  // Simple subscription: always use the streamId provided by client
+  // - streamId: Ephemeral channel for this request/response cycle
+  // - threadId: Persistent conversation identifier (database)
   const stream = await subscribe({
     app: inngest,
-    channel: `chat.${channelId}`,
+    channel: `chat.${streamId}`,
     topics: ["messages"],
   });
 
