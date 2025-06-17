@@ -10,10 +10,8 @@ import { useChatStream } from "./hooks";
 export function Chat() {
   const {
     messages,
-    agentResults,
     isLoading,
     threadId,
-    totalMessages,
     isLoadingThread,
     sendMessage,
     loadThread,
@@ -308,7 +306,6 @@ export function Chat() {
                 {threadId && (
                   <div className="text-sm text-gray-400 dark:text-zinc-500 space-y-1">
                     <p>Thread: {threadId}</p>
-                    <p>Client history: {agentResults.length} • DB total: {totalMessages}</p>
                   </div>
                 )}
               </div>
