@@ -4,6 +4,7 @@ import {
   type History,
   type StateData,
   AgentResult,
+  type TextMessage,
 } from "./agentkit-dist";
 import { Pool } from "pg";
 
@@ -106,7 +107,7 @@ export class PostgresHistoryAdapter<T extends StateData>
    * Create a new conversation thread.
    */
   createThread = async (
-    ctx: History.CreateThreadContext<T>
+    { state, step }: History.CreateThreadContext<T>
   ): Promise<{ threadId: string }> => {
     const client = await this.pool.connect();
 
@@ -119,16 +120,16 @@ export class PostgresHistoryAdapter<T extends StateData>
           RETURNING thread_id
         `,
           [
-            ctx.state.data.userId || null,
-            JSON.stringify(ctx.state.data), // Persist initial state data
+            state.data.userId || null,
+            JSON.stringify(state.data), // Persist initial state data
           ]
         );
 
         return result.rows[0].thread_id;
       };
 
-      const threadId = ctx.step
-        ? await ctx.step.run("create-thread", operation)
+      const threadId = step
+        ? await step.run("create-thread", operation)
         : await operation();
 
       console.log(`🆕 Created new thread: ${threadId}`);
@@ -140,10 +141,14 @@ export class PostgresHistoryAdapter<T extends StateData>
 
   /**
    * Load conversation history from storage.
+   * 
+   * Returns complete conversation context including both user messages and agent results.
+   * User messages are converted to fake AgentResults (agentName: "user") to maintain
+   * consistency with the client-side pattern and preserve conversation continuity.
    */
-  get = async (ctx: History.Context<T>): Promise<AgentResult[]> => {
-    if (!ctx.threadId) {
-      console.log("⚠️ No threadId provided, returning empty history");
+  get = async ({ threadId, step }: History.Context<T>): Promise<AgentResult[]> => {
+    if (!threadId) {
+      console.log("No threadId provided, returning empty history");
       return [];
     }
 
@@ -151,39 +156,65 @@ export class PostgresHistoryAdapter<T extends StateData>
 
     try {
       const operation = async () => {
-        // Only load agent results, not user messages (user messages are handled by the framework)
+        // Load complete conversation history (both user messages and agent results)
         const result = await client.query(
           `
-          SELECT data FROM ${this.tableNames.messages}
-          WHERE thread_id = $1 AND message_type = 'agent'
+          SELECT 
+            message_type,
+            content,
+            data,
+            created_at
+          FROM ${this.tableNames.messages}
+          WHERE thread_id = $1 
           ORDER BY created_at ASC
         `,
-          [ctx.threadId]
+          [threadId]
         );
 
-        // Deserialize AgentResult objects from JSONB
-        return result.rows.map((row) => {
+        const conversationResults: AgentResult[] = [];
+
+        for (const row of result.rows) {
+          if (row.message_type === 'user') {
+            // Convert user message to fake AgentResult (matching UI pattern)
+            const userMessage: TextMessage = {
+              type: "text",
+              role: "user",
+              content: row.content,
+              stop_reason: "stop"
+            };
+
+            const fakeUserResult = new AgentResult(
+              "user", // agentName: "user" (matches UI pattern)
+              [userMessage], // output contains the user message
+              [], // no tool calls for user messages
+              new Date(row.created_at)
+            );
+
+            conversationResults.push(fakeUserResult);
+          } else if (row.message_type === 'agent') {
+            // Deserialize real AgentResult objects from JSONB
           const data = row.data;
-          // Reconstruct the class instance to ensure methods like .checksum are available
-          return new AgentResult(
+            const realAgentResult = new AgentResult(
             data.agentName,
             data.output,
             data.toolCalls,
             new Date(data.createdAt)
           );
-        });
+
+            conversationResults.push(realAgentResult);
+          }
+        }
+
+        return conversationResults;
       };
 
-      const results = ctx.step
-        ? ((await ctx.step.run(
-            "load-history",
+      const results = step
+        ? ((await step.run(
+            "load-complete-history",
             operation
           )) as unknown as AgentResult[])
         : await operation();
-
-      console.log(
-        `📚 Loaded ${results.length} agent messages for thread ${ctx.threadId}`
-      );
+      
       return results;
     } finally {
       client.release();
@@ -206,25 +237,13 @@ export class PostgresHistoryAdapter<T extends StateData>
       timestamp: Date;
     };
   }): Promise<void> => {
-    console.log("🔍 appendResults called with detailed params:");
-    console.log("  - threadId:", threadId, "(type:", typeof threadId, ")");
-    console.log(
-      "  - newResults:",
-      newResults,
-      "(length:",
-      newResults?.length || 0,
-      ")"
-    );
-    console.log("  - userMessage:", userMessage ? "provided" : "not provided");
-    console.log("  - step:", !!step);
-
     if (!threadId) {
-      console.log("⚠️ No threadId provided, skipping save");
+      console.log("No threadId provided, skipping save");
       return;
     }
 
     if (!newResults?.length && !userMessage) {
-      console.log("⚠️ No newResults or userMessage provided, skipping save");
+      console.log("No newResults or userMessage provided, skipping save");
       return;
     }
 
@@ -232,12 +251,11 @@ export class PostgresHistoryAdapter<T extends StateData>
 
     try {
       const operation = async () => {
-        console.log("🔄 Starting database transaction...");
         await client.query("BEGIN");
 
         try {
           // Update thread's updated_at timestamp
-          console.log("📝 Updating thread timestamp...");
+          console.log("Updating thread timestamp...");
           await client.query(
             `
             UPDATE ${this.tableNames.threads}
@@ -249,7 +267,7 @@ export class PostgresHistoryAdapter<T extends StateData>
 
           // Insert user message if provided
           if (userMessage) {
-            console.log("👤 Inserting user message...");
+            console.log("Inserting user message...");
             const userChecksum = `user_${userMessage.timestamp.getTime()}_${userMessage.content.substring(
               0,
               50
@@ -268,16 +286,13 @@ export class PostgresHistoryAdapter<T extends StateData>
                 userMessage.timestamp,
               ]
             );
-            console.log("✅ User message inserted successfully");
+            console.log("User message inserted successfully");
           }
 
           // Insert agent results
           if (newResults?.length > 0) {
-            console.log("🤖 Inserting agent messages...");
+            console.log("Inserting agent messages...");
             for (const result of newResults) {
-              console.log(
-                `  - Inserting message from ${result.agentName} (checksum: ${result.checksum})`
-              );
               const exportedData = result.export();
 
               await client.query(
@@ -288,12 +303,11 @@ export class PostgresHistoryAdapter<T extends StateData>
               `,
                 [threadId, result.agentName, exportedData, result.checksum]
               );
-              console.log(`  ✅ Agent message inserted successfully`);
+              console.log(`Agent message inserted successfully`);
             }
           }
 
           await client.query("COMMIT");
-          console.log("✅ Transaction committed successfully");
 
           const totalSaved = (userMessage ? 1 : 0) + (newResults?.length || 0);
           console.log(
@@ -368,8 +382,14 @@ export class PostgresHistoryAdapter<T extends StateData>
   }
 
   /**
-   * Get complete conversation history including both user messages and agent results
-   * This is useful for debugging and inspection purposes
+   * Get complete conversation history including both user messages and agent results.
+   * 
+   * Returns the same complete conversation data as get() but in a different format
+   * optimized for debugging and inspection. While get() returns AgentResult objects
+   * (including user messages converted to AgentResults), this method returns raw database records.
+   * 
+   * Use this method for debugging, UI display, or when you need the raw database format
+   * rather than the AgentResult format used by the framework.
    */
   async getCompleteHistory(threadId: string): Promise<any[]> {
     const client = await this.pool.connect();
