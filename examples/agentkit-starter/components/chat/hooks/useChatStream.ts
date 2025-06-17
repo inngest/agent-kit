@@ -9,10 +9,8 @@ export interface UseChatStreamOptions {
 export interface UseChatStreamReturn {
   // State
   messages: Message[];
-  agentResults: any[];
   isLoading: boolean;
   threadId: string | null;
-  totalMessages: number;
   isLoadingThread: boolean;
 
   // Actions
@@ -26,10 +24,8 @@ export function useChatStream({
   userId = "test-user-123",
 }: UseChatStreamOptions = {}): UseChatStreamReturn {
   const [messages, setMessages] = useState<Message[]>([]);
-  const [agentResults, setAgentResults] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [threadId, setThreadId] = useState<string | null>(null);
-  const [totalMessages, setTotalMessages] = useState(0);
   const [isLoadingThread, setIsLoadingThread] = useState(false);
   const currentStreamController = useRef<AbortController | null>(null);
 
@@ -60,9 +56,8 @@ export function useChatStream({
 
       const data = await response.json();
 
-      // Convert database history to UI messages and agent results
+      // Convert database history to simple UI messages
       const uiMessages: Message[] = [];
-      const threadAgentResults: any[] = [];
 
       for (const item of data.history) {
         if (item.type === "user") {
@@ -74,41 +69,21 @@ export function useChatStream({
             stop_reason: "stop",
           };
           uiMessages.push(userMessage);
-
-          // Create AgentResult for user message
-          threadAgentResults.push({
-            agentName: "user",
-            output: [userMessage],
-            toolCalls: [],
-            createdAt: item.createdAt,
-            checksum: `user_${new Date(item.createdAt).getTime()}`,
-          });
         } else if (item.type === "agent" && item.data) {
-          // Agent message - reconstruct from stored data
+          // Agent message - extract messages from stored AgentResult
           const agentData = item.data;
           if (agentData.output && agentData.output.length > 0) {
             uiMessages.push(...agentData.output);
           }
-
-          // Add the full AgentResult
-          threadAgentResults.push({
-            agentName: agentData.agentName,
-            output: agentData.output,
-            toolCalls: agentData.toolCalls || [],
-            createdAt: agentData.createdAt,
-            checksum: agentData.checksum,
-          });
         }
       }
 
       // Update state with loaded conversation
       setMessages(uiMessages);
-      setAgentResults(threadAgentResults);
       setThreadId(selectedThreadId);
-      setTotalMessages(data.messageCount);
 
       console.log(
-        `📚 Loaded thread ${selectedThreadId} with ${uiMessages.length} UI messages and ${threadAgentResults.length} agent results`
+        `📚 Loaded thread ${selectedThreadId} with ${uiMessages.length} UI messages`
       );
     } catch (error) {
       console.error("Failed to load thread history:", error);
@@ -125,24 +100,23 @@ export function useChatStream({
     cleanupCurrentStream();
     currentStreamController.current = new AbortController();
 
+    // Generate unique streamId for this request
+    const streamId = crypto.randomUUID();
+    console.log(`🆔 Generated streamId: ${streamId}`);
+
+    // Create simple user message (no fake AgentResult needed)
     const userMessage: TextMessage = {
       type: "text",
       role: "user",
       content,
       stop_reason: "stop",
     };
-    setMessages((prev) => [...prev, userMessage]);
-
-    const userAgentResult = {
-      agentName: "user",
-      output: [userMessage],
-      toolCalls: [],
-      createdAt: new Date().toISOString(),
-      checksum: `user_${Date.now()}_${Math.random()}`,
-    };
-
-    const updatedAgentResults = [...agentResults, userAgentResult];
-    setAgentResults(updatedAgentResults);
+    
+    // Create updated messages array that includes the new user message
+    const updatedMessages = [...messages, userMessage];
+    
+    // Add user message to UI immediately
+    setMessages(updatedMessages);
     setIsLoading(true);
 
     try {
@@ -153,9 +127,10 @@ export function useChatStream({
         },
         body: JSON.stringify({
           query: content,
-          threadId,
+          threadId, // For persistence (may be null for new conversations)
           userId,
-          agentResults: updatedAgentResults,
+          messages: updatedMessages, // Send the updated messages including the new user message
+          streamId, // Single channel for real-time communication
         }),
         signal: currentStreamController.current.signal,
       });
@@ -190,16 +165,6 @@ export function useChatStream({
             if (event.data?.message) {
               const assistantMessage = event.data.message as TextMessage;
               setMessages((prev) => [...prev, assistantMessage]);
-
-              const assistantAgentResult = {
-                agentName: "simple_agent",
-                output: [assistantMessage],
-                toolCalls: [],
-                createdAt: new Date().toISOString(),
-                checksum: `assistant_${Date.now()}_${Math.random()}`,
-              };
-
-              setAgentResults((prev) => [...prev, assistantAgentResult]);
             } else if (event.data?.status === "complete") {
               setIsLoading(false);
               cleanupCurrentStream();
@@ -208,19 +173,6 @@ export function useChatStream({
                 setThreadId(event.data.threadId);
               }
 
-              if (event.data.newResults) {
-                const nonAssistantResults = event.data.newResults.filter(
-                  (result: any) => result.agentName !== "simple_agent"
-                );
-
-                if (nonAssistantResults.length > 0) {
-                  setAgentResults((prev) => [...prev, ...nonAssistantResults]);
-                }
-              }
-
-              if (event.data.totalMessages) {
-                setTotalMessages(event.data.totalMessages);
-              }
             }
           } catch (e) {
             console.error("Error parsing event:", e);
@@ -256,18 +208,14 @@ export function useChatStream({
   const startNewChat = () => {
     cleanupCurrentStream();
     setMessages([]);
-    setAgentResults([]);
     setThreadId(null);
-    setTotalMessages(0);
   };
 
   return {
     // State
     messages,
-    agentResults,
     isLoading,
     threadId,
-    totalMessages,
     isLoadingThread,
 
     // Actions

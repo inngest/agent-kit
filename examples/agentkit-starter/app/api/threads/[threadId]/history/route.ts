@@ -30,7 +30,6 @@ export async function GET(
       threadId,
       metadata: threadMetadata,
       history,
-      messageCount: history.length,
     });
   } catch (error) {
     console.error("Failed to fetch thread history:", error);
