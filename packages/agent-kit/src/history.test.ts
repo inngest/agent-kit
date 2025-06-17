@@ -307,6 +307,104 @@ describe("History Module", () => {
     });
 
     /**
+     * @test Should do nothing when state already has messages
+     * @description Prevents overwriting client-provided messages, enabling client-authoritative mode
+     * @example
+     * ```typescript
+     * const state = createState(
+     *   { userId: "123" },
+     *   {
+     *     messages: [
+     *       { type: "text", role: "user", content: "Hello" },
+     *       { type: "text", role: "assistant", content: "Hi there!" }
+     *     ]
+     *   }
+     * );
+     * // history.get() should not be called since client provided messages
+     * ```
+     */
+    test("should do nothing when state already has messages", async () => {
+      mockState.threadId = "test-thread";
+
+      // Create state with initial messages (client-authoritative mode)
+      const stateWithMessages = createState<TestState>(
+        { userId: "test-user" },
+        {
+          threadId: "test-thread",
+          messages: [
+            { type: "text", role: "user", content: "Hello" },
+            { type: "text", role: "assistant", content: "Hi there!" },
+          ],
+        }
+      );
+
+      const config: ThreadOperationConfig<TestState> = {
+        state: stateWithMessages,
+        history: mockHistoryConfig,
+        input: "test input",
+        network: mockNetwork,
+      };
+
+      await loadThreadFromStorage(config);
+
+      expect(mockHistoryConfig.get).not.toHaveBeenCalled();
+      expect(stateWithMessages.messages).toHaveLength(2);
+      expect(stateWithMessages.results).toHaveLength(0);
+    });
+
+    /**
+     * @test Should do nothing when state has both messages and results
+     * @description Tests edge case where client provides both forms of conversation state
+     * In this scenario, both are preserved and history.get() is still skipped, enabling
+     * full client-authoritative mode where the client manages complete conversation state.
+     * @example
+     * ```typescript
+     * const state = createState(
+     *   { userId: "123" },
+     *   {
+     *     messages: [{ type: "text", role: "user", content: "Hello" }],
+     *     results: [new AgentResult("agent1", [], [], new Date())]
+     *   }
+     * );
+     * // history.get() should not be called since client provided both
+     * // Both messages and results should be preserved for formatHistory()
+     * ```
+     */
+    test("should do nothing when state has both messages and results", async () => {
+      mockState.threadId = "test-thread";
+
+      const existingResult = new AgentResult("agent1", [], [], new Date());
+
+      // Create state with both messages and results (full client-authoritative mode)
+      const stateWithBoth = createState<TestState>(
+        { userId: "test-user" },
+        {
+          threadId: "test-thread",
+          messages: [{ type: "text", role: "user", content: "Hello" }],
+          results: [existingResult],
+        }
+      );
+
+      const config: ThreadOperationConfig<TestState> = {
+        state: stateWithBoth,
+        history: mockHistoryConfig,
+        input: "test input",
+        network: mockNetwork,
+      };
+
+      await loadThreadFromStorage(config);
+
+      expect(mockHistoryConfig.get).not.toHaveBeenCalled();
+      expect(stateWithBoth.messages).toHaveLength(1);
+      expect(stateWithBoth.results).toHaveLength(1);
+      expect(stateWithBoth.results[0]).toBe(existingResult);
+
+      // Verify formatHistory() combines both (messages first, then results)
+      const formattedHistory = stateWithBoth.formatHistory();
+      expect(formattedHistory.length).toBeGreaterThan(0); // Should have combined content
+    });
+
+    /**
      * @test Should load history when conditions are met
      * @description Tests the main path for loading historical conversation data
      * @example
