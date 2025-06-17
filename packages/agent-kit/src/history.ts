@@ -1,4 +1,3 @@
-import { type Agent } from "./agent";
 import { type NetworkRun } from "./network";
 import { type State, type StateData } from "./state";
 import { type AgentResult } from "./types";
@@ -230,7 +229,10 @@ export async function initializeThread<T extends StateData>(
  * the state with historical context. It will only load history if:
  * 1. A history.get hook is configured
  * 2. A threadId exists in the state
- * 3. The state doesn't already have results (to avoid overwriting)
+ * 3. The state doesn't already have results OR messages (to avoid overwriting client-provided data)
+ * 
+ * When either results or messages are provided to createState, this enables client-authoritative 
+ * mode where the client maintains conversation state and sends it with each request.
  * 
  * @param config - Configuration containing state, history, input, and optional network
  * @returns Promise that resolves when history loading is complete
@@ -250,7 +252,7 @@ export async function loadThreadFromStorage<T extends StateData>(
   config: ThreadOperationConfig<T>
 ): Promise<void> {
   const { state, history, input, network } = config;
-  if (!history?.get || !state.threadId || state.results.length > 0) {
+  if (!history?.get || !state.threadId || state.results.length > 0 || state.messages.length > 0) {
     return;
   }
 

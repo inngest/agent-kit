@@ -122,6 +122,14 @@ export class State<T extends StateData> {
   }
 
   /**
+   * Messages returns a new array containing all initial messages that were
+   * provided to the constructor. This array is safe to modify.
+   */
+  get messages(): Message[] {
+    return this._messages.slice();
+  }
+
+  /**
    * formatHistory returns the memory used for agentic calls based off of prior
    * agentic calls.
    *
