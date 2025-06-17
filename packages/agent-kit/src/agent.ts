@@ -26,7 +26,12 @@ import {
   isInngestFn,
   type MaybePromise,
 } from "./util";
-import { type HistoryConfig, initializeThread, loadThreadFromStorage, saveThreadToStorage } from "./history";
+import {
+  type HistoryConfig,
+  initializeThread,
+  loadThreadFromStorage,
+  saveThreadToStorage,
+} from "./history";
 
 /**
  * Agent represents a single agent, responsible for a set of tasks.
@@ -189,7 +194,7 @@ export class Agent<T extends StateData> {
       network || createNetwork<T>({ name: "default", agents: [] }),
       s
     );
-    
+
     // Initialize conversation thread: Creates a new thread or auto-generates if needed
     await initializeThread({
       state: s,
@@ -268,7 +273,7 @@ export class Agent<T extends StateData> {
     // Note that the routing lifecycles aren't called by the agent.  They're called
     // by the network.
 
-    // Save new conversation results to storage: Persists only the new AgentResults 
+    // Save new conversation results to storage: Persists only the new AgentResults
     // generated during this run (excluding any historical results that were loaded).
     // This allows the conversation to be continued in future runs with full context.
     await saveThreadToStorage({

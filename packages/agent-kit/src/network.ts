@@ -5,8 +5,12 @@ import { createState, State, type StateData } from "./state";
 import { createTool } from "./tool";
 import type { AgentResult } from "./types";
 import { type MaybePromise } from "./util";
-import { type HistoryConfig, initializeThread, loadThreadFromStorage, saveThreadToStorage } from "./history";
-import { getStepTools } from "./util";
+import {
+  type HistoryConfig,
+  initializeThread,
+  loadThreadFromStorage,
+  saveThreadToStorage,
+} from "./history";
 
 /**
  * Network represents a network of agents.
@@ -377,8 +381,8 @@ export class NetworkRun<T extends StateData> extends Network<T> {
   ): Promise<this> {
     // If history.get is configured AND the state is empty, use it to load initial history
     // When passing passing in messages from the client, history.get() is disabled - allowing the client to maintain conversation state and send it with each request
-    // Enables a client-authoritative pattern where the UI maintains conversation state and sends it with each request. Allows `history.get()` to serve as a fallback for new threads or recovery 
-    
+    // Enables a client-authoritative pattern where the UI maintains conversation state and sends it with each request. Allows `history.get()` to serve as a fallback for new threads or recovery
+
     // Initialize conversation thread: Creates a new thread or auto-generates if needed
     await initializeThread({
       state: this.state,
@@ -465,8 +469,8 @@ export class NetworkRun<T extends StateData> extends Network<T> {
       }
     }
 
-    // Save new network results to storage: Persists all new AgentResults generated 
-    // during this network run (from all agents that executed). Only saves the new 
+    // Save new network results to storage: Persists all new AgentResults generated
+    // during this network run (from all agents that executed). Only saves the new
     // results, excluding any historical results that were loaded at the start.
     await saveThreadToStorage({
       state: this.state,

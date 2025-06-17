@@ -1,19 +1,20 @@
+/* eslint-disable @typescript-eslint/no-unsafe-assignment */
 import { describe, expect, test, vi, beforeEach, afterEach } from "vitest";
-import { 
-  initializeThread, 
-  loadThreadFromStorage, 
+import {
+  initializeThread,
+  loadThreadFromStorage,
   saveThreadToStorage,
   type HistoryConfig,
   type ThreadOperationConfig,
-  type SaveThreadToStorageConfig
+  type SaveThreadToStorageConfig,
 } from "./history";
 import { createState, type State, type StateData } from "./state";
-import { createNetwork, type NetworkRun } from "./network";
-import { AgentResult, type Message } from "./types";
+import { type NetworkRun } from "./network";
+import { AgentResult } from "./types";
 
 /**
  * Test state interface extending StateData for testing purposes.
- * 
+ *
  * @interface TestState
  * @extends {StateData}
  */
@@ -30,7 +31,7 @@ interface TestState extends StateData {
  */
 vi.mock("./util", () => ({
   getStepTools: vi.fn().mockResolvedValue({
-    run: vi.fn((name: string, fn: () => any) => fn()),
+    run: vi.fn((name: string, fn: () => unknown) => fn()),
     invoke: vi.fn(),
     sendEvent: vi.fn(),
   }),
@@ -38,11 +39,11 @@ vi.mock("./util", () => ({
 
 /**
  * Comprehensive test suite for the History module.
- * 
- * Tests all core functionality including thread initialization, 
+ *
+ * Tests all core functionality including thread initialization,
  * history loading, result persistence, integration scenarios,
  * error handling, and edge cases.
- * 
+ *
  * @description
  * The History module manages conversation persistence in AgentKit,
  * providing hooks for thread creation, loading existing history,
@@ -84,14 +85,14 @@ describe("History Module", () => {
 
   /**
    * Test suite for the initializeThread function.
-   * 
+   *
    * @description
    * Tests thread initialization logic including:
    * - Handling missing history configuration
    * - Creating new threads with custom createThread hooks
    * - Auto-generating threadIds when history.get is configured
    * - Preserving existing threadIds
-   * 
+   *
    * @test {initializeThread}
    */
   describe("initializeThread", () => {
@@ -123,7 +124,9 @@ describe("History Module", () => {
      */
     test("should create new thread when no threadId and createThread hook exists", async () => {
       const newThreadId = "new-thread-123";
-      mockHistoryConfig.createThread = vi.fn().mockResolvedValue({ threadId: newThreadId });
+      mockHistoryConfig.createThread = vi.fn().mockResolvedValue({
+        threadId: newThreadId,
+      }) as HistoryConfig<TestState>["createThread"];
 
       const config: ThreadOperationConfig<TestState> = {
         state: mockState,
@@ -149,12 +152,13 @@ describe("History Module", () => {
      */
     test("should auto-generate threadId when history.get exists but no threadId provided", async () => {
       // Remove createThread but keep get
-      mockHistoryConfig.createThread = undefined;
-      mockHistoryConfig.get = vi.fn().mockResolvedValue([]);
+      const historyConfig: HistoryConfig<TestState> = {
+        get: vi.fn().mockResolvedValue([]) as HistoryConfig<TestState>["get"],
+      };
 
       const config: ThreadOperationConfig<TestState> = {
         state: mockState,
-        history: mockHistoryConfig,
+        history: historyConfig,
         input: "test input",
         network: mockNetwork,
       };
@@ -170,8 +174,12 @@ describe("History Module", () => {
      * @description Verifies that when both get and createThread are configured, both auto-generation and creation occur
      */
     test("should call createThread after auto-generating threadId if createThread exists", async () => {
-      mockHistoryConfig.createThread = vi.fn().mockResolvedValue({ threadId: "ignored" });
-      mockHistoryConfig.get = vi.fn().mockResolvedValue([]);
+      mockHistoryConfig.createThread = vi.fn().mockResolvedValue({
+        threadId: "ignored",
+      }) as HistoryConfig<TestState>["createThread"];
+      mockHistoryConfig.get = vi
+        .fn()
+        .mockResolvedValue([]) as HistoryConfig<TestState>["get"];
 
       const config: ThreadOperationConfig<TestState> = {
         state: mockState,
@@ -193,7 +201,9 @@ describe("History Module", () => {
     test("should not modify existing threadId", async () => {
       const existingThreadId = "existing-thread-456";
       mockState.threadId = existingThreadId;
-      mockHistoryConfig.createThread = vi.fn().mockResolvedValue({ threadId: "new-thread" });
+      mockHistoryConfig.createThread = vi.fn().mockResolvedValue({
+        threadId: "new-thread",
+      }) as HistoryConfig<TestState>["createThread"];
 
       const config: ThreadOperationConfig<TestState> = {
         state: mockState,
@@ -211,13 +221,13 @@ describe("History Module", () => {
 
   /**
    * Test suite for the loadThreadFromStorage function.
-   * 
+   *
    * @description
    * Tests conversation history loading including:
    * - Handling various configuration states
    * - Loading historical results from storage
    * - Respecting existing state to avoid overwrites
-   * 
+   *
    * @test {loadThreadFromStorage}
    */
   describe("loadThreadFromStorage", () => {
@@ -244,7 +254,9 @@ describe("History Module", () => {
     test("should do nothing when history.get is not configured", async () => {
       const config: ThreadOperationConfig<TestState> = {
         state: mockState,
-        history: { appendResults: vi.fn() }, // No get method
+        history: {
+          appendResults: vi.fn() as HistoryConfig<TestState>["appendResults"],
+        }, // No get method
         input: "test input",
         network: mockNetwork,
       };
@@ -314,7 +326,11 @@ describe("History Module", () => {
         new AgentResult("agent1", [], [], new Date()),
         new AgentResult("agent2", [], [], new Date()),
       ];
-      mockHistoryConfig.get = vi.fn().mockResolvedValue(historicalResults);
+      mockHistoryConfig.get = vi
+        .fn()
+        .mockResolvedValue(
+          historicalResults
+        ) as HistoryConfig<TestState>["get"];
 
       const config: ThreadOperationConfig<TestState> = {
         state: mockState,
@@ -341,7 +357,9 @@ describe("History Module", () => {
      */
     test("should handle empty historical results", async () => {
       mockState.threadId = "test-thread";
-      mockHistoryConfig.get = vi.fn().mockResolvedValue([]);
+      mockHistoryConfig.get = vi
+        .fn()
+        .mockResolvedValue([]) as HistoryConfig<TestState>["get"];
 
       const config: ThreadOperationConfig<TestState> = {
         state: mockState,
@@ -359,13 +377,13 @@ describe("History Module", () => {
 
   /**
    * Test suite for the saveThreadToStorage function.
-   * 
+   *
    * @description
    * Tests result persistence including:
    * - Saving only new results (not historical ones)
    * - Handling various configuration states
    * - Managing result counting and slicing
-   * 
+   *
    * @test {saveThreadToStorage}
    */
   describe("saveThreadToStorage", () => {
@@ -393,7 +411,7 @@ describe("History Module", () => {
     test("should do nothing when appendResults is not configured", async () => {
       const config: SaveThreadToStorageConfig<TestState> = {
         state: mockState,
-        history: { get: vi.fn() }, // No appendResults method
+        history: { get: vi.fn() as HistoryConfig<TestState>["get"] }, // No appendResults method
         input: "test input",
         initialResultCount: 0,
         network: mockNetwork,
@@ -411,7 +429,7 @@ describe("History Module", () => {
      * ```typescript
      * // Historical results (loaded from storage)
      * state.setResults([result1, result2]);
-     * // New results (generated this run)  
+     * // New results (generated this run)
      * state.appendResult(newResult1);
      * state.appendResult(newResult2);
      * // Only newResult1 and newResult2 should be saved
@@ -461,9 +479,7 @@ describe("History Module", () => {
      * @description Verifies proper handling when no new results were generated during the run
      */
     test("should handle no new results", async () => {
-      const existingResults = [
-        new AgentResult("agent1", [], [], new Date()),
-      ];
+      const existingResults = [new AgentResult("agent1", [], [], new Date())];
       mockState.setResults(existingResults);
 
       const config: SaveThreadToStorageConfig<TestState> = {
@@ -530,11 +546,11 @@ describe("History Module", () => {
 
   /**
    * Integration test scenarios.
-   * 
+   *
    * @description
    * Tests complete conversation flows that exercise multiple history functions
    * together, simulating real-world usage patterns.
-   * 
+   *
    * @test {Integration}
    */
   describe("Integration scenarios", () => {
@@ -544,7 +560,7 @@ describe("History Module", () => {
      * @example
      * ```typescript
      * // 1. Initialize thread (create new)
-     * // 2. Load history (empty for new thread)  
+     * // 2. Load history (empty for new thread)
      * // 3. Add conversation results
      * // 4. Save new results to storage
      * ```
@@ -552,7 +568,9 @@ describe("History Module", () => {
     test("should handle complete conversation flow", async () => {
       // 1. Initialize thread
       const threadId = "integration-thread";
-      mockHistoryConfig.createThread = vi.fn().mockResolvedValue({ threadId });
+      mockHistoryConfig.createThread = vi.fn().mockResolvedValue({
+        threadId,
+      }) as HistoryConfig<TestState>["createThread"];
 
       const initConfig: ThreadOperationConfig<TestState> = {
         state: mockState,
@@ -565,8 +583,10 @@ describe("History Module", () => {
       expect(mockState.threadId).toBe(threadId);
 
       // 2. Load existing history (empty for new thread)
-      mockHistoryConfig.get = vi.fn().mockResolvedValue([]);
-      
+      mockHistoryConfig.get = vi
+        .fn()
+        .mockResolvedValue([]) as HistoryConfig<TestState>["get"];
+
       const loadConfig: ThreadOperationConfig<TestState> = {
         state: mockState,
         history: mockHistoryConfig,
@@ -613,7 +633,7 @@ describe("History Module", () => {
      * @example
      * ```typescript
      * // Load existing conversation with 2 previous messages
-     * // Add 1 new message  
+     * // Add 1 new message
      * // Save only the new message (not the 2 existing ones)
      * ```
      */
@@ -623,8 +643,18 @@ describe("History Module", () => {
 
       // Load existing history
       const historicalResults = [
-        new AgentResult("user", [{ type: "text", role: "user", content: "Hello" }], [], new Date()),
-        new AgentResult("assistant", [{ type: "text", role: "assistant", content: "Hi there!" }], [], new Date()),
+        new AgentResult(
+          "user",
+          [{ type: "text", role: "user", content: "Hello" }],
+          [],
+          new Date()
+        ),
+        new AgentResult(
+          "assistant",
+          [{ type: "text", role: "assistant", content: "Hi there!" }],
+          [],
+          new Date()
+        ),
       ];
       mockHistoryConfig.get = vi.fn().mockResolvedValue(historicalResults);
 
@@ -639,7 +669,12 @@ describe("History Module", () => {
       expect(mockState.results).toEqual(historicalResults);
 
       // Add new conversation turn
-      const newResult = new AgentResult("assistant", [{ type: "text", role: "assistant", content: "I'm doing well!" }], [], new Date());
+      const newResult = new AgentResult(
+        "assistant",
+        [{ type: "text", role: "assistant", content: "I'm doing well!" }],
+        [],
+        new Date()
+      );
       mockState.appendResult(newResult);
 
       // Save only the new result
@@ -671,11 +706,11 @@ describe("History Module", () => {
 
   /**
    * Error handling test scenarios.
-   * 
+   *
    * @description
    * Tests how the history functions handle various error conditions
    * and ensure proper error propagation.
-   * 
+   *
    * @test {ErrorHandling}
    */
   describe("Error handling", () => {
@@ -684,7 +719,9 @@ describe("History Module", () => {
      * @description Verifies that database errors during thread creation are properly propagated
      */
     test("should handle createThread errors gracefully", async () => {
-      mockHistoryConfig.createThread = vi.fn().mockRejectedValue(new Error("Database error"));
+      mockHistoryConfig.createThread = vi
+        .fn()
+        .mockRejectedValue(new Error("Database error"));
 
       const config: ThreadOperationConfig<TestState> = {
         state: mockState,
@@ -697,12 +734,14 @@ describe("History Module", () => {
     });
 
     /**
-     * @test Should handle history.get errors gracefully  
+     * @test Should handle history.get errors gracefully
      * @description Ensures storage errors during history loading are properly handled
      */
     test("should handle history.get errors gracefully", async () => {
       mockState.threadId = "test-thread";
-      mockHistoryConfig.get = vi.fn().mockRejectedValue(new Error("Storage error"));
+      mockHistoryConfig.get = vi
+        .fn()
+        .mockRejectedValue(new Error("Storage error"));
 
       const config: ThreadOperationConfig<TestState> = {
         state: mockState,
@@ -711,7 +750,9 @@ describe("History Module", () => {
         network: mockNetwork,
       };
 
-      await expect(loadThreadFromStorage(config)).rejects.toThrow("Storage error");
+      await expect(loadThreadFromStorage(config)).rejects.toThrow(
+        "Storage error"
+      );
     });
 
     /**
@@ -720,7 +761,9 @@ describe("History Module", () => {
      */
     test("should handle appendResults errors gracefully", async () => {
       mockState.appendResult(new AgentResult("test", [], [], new Date()));
-      mockHistoryConfig.appendResults = vi.fn().mockRejectedValue(new Error("Save error"));
+      mockHistoryConfig.appendResults = vi
+        .fn()
+        .mockRejectedValue(new Error("Save error"));
 
       const config: SaveThreadToStorageConfig<TestState> = {
         state: mockState,
@@ -736,11 +779,11 @@ describe("History Module", () => {
 
   /**
    * Edge case test scenarios.
-   * 
+   *
    * @description
    * Tests unusual but valid scenarios to ensure robust behavior
    * under various conditions.
-   * 
+   *
    * @test {EdgeCases}
    */
   describe("Edge cases", () => {
@@ -756,7 +799,9 @@ describe("History Module", () => {
         // network: undefined
       };
 
-      mockHistoryConfig.createThread = vi.fn().mockResolvedValue({ threadId: "test" });
+      mockHistoryConfig.createThread = vi
+        .fn()
+        .mockResolvedValue({ threadId: "test" });
 
       await initializeThread(config);
 
@@ -800,16 +845,17 @@ describe("History Module", () => {
      * @example
      * ```typescript
      * // Create 1000 historical results
-     * // Add 500 new results  
+     * // Add 500 new results
      * // Verify only the 500 new ones are saved
      * ```
      */
     test("should handle very large result arrays", async () => {
       // Create a large number of results
-      const largeResultArray = Array.from({ length: 1000 }, (_, i) => 
-        new AgentResult(`agent-${i}`, [], [], new Date())
+      const largeResultArray = Array.from(
+        { length: 1000 },
+        (_, i) => new AgentResult(`agent-${i}`, [], [], new Date())
       );
-      
+
       mockState.setResults(largeResultArray);
 
       const config: SaveThreadToStorageConfig<TestState> = {
@@ -837,4 +883,4 @@ describe("History Module", () => {
       });
     });
   });
-}); 
+});
