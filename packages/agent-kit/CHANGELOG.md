@@ -1,5 +1,11 @@
 # @inngest/agent-kit
 
+## 0.8.1
+
+### Patch Changes
+
+- f476961: Fixed Gemini adapter response parsing & malformed function call handling
+
 ## 0.8.0
 
 ### Minor Changes
