@@ -71,6 +71,15 @@ export const responseParser: AgenticModel.ResponseParser<Gemini.AiModel> = (
   const messages: Message[] = [];
 
   for (const candidate of input.candidates ?? []) {
+    if ((candidate.finishReason as string) === "MALFORMED_FUNCTION_CALL") {
+      console.warn(
+        "Gemini returned MALFORMED_FUNCTION_CALL, skipping this candidate. This typically indicates an issue with tool/function call formatting. Check your tool definitions and parameters."
+      );
+      continue; // Skip this candidate but continue processing others
+    }
+    if (!candidate.content?.parts) {
+      continue; // Skip candidates without parts
+    }
     for (const content of candidate.content.parts) {
       // user text
       if (candidate.content.role === "user" && "text" in content) {
