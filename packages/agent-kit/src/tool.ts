@@ -4,6 +4,8 @@ import { type Agent } from "./agent";
 import { type StateData } from "./state";
 import { type NetworkRun } from "./network";
 import { type AnyZodType, type MaybePromise } from "./util";
+import type { StreamableHTTPReconnectionOptions } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+import type { OAuthClientProvider } from "@modelcontextprotocol/sdk/client/auth.js";
 
 /**
  * createTool is a helper that properly types the input argument for a handler
@@ -77,10 +79,22 @@ export namespace MCP {
     // name is a short name for the MCP server, eg. "github".  This allows
     // us to namespace tools for each MCP server.
     name: string;
-    transport: TransportSSE | TransportWebsocket;
+    transport: TransportSSE | TransportWebsocket | TransportStreamableHttp;
   };
 
-  export type Transport = TransportSSE | TransportWebsocket;
+  export type Transport =
+    | TransportSSE
+    | TransportWebsocket
+    | TransportStreamableHttp;
+
+  export type TransportStreamableHttp = {
+    type: "streamable-http";
+    url: string;
+    requestInit?: RequestInit;
+    reconnectionOptions?: StreamableHTTPReconnectionOptions;
+    sessionId?: string;
+    authProvider?: OAuthClientProvider;
+  };
 
   export type TransportSSE = {
     type: "sse";

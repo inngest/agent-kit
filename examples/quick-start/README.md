@@ -40,7 +40,7 @@ Open the Inngest dev server's functions tab (`http://localhost:8288/functions`) 
 ```json
 {
   "data": {
-    "input": "How do I aggregate an integer column across a date column by week?"
+    "input": "I am building a Finance application. Help me answer the following 2 questions: \n - How can I scale my application to millions of request per second? \n - How should I design my schema to ensure the safety of each organization's data?"
   }
 }
 ```

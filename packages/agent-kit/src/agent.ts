@@ -4,6 +4,7 @@ import {
 } from "@dmitryrechkin/json-schema-to-zod";
 import { type AiAdapter } from "@inngest/ai";
 import { Client as MCPClient } from "@modelcontextprotocol/sdk/client/index.js";
+import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
 import { WebSocketClientTransport } from "@modelcontextprotocol/sdk/client/websocket.js";
 import { type Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
@@ -394,16 +395,12 @@ export class Agent<T extends StateData> {
   // initMCP fetches all tools from the agent's MCP servers, adding them to the tool list.
   // This is all that's necessary in order to enable MCP tool use within agents
   private async initMCP() {
-    if (
-      !this.mcpServers ||
-      this._mcpClients.length === this.mcpServers.length
-    ) {
+    if (!this.mcpServers || this._mcpClients.length >= this.mcpServers.length) {
       return;
     }
 
     const promises = [];
     for (const server of this.mcpServers) {
-      await this.listMCPTools(server);
       promises.push(this.listMCPTools(server));
     }
 
@@ -415,6 +412,7 @@ export class Agent<T extends StateData> {
    */
   private async listMCPTools(server: MCP.Server) {
     const client = await this.mcpClient(server);
+    this._mcpClients.push(client);
     try {
       const results = await client.request(
         { method: "tools/list" },
@@ -467,6 +465,16 @@ export class Agent<T extends StateData> {
     // Does this client already exist?
     const transport: Transport = (() => {
       switch (server.transport.type) {
+        case "streamable-http":
+          return new StreamableHTTPClientTransport(
+            new URL(server.transport.url),
+            {
+              requestInit: server.transport.requestInit,
+              authProvider: server.transport.authProvider,
+              reconnectionOptions: server.transport.reconnectionOptions,
+              sessionId: server.transport.sessionId,
+            }
+          );
         case "sse":
           // Check if EventSource is defined.  If not, we use a polyfill.
           if (global.EventSource === undefined) {
@@ -497,7 +505,6 @@ export class Agent<T extends StateData> {
       // The transport closed.
       console.warn("mcp server disconnected", server, e);
     }
-    this._mcpClients.push(client);
     return client;
   }
 }

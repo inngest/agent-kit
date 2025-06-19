@@ -10,3 +10,4 @@ node_modules
 
 # Nix
 /.direnv/
+.DS_Store
