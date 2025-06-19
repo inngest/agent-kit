@@ -1,5 +1,11 @@
 # @inngest/agent-kit
 
+## 0.8.2
+
+### Patch Changes
+
+- f09cb8e: Adding recursive check for removing additionalProperties for gemini.
+
 ## 0.8.1
 
 ### Patch Changes
