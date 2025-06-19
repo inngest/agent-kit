@@ -253,9 +253,39 @@ const toolChoice = (
   }
 };
 
+type Removed<T, Drop = "additionalProperties"> = T extends object
+  ? { [K in Exclude<keyof T, Drop>]: Removed<T[K], Drop> }
+  : T;
+
+/**
+ * Recursively remove `additionalProperties` from Zod schema objects.
+ */
+export const recursiveGeminiZodToJsonSchema = <T>(obj: T): Removed<T> => {
+  if (obj === null || obj === undefined || typeof obj !== "object") {
+    return obj as Removed<T>;
+  }
+
+  if (Array.isArray(obj)) {
+    return obj.map(recursiveGeminiZodToJsonSchema) as unknown as Removed<T>;
+  }
+  const newObj: T = { ...obj }; // Create a shallow copy for the current level
+
+  for (const key in newObj) {
+    if (newObj[key] != null) {
+      newObj[key] = recursiveGeminiZodToJsonSchema(
+        newObj[key]
+      ) as T[typeof key];
+    }
+  }
+  if (newObj?.["additionalProperties" as keyof typeof newObj] != null) {
+    delete newObj["additionalProperties" as keyof typeof newObj];
+  }
+  return newObj as Removed<T>;
+};
+
 const geminiZodToJsonSchema = (zod: ZodSchema) => {
-  const schema = zodToJsonSchema(zod, { target: "openApi3" });
-  // @ts-expect-error this prop does exists and Gemini don't like it
-  delete schema["additionalProperties"];
+  let schema = zodToJsonSchema(zod, { target: "openApi3" });
+
+  schema = recursiveGeminiZodToJsonSchema(schema);
   return schema;
 };
