@@ -95,10 +95,15 @@ export const requestParser: AgenticModel.RequestParser<OpenAi.AiModel> = (
 
 /**
  * Parse a response from OpenAI output to internal network messages.
+ * 
+ * This function transforms OpenAI's response format into our internal Message format,
+ * handling both text responses and tool calls. It processes multiple choices if present
+ * and creates separate messages for text content and tool calls when both exist.
  */
 export const responseParser: AgenticModel.ResponseParser<OpenAi.AiModel> = (
   input
 ) => {
+  // Handle API errors first - throw immediately if the request failed
   if (input.error) {
     throw new Error(
       input.error.message ||
@@ -106,19 +111,26 @@ export const responseParser: AgenticModel.ResponseParser<OpenAi.AiModel> = (
     );
   }
 
+  // Process all choices from the OpenAI response using reduce to flatten into a single Message array
+  // OpenAI can return multiple choices, though typically only one is returned
   return (input?.choices ?? []).reduce<Message[]>((acc, choice) => {
     const { message, finish_reason } = choice;
+    
+    // Skip empty messages - can happen in some edge cases
     if (!message) {
       return acc;
     }
 
+    // Create base message properties shared by all message types
+    // Maps OpenAI's finish_reason to our internal stop_reason format
     const base = {
       role: choice.message.role,
       stop_reason:
         openAiStopReasonToStateStopReason[finish_reason ?? ""] || "stop",
     };
 
-    // Handle text content if present
+    // Handle text content - only create a text message if content exists and isn't empty/whitespace
+    // This check prevents empty content messages that can occur when only tool calls are present
     if (message.content && message.content.trim() !== "") {
       acc.push({
         ...base,
@@ -127,7 +139,8 @@ export const responseParser: AgenticModel.ResponseParser<OpenAi.AiModel> = (
       } as TextMessage);
     }
     
-    // Handle tool calls if present
+    // Handle tool calls - create a separate tool_call message containing all tools
+    // OpenAI can return multiple tool calls in a single response (parallel tool calling)
     if ((message.tool_calls?.length ?? 0) > 0) {
       acc.push({
         ...base,
@@ -137,7 +150,8 @@ export const responseParser: AgenticModel.ResponseParser<OpenAi.AiModel> = (
             type: "tool",
             id: tool.id,
             name: tool.function.name,
-            function: tool.function.name,
+            function: tool.function.name, // Duplicate for backward compatibility
+            // Use safe parser to handle OpenAI's JSON quirks (like backticks in strings)
             input: safeParseOpenAIJson(tool.function.arguments || "{}"),
           } as ToolMessage;
         }),
