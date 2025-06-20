@@ -118,34 +118,32 @@ export const responseParser: AgenticModel.ResponseParser<OpenAi.AiModel> = (
         openAiStopReasonToStateStopReason[finish_reason ?? ""] || "stop",
     };
 
+    // Handle text content if present
     if (message.content && message.content.trim() !== "") {
-      return [
-        ...acc,
-        {
-          ...base,
-          type: "text",
-          content: message.content,
-        } as TextMessage,
-      ];
+      acc.push({
+        ...base,
+        type: "text",
+        content: message.content,
+      } as TextMessage);
     }
+    
+    // Handle tool calls if present
     if ((message.tool_calls?.length ?? 0) > 0) {
-      return [
-        ...acc,
-        {
-          ...base,
-          type: "tool_call",
-          tools: message.tool_calls.map((tool) => {
-            return {
-              type: "tool",
-              id: tool.id,
-              name: tool.function.name,
-              function: tool.function.name,
-              input: safeParseOpenAIJson(tool.function.arguments || "{}"),
-            } as ToolMessage;
-          }),
-        } as ToolCallMessage,
-      ];
+      acc.push({
+        ...base,
+        type: "tool_call",
+        tools: message.tool_calls.map((tool) => {
+          return {
+            type: "tool",
+            id: tool.id,
+            name: tool.function.name,
+            function: tool.function.name,
+            input: safeParseOpenAIJson(tool.function.arguments || "{}"),
+          } as ToolMessage;
+        }),
+      } as ToolCallMessage);
     }
+    
     return acc;
   }, []);
 };
