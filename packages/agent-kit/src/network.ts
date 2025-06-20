@@ -128,10 +128,13 @@ export class Network<T extends StateData> {
       if (overrides.state instanceof State) {
         state = overrides.state;
       } else {
-        state = new State(overrides.state as T);
+        state = new State<T>({ 
+          data: overrides.state.data || ({} as T),
+          messages: overrides.state._messages || []
+        });
       }
     } else {
-      state = this.state?.clone() || new State();
+      state = this.state?.clone() || new State<T>();
     }
 
     return new NetworkRun(this, state)["execute"](input, overrides);
