@@ -34,7 +34,6 @@ const addMemoriesFn = inngest.createFunction(
             statements.map((s: string) => ({ role: 'user', content: s })),
             { userId: 'default-user' }
         );
-        console.log(`Added ${statements.length} memories.`);
         return { status: `Added ${statements.length} memories.` };
     }
 );
@@ -47,7 +46,6 @@ const updateMemoriesFn = inngest.createFunction(
         await Promise.all(
             updates.map(update => mem0.update(update.id, update.statement))
         );
-        console.log(`Updated ${updates.length} memories.`);
         return { status: `Updated ${updates.length} memories.` };
     }
 );
@@ -60,7 +58,6 @@ const deleteMemoriesFn = inngest.createFunction(
         await Promise.all(
             deletions.map(deletion => mem0.delete(deletion.id))
         );
-        console.log(`Deleted ${deletions.length} memories.`);
         return { status: `Deleted ${deletions.length} memories.` };
     }
 );
