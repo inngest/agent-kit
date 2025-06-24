@@ -3,7 +3,7 @@ import { z } from "zod";
 import { createRoutingAgent, type Agent, RoutingAgent } from "./agent";
 import { createState, State, type StateData } from "./state";
 import { createTool } from "./tool";
-import type { AgentResult } from "./types";
+import type { AgentResult, Message } from "./types";
 import { type MaybePromise } from "./util";
 
 /**
@@ -128,9 +128,15 @@ export class Network<T extends StateData> {
       if (overrides.state instanceof State) {
         state = overrides.state;
       } else {
-        state = new State<T>({ 
-          data: overrides.state.data || ({} as T),
-          messages: overrides.state._messages || []
+        const stateObj = overrides.state as {
+          data?: T;
+          _messages?: Message[];
+          _results?: AgentResult[];
+        };
+        state = new State<T>({
+          data: stateObj.data || ({} as T),
+          messages: stateObj._messages || [],
+          results: stateObj._results || [],
         });
       }
     } else {
