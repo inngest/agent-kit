@@ -1,0 +1,21 @@
+{
+  "name": "mem0-memory",
+  "version": "1.0.0",
+  "description": "",
+  "license": "ISC",
+  "author": "",
+  "type": "commonjs",
+  "main": "index.js",
+  "dependencies": {
+    "@inngest/agent-kit": "latest",
+    "dotenv": "^16.5.0",
+    "inngest": "3.32.5",
+    "mem0ai": "^2.1.32"
+  },
+  "scripts": {
+    "start": "tsx --watch ./index.ts",
+    "start-multi": "tsx --watch ./multi-agent.ts",
+    "inngest-dev": "npx inngest-cli@latest dev -u http://localhost:3000/api/inngest",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  }
+}
