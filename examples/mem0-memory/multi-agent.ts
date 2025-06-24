@@ -74,8 +74,6 @@ const multiAgentMemoryNetwork = createNetwork({
     }),
     maxIter: 3,
     router: async ({ callCount, network }) => {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const agents = network.agents as Map<string, Agent<any>>;
         if (callCount === 0) {
             // 1. First, always run the retrieval agent.
             return memoryRetrievalAgent;
