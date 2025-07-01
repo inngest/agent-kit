@@ -52,8 +52,8 @@ export class State<T extends StateData> {
    */
   private _messages: Message[];
 
-  constructor({ data, messages, threadId }: State.Constructor<T> = {}) {
-    this._results = [];
+  constructor({ data, messages, threadId, results }: State.Constructor<T> = {}) {
+    this._results = results || [];
     this._messages = messages || [];
     this._data = data ? { ...data } : ({} as T);
     this.threadId = threadId;
@@ -163,7 +163,7 @@ export class State<T extends StateData> {
   clone() {
     const state = new State<T>({
       data: this.data,
-      threadId: this.threadId ,
+      threadId: this.threadId,
       messages: this._messages.slice(),
       results: this._results.slice(),
     });
