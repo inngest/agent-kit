@@ -23,9 +23,6 @@ importers:
       express:
         specifier: ^4.21.1
         version: 4.21.2
-      inngest:
-        specifier: 3.39.1
-        version: 3.39.1(express@4.21.2)(typescript@5.7.3)
       xxhashjs:
         specifier: ^0.2.2
         version: 0.2.2
@@ -45,6 +42,9 @@ importers:
       '@types/xxhashjs':
         specifier: ^0.2.4
         version: 0.2.4
+      inngest:
+        specifier: 3.39.1
+        version: 3.39.1(express@4.21.2)(typescript@5.7.3)
       nodemon:
         specifier: ^3.0.2
         version: 3.1.9
