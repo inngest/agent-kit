@@ -1,5 +1,5 @@
 ---
-"@inngest/agent-kit": patch
+"@inngest/agent-kit": minor
 ---
 
 Added support for persistent conversation history via HistoryAdapters
