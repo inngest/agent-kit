@@ -1,5 +1,12 @@
 # @inngest/agent-kit
 
+## 0.9.0
+
+### Minor Changes
+
+- d9507fb: Added support for persistent conversation history via HistoryAdapters
+  Created an example NextJS app with realtime responses and thread management
+
 ## 0.8.4
 
 ### Patch Changes
