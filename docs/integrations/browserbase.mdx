@@ -23,15 +23,15 @@ Creating AgentKit [tools](/concepts/tools) using the Browserbase TypeScript SDK 
     <CodeGroup>
 
     ```shell npm
-    npm install @inngest/agent-kit @browserbasehq/sdk playwright-core
+    npm install @inngest/agent-kit inngest @browserbasehq/sdk playwright-core
     ```
 
     ```shell pnpm
-    pnpm install @inngest/agent-kit @browserbasehq/sdk playwright-core
+    pnpm install @inngest/agent-kit inngest @browserbasehq/sdk playwright-core
     ```
 
     ```shell yarn
-    yarn add @inngest/agent-kit @browserbasehq/sdk playwright-core
+    yarn add @inngest/agent-kit inngest @browserbasehq/sdk playwright-core
     ```
 
     </CodeGroup>
@@ -182,10 +182,18 @@ You will find a complete example of a Reddit search agent using Browserbase in t
   This examples shows how to build tools using Browserbase to power a Reddit search agent.
 
 <br />
-<span className="mr-2 border-primary dark:border-primary-light bg-primary/10 text-primary text-xs dark:text-primary-light dark:bg-primary-light/10 rounded-xl px-2 py-1">Agents</span>
-<span className="mr-2 border-primary dark:border-primary-light bg-primary/10 text-primary text-xs dark:text-primary-light dark:bg-primary-light/10 rounded-xl px-2 py-1">Tools</span>
-<span className="mr-2 border-primary dark:border-primary-light bg-primary/10 text-primary text-xs dark:text-primary-light dark:bg-primary-light/10 rounded-xl px-2 py-1">Network</span>
-<span className="mr-2 border-primary dark:border-primary-light bg-primary/10 text-primary text-xs dark:text-primary-light dark:bg-primary-light/10 rounded-xl px-2 py-1">Integrations</span>
+<span className="mr-2 border-primary dark:border-primary-light bg-primary/10 text-primary text-xs dark:text-primary-light dark:bg-primary-light/10 rounded-xl px-2 py-1">
+  Agents
+</span>
+<span className="mr-2 border-primary dark:border-primary-light bg-primary/10 text-primary text-xs dark:text-primary-light dark:bg-primary-light/10 rounded-xl px-2 py-1">
+  Tools
+</span>
+<span className="mr-2 border-primary dark:border-primary-light bg-primary/10 text-primary text-xs dark:text-primary-light dark:bg-primary-light/10 rounded-xl px-2 py-1">
+  Network
+</span>
+<span className="mr-2 border-primary dark:border-primary-light bg-primary/10 text-primary text-xs dark:text-primary-light dark:bg-primary-light/10 rounded-xl px-2 py-1">
+  Integrations
+</span>
 
 </Card>
 
@@ -298,7 +306,8 @@ const webSearchAgent = createAgent({
 <Info>
   These 4 AgentKit tools using Stagehand enables the Web Search Agent to browse the web autonomously.
 
-  The `getStagehand()` helper function is used to retrieve the persisted instance created for the network execution (_see full code below_).
+The `getStagehand()` helper function is used to retrieve the persisted instance created for the network execution (_see full code below_).
+
 </Info>
 
 You will find the complete example on GitHub:
@@ -307,10 +316,17 @@ You will find the complete example on GitHub:
   This examples shows how to build tools using Stagehand to power a simple search agent.
 
 <br />
-<span className="mr-2 border-primary dark:border-primary-light bg-primary/10 text-primary text-xs dark:text-primary-light dark:bg-primary-light/10 rounded-xl px-2 py-1">Agents</span>
-<span className="mr-2 border-primary dark:border-primary-light bg-primary/10 text-primary text-xs dark:text-primary-light dark:bg-primary-light/10 rounded-xl px-2 py-1">Tools</span>
-<span className="mr-2 border-primary dark:border-primary-light bg-primary/10 text-primary text-xs dark:text-primary-light dark:bg-primary-light/10 rounded-xl px-2 py-1">Network</span>
-<span className="mr-2 border-primary dark:border-primary-light bg-primary/10 text-primary text-xs dark:text-primary-light dark:bg-primary-light/10 rounded-xl px-2 py-1">Integrations</span>
-
+<span className="mr-2 border-primary dark:border-primary-light bg-primary/10 text-primary text-xs dark:text-primary-light dark:bg-primary-light/10 rounded-xl px-2 py-1">
+  Agents
+</span>
+<span className="mr-2 border-primary dark:border-primary-light bg-primary/10 text-primary text-xs dark:text-primary-light dark:bg-primary-light/10 rounded-xl px-2 py-1">
+  Tools
+</span>
+<span className="mr-2 border-primary dark:border-primary-light bg-primary/10 text-primary text-xs dark:text-primary-light dark:bg-primary-light/10 rounded-xl px-2 py-1">
+  Network
+</span>
+<span className="mr-2 border-primary dark:border-primary-light bg-primary/10 text-primary text-xs dark:text-primary-light dark:bg-primary-light/10 rounded-xl px-2 py-1">
+  Integrations
+</span>
 
 </Card>
