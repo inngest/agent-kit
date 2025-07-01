@@ -7,6 +7,7 @@ import { Client as MCPClient } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
 import { WebSocketClientTransport } from "@modelcontextprotocol/sdk/client/websocket.js";
+import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { type Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import { ListToolsResultSchema } from "@modelcontextprotocol/sdk/types.js";
 import { EventSource } from "eventsource";
@@ -529,6 +530,18 @@ export class Agent<T extends StateData> {
           });
         case "ws":
           return new WebSocketClientTransport(new URL(server.transport.url));
+        case "stdio": {
+          const { command, args, env } = server.transport;
+          const safeProcessEnv = Object.fromEntries(
+            Object.entries(process.env).filter(([, v]) => v !== undefined)
+          ) as Record<string, string>;
+          const finalEnv = { ...safeProcessEnv, ...env };
+          return new StdioClientTransport({
+            command,
+            args,
+            env: finalEnv,
+          });
+        }
       }
     })();
 

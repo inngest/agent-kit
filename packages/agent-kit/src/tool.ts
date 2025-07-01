@@ -79,13 +79,18 @@ export namespace MCP {
     // name is a short name for the MCP server, eg. "github".  This allows
     // us to namespace tools for each MCP server.
     name: string;
-    transport: TransportSSE | TransportWebsocket | TransportStreamableHttp;
+    transport:
+      | TransportSSE
+      | TransportWebsocket
+      | TransportStreamableHttp
+      | TransportStdio;
   };
 
   export type Transport =
     | TransportSSE
     | TransportWebsocket
-    | TransportStreamableHttp;
+    | TransportStreamableHttp
+    | TransportStdio;
 
   export type TransportStreamableHttp = {
     type: "streamable-http";
@@ -94,6 +99,13 @@ export namespace MCP {
     reconnectionOptions?: StreamableHTTPReconnectionOptions;
     sessionId?: string;
     authProvider?: OAuthClientProvider;
+  };
+
+  export type TransportStdio = {
+    type: "stdio";
+    command: string;
+    args: string[];
+    env?: Record<string, string>;
   };
 
   export type TransportSSE = {
