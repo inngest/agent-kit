@@ -95,7 +95,7 @@ export const requestParser: AgenticModel.RequestParser<OpenAi.AiModel> = (
 
 /**
  * Parse a response from OpenAI output to internal network messages.
- * 
+ *
  * This function transforms OpenAI's response format into our internal Message format,
  * handling both text responses and tool calls. It processes multiple choices if present
  * and creates separate messages for text content and tool calls when both exist.
@@ -115,7 +115,7 @@ export const responseParser: AgenticModel.ResponseParser<OpenAi.AiModel> = (
   // OpenAI can return multiple choices, though typically only one is returned
   return (input?.choices ?? []).reduce<Message[]>((acc, choice) => {
     const { message, finish_reason } = choice;
-    
+
     // Skip empty messages - can happen in some edge cases
     if (!message) {
       return acc;
@@ -138,7 +138,7 @@ export const responseParser: AgenticModel.ResponseParser<OpenAi.AiModel> = (
         content: message.content,
       } as TextMessage);
     }
-    
+
     // Handle tool calls - create a separate tool_call message containing all tools
     // OpenAI can return multiple tool calls in a single response (parallel tool calling)
     if ((message.tool_calls?.length ?? 0) > 0) {
@@ -157,7 +157,7 @@ export const responseParser: AgenticModel.ResponseParser<OpenAi.AiModel> = (
         }),
       } as ToolCallMessage);
     }
-    
+
     return acc;
   }, []);
 };

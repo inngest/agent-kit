@@ -35,6 +35,7 @@ export const createState = <T extends StateData>(
  */
 export class State<T extends StateData> {
   public data: T;
+  public threadId?: string;
 
   private _data: T;
 
@@ -51,10 +52,11 @@ export class State<T extends StateData> {
    */
   private _messages: Message[];
 
-  constructor({ data, messages, results }: State.Constructor<T> = {}) {
+  constructor({ data, messages, threadId, results }: State.Constructor<T> = {}) {
     this._results = results || [];
     this._messages = messages || [];
     this._data = data ? { ...data } : ({} as T);
+    this.threadId = threadId;
 
     // Create a new proxy that allows us to intercept the setting of state.
     //
@@ -104,6 +106,30 @@ export class State<T extends StateData> {
   }
 
   /**
+   * Replaces all results with the provided array
+   * used when loading initial results from history.get()
+   */
+  setResults(results: AgentResult[]) {
+    this._results = results;
+  }
+
+  /**
+   * Returns a slice of results from the given start index
+   * used when saving results to a database via history.appendResults()
+   */
+  getResultsFrom(startIndex: number): AgentResult[] {
+    return this._results.slice(startIndex);
+  }
+
+  /**
+   * Messages returns a new array containing all initial messages that were
+   * provided to the constructor. This array is safe to modify.
+   */
+  get messages(): Message[] {
+    return this._messages.slice();
+  }
+
+  /**
    * formatHistory returns the memory used for agentic calls based off of prior
    * agentic calls.
    *
@@ -137,6 +163,7 @@ export class State<T extends StateData> {
   clone() {
     const state = new State<T>({
       data: this.data,
+      threadId: this.threadId,
       messages: this._messages.slice(),
       results: this._results.slice(),
     });
@@ -178,6 +205,11 @@ export namespace State {
      * after the system and user message to each agent.
      */
     messages?: Message[];
+
+    /**
+     * threadId is the unique identifier for a conversation thread.
+     */
+    threadId?: string;
   };
 }
 

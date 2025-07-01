@@ -7,6 +7,7 @@ import { Client as MCPClient } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
 import { WebSocketClientTransport } from "@modelcontextprotocol/sdk/client/websocket.js";
+import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { type Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import { ListToolsResultSchema } from "@modelcontextprotocol/sdk/types.js";
 import { EventSource } from "eventsource";
@@ -26,6 +27,12 @@ import {
   isInngestFn,
   type MaybePromise,
 } from "./util";
+import {
+  type HistoryConfig,
+  initializeThread,
+  loadThreadFromStorage,
+  saveThreadToStorage,
+} from "./history";
 
 /**
  * Agent represents a single agent, responsible for a set of tasks.
@@ -94,6 +101,11 @@ export class Agent<T extends StateData> {
    */
   mcpServers?: MCP.Server[];
 
+  /**
+   * history configuration for managing conversation history
+   */
+  private history?: HistoryConfig<T>;
+
   // _mcpInit records whether the MCP tool list has been initialized.
   private _mcpClients: MCPClient[];
 
@@ -106,6 +118,7 @@ export class Agent<T extends StateData> {
     this.tool_choice = opts.tool_choice;
     this.lifecycles = opts.lifecycle;
     this.model = opts.model;
+    this.history = opts.history;
     this.setTools(opts.tools);
     this.mcpServers = opts.mcpServers;
     this._mcpClients = [];
@@ -183,6 +196,23 @@ export class Agent<T extends StateData> {
       s
     );
 
+    // Initialize conversation thread: Creates a new thread or auto-generates if needed
+    await initializeThread({
+      state: s,
+      history: this.history,
+      input,
+      network: run,
+    });
+
+    // Load existing conversation history from storage: If threadId exists and history.get() is configured
+    await loadThreadFromStorage({
+      state: s,
+      history: this.history,
+      input,
+      network: run,
+    });
+
+    // Get formatted history and initial prompt
     let history = s ? s.formatHistory() : [];
     let prompt = await this.agentPrompt(input, run);
     let result = new AgentResult(
@@ -196,6 +226,9 @@ export class Agent<T extends StateData> {
     );
     let hasMoreActions = true;
     let iter = 0;
+
+    // Store initial result count to track new results
+    const initialResultCount = s.results.length;
 
     do {
       // Call lifecycles each time we perform inference.
@@ -240,6 +273,17 @@ export class Agent<T extends StateData> {
 
     // Note that the routing lifecycles aren't called by the agent.  They're called
     // by the network.
+
+    // Save new conversation results to storage: Persists only the new AgentResults
+    // generated during this run (excluding any historical results that were loaded).
+    // This allows the conversation to be continued in future runs with full context.
+    await saveThreadToStorage({
+      state: s,
+      history: this.history,
+      input,
+      initialResultCount,
+      network: run,
+    });
 
     return result;
   }
@@ -486,6 +530,18 @@ export class Agent<T extends StateData> {
           });
         case "ws":
           return new WebSocketClientTransport(new URL(server.transport.url));
+        case "stdio": {
+          const { command, args, env } = server.transport;
+          const safeProcessEnv = Object.fromEntries(
+            Object.entries(process.env).filter(([, v]) => v !== undefined)
+          ) as Record<string, string>;
+          const finalEnv = { ...safeProcessEnv, ...env };
+          return new StdioClientTransport({
+            command,
+            args,
+            env: finalEnv,
+          });
+        }
       }
     })();
 
@@ -543,6 +599,7 @@ export namespace Agent {
     lifecycle?: Lifecycle<T>;
     model?: AiAdapter.Any;
     mcpServers?: MCP.Server[];
+    history?: HistoryConfig<T>;
   }
 
   export interface RoutingConstructor<T extends StateData>
