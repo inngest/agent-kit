@@ -11,7 +11,7 @@ AgentKit enables persistent conversations that maintain context across multiple 
 
 <Note>
   AgentKit is database-agnostic. You can use PostgreSQL, MongoDB, Redis, or any
-  storage solution by implementing the simple `HistoryConfig` interface.
+  storage solution by implementing the `HistoryConfig` interface.
 </Note>
 
 ## How History Adapters Work
@@ -39,6 +39,125 @@ interface HistoryConfig<T extends StateData> {
 }
 ```
 
+### Usage
+
+Here's a complete example of creating a network with history persistence:
+
+```typescript
+import {
+  createNetwork,
+  createAgent,
+  createState,
+  openai,
+} from "@inngest/agent-kit";
+import { db } from "./db"; // Your database client
+
+// Define your history adapter with all three methods
+const conversationHistoryAdapter: HistoryConfig<any> = {
+  // 1. Create new conversation threads
+  createThread: async ({ state, input }) => {
+    const thread = await db.thread.create({
+      data: {
+        userId: state.data.userId,
+        title: input.slice(0, 50), // First 50 chars as title
+        createdAt: new Date(),
+      },
+    });
+    return { threadId: thread.id };
+  },
+
+  // 2. Load conversation history
+  get: async ({ threadId }) => {
+    if (!threadId) return [];
+
+    const messages = await db.message.findMany({
+      where: { threadId },
+      orderBy: { createdAt: "asc" },
+    });
+
+    // Transform database records to AgentResult format
+    return messages
+      .filter((msg) => msg.role === "assistant")
+      .map((msg) => ({
+        agentName: msg.agentName,
+        output: [
+          {
+            type: "text" as const,
+            role: "assistant" as const,
+            content: msg.content,
+          },
+        ],
+        toolCalls: [],
+        createdAt: new Date(msg.createdAt),
+      }));
+  },
+
+  // 3. Save new messages
+  appendResults: async ({ threadId, newResults, userMessage }) => {
+    if (!threadId) return;
+
+    // Save user message
+    if (userMessage) {
+      await db.message.create({
+        data: {
+          threadId,
+          role: "user",
+          content: userMessage.content,
+          createdAt: userMessage.timestamp,
+        },
+      });
+    }
+
+    // Save agent responses
+    for (const result of newResults) {
+      const content = result.output
+        .filter((msg) => msg.type === "text")
+        .map((msg) => msg.content)
+        .join("\n");
+
+      await db.message.create({
+        data: {
+          threadId,
+          role: "assistant",
+          agentName: result.agentName,
+          content,
+          createdAt: result.createdAt,
+        },
+      });
+    }
+  },
+};
+
+// Create agents
+const researcher = createAgent({
+  name: "researcher",
+  description: "Searches for information",
+  model: openai({ model: "gpt-4" }),
+});
+
+const writer = createAgent({
+  name: "writer",
+  description: "Writes comprehensive responses",
+  model: openai({ model: "gpt-4" }),
+});
+
+// Create network with history configuration
+const assistantNetwork = createNetwork({
+  name: "Research Assistant",
+  agents: [researcher, writer],
+  defaultModel: openai({ model: "gpt-4" }),
+  history: conversationHistoryAdapter, // Add history adapter here
+});
+
+// Use the network - conversations will be automatically persisted
+const state = createState(
+  { userId: "user-123" },
+  { threadId: "existing-thread-id" } // Optional: continue existing conversation
+);
+
+await assistantNetwork.run("Tell me about quantum computing", { state });
+```
+
 ### The Three Core Methods
 
 #### 1. `createThread` (Optional)
@@ -55,100 +174,9 @@ interface HistoryConfig<T extends StateData> {
 
 #### 3. `appendResults` (Optional)
 
-- **Purpose**: Saves new messages from the current turn to your database
+- **Purpose**: Saves new messages to your database after a network or agent run
 - **When called**: At the end of a successful agent or network run
 - **Receives**: Only the _new_ results generated during this run (prevents duplicates)
-
-## Implementation Example
-
-Here's an example of a history adapter using Inngest's durable `step` function:
-
-```typescript
-import { type HistoryConfig, type AgentResult } from "@inngest/agent-kit";
-import { db } from "./db"; // Your database client
-
-const postgresHistoryAdapter: HistoryConfig<any> = {
-  // 1. Create a new thread durably
-  createThread: async ({ step, state }) => {
-    const { threadId } = await step.run("create-thread-in-db", async () => {
-      const newThread = await db
-        .insertInto("threads")
-        .values({
-          userId: state.data.userId,
-          createdAt: new Date(),
-        })
-        .returning("id")
-        .execute();
-      return { threadId: newThread.id };
-    });
-    return { threadId };
-  },
-
-  // 2. Get messages for a thread durably
-  get: async ({ step, threadId }) => {
-    if (!threadId) return [];
-
-    const messages = await step.run("fetch-history-from-db", async () => {
-      const historicalMessages = await db
-        .selectFrom("messages")
-        .where("threadId", "=", threadId)
-        .orderBy("createdAt", "asc")
-        .selectAll()
-        .execute();
-
-      // Transform your database records into AgentResult[]
-      return transformToAgentResults(historicalMessages);
-    });
-
-    return messages;
-  },
-
-  // 3. Append new messages to a thread durably
-  appendResults: async ({ step, threadId, newResults, userMessage }) => {
-    if (!threadId) return;
-
-    await step.run("append-results-to-db", async () => {
-      await db.transaction(async (tx) => {
-        // Save user message first (if provided)
-        if (userMessage) {
-          await tx
-            .insertInto("messages")
-            .values({
-              threadId,
-              role: "user",
-              content: userMessage.content,
-              createdAt: userMessage.timestamp,
-            })
-            .execute();
-        }
-
-        // Save agent results
-        for (const result of newResults) {
-          await tx
-            .insertInto("messages")
-            .values({
-              threadId,
-              role: "assistant",
-              content: JSON.stringify(result.output),
-              agentName: result.agentName,
-              createdAt: result.createdAt,
-            })
-            .execute();
-        }
-      });
-    });
-  },
-};
-
-// Helper function to transform DB records to AgentResults
-function transformToAgentResults(dbMessages: any[]): AgentResult[] {
-  // Implementation depends on your database schema
-  return dbMessages.map((msg) => {
-    // Transform your database record into AgentResult format
-    // This is specific to your schema
-  });
-}
-```
 
 ## Using the History Adapter
 
@@ -199,7 +227,7 @@ AgentKit supports two powerful patterns for managing conversation history:
 
 ### Server-Authoritative
 
-The client sends a message with a `threadId`. AgentKit automatically loads the full conversation context from your database before the agent runs.
+The client sends a message with a `threadId`. AgentKit automatically loads the full conversation context from your database before the network runs.
 
 ```typescript
 // Client sends just the threadId
@@ -208,8 +236,8 @@ const state = createState(
   { threadId: "existing-thread-id" }
 );
 
-await agent.run("Continue our conversation", { state });
-// AgentKit calls history.get() to load full context
+await chatNetwork.run("Continue our conversation", { state });
+// AgentKit calls history.get() to load full context for all agents
 ```
 
 **Use case**: Perfect for restoring conversations after page refresh or when opening the app on a new device.
@@ -228,7 +256,7 @@ const state = createState(
   }
 );
 
-await agent.run("New message", { state });
+await chatNetwork.run("New message", { state });
 // AgentKit skips history.get() call - faster performance!
 // Still calls history.appendResults() to save new messages
 ```
