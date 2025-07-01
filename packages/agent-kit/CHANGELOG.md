@@ -1,5 +1,11 @@
 # @inngest/agent-kit
 
+## 0.8.4
+
+### Patch Changes
+
+- fed9545: fixed deserialization of state losing messages and results in Inngest context
+
 ## 0.8.3
 
 ### Patch Changes
