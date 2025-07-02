@@ -33,6 +33,7 @@ import {
   loadThreadFromStorage,
   saveThreadToStorage,
 } from "./history";
+import { type HistoryProcessor, applyProcessors } from "./processors";
 
 /**
  * Agent represents a single agent, responsible for a set of tasks.
@@ -104,7 +105,14 @@ export class Agent<T extends StateData> {
   /**
    * history configuration for managing conversation history
    */
-  private history?: HistoryConfig<T>;
+  protected history?: HistoryConfig<T>;
+
+  /**
+   * processors are history processors that will be applied to message history
+   * before it is sent to the LLM. These run at the agent level and are applied
+   * after network and history-level processors.
+   */
+  public processors?: HistoryProcessor[];
 
   // _mcpInit records whether the MCP tool list has been initialized.
   private _mcpClients: MCPClient[];
@@ -119,6 +127,7 @@ export class Agent<T extends StateData> {
     this.lifecycles = opts.lifecycle;
     this.model = opts.model;
     this.history = opts.history;
+    this.processors = opts.processors;
     this.setTools(opts.tools);
     this.mcpServers = opts.mcpServers;
     this._mcpClients = [];
@@ -168,6 +177,8 @@ export class Agent<T extends StateData> {
       tools: Array.from(this.tools.values()),
       lifecycle: this.lifecycles,
       model,
+      history: this.history,
+      processors: this.processors,
     });
   }
 
@@ -214,6 +225,18 @@ export class Agent<T extends StateData> {
 
     // Get formatted history and initial prompt
     let history = s ? s.formatHistory() : [];
+    
+    // Apply processors to history (HistoryConfig -> Network -> Agent)
+    const allProcessors = [
+      ...(this.history?.processors || []),
+      ...(network?.processors || []),
+      ...(this.processors || [])
+    ];
+    
+    if (allProcessors.length > 0) {
+      history = await applyProcessors(history, allProcessors);
+    }
+    
     let prompt = await this.agentPrompt(input, run);
     let result = new AgentResult(
       this.name,
@@ -582,6 +605,8 @@ export class RoutingAgent<T extends StateData> extends Agent<T> {
       tools: Array.from(this.tools.values()),
       lifecycle: this.lifecycles,
       model,
+      history: this.history,
+      processors: this.processors,
     });
   }
 }
@@ -600,6 +625,7 @@ export namespace Agent {
     model?: AiAdapter.Any;
     mcpServers?: MCP.Server[];
     history?: HistoryConfig<T>;
+    processors?: HistoryProcessor[];
   }
 
   export interface RoutingConstructor<T extends StateData>

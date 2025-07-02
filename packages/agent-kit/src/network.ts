@@ -11,6 +11,7 @@ import {
   loadThreadFromStorage,
   saveThreadToStorage,
 } from "./history";
+import { type HistoryProcessor } from "./processors";
 
 /**
  * Network represents a network of agents.
@@ -73,6 +74,13 @@ export class Network<T extends StateData> {
    */
   public history?: HistoryConfig<T>;
 
+  /**
+   * processors are history processors that will be applied to message history
+   * before it is sent to agents. These run at the network level and apply to
+   * all agents in this network.
+   */
+  public processors?: HistoryProcessor[];
+
   constructor({
     name,
     description,
@@ -83,6 +91,7 @@ export class Network<T extends StateData> {
     router,
     defaultRouter,
     history,
+    processors,
   }: Network.Constructor<T>) {
     this.name = name;
     this.description = description;
@@ -93,6 +102,7 @@ export class Network<T extends StateData> {
     this.maxIter = maxIter || 0;
     this._stack = [];
     this.history = history;
+    this.processors = processors;
 
     if (defaultState) {
       this.state = defaultState;
@@ -284,6 +294,7 @@ export namespace Network {
     router?: Router<T>;
     defaultRouter?: Router<T>;
     history?: HistoryConfig<T>;
+    processors?: HistoryProcessor[];
   };
 
   export type RunArgs<T extends StateData> = [
@@ -365,6 +376,7 @@ export class NetworkRun<T extends StateData> extends Network<T> {
       router: network.router,
       maxIter: network.maxIter,
       history: network.history,
+      processors: network.processors,
     });
 
     this.state = state;
