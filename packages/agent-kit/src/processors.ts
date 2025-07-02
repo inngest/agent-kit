@@ -1,6 +1,16 @@
 import type { Message } from "./types";
 import type { MaybePromise } from "./util";
 
+// Define tiktoken types locally to avoid adding it as a dependency
+interface TiktokenEncoder {
+  encode(text: string): number[];
+  decode(tokens: number[]): Uint8Array;
+}
+
+interface Tiktoken {
+  get_encoding(encoding: string): TiktokenEncoder;
+}
+
 /**
  * Base class for history processors that transform message arrays before they are sent to the LLM.
  * Processors are executed in sequence, with the output of one processor becoming the input of the next.
@@ -54,24 +64,32 @@ export class ToolCallFilter extends HistoryProcessor {
     return this.filterByExclude(messages, toolsToExclude, persistResults);
   }
 
-  private filterByInclude(messages: Message[], include: string[], persistResults: boolean): Message[] {
+  private filterByInclude(
+    messages: Message[],
+    include: string[],
+    persistResults: boolean
+  ): Message[] {
     const result: Message[] = [];
     const excludedToolCallIds = new Set<string>();
 
     for (const message of messages) {
       if (message.type === "tool_call") {
         // Check if any tools in this message should be excluded
-        const toolsToKeep = message.tools.filter(tool => include.includes(tool.name));
-        const toolsToExclude = message.tools.filter(tool => !include.includes(tool.name));
+        const toolsToKeep = message.tools.filter((tool) =>
+          include.includes(tool.name)
+        );
+        const toolsToExclude = message.tools.filter(
+          (tool) => !include.includes(tool.name)
+        );
 
         // Track excluded tool call IDs
-        toolsToExclude.forEach(tool => excludedToolCallIds.add(tool.id));
+        toolsToExclude.forEach((tool) => excludedToolCallIds.add(tool.id));
 
         if (toolsToKeep.length > 0) {
           // Keep the message but only with included tools
           result.push({
             ...message,
-            tools: toolsToKeep
+            tools: toolsToKeep,
           });
         } else if (persistResults && toolsToExclude.length > 0) {
           // Replace with summary message
@@ -92,7 +110,11 @@ export class ToolCallFilter extends HistoryProcessor {
     return result;
   }
 
-  private filterByExclude(messages: Message[], exclude: string[] | "all", persistResults: boolean): Message[] {
+  private filterByExclude(
+    messages: Message[],
+    exclude: string[] | "all",
+    persistResults: boolean
+  ): Message[] {
     const result: Message[] = [];
     const excludedToolCallIds = new Set<string>();
 
@@ -100,23 +122,27 @@ export class ToolCallFilter extends HistoryProcessor {
       if (message.type === "tool_call") {
         if (exclude === "all") {
           // Exclude all tool calls
-          message.tools.forEach(tool => excludedToolCallIds.add(tool.id));
+          message.tools.forEach((tool) => excludedToolCallIds.add(tool.id));
           if (persistResults) {
             const summary = this.createSummaryMessage(message.tools);
             result.push(summary);
           }
         } else {
           // Exclude specific tools
-          const toolsToKeep = message.tools.filter(tool => !exclude.includes(tool.name));
-          const toolsToExclude = message.tools.filter(tool => exclude.includes(tool.name));
+          const toolsToKeep = message.tools.filter(
+            (tool) => !exclude.includes(tool.name)
+          );
+          const toolsToExclude = message.tools.filter((tool) =>
+            exclude.includes(tool.name)
+          );
 
           // Track excluded tool call IDs
-          toolsToExclude.forEach(tool => excludedToolCallIds.add(tool.id));
+          toolsToExclude.forEach((tool) => excludedToolCallIds.add(tool.id));
 
           if (toolsToKeep.length > 0) {
             result.push({
               ...message,
-              tools: toolsToKeep
+              tools: toolsToKeep,
             });
           }
 
@@ -139,17 +165,20 @@ export class ToolCallFilter extends HistoryProcessor {
     return result;
   }
 
-  private createSummaryMessage(tools: Array<{ name: string; input: Record<string, unknown> }>): Message {
-    const toolNames = tools.map(t => t.name).join(", ");
-    const summary = tools.length === 1 
-      ? `Used **${tools[0]!.name}** tool`
-      : `Used tools: ${toolNames}`;
+  private createSummaryMessage(
+    tools: Array<{ name: string; input: Record<string, unknown> }>
+  ): Message {
+    const toolNames = tools.map((t) => t.name).join(", ");
+    const summary =
+      tools.length === 1
+        ? `Used **${tools[0]!.name}** tool`
+        : `Used tools: ${toolNames}`;
 
     return {
       type: "text",
       role: "assistant",
       content: summary,
-      stop_reason: "stop"
+      stop_reason: "stop",
     };
   }
 }
@@ -157,12 +186,12 @@ export class ToolCallFilter extends HistoryProcessor {
 /**
  * Supported tokenizer encodings with type safety
  */
-export type TokenizerEncoding = 
-  | "o200k_base"    // GPT-4o, GPT-4o-mini
-  | "cl100k_base"   // GPT-4, GPT-3.5-turbo, text-embedding-ada-002
-  | "p50k_base"     // Codex models, text-davinci-002, text-davinci-003
-  | "r50k_base"     // GPT-3 models (davinci, curie, babbage, ada)
-  | "gpt2";         // GPT-2 models
+export type TokenizerEncoding =
+  | "o200k_base" // GPT-4o, GPT-4o-mini
+  | "cl100k_base" // GPT-4, GPT-3.5-turbo, text-embedding-ada-002
+  | "p50k_base" // Codex models, text-davinci-002, text-davinci-003
+  | "r50k_base" // GPT-3 models (davinci, curie, babbage, ada)
+  | "gpt2"; // GPT-2 models
 
 /**
  * Token counting function interface
@@ -196,12 +225,18 @@ export class ApproximateTokenizer implements Tokenizer {
     // Approximate characters per token for different encodings
     // These are rough estimates based on English text
     switch (encoding) {
-      case "o200k_base": return 4.2; // GPT-4o tends to be more efficient
-      case "cl100k_base": return 4.0; // GPT-4 standard
-      case "p50k_base": return 3.8;   // Code-focused models
-      case "r50k_base": return 3.5;   // Older GPT-3 models
-      case "gpt2": return 3.2;        // GPT-2 is less efficient
-      default: return 4.0;
+      case "o200k_base":
+        return 4.2; // GPT-4o tends to be more efficient
+      case "cl100k_base":
+        return 4.0; // GPT-4 standard
+      case "p50k_base":
+        return 3.8; // Code-focused models
+      case "r50k_base":
+        return 3.5; // Older GPT-3 models
+      case "gpt2":
+        return 3.2; // GPT-2 is less efficient
+      default:
+        return 4.0;
     }
   }
 
@@ -237,9 +272,10 @@ export class TokenizerFactory {
   private static createTiktoken(encoding: TokenizerEncoding): Tokenizer | null {
     try {
       // Try to load tiktoken dynamically
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const tiktoken = require("tiktoken");
-      
+
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const tiktoken = require("tiktoken") as Tiktoken;
+
       if (this.tiktokenCache.has(encoding)) {
         return this.tiktokenCache.get(encoding)!;
       }
@@ -249,7 +285,8 @@ export class TokenizerFactory {
         encoding,
         count: (text: string) => enc.encode(text).length,
         encode: (text: string) => enc.encode(text),
-        decode: (tokens: number[]) => new TextDecoder().decode(enc.decode(tokens))
+        decode: (tokens: number[]) =>
+          new TextDecoder().decode(enc.decode(tokens)),
       };
 
       this.tiktokenCache.set(encoding, tokenizer);
@@ -265,6 +302,7 @@ export class TokenizerFactory {
    */
   static get hasTiktoken(): boolean {
     try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
       require("tiktoken");
       return true;
     } catch {
@@ -279,14 +317,14 @@ export class TokenizerFactory {
 export interface TokenLimiterOptions {
   /** Maximum number of tokens to allow in the history */
   limit: number;
-  
+
   /** Tokenizer encoding to use - provides autocomplete and type safety */
   encoding?: TokenizerEncoding;
-  
+
   /** Custom tokenizer implementation (overrides encoding) */
   tokenizer?: Tokenizer;
-  
-  /** 
+
+  /**
    * Whether to use tiktoken if available (default: true)
    * Set to false to force approximation tokenizer
    */
@@ -296,22 +334,22 @@ export interface TokenLimiterOptions {
 /**
  * Processor that limits the total number of tokens in the message history.
  * Removes the oldest messages until the total token count is below the specified limit.
- * 
+ *
  * Supports multiple tokenizer backends:
  * - tiktoken (accurate, requires optional dependency)
  * - Approximation (fast, built-in fallback)
- * 
+ *
  * @example
  * ```typescript
  * // Use default tokenizer (tiktoken if available, approximation otherwise)
  * new TokenLimiter(8000)
- * 
+ *
  * // Specify encoding with type safety
  * new TokenLimiter({ limit: 8000, encoding: "cl100k_base" })
- * 
+ *
  * // Force approximation tokenizer
  * new TokenLimiter({ limit: 8000, useTiktoken: false })
- * 
+ *
  * // Use custom tokenizer
  * const customTokenizer = new MyCustomTokenizer();
  * new TokenLimiter({ limit: 8000, tokenizer: customTokenizer })
@@ -323,14 +361,19 @@ export class TokenLimiter extends HistoryProcessor {
 
   constructor(limitOrOptions: number | TokenLimiterOptions) {
     super({ name: "TokenLimiter" });
-    
+
     if (typeof limitOrOptions === "number") {
       this.limit = limitOrOptions;
       this.tokenizer = TokenizerFactory.create("o200k_base");
     } else {
-      const { limit, encoding = "o200k_base", tokenizer, useTiktoken = true } = limitOrOptions;
+      const {
+        limit,
+        encoding = "o200k_base",
+        tokenizer,
+        useTiktoken = true,
+      } = limitOrOptions;
       this.limit = limit;
-      
+
       if (tokenizer) {
         // Use provided custom tokenizer
         this.tokenizer = tokenizer;
@@ -351,7 +394,7 @@ export class TokenLimiter extends HistoryProcessor {
     return {
       encoding: this.tokenizer.encoding,
       type: this.tokenizer.constructor.name,
-      hasTiktoken: TokenizerFactory.hasTiktoken
+      hasTiktoken: TokenizerFactory.hasTiktoken,
     };
   }
 
@@ -359,7 +402,11 @@ export class TokenLimiter extends HistoryProcessor {
     const getMessageTokenCount = (message: Message): number => {
       switch (message.type) {
         case "text":
-          return this.tokenizer.count(typeof message.content === "string" ? message.content : JSON.stringify(message.content));
+          return this.tokenizer.count(
+            typeof message.content === "string"
+              ? message.content
+              : JSON.stringify(message.content)
+          );
         case "tool_call":
           return this.tokenizer.count(JSON.stringify(message.tools));
         case "tool_result":
@@ -372,14 +419,14 @@ export class TokenLimiter extends HistoryProcessor {
     // Group messages into segments, ensuring tool_call/tool_result pairs stay together
     const segments: { messages: Message[]; tokenCount: number }[] = [];
     let currentSegment: Message[] = [];
-    let pendingToolCallIds = new Set<string>();
+    const pendingToolCallIds = new Set<string>();
 
     for (const message of messages) {
       currentSegment.push(message);
 
       if (message.type === "tool_call") {
         // Track tool call IDs that need corresponding results
-        message.tools.forEach(tool => pendingToolCallIds.add(tool.id));
+        message.tools.forEach((tool) => pendingToolCallIds.add(tool.id));
       } else if (message.type === "tool_result") {
         // Remove the tool call ID as it now has a result
         pendingToolCallIds.delete(message.tool.id);
@@ -387,10 +434,13 @@ export class TokenLimiter extends HistoryProcessor {
 
       // If we have no pending tool calls, we can close this segment
       if (pendingToolCallIds.size === 0 && currentSegment.length > 0) {
-        const segmentTokenCount = currentSegment.reduce((sum, msg) => sum + getMessageTokenCount(msg), 0);
+        const segmentTokenCount = currentSegment.reduce(
+          (sum, msg) => sum + getMessageTokenCount(msg),
+          0
+        );
         segments.push({
           messages: [...currentSegment],
-          tokenCount: segmentTokenCount
+          tokenCount: segmentTokenCount,
         });
         currentSegment = [];
       }
@@ -398,15 +448,21 @@ export class TokenLimiter extends HistoryProcessor {
 
     // Handle any remaining messages in the current segment
     if (currentSegment.length > 0) {
-      const segmentTokenCount = currentSegment.reduce((sum, msg) => sum + getMessageTokenCount(msg), 0);
+      const segmentTokenCount = currentSegment.reduce(
+        (sum, msg) => sum + getMessageTokenCount(msg),
+        0
+      );
       segments.push({
         messages: [...currentSegment],
-        tokenCount: segmentTokenCount
+        tokenCount: segmentTokenCount,
       });
     }
 
     // Calculate total tokens
-    const totalTokens = segments.reduce((sum, segment) => sum + segment.tokenCount, 0);
+    const totalTokens = segments.reduce(
+      (sum, segment) => sum + segment.tokenCount,
+      0
+    );
 
     // If we're under the limit, return all messages
     if (totalTokens <= this.limit) {
@@ -429,7 +485,7 @@ export class TokenLimiter extends HistoryProcessor {
     }
 
     // Flatten the kept segments back into a message array
-    return segmentsToKeep.flatMap(segment => segment.messages);
+    return segmentsToKeep.flatMap((segment) => segment.messages);
   }
 }
 
@@ -441,10 +497,10 @@ export async function applyProcessors(
   processors: HistoryProcessor[]
 ): Promise<Message[]> {
   let result = messages;
-  
+
   for (const processor of processors) {
     result = await processor.process(result);
   }
-  
+
   return result;
-} 
+}

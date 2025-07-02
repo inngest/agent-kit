@@ -225,18 +225,18 @@ export class Agent<T extends StateData> {
 
     // Get formatted history and initial prompt
     let history = s ? s.formatHistory() : [];
-    
+
     // Apply processors to history (HistoryConfig -> Network -> Agent)
     const allProcessors = [
       ...(this.history?.processors || []),
       ...(network?.processors || []),
-      ...(this.processors || [])
+      ...(this.processors || []),
     ];
-    
+
     if (allProcessors.length > 0) {
       history = await applyProcessors(history, allProcessors);
     }
-    
+
     let prompt = await this.agentPrompt(input, run);
     let result = new AgentResult(
       this.name,
