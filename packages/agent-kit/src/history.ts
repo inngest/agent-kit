@@ -3,6 +3,7 @@ import { type State, type StateData } from "./state";
 import { type AgentResult } from "./types";
 import { type GetStepTools, type Inngest } from "inngest";
 import { type MaybePromise, getStepTools } from "./util";
+import { type HistoryProcessor } from "./processors";
 
 /**
  * History configuration for managing conversation history in agents and networks.
@@ -87,6 +88,27 @@ export interface HistoryConfig<T extends StateData> {
       };
     }
   ) => Promise<void>;
+
+  /**
+   * processors is an array of history processors that will be applied to the
+   * message history before it is sent to the LLM. Processors are executed in
+   * sequence, with the output of one processor becoming the input of the next.
+   *
+   * These processors run at the history configuration level and apply to all
+   * agents and networks that use this history configuration. For more granular
+   * control, processors can also be specified at the network and agent level.
+   *
+   * @example
+   * ```typescript
+   * const historyConfig = {
+   *   processors: [
+   *     new ToolCallFilter({ exclude: ["debug_tool"] }),
+   *     new TokenLimiter(8000)
+   *   ]
+   * };
+   * ```
+   */
+  processors?: HistoryProcessor[];
 }
 
 export namespace History {
