@@ -12,7 +12,7 @@
     "@inngest/agent-kit": "^0.8.0",
     "@inngest/realtime": "^0.3.1",
     "inngest": "^3.38.0",
-    "next": "15.3.2",
+    "next": "15.3.4",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
