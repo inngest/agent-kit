@@ -363,25 +363,81 @@ export class Agent<T extends StateData> {
         // human in the loop tasks.
         //
 
-        const result = await Promise.resolve(
-          found.handler(tool.input, {
+        // Call beforeToolExecution hook if available
+        let toolInput = tool.input;
+        let shouldCancel = false;
+
+        if (this.lifecycles?.beforeToolExecution) {
+          const beforeResult = await this.lifecycles.beforeToolExecution({
             agent: this,
             network,
-            step: await getStepTools(),
-          })
-        )
-          .then((r) => {
-            return {
-              // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-              data:
-                typeof r === "undefined"
-                  ? `${tool.name} successfully executed`
-                  : r,
-            };
-          })
-          .catch((err) => {
-            return { error: serializeError(err) };
+            toolName: tool.name,
+            tool: found,
+            input: tool.input,
+            toolCallId: tool.id,
           });
+
+          if (beforeResult.cancel) {
+            shouldCancel = true;
+          }
+          if (beforeResult.input != null) {
+            toolInput = beforeResult.input as typeof toolInput;
+          }
+        }
+
+        let result: { data?: unknown } | { error?: unknown };
+        const startTime = Date.now();
+
+        if (shouldCancel) {
+          result = {
+            data: `Tool execution cancelled by beforeToolExecution hook`,
+          };
+        } else {
+          result = await Promise.resolve(
+            found.handler(toolInput, {
+              agent: this,
+              network,
+              step: await getStepTools(),
+            })
+          )
+            .then((r) => {
+              return {
+                // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+                data:
+                  typeof r === "undefined"
+                    ? `${tool.name} successfully executed`
+                    : r,
+              };
+            })
+            .catch((err) => {
+              return { error: serializeError(err) };
+            });
+        }
+
+        const duration = Date.now() - startTime;
+
+        // Call afterToolExecution hook if available
+        if (this.lifecycles?.afterToolExecution) {
+          const afterResult = await this.lifecycles.afterToolExecution({
+            agent: this,
+            network,
+            toolName: tool.name,
+            tool: found,
+            input: toolInput,
+            toolCallId: tool.id,
+            result,
+            duration,
+          });
+
+          if (
+            afterResult.data !== undefined ||
+            afterResult.error !== undefined
+          ) {
+            result = afterResult.error
+              ? { error: afterResult.error }
+              : { data: afterResult.data };
+          }
+        }
 
         output.push({
           role: "tool_result",
@@ -390,7 +446,7 @@ export class Agent<T extends StateData> {
             type: "tool",
             id: tool.id,
             name: tool.name,
-            input: tool.input.arguments as Record<string, unknown>,
+            input: toolInput || {},
           },
 
           content: result,
@@ -672,6 +728,30 @@ export namespace Agent {
     onFinish?: (
       args: Agent.LifecycleArgs.Result<T>
     ) => MaybePromise<AgentResult>;
+
+    /**
+     * beforeToolExecution is called before a tool is executed.
+     * This allows you to intercept, modify, or cancel tool execution.
+     * Returning { cancel: true } will skip the tool execution.
+     * You can also add delays or wait for external events here.
+     */
+    beforeToolExecution?: (
+      args: Agent.LifecycleArgs.ToolExecution<T>
+    ) => MaybePromise<{
+      cancel?: boolean;
+      input?: unknown;
+    }>;
+
+    /**
+     * afterToolExecution is called after a tool has been executed.
+     * This allows you to modify the tool result or perform additional actions.
+     */
+    afterToolExecution?: (
+      args: Agent.LifecycleArgs.ToolExecutionResult<T>
+    ) => MaybePromise<{
+      data?: unknown;
+      error?: unknown;
+    }>;
   }
 
   export namespace LifecycleArgs {
@@ -697,6 +777,25 @@ export namespace Agent {
       // history is the past history as generated via State.  Ths will be added
       // after the prompt to form a single conversation log.
       history?: Message[];
+    }
+
+    export interface ToolExecution<T extends StateData> extends Base<T> {
+      // The name of the tool being executed
+      toolName: string;
+      // The tool instance
+      tool: Tool.Any;
+      // The input arguments for the tool
+      input: unknown;
+      // The tool call ID from the model
+      toolCallId: string;
+    }
+
+    export interface ToolExecutionResult<T extends StateData>
+      extends ToolExecution<T> {
+      // The result of the tool execution
+      result: { data?: unknown } | { error?: unknown };
+      // The duration of the tool execution in milliseconds
+      duration: number;
     }
   }
 
