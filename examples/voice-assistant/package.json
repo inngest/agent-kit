@@ -1,0 +1,46 @@
+{
+  "name": "voice-starter",
+  "private": true,
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "start": "tsx --watch ./index.ts",
+    "inngest-dev": "npx inngest-cli@latest dev"
+  },
+  "type": "module",
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@elevenlabs/elevenlabs-js": "^2.4.0",
+    "@inngest/agent-kit": "latest",
+    "@inngest/realtime": "^0.3.1",
+    "@jxa/run": "^1.4.0",
+    "@modelcontextprotocol/sdk": "^1.13.2",
+    "@picovoice/cobra-node": "^2.0.4",
+    "@picovoice/porcupine-node": "^3.0.6",
+    "@picovoice/pvrecorder-node": "^1.2.8",
+    "@smithery/sdk": "^1.5.2",
+    "cli-spinners": "^3.2.0",
+    "commander": "^14.0.0",
+    "inngest": "^3.39.1",
+    "install": "^0.13.0",
+    "js-tiktoken": "^1.0.20",
+    "mem0ai": "^2.1.33",
+    "npm": "^11.4.2",
+    "openai": "^5.7.0",
+    "pg": "^8.16.3",
+    "run-applescript": "^7.0.0",
+    "sherpa-onnx-node": "^1.12.3",
+    "speaker": "^0.5.5",
+    "wavefile": "^11.0.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@jxa/global-type": "^1.4.0",
+    "@types/node": "^22.9.1",
+    "dotenv": "^16.5.0",
+    "tsx": "^4.19.2"
+  }
+}

@@ -18,23 +18,27 @@ npx git-ripper https://github.com/inngest/agent-kit/tree/main/examples/quick-sta
 
 <Steps>
   <Step title="Install AgentKit">
-    Within an existing project, install AgentKit from npm:
+    Within an existing project, install AgentKit and Inngest from npm:
 
     <CodeGroup>
 
     ```shell npm
-    npm install @inngest/agent-kit
+    npm install @inngest/agent-kit inngest
     ```
 
     ```shell pnpm
-    pnpm install @inngest/agent-kit
+    pnpm install @inngest/agent-kit inngest
     ```
 
     ```shell yarn
-    yarn add @inngest/agent-kit
+    yarn add @inngest/agent-kit inngest
     ```
 
     </CodeGroup>
+
+    <Note>
+      **Important:** Starting with AgentKit v0.9.0, `inngest` is a required peer dependency. You must install both packages together to ensure proper runtime compatibility and prevent conflicts.
+    </Note>
 
     You can always find the latest release version on [npm](https://www.npmjs.com/package/@inngest/agent-kit).
 

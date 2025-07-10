@@ -1,5 +1,36 @@
 # @inngest/agent-kit
 
+## 0.9.0
+
+### Minor Changes
+
+- d9507fb: Added support for persistent conversation history via HistoryAdapters
+  Created an example NextJS app with realtime responses and thread management
+
+## 0.8.4
+
+### Patch Changes
+
+- fed9545: fixed deserialization of state losing messages and results in Inngest context
+
+## 0.8.3
+
+### Patch Changes
+
+- 2f56454: fixed issue with openai parser not handling responses with both text and tool call parts
+
+## 0.8.2
+
+### Patch Changes
+
+- f09cb8e: Adding recursive check for removing additionalProperties for gemini.
+
+## 0.8.1
+
+### Patch Changes
+
+- f476961: Fixed Gemini adapter response parsing & malformed function call handling
+
 ## 0.8.0
 
 ### Minor Changes

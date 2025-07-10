@@ -30,6 +30,8 @@
               "concepts/networks",
               "concepts/state",
               "concepts/routers",
+              "concepts/history",
+              "concepts/memory",
               "concepts/models",
               "concepts/deployment"
             ]

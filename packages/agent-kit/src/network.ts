@@ -3,8 +3,14 @@ import { z } from "zod";
 import { createRoutingAgent, type Agent, RoutingAgent } from "./agent";
 import { createState, State, type StateData } from "./state";
 import { createTool } from "./tool";
-import type { AgentResult } from "./types";
+import type { AgentResult, Message } from "./types";
 import { type MaybePromise } from "./util";
+import {
+  type HistoryConfig,
+  initializeThread,
+  loadThreadFromStorage,
+  saveThreadToStorage,
+} from "./history";
 
 /**
  * Network represents a network of agents.
@@ -54,11 +60,18 @@ export class Network<T extends StateData> {
 
   protected _counter = 0;
 
-  // _agents atores all egents.  note that you may not include eg. the
+  // _agents stores all agents.  note that you may not include eg. the
   // defaultRoutingAgent within the network constructor, and you may return an
   // agent in the router that's not included.  This is okay;  we store all
   // agents referenced in the router here.
   protected _agents: Map<string, Agent<T>>;
+
+  /**
+   * history config for managing thread creation and persistence
+   * used to create a new thread, load initial results/history and
+   * append new results to your database
+   */
+  public history?: HistoryConfig<T>;
 
   constructor({
     name,
@@ -69,6 +82,7 @@ export class Network<T extends StateData> {
     defaultState,
     router,
     defaultRouter,
+    history,
   }: Network.Constructor<T>) {
     this.name = name;
     this.description = description;
@@ -78,6 +92,7 @@ export class Network<T extends StateData> {
     this.router = defaultRouter ?? router;
     this.maxIter = maxIter || 0;
     this._stack = [];
+    this.history = history;
 
     if (defaultState) {
       this.state = defaultState;
@@ -128,10 +143,19 @@ export class Network<T extends StateData> {
       if (overrides.state instanceof State) {
         state = overrides.state;
       } else {
-        state = new State(overrides.state as T);
+        const stateObj = overrides.state as {
+          data?: T;
+          _messages?: Message[];
+          _results?: AgentResult[];
+        };
+        state = new State<T>({
+          data: stateObj.data || ({} as T),
+          messages: stateObj._messages || [],
+          results: stateObj._results || [],
+        });
       }
     } else {
-      state = this.state?.clone() || new State();
+      state = this.state?.clone() || new State<T>();
     }
 
     return new NetworkRun(this, state)["execute"](input, overrides);
@@ -259,6 +283,7 @@ export namespace Network {
     defaultState?: State<T>;
     router?: Router<T>;
     defaultRouter?: Router<T>;
+    history?: HistoryConfig<T>;
   };
 
   export type RunArgs<T extends StateData> = [
@@ -339,6 +364,7 @@ export class NetworkRun<T extends StateData> extends Network<T> {
       defaultState: network.state,
       router: network.router,
       maxIter: network.maxIter,
+      history: network.history,
     });
 
     this.state = state;
@@ -362,10 +388,34 @@ export class NetworkRun<T extends StateData> extends Network<T> {
   private async execute(
     ...[input, overrides]: Network.RunArgs<T>
   ): Promise<this> {
+    // If history.get is configured AND the state is empty, use it to load initial history
+    // When passing passing in messages from the client, history.get() is disabled - allowing the client to maintain conversation state and send it with each request
+    // Enables a client-authoritative pattern where the UI maintains conversation state and sends it with each request. Allows `history.get()` to serve as a fallback for new threads or recovery
+
+    // Initialize conversation thread: Creates a new thread or auto-generates if needed
+    await initializeThread({
+      state: this.state,
+      history: this.history,
+      input,
+      network: this,
+    });
+
+    // Load existing conversation history from storage: If threadId exists and history.get() is configured
+    await loadThreadFromStorage({
+      state: this.state,
+      history: this.history,
+      input,
+      network: this,
+    });
+
     const available = await this.availableAgents();
     if (available.length === 0) {
       throw new Error("no agents enabled in network");
     }
+
+    // Store initial result count to track new results
+    // Used to track new results in history.appendResults
+    const initialResultCount = this.state.results.length;
 
     // If there's no default agent used to run the request, use our internal
     // routing agent which attempts to figure out the best agent to choose based
@@ -427,6 +477,17 @@ export class NetworkRun<T extends StateData> extends Network<T> {
         this.schedule(a.name);
       }
     }
+
+    // Save new network results to storage: Persists all new AgentResults generated
+    // during this network run (from all agents that executed). Only saves the new
+    // results, excluding any historical results that were loaded at the start.
+    await saveThreadToStorage({
+      state: this.state,
+      history: this.history,
+      input,
+      initialResultCount,
+      network: this,
+    });
 
     return this;
   }

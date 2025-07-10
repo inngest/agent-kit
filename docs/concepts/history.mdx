@@ -1,0 +1,384 @@
+---
+title: History
+description: Learn how to persist conversations for your agents and networks
+icon: "database"
+iconType: "regular"
+---
+
+## Overview
+
+AgentKit enables persistent conversations that maintain context across multiple runs. By implementing a **History Adapter**, you can connect your agents and networks to any database or storage solution, allowing conversations to resume exactly where they left off.
+
+A History Adapter is a configuration object that bridges AgentKit's execution lifecycle with your database. It tells AgentKit how to:
+
+1. **Create** new conversation threads
+2. **Load** existing conversation history
+3. **Save** new messages and results
+
+AgentKit is database-agnostic. You can use PostgreSQL, MongoDB, Redis, or any
+storage solution by implementing the `HistoryConfig` interface.
+
+The adapter is passed to `createAgent()` or `createNetwork()` and AgentKit automatically calls your adapter's methods at the appropriate times during execution.
+
+### HistoryConfig Interface
+
+The `HistoryConfig` interface has three optional methods. Below is an expanded view of the interface showing the context and parameters passed to each method.
+
+```typescript
+import type {
+  State,
+  NetworkRun,
+  AgentResult,
+  GetStepTools,
+  StateData,
+} from "@inngest/agent-kit";
+
+interface HistoryConfig<T extends StateData> {
+  /**
+   * Creates a new conversation thread.
+   * Invoked at the start of a run if no `threadId` exists in the state.
+   */
+  createThread?: (ctx: {
+    state: State<T>; // The current state, including your custom data
+    input: string; // The user's input string
+    network?: NetworkRun<T>; // The network instance (if applicable)
+    step?: GetStepTools; // Inngest step tools for durable execution
+  }) => Promise<{ threadId: string }>;
+
+  /**
+   * Retrieves conversation history from your database.
+   * Invoked after thread initialization if no history is provided by the client.
+   */
+  get?: (ctx: {
+    threadId: string; // The ID of the conversation thread
+    state: State<T>;
+    input: string;
+    network: NetworkRun<T>;
+    step?: GetStepTools;
+  }) => Promise<AgentResult[]>;
+
+  /**
+   * Saves new messages to your database after a run.
+   * Invoked at the end of a successful agent or network run.
+   */
+  appendResults?: (ctx: {
+    threadId: string;
+    newResults: AgentResult[]; // The new results generated during this run
+    userMessage?: { content: string; role: "user"; timestamp: Date }; // The user's message
+    state: State<T>;
+    input: string;
+    network: NetworkRun<T>;
+    step?: GetStepTools;
+  }) => Promise<void>;
+}
+```
+
+#### `createThread`
+
+- Creates a new conversation thread in your database
+- Invoked at the start of a run if no `threadId` exists in the state
+- Returns an object with the new `threadId`
+
+#### `get`
+
+- Retrieves conversation history from your database
+- Invoked after thread initialization, but only if the client didn't provide `results` or `messages`
+- Returns an array of `AgentResult[]` representing the conversation history
+
+#### `appendResults`
+
+- Saves new messages to your database after a network or agent run
+- Invoked at the end of a successful agent or network run
+- Receives only the _new_ results generated during this run (prevents duplicates)
+
+---
+
+## Usage
+
+Here's a complete example of creating a network with history persistence:
+
+```typescript
+import {
+  createNetwork,
+  createAgent,
+  createState,
+  openai,
+} from "@inngest/agent-kit";
+import { db } from "./db"; // Your database client
+
+// Define your history adapter with all three methods
+const conversationHistoryAdapter: HistoryConfig<any> = {
+  // 1. Create new conversation threads
+  createThread: async ({ state, input }) => {
+    const thread = await db.thread.create({
+      data: {
+        userId: state.data.userId,
+        title: input.slice(0, 50), // First 50 chars as title
+        createdAt: new Date(),
+      },
+    });
+    return { threadId: thread.id };
+  },
+
+  // 2. Load conversation history
+  get: async ({ threadId }) => {
+    if (!threadId) return [];
+
+    const messages = await db.message.findMany({
+      where: { threadId },
+      orderBy: { createdAt: "asc" },
+    });
+
+    // Transform database records to AgentResult format
+    return messages
+      .filter((msg) => msg.role === "assistant")
+      .map((msg) => ({
+        agentName: msg.agentName,
+        output: [
+          {
+            type: "text" as const,
+            role: "assistant" as const,
+            content: msg.content,
+          },
+        ],
+        toolCalls: [],
+        createdAt: new Date(msg.createdAt),
+      }));
+  },
+
+  // 3. Save new messages
+  appendResults: async ({ threadId, newResults, userMessage }) => {
+    if (!threadId) return;
+
+    // Save user message
+    if (userMessage) {
+      await db.message.create({
+        data: {
+          threadId,
+          role: "user",
+          content: userMessage.content,
+          createdAt: userMessage.timestamp,
+        },
+      });
+    }
+
+    // Save agent responses
+    for (const result of newResults) {
+      const content = result.output
+        .filter((msg) => msg.type === "text")
+        .map((msg) => msg.content)
+        .join("\n");
+
+      await db.message.create({
+        data: {
+          threadId,
+          role: "assistant",
+          agentName: result.agentName,
+          content,
+          createdAt: result.createdAt,
+        },
+      });
+    }
+  },
+};
+
+// Create agents
+const researcher = createAgent({
+  name: "researcher",
+  description: "Searches for information",
+  model: openai({ model: "gpt-4" }),
+});
+
+const writer = createAgent({
+  name: "writer",
+  description: "Writes comprehensive responses",
+  model: openai({ model: "gpt-4" }),
+});
+
+// Create network with history configuration
+const assistantNetwork = createNetwork({
+  name: "Research Assistant",
+  agents: [researcher, writer],
+  defaultModel: openai({ model: "gpt-4" }),
+  history: conversationHistoryAdapter, // Add history adapter here
+});
+
+// Use the network - conversations will be automatically persisted
+const state = createState(
+  { userId: "user-123" },
+  { threadId: "existing-thread-id" } // Optional: continue existing conversation
+);
+
+await assistantNetwork.run("Tell me about quantum computing", { state });
+```
+
+---
+
+Once you've created your adapter, pass it to the `history` property when creating an agent or network:
+
+<CodeGroup>
+
+```typescript Agent
+import { createAgent } from "@inngest/agent-kit";
+import { postgresHistoryAdapter } from "./my-postgres-adapter";
+
+const chatAgent = createAgent({
+  name: "chat-agent",
+  system: "You are a helpful assistant.",
+  history: postgresHistoryAdapter, // Add your adapter here
+});
+
+// Now the agent will automatically persist conversations
+await chatAgent.run("Hello!", {
+  state: createState({ userId: "user123" }, { threadId: "thread-456" }),
+});
+```
+
+```typescript Network
+import { createNetwork, createAgent } from "@inngest/agent-kit";
+import { postgresHistoryAdapter } from "./my-postgres-adapter";
+
+const chatAgent = createAgent({
+  name: "chat-agent",
+  system: "You are a helpful assistant.",
+});
+
+const chatNetwork = createNetwork({
+  name: "Chat Network",
+  agents: [chatAgent],
+  history: postgresHistoryAdapter, // Add your adapter here
+});
+
+// The entire network will use persistent conversations
+await chatNetwork.run("Hello!");
+```
+
+</CodeGroup>
+
+---
+
+## Persistence Patterns
+
+AgentKit supports two distint patterns for managing conversation history.
+
+### Server-Authoritative
+
+The client sends a message with a `threadId`. AgentKit automatically loads the full conversation context from your database before the network runs.
+
+```typescript
+// Client sends just the threadId
+const state = createState(
+  { userId: "user123" },
+  { threadId: "existing-thread-id" }
+);
+
+await chatNetwork.run("Continue our conversation", { state });
+// AgentKit calls history.get() to load full context for all agents
+```
+
+**Use case**: Perfect for restoring conversations after page refresh or when opening the app on a new device.
+
+### Client-Authoritative (Performance Optimized)
+
+The client maintains conversation state locally and sends the complete history with each request. AgentKit detects this and skips the database read for better performance.
+
+```typescript
+// Client sends the full conversation history
+const state = createState(
+  { userId: "user123" },
+  {
+    threadId: "thread-id",
+    results: previousConversationResults, // Full history from client
+  }
+);
+
+await chatNetwork.run("New message", { state });
+// AgentKit skips history.get() call - faster performance!
+// Still calls history.appendResults() to save new messages
+```
+
+**Use case**: Ideal for interactive chat applications where the frontend maintains conversation state and fetches messages from an existing/seperate API
+
+### Server/Client Hybrid Pattern
+
+You can combine the Server-Authoritative and Client-Authoritative patterns for an optimal user experience. This hybrid approach allows for fast initial conversation loading and high-performance interactive chat.
+
+1.  **Initial Load (Server-Authoritative):** When a user opens a conversation thread, the client sends only the `threadId`. AgentKit fetches the history from your database using `history.get()`. The application then hydrates the client-side state with this history.
+2.  **Interactive Session (Client-Authoritative):** For all subsequent requests within the session, the client sends the full, up-to-date history (`results` or `messages`) along with the `threadId`. AgentKit detects the client-provided history and skips the database read, resulting in a faster response.
+
+**Use case**: Ideal for interactive chat applications where the frontend maintains conversation state but lets AgentKit fetch messages via their history adapter
+
+## How Thread IDs Are Managed
+
+AgentKit offers a flexible system for managing conversation thread IDs, ensuring that history is handled correctly whether you're starting a new conversation or continuing an existing one. Here's how AgentKit determines which `threadId` to use, in order of precedence:
+
+1.  **Explicit `threadId` (Highest Priority):** The most direct method is to provide a `threadId` when you create your state. This is the standard way to resume a specific, existing conversation. AgentKit will use this ID to load the relevant history via the `history.get()` method.
+
+    ```typescript
+    // Continue a specific, existing conversation
+    const state = createState(
+      { userId: "user-123" },
+      { threadId: "existing-thread-id-123" }
+    );
+    await network.run("Let's pick up where we left off.", { state });
+    ```
+
+2.  **Automatic Creation via `createThread`:** If you don't provide a `threadId`, AgentKit checks if your history adapter has a `createThread` method. If so, AgentKit calls it to create a new conversation thread in your database. Your `createThread` function is responsible for generating and returning the new unique `threadId`. This is the recommended approach for starting new conversations, as it ensures a record is created in your backend from the very beginning.
+
+3.  **Automatic Generation (Fallback):** In cases where you don't provide a `threadId` and your history adapter does _not_ have a `createThread` method but _does_ have a `get` method, AgentKit provides a fallback. It will automatically generate a standard UUID and assign it as the `threadId` for the current run. This convenience ensures the conversation can proceed with a unique identifier for saving and loading history, even without an explicit creation step.
+
+## Best Practices
+
+<AccordionGroup>
+
+  <Accordion title="Leverage Inngest's Durable Steps">
+    Wrap database operations in `step.run()` for automatic retries and durability.
+    
+    ```typescript
+    await step.run("database-operation", async () => {
+      return await db.someOperation();
+    });
+    ```
+  </Accordion>
+
+  <Accordion title="Handle Missing Threads Gracefully">
+    If a thread doesn't exist, return an empty array rather than throwing an error.
+    
+    ```typescript
+    get: async ({ threadId }) => {
+      if (!threadId) return [];
+      
+      const messages = await db.getMessages(threadId);
+      return messages || []; // Handle null/undefined gracefully
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Index Your Database Properly">
+    Ensure you have indexes on `thread_id` and `created_at` columns for fast queries.
+    
+    ```sql
+    CREATE INDEX idx_messages_thread_id ON messages(thread_id);
+    CREATE INDEX idx_messages_created_at ON messages(created_at);
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Future Enhancements
+
+The history system provides a foundation for advanced features to be released in the coming future including:
+
+- **Database Adapters**: Pre-built adapters for popular databases (coming soon)
+- **Progressive Summarization**: Automatic conversation compression for long threads
+- **Search & Retrieval**: Semantic search across conversation history
+
+## Complete Example
+
+Check out the [AgentKit Starter](https://github.com/inngest/agent-kit/tree/main/examples/agentkit-starter) for a complete implementation featuring:
+
+- PostgreSQL history adapter
+- ChatGPT-style UI with thread management
+- Real-time streaming responses
+- Both server and client-authoritative patterns
+
+The starter includes everything you need to build a conversational AI application with persistent history.

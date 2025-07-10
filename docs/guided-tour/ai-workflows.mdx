@@ -42,7 +42,6 @@ To implement this capability, we will build a AI workflow leveraging a first imp
 
 Let's start our Code Assistant by installing the required dependencies:
 
-
 ## Setup
 
 Follow the below steps to setup your project:
@@ -73,15 +72,15 @@ yarn init
 <CodeGroup>
 
 ```bash npm
-npm install @inngest/agent-kit
+npm install @inngest/agent-kit inngest
 ```
 
 ```bash pnpm
-pnpm install @inngest/agent-kit
+pnpm install @inngest/agent-kit inngest
 ```
 
 ```bash yarn
-yarn add @inngest/agent-kit
+yarn add @inngest/agent-kit inngest
 ```
 
 </CodeGroup>
@@ -104,9 +103,7 @@ pnpm install -D tsx @types/node
 yarn add -D tsx @types/node
 ```
 
-
 And add the following scripts to your `package.json`:
-
 
 ```json
 "scripts": {
@@ -132,7 +129,6 @@ wget https://raw.githubusercontent.com/inngest/agent-kit/main/examples/code-assi
 
 </AccordionGroup>
 
-
 You are now set up, let's implement the first version of our Code Assistant.
 
 ## Implementing our Code Assistant v1
@@ -151,7 +147,7 @@ Let's start by implementing the retrieval step.
 
 We earlier downloaded the `example.ts` file locally, let's load it in our code by creating a `index.ts` file:
 
-```typescript  {5-7}
+```typescript {5-7}
 import { readFileSync } from "fs";
 import { join } from "path";
 
@@ -166,7 +162,6 @@ main();
 
 Our example code is now ready to be analyzed. Let's now implement the generation step.
 
-
 ### The generation step using AgentKit's Agent
 
 As covered in the introduction, [AgentKit's `createAgent()`](/reference/create-agent) is a wrapper around the LLM, providing a structured way to interact with it with 3 main properties:
@@ -177,7 +172,7 @@ As covered in the introduction, [AgentKit's `createAgent()`](/reference/create-a
 
 Let's add configure our Agent with Anthropic's `claude-3-5-sonnet-latest` model by updating our `index.ts` file:
 
-```typescript  {5-13}
+```typescript {5-13}
 import { readFileSync } from "fs";
 import { join } from "path";
 import { anthropic, createAgent } from "@inngest/agent-kit";
@@ -191,7 +186,6 @@ const codeAssistant = createAgent({
     max_tokens: 4096,
   }),
 });
-
 
 async function main() {
   // First step: Retrieval
@@ -240,13 +234,13 @@ main();
 ```
 
 Let's review the above code:
+
 1. We load the `example.ts` file in memory.
 2. We invoke our Code Assistant using the `codeAssistant.run()` method.
 3. We retrieve the last message from the `output` array.
 4. We log the content of the last message to the console.
 
 Let's now look at our assistant explanation.
-
 
 ## Running our Code Assistant v1
 
@@ -302,8 +296,6 @@ This code is a collection of type-safe sorting utility functions written in Type
 
 Congratulations! You've just built your first AI workflow using AgentKit.
 
-
-
 ## What we've learned so far
 
 Let's recap what we've learned so far:
@@ -313,13 +305,17 @@ Let's recap what we've learned so far:
 - **AgentKit's `createAgent()`** is a wrapper around the LLM, providing a structured way to interact with a LLM model.
   - _The use of a single Agent is often sufficient to power chatbots or extract structured data from a given text._
 
-
 ## Next steps
 
 Our Code Assistant v1 is a static AI workflow that only works with the `example.ts` file.
 
 In the next version of our Code Assistant, we will make it dynamic by allowing the user to specify the file to analyze and also enable our Agent to perform more complete analysis.
 
-<Card title="Code Assistant v2: Complex code analysis" href="/ai-agents-in-practice/agentic-workflows" icon="bolt">
-Our next Code Assistant version will rely on Agentic workflows to perform more complex code analysis.
+<Card
+  title="Code Assistant v2: Complex code analysis"
+  href="/ai-agents-in-practice/agentic-workflows"
+  icon="bolt"
+>
+  Our next Code Assistant version will rely on Agentic workflows to perform more
+  complex code analysis.
 </Card>

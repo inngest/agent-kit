@@ -27,8 +27,10 @@ Get started now by [cloning our examples](https://agentkit.inngest.com/examples/
 ## Get started
 
 ```tsx
-npm i @inngest/agent-kit
+npm i @inngest/agent-kit inngest
 ```
+
+**Note:** Starting with AgentKit v0.9.0, you need to install `inngest` as a separate dependency alongside `@inngest/agent-kit`. This ensures proper runtime compatibility and prevents conflicts when multiple packages depend on different versions of Inngest.
 
 ## MCP Agent example
 

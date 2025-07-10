@@ -7,3 +7,4 @@ export * from "./state";
 export * from "./tool";
 export * from "./util";
 export * from "./types";
+export * from "./history";
