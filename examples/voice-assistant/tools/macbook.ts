@@ -1,6 +1,6 @@
 /// <reference types="@jxa/global-type" />
 
-import { createTool } from "../agentkit-dist";
+import { createTool } from '@inngest/agent-kit';
 import { execSync } from "child_process";
 import { z } from "zod";
 import type { VoiceAssistantNetworkState } from "..";

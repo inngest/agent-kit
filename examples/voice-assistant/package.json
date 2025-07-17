@@ -6,7 +6,8 @@
   "main": "index.js",
   "scripts": {
     "start": "tsx --watch ./index.ts",
-    "inngest-dev": "npx inngest-cli@latest dev"
+    "inngest-dev": "npx inngest-cli@latest dev",
+    "cli": "tsx ./cli.ts"
   },
   "type": "module",
   "keywords": [],
@@ -14,7 +15,7 @@
   "license": "ISC",
   "dependencies": {
     "@elevenlabs/elevenlabs-js": "^2.4.0",
-    "@inngest/agent-kit": "latest",
+    "@inngest/agent-kit": "^0.9.0",
     "@inngest/realtime": "^0.3.1",
     "@jxa/run": "^1.4.0",
     "@modelcontextprotocol/sdk": "^1.13.2",
@@ -24,23 +25,36 @@
     "@smithery/sdk": "^1.5.2",
     "cli-spinners": "^3.2.0",
     "commander": "^14.0.0",
+    "dotenv": "^16.5.0",
+    "ink": "^6.0.1",
+    "ink-text-input": "^6.0.0",
     "inngest": "^3.39.1",
     "install": "^0.13.0",
     "js-tiktoken": "^1.0.20",
     "mem0ai": "^2.1.33",
     "npm": "^11.4.2",
     "openai": "^5.7.0",
-    "pg": "^8.16.3",
+    "pg": "^8.11.3",
+    "react": "^19.1.0",
     "run-applescript": "^7.0.0",
     "sherpa-onnx-node": "^1.12.3",
     "speaker": "^0.5.5",
+    "strip-json-comments": "^3.1.1",
     "wavefile": "^11.0.0",
+    "yargs": "^17.7.2",
     "zod": "^3.23.8"
   },
   "devDependencies": {
     "@jxa/global-type": "^1.4.0",
     "@types/node": "^22.9.1",
-    "dotenv": "^16.5.0",
+    "@types/react": "^19.1.8",
+    "@types/strip-json-comments": "^3.0.0",
+    "@types/yargs": "^17.0.32",
     "tsx": "^4.19.2"
+  },
+  "pnpm": {
+    "overrides": {
+      "pg": "^8.11.3"
+    }
   }
 }

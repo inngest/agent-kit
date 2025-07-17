@@ -6,10 +6,12 @@ import {
     AgentResult,
     type TextMessage,
     type Message,
-  } from "./agentkit-dist";
-import { Pool } from "pg";
+  } from "@inngest/agent-kit";
+import pg from "pg";
+const { Pool } = pg;
 import { Tiktoken } from "js-tiktoken/lite";
 import o200k_base from "js-tiktoken/ranks/o200k_base";
+import type { VoiceAssistantNetworkState } from ".";
   
   // PostgreSQL History Configuration
   export interface PostgresHistoryConfig {
@@ -19,26 +21,96 @@ import o200k_base from "js-tiktoken/ranks/o200k_base";
     maxTokens?: number;
   }
   
+  // Global adapter instance tracking for diagnostics
+  let adapterInstanceCount = 0;
+  const activeAdapters = new Set<string>();
+  
   export class PostgresHistoryAdapter<T extends StateData>
     implements HistoryConfig<T>
   {
-    private pool: Pool;
+    private pool: InstanceType<typeof Pool>;
     private tablePrefix: string;
     private schema: string;
     private maxTokens?: number;
     private encoder: Tiktoken;
+    private isClosing: boolean = false;
+    private instanceId: string;
+    private createdAt: Date;
   
     constructor(config: PostgresHistoryConfig) {
+      // Diagnostic tracking
+      this.instanceId = `adapter-${++adapterInstanceCount}-${Date.now()}`;
+      this.createdAt = new Date();
+      activeAdapters.add(this.instanceId);
+      
+      console.log(`🔧 [${this.instanceId}] PostgresHistoryAdapter created at ${this.createdAt.toISOString()}`);
+      console.log(`📊 [${this.instanceId}] Active adapter instances: ${activeAdapters.size}`);
+      console.log(`📊 [${this.instanceId}] Total adapters created: ${adapterInstanceCount}`);
+      
       this.pool = new Pool({
         connectionString: config.connectionString,
-        max: 20,
-        idleTimeoutMillis: 30000,
-        connectionTimeoutMillis: 2000,
+        max: 20, // Max number of clients in the pool
+        idleTimeoutMillis: 10000, // Close idle clients after 10 seconds
+        connectionTimeoutMillis: 5000, // Abort connecting after 5 seconds
+        query_timeout: 5000, // Abort any query that takes longer than 5 seconds
+        maxUses: 7500, // Close a client after it has been used 7500 times
       });
+      
+      // Enhanced error handler with context
+      this.pool.on('error', (err) => {
+        console.error(`❌ [${this.instanceId}] PostgreSQL pool error (isClosing: ${this.isClosing}):`, err);
+        console.error(`❌ [${this.instanceId}] Pool stats:`, {
+          totalCount: this.pool.totalCount,
+          idleCount: this.pool.idleCount,
+          waitingCount: this.pool.waitingCount
+        });
+      });
+
+      // Add connection event logging
+      this.pool.on('connect', (client) => {
+        console.log(`🔗 [${this.instanceId}] New client connected. Pool stats:`, {
+          totalCount: this.pool.totalCount,
+          idleCount: this.pool.idleCount,
+          waitingCount: this.pool.waitingCount
+        });
+      });
+
+      this.pool.on('acquire', (client) => {
+        console.log(`📥 [${this.instanceId}] Client acquired from pool. Pool stats:`, {
+          totalCount: this.pool.totalCount,
+          idleCount: this.pool.idleCount,
+          waitingCount: this.pool.waitingCount
+        });
+      });
+
+      this.pool.on('release', (client) => {
+        console.log(`📤 [${this.instanceId}] Client released to pool. Pool stats:`, {
+          totalCount: this.pool.totalCount,
+          idleCount: this.pool.idleCount,
+          waitingCount: this.pool.waitingCount
+        });
+      });
+
+      this.pool.on('remove', (client) => {
+        console.log(`🗑️ [${this.instanceId}] Client removed from pool. Pool stats:`, {
+          totalCount: this.pool.totalCount,
+          idleCount: this.pool.idleCount,
+          waitingCount: this.pool.waitingCount
+        });
+      });
+      
       this.tablePrefix = config.tablePrefix || "agentkit_";
       this.schema = config.schema || "public";
       this.maxTokens = config.maxTokens;
       this.encoder = new Tiktoken(o200k_base);
+
+      console.log(`⚙️ [${this.instanceId}] Pool configuration:`, {
+        max: 20,
+        idleTimeoutMillis: 30000,
+        connectionTimeoutMillis: 2000,
+        tablePrefix: this.tablePrefix,
+        schema: this.schema
+      });
     }
   
     // Table names with proper schema and prefix
@@ -117,10 +189,27 @@ import o200k_base from "js-tiktoken/ranks/o200k_base";
     createThread = async (
       { state, step }: History.CreateThreadContext<T>
     ): Promise<{ threadId: string }> => {
+      const operationStart = Date.now();
+      console.log(`🆕 [${this.instanceId}] createThread starting...`);
+      
+      if (this.isClosing) {
+        console.error(`❌ [${this.instanceId}] createThread called but adapter is closing`);
+        throw new Error('Database connection is closing');
+      }
+
+      // Health check before operation
+      const isHealthy = await this.checkConnection();
+      if (!isHealthy) {
+        console.error(`❌ [${this.instanceId}] Connection health check failed before createThread`);
+        throw new Error('Database connection is unhealthy');
+      }
+      
       const client = await this.pool.connect();
+      console.log(`🔗 [${this.instanceId}] Client acquired for createThread. Time: ${Date.now() - operationStart}ms`);
   
       try {
         const operation = async () => {
+          const queryStart = Date.now();
           const result = await client.query(
             `
             INSERT INTO ${this.tableNames.threads} (user_id, metadata)
@@ -132,7 +221,7 @@ import o200k_base from "js-tiktoken/ranks/o200k_base";
               JSON.stringify(state.data), // Persist initial state data
             ]
           );
-  
+          console.log(`📊 [${this.instanceId}] createThread query completed in ${Date.now() - queryStart}ms`);
           return result.rows[0].thread_id;
         };
   
@@ -140,10 +229,14 @@ import o200k_base from "js-tiktoken/ranks/o200k_base";
           ? await step.run("create-thread", operation)
           : await operation();
   
-        console.log(`🆕 Created new thread: ${threadId}`);
+        console.log(`✅ [${this.instanceId}] Created new thread: ${threadId} (total time: ${Date.now() - operationStart}ms)`);
         return { threadId };
+      } catch (error) {
+        console.error(`❌ [${this.instanceId}] createThread error after ${Date.now() - operationStart}ms:`, error);
+        throw error;
       } finally {
         client.release();
+        console.log(`📤 [${this.instanceId}] Client released after createThread. Total time: ${Date.now() - operationStart}ms`);
       }
     };
   
@@ -155,15 +248,32 @@ import o200k_base from "js-tiktoken/ranks/o200k_base";
      * consistency with the client-side pattern and preserve conversation continuity.
      */
     get = async ({ threadId, step }: History.Context<T>): Promise<AgentResult[]> => {
+      const operationStart = Date.now();
+      console.log(`📖 [${this.instanceId}] get starting for threadId: ${threadId}`);
+      
+      if (this.isClosing) {
+        console.log(`⚠️ [${this.instanceId}] get called but adapter is closing, returning empty history`);
+        return [];
+      }
+      
       if (!threadId) {
-        console.log("No threadId provided, returning empty history");
+        console.log(`⚠️ [${this.instanceId}] No threadId provided to get, returning empty history`);
+        return [];
+      }
+
+      // Health check before operation
+      const isHealthy = await this.checkConnection();
+      if (!isHealthy) {
+        console.error(`❌ [${this.instanceId}] Connection health check failed before get`);
         return [];
       }
   
       const client = await this.pool.connect();
+      console.log(`🔗 [${this.instanceId}] Client acquired for get. Time: ${Date.now() - operationStart}ms`);
   
       try {
         const operation = async () => {
+          const queryStart = Date.now();
           // Fetch newest messages first if we have a token limit
           const queryOrder = this.maxTokens ? "DESC" : "ASC";
           const result = await client.query(
@@ -179,6 +289,7 @@ import o200k_base from "js-tiktoken/ranks/o200k_base";
           `,
             [threadId]
           );
+          console.log(`📊 [${this.instanceId}] get query returned ${result.rows.length} rows in ${Date.now() - queryStart}ms`);
   
           const conversationResults: AgentResult[] = [];
           let totalTokens = 0;
@@ -220,9 +331,7 @@ import o200k_base from "js-tiktoken/ranks/o200k_base";
             if (this.maxTokens) {
               const resultTokens = this.countTokensForAgentResult(agentResult);
               if (totalTokens + resultTokens > this.maxTokens) {
-                console.log(
-                  `Token limit of ${this.maxTokens} reached. Returning ${conversationResults.length} of ${result.rows.length} results.`
-                );
+                console.log(`📊 [${this.instanceId}] Token limit of ${this.maxTokens} reached. Returning ${conversationResults.length} of ${result.rows.length} results.`);
                 break;
               }
               totalTokens += resultTokens;
@@ -241,9 +350,14 @@ import o200k_base from "js-tiktoken/ranks/o200k_base";
             )) as unknown as AgentResult[])
           : await operation();
         
+        console.log(`✅ [${this.instanceId}] get completed with ${results.length} results (total time: ${Date.now() - operationStart}ms)`);
         return results;
+      } catch (error) {
+        console.error(`❌ [${this.instanceId}] get error after ${Date.now() - operationStart}ms:`, error);
+        throw error;
       } finally {
         client.release();
+        console.log(`📤 [${this.instanceId}] Client released after get. Total time: ${Date.now() - operationStart}ms`);
       }
     };
   
@@ -264,26 +378,44 @@ import o200k_base from "js-tiktoken/ranks/o200k_base";
         timestamp: Date;
       };
     }): Promise<void> => {
+      const operationStart = Date.now();
+      console.log(`💾 [${this.instanceId}] appendResults starting for threadId: ${threadId}, newResults: ${newResults?.length || 0}, userMessage: ${!!userMessage}`);
+      
+      if (this.isClosing) {
+        console.log(`⚠️ [${this.instanceId}] appendResults called but adapter is closing, skipping save`);
+        return;
+      }
+      
       if (!threadId) {
-        console.log("No threadId provided, skipping save");
+        console.log(`⚠️ [${this.instanceId}] No threadId provided to appendResults, skipping save`);
         return;
       }
   
       if (!newResults?.length && !userMessage) {
-        console.log("No newResults or userMessage provided, skipping save");
+        console.log(`⚠️ [${this.instanceId}] No newResults or userMessage provided to appendResults, skipping save`);
+        return;
+      }
+
+      // Health check before operation
+      const isHealthy = await this.checkConnection();
+      if (!isHealthy) {
+        console.error(`❌ [${this.instanceId}] Connection health check failed before appendResults`);
         return;
       }
   
       const client = await this.pool.connect();
+      console.log(`🔗 [${this.instanceId}] Client acquired for appendResults. Time: ${Date.now() - operationStart}ms`);
   
       try {
         const operation = async () => {
+          const transactionStart = Date.now();
           await client.query("BEGIN");
+          console.log(`🔄 [${this.instanceId}] Transaction started`);
   
           try {
             // Upsert the thread record to ensure it exists before adding messages.
-            // This prevents foreign key constraint violations.
-            console.log("Upserting thread record...");
+            console.log(`🔄 [${this.instanceId}] Upserting thread record...`);
+            const upsertStart = Date.now();
             await client.query(
               `
               INSERT INTO ${this.tableNames.threads} (thread_id, user_id, metadata)
@@ -293,14 +425,13 @@ import o200k_base from "js-tiktoken/ranks/o200k_base";
             `,
               [threadId, state.data.userId || null, JSON.stringify(state.data)]
             );
+            console.log(`✅ [${this.instanceId}] Thread upsert completed in ${Date.now() - upsertStart}ms`);
   
             // Insert user message if provided
             if (userMessage) {
-              console.log("Inserting user message...");
-              const userChecksum = `user_${userMessage.timestamp.getTime()}_${userMessage.content.substring(
-                0,
-                50
-              )}`;
+              console.log(`💬 [${this.instanceId}] Inserting user message...`);
+              const userMessageStart = Date.now();
+              const userChecksum = `user_${userMessage.timestamp.getTime()}_${userMessage.content.substring(0, 50)}`;
   
               await client.query(
                 `
@@ -315,13 +446,53 @@ import o200k_base from "js-tiktoken/ranks/o200k_base";
                   userMessage.timestamp,
                 ]
               );
-              console.log("User message inserted successfully");
+              console.log(`✅ [${this.instanceId}] User message inserted in ${Date.now() - userMessageStart}ms`);
             }
+            
+            // --- FIX: Replace raw agent output with clean final answer ---
+            const finalResultsToSave = [...newResults];
+            // Safely check for the assistantAnswer property
+            const assistantAnswer = (state.data as Partial<VoiceAssistantNetworkState>).assistantAnswer;
+
+            if (assistantAnswer) {
+              // Polyfill-like approach for findLastIndex
+              let assistantResultIndex = -1;
+              for (let i = finalResultsToSave.length - 1; i >= 0; i--) {
+                if (finalResultsToSave[i]?.agentName === 'personal-assistant-agent') {
+                  assistantResultIndex = i;
+                  break;
+                }
+              }
+
+              if (assistantResultIndex !== -1) {
+                const finalAnswerMessage: TextMessage = {
+                  type: 'text',
+                  role: 'assistant',
+                  content: assistantAnswer,
+                  stop_reason: 'stop',
+                };
+                
+                const originalResult = finalResultsToSave[assistantResultIndex];
+                if (originalResult) {
+                    finalResultsToSave[assistantResultIndex] = new AgentResult(
+                        originalResult.agentName,
+                        [finalAnswerMessage],
+                        [],
+                        new Date(),
+                        originalResult.prompt,
+                        originalResult.history
+                    );
+                    console.log(`🤖 [${this.instanceId}] Overwrote assistant result with clean final answer.`);
+                }
+              }
+            }
+            // --- END FIX ---
   
             // Insert agent results
-            if (newResults?.length > 0) {
-              console.log("Inserting agent messages...");
-              for (const result of newResults) {
+            if (finalResultsToSave?.length > 0) {
+              console.log(`🤖 [${this.instanceId}] Inserting ${finalResultsToSave.length} agent messages...`);
+              const agentMessagesStart = Date.now();
+              for (const result of finalResultsToSave) {
                 const exportedData = result.export();
   
                 await client.query(
@@ -332,31 +503,30 @@ import o200k_base from "js-tiktoken/ranks/o200k_base";
                 `,
                   [threadId, result.agentName, exportedData, result.checksum]
                 );
-                console.log(`Agent message inserted successfully`);
               }
+              console.log(`✅ [${this.instanceId}] Agent messages inserted in ${Date.now() - agentMessagesStart}ms`);
             }
   
             await client.query("COMMIT");
+            console.log(`✅ [${this.instanceId}] Transaction committed in ${Date.now() - transactionStart}ms`);
   
-            const totalSaved = (userMessage ? 1 : 0) + (newResults?.length || 0);
-            console.log(
-              `💾 Saved ${totalSaved} messages to thread ${threadId} (${
-                userMessage ? "1 user + " : ""
-              }${newResults?.length || 0} agent)`
-            );
+            const totalSaved = (userMessage ? 1 : 0) + (finalResultsToSave?.length || 0);
+            console.log(`💾 [${this.instanceId}] Saved ${totalSaved} messages to thread ${threadId} (${userMessage ? "1 user + " : ""}${finalResultsToSave?.length || 0} agent)`);
           } catch (error) {
-            console.error("❌ Error during transaction:", error);
+            console.error(`❌ [${this.instanceId}] Transaction error after ${Date.now() - transactionStart}ms:`, error);
             await client.query("ROLLBACK");
             throw error;
           }
         };
   
         step ? await step.run("save-results", operation) : await operation();
+        console.log(`✅ [${this.instanceId}] appendResults completed (total time: ${Date.now() - operationStart}ms)`);
       } catch (error) {
-        console.error("❌ appendResults failed:", error);
+        console.error(`❌ [${this.instanceId}] appendResults failed after ${Date.now() - operationStart}ms:`, error);
         throw error;
       } finally {
         client.release();
+        console.log(`📤 [${this.instanceId}] Client released after appendResults. Total time: ${Date.now() - operationStart}ms`);
       }
     };
   
@@ -364,8 +534,44 @@ import o200k_base from "js-tiktoken/ranks/o200k_base";
      * Close the database connection pool
      */
     async close(): Promise<void> {
+      console.log(`🔌 [${this.instanceId}] Closing adapter (age: ${Date.now() - this.createdAt.getTime()}ms)`);
+      this.isClosing = true;
+      activeAdapters.delete(this.instanceId);
+      console.log(`📊 [${this.instanceId}] Active adapters after close: ${activeAdapters.size}`);
+      
+      try {
       await this.pool.end();
-      console.log("🔌 PostgreSQL connection pool closed");
+        console.log(`✅ [${this.instanceId}] PostgreSQL connection pool closed successfully`);
+      } catch (error) {
+        console.error(`❌ [${this.instanceId}] Error closing pool:`, error);
+      }
+    }
+
+    /**
+     * Check if the connection is healthy
+     */
+    private async checkConnection(): Promise<boolean> {
+      if (this.isClosing) {
+        console.log(`⚠️ [${this.instanceId}] Connection check skipped - adapter is closing`);
+        return false;
+      }
+      
+      try {
+        const healthCheckStart = Date.now();
+        const client = await this.pool.connect();
+        await client.query('SELECT 1');
+        client.release();
+        console.log(`✅ [${this.instanceId}] Connection health check passed in ${Date.now() - healthCheckStart}ms`);
+        return true;
+      } catch (error) {
+        console.error(`❌ [${this.instanceId}] Connection health check failed:`, error);
+        console.error(`❌ [${this.instanceId}] Pool stats during health check failure:`, {
+          totalCount: this.pool.totalCount,
+          idleCount: this.pool.idleCount,
+          waitingCount: this.pool.waitingCount
+        });
+        return false;
+      }
     }
   
     /**

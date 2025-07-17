@@ -8,6 +8,7 @@
     "sourceMap": true,
     "rootDir": "./",
     "outDir": "./dist",
+    "emitDeclarationOnly": true,
     "types": ["node", "@jxa/global-type"],
     "moduleResolution": "bundler",
     "esModuleInterop": true,
@@ -17,8 +18,11 @@
     "noImplicitOverride": true,
     "resolveJsonModule": true,
     "noUncheckedIndexedAccess": true,
-    "strictNullChecks": true
+    "strictNullChecks": true,
+    "jsx": "react-jsx",
+    "jsxImportSource": "react",
+    "allowImportingTsExtensions": true
   },
-  "include": ["./**/*.ts"],
+  "include": ["./**/*.ts", "./**/*.tsx"],
   "exclude": ["node_modules", "dist"]
 }

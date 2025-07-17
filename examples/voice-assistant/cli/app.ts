@@ -35,7 +35,7 @@ async function processRequest({ text, config }: { text: string; config: AgentCLI
     const subscription = await subscribe({
         app: config.inngest,
         channel: `voice-assistant.${sessionId}`,
-        topics: ["log", "speak"],
+        topics: ["agent_status", "tool_usage", "message", "debug", "system", "speak"],
     });
 
     await config.inngest.send({
@@ -49,40 +49,44 @@ async function processRequest({ text, config }: { text: string; config: AgentCLI
         const { done, value: event } = await reader.read();
         if (done) break;
 
-        if (event.topic === 'log') {
-            const logMessage = event.data as string;
-            
-            // Stop spinner before logging, restart after
+        if (event.topic === 'agent_status') {
+            const data = event.data as { agentName: string; status: 'thinking' | 'completed' | 'error'; message?: string };
             stopSpinner();
-            
-            // Categorize log messages for better display
-            if (logMessage.includes('🔧 Called tool:')) {
-                console.log(`\n${logMessage}`);
-            } else if (logMessage.includes('✅ Tool') && logMessage.includes('completed')) {
-                console.log(`${logMessage}`);
-            } else if (logMessage.includes('📥 Input:') || logMessage.includes('📤 Result:')) {
-                console.log(`  ${logMessage}`);
-            } else if (logMessage.includes('📊 Agent') && logMessage.includes('execution summary:')) {
-                console.log(`\n${logMessage}`);
-            } else if (logMessage.includes('🚀') || logMessage.includes('🤖') || logMessage.includes('📋') || logMessage.includes('💾') || logMessage.includes('💭') || logMessage.includes('🔍')) {
-                console.log(`\n${logMessage}`);
+            if (data.status === 'thinking') {
+                console.log(`\n🤖 ${data.agentName} thinking...`);
+                startSpinner(`${data.agentName} thinking...`);
+            } else if (data.status === 'completed') {
+                console.log(`${data.agentName} completed`);
             }
-            
-            startSpinner(`${logMessage}...`);
-            
-            // console.debug(`[AGENT LOG] ${logMessage}`);
-            if (logMessage.includes("Workflow complete.")) {
-                // console.debug("Workflow finished, returning to wake word detection.");
+        } else if (event.topic === 'tool_usage') {
+            const data = event.data as { agentName: string; toolName: string; status: 'using' | 'completed' | 'error'; error?: string };
+            stopSpinner();
+            if (data.status === 'using') {
+                console.log(`🔧 Using ${data.toolName}`);
+                startSpinner(`Using ${data.toolName}...`);
+            } else if (data.status === 'completed') {
+                console.log(`Used ${data.toolName}`);
+            } else if (data.status === 'error') {
+                console.log(`Error using ${data.toolName}: ${data.error || 'Unknown error'}`);
+            }
+        } else if (event.topic === 'system') {
+            const data = event.data as { event: string; message: string };
+            stopSpinner();
+            console.log(`\n⚙️ ${data.message}`);
+            if (data.event === 'workflow_complete') {
                 stopSpinner();
                 await reader.cancel();
                 break;
             }
+            startSpinner(`${data.message}...`);
+        } else if (event.topic === 'debug') {
+            // Skip debug logs in normal mode
         } else if (event.topic === 'speak') {
             stopSpinner();
             startSpinner(`Speaking...`);
             console.debug(`\n[ASSISTANT] ${event.data}\n`);
             finalAnswerReceived = true;
-            await config.tts.play(event.data as string);
+            await config.tts.play(event.data as string, new AbortController().signal);
             stopSpinner();
         }
     }

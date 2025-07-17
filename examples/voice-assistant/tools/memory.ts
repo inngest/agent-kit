@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import { createTool } from '../agentkit-dist';
+import { createTool } from '@inngest/agent-kit';
 import { z } from 'zod';
 import { Memory } from 'mem0ai/oss';
 import { type Inngest } from 'inngest';

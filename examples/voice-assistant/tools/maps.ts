@@ -1,4 +1,4 @@
-import { createTool } from '../agentkit-dist';
+import { createTool } from '@inngest/agent-kit';
 import { z } from 'zod';
 import type { VoiceAssistantNetworkState } from '../index';
 

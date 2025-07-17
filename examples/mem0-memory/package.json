@@ -9,7 +9,7 @@
   "dependencies": {
     "@inngest/agent-kit": "latest",
     "dotenv": "^16.5.0",
-    "inngest": "3.32.5",
+    "inngest": "3.39.0",
     "mem0ai": "^2.1.32"
   },
   "scripts": {

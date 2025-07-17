@@ -1,0 +1,57 @@
+{
+  // AgentKit CLI Configuration
+  // See https://docs.agentkit.dev/cli/configuration for full documentation
+  
+  // Default model configuration
+  "defaultModel": {
+    "provider": "openai",
+    "modelName": "gpt-o3-mini"
+  },
+  
+  // Text-to-Speech configuration
+  "tts": {
+    "provider": "openai",
+    "options": {}
+  },
+  
+  // Speech-to-Text configuration
+  "stt": {
+    "provider": "openai",
+    "options": {}
+  },
+  
+  // Wake word detection configuration
+  "wakeWord": {
+    "provider": "picovoice",
+    "options": {
+      "keyword": "jarvis",
+      "sensitivity": 0.65
+    }
+  },
+  
+  // Tool configuration
+  "tools": {
+    "enabledTools": [
+        "maps",
+        "calendar",
+        "reminders",
+        "files",
+        "memory",
+        "macbook",
+        "assistant"
+    ]
+  },
+  
+  // File system configuration
+  "fileSystem": {
+    "root": "~/AgentWorkspace",
+    "respectGitIgnore": true
+  },
+  
+  // UI configuration
+  "ui": {
+    "theme": "default",
+    "hideTips": false,
+    "autoAcceptSafeTools": true
+  }
+}

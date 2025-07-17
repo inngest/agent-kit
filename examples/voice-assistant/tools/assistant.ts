@@ -1,7 +1,7 @@
 // custom tools that the user made for their personal assistant
 // for now just going to make an "answer_tool" - will add more later
 
-import { createTool } from '../agentkit-dist';
+import { createTool } from '@inngest/agent-kit';
 import { z } from 'zod';
 import type { VoiceAssistantNetworkState } from '../index';
 

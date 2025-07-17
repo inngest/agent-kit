@@ -3,7 +3,8 @@ import { Inngest } from 'inngest';
 export namespace AgentCLI {
     // Core voice capability interfaces
     export interface TextToSpeechPlayer {
-        play(text: string): Promise<void>;
+        play(text: string, signal: AbortSignal): Promise<void>;
+        stop(): Promise<void>;
     }
 
     export interface Transcriber {
@@ -24,7 +25,9 @@ export namespace AgentCLI {
     }
 
     // Combined interfaces for adapters that handle multiple capabilities
-    export interface WakeWordAndRecorder extends WakeWordDetector, VoiceRecorder, VoiceAdapter {}
+    export interface WakeWordAndRecorder extends WakeWordDetector, VoiceRecorder, VoiceAdapter {
+        listenForSpeech(timeoutSeconds: number): Promise<Buffer | null>;
+    }
 
     // Configuration interface for the CLI
     export interface Config {
@@ -50,24 +53,93 @@ export namespace AgentCLI {
         // Add any specific Picovoice configuration options here
     }
 
+    // New structured event system
+    export type EventType = 'agent_status' | 'tool_usage' | 'message' | 'debug' | 'system';
+
+    export interface BaseEvent {
+        type: EventType;
+        timestamp: number;
+        sessionId: string;
+    }
+
+    export interface AgentStatusEvent extends BaseEvent {
+        type: 'agent_status';
+        data: {
+            agentName: string;
+            status: 'thinking' | 'completed' | 'error';
+            message?: string;
+        };
+    }
+
+    export interface ToolUsageEvent extends BaseEvent {
+        type: 'tool_usage';
+        data: {
+            agentName: string;
+            toolName: string;
+            status: 'using' | 'completed' | 'error';
+            error?: string;
+        };
+    }
+
+    export interface MessageEvent extends BaseEvent {
+        type: 'message';
+        data: {
+            content: string;
+            role: 'user' | 'assistant' | 'system';
+        };
+    }
+
+    export interface DebugEvent extends BaseEvent {
+        type: 'debug';
+        data: {
+            level: 'info' | 'warn' | 'error';
+            message: string;
+            details?: any;
+        };
+    }
+
+    export interface SystemEvent extends BaseEvent {
+        type: 'system';
+        data: {
+            event: 'workflow_start' | 'workflow_complete' | 'memory_operation' | 'transcription';
+            message: string;
+        };
+    }
+
+    export type CLIEvent = AgentStatusEvent | ToolUsageEvent | MessageEvent | DebugEvent | SystemEvent;
+
+    // UI Display modes
+    export type DisplayMode = 'normal' | 'debug';
+
+    export interface UIState {
+        mode: DisplayMode;
+        currentAgent?: string;
+        activeTools: string[];
+        messages: MessageEvent[];
+        systemEvents: SystemEvent[];
+        debugEvents: DebugEvent[];
+    }
+
     /**
      * Enhanced Logging Features:
      * 
-     * The CLI now provides detailed logging of the agent network execution:
+     * The CLI now provides structured logging with different event types:
      * 
-     * 🔍 Memory operations (searching, retrieving)
-     * 🤖 Agent execution (which agent is running)
-     * 🔧 Tool calls (what tools are being used)
-     * 📥 Tool inputs (parameters passed to tools)
-     * ✅ Tool completion status
-     * 📤 Tool results (outputs from tools)
-     * 📊 Agent execution summaries
-     * 💬 Text responses from agents
+     * 🤖 Agent Status Events - Track which agent is thinking/working
+     * 🔧 Tool Usage Events - Show tool usage in a clean format
+     * 💬 Message Events - User and assistant messages
+     * 🐛 Debug Events - Detailed debugging information (debug mode only)
+     * ⚙️ System Events - Workflow and system-level events
      * 
-     * This provides full visibility into:
-     * - Which agents are called and when
-     * - What tools each agent uses
-     * - The inputs and outputs of each tool
-     * - The flow of execution through the agent network
+     * Normal Mode Display:
+     * - Shows current agent thinking status
+     * - Displays "Using [tool name]" and "Used [tool name]" messages
+     * - Clean conversation flow
+     * 
+     * Debug Mode Display:
+     * - All normal mode content
+     * - Detailed tool inputs/outputs
+     * - Internal agent processing details
+     * - Memory operation details
      */
 } 

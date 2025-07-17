@@ -1,10 +1,36 @@
 import http from 'http';
-import { exec } from 'child_process';
+import { exec, ChildProcess } from 'child_process';
 import type { AgentCLI } from '../types.ts';
 
-function playStream(stream: ReadableStream<Uint8Array>) {
+export class ElevenLabsAdapter implements AgentCLI.TextToSpeechPlayer {
+    private apiKey: string;
+    private voiceId: string;
+    private playerProcess: ChildProcess | null = null;
+    private server: http.Server | null = null;
+
+    constructor(options?: AgentCLI.ElevenLabsVoiceOptions) {
+        this.apiKey = process.env.ELEVENLABS_API_KEY!;
+        this.voiceId = options?.voiceId || process.env.ELEVENLABS_VOICE_ID || '21m00Tcm4TlvDq8ikWAM';
+        
+        if (!this.apiKey) {
+            throw new Error("ELEVENLABS_API_KEY is not set in the environment.");
+        }
+    }
+
+    private _playStream(stream: ReadableStream<Uint8Array>, signal: AbortSignal): Promise<void> {
     return new Promise<void>((resolve, reject) => {
-        const server = http.createServer(async (req, res) => {
+            let aborted = false;
+            const onAbort = () => {
+                if (aborted) return;
+                aborted = true;
+                this.stop();
+                reject(new DOMException('Playback aborted', 'AbortError'));
+            };
+            signal.addEventListener('abort', onAbort);
+
+            if (signal.aborted) return onAbort();
+
+            this.server = http.createServer(async (req, res) => {
             try {
                 res.writeHead(200, { 'Content-Type': 'audio/mpeg' });
                 const reader = stream.getReader();
@@ -23,52 +49,30 @@ function playStream(stream: ReadableStream<Uint8Array>) {
             }
         }).listen(8080);
 
-        server.on('listening', () => {
-            // console.debug('Audio streaming server listening on http://localhost:8080');
-            // console.debug("Playing audio... (using ffplay)");
-            const player = exec('ffplay -autoexit -nodisp -loglevel warning http://localhost:8080');
-
-            player.stdout?.on('data', data => console.log(`ffplay(stdout): ${data}`));
-            player.stderr?.on('data', data => console.error(`ffplay(stderr): ${data}`));
-
-            player.on('close', (code) => {
-                console.log(`Playback finished (ffplay exited with code ${code}).`);
-                server.close();
+            this.server.on('listening', () => {
+                if (aborted) return this.server?.close();
+                this.playerProcess = exec('ffplay -autoexit -nodisp -loglevel warning http://localhost:8080');
+                this.playerProcess.stdout?.on('data', data => console.log(`ffplay(stdout): ${data}`));
+                this.playerProcess.stderr?.on('data', data => console.error(`ffplay(stderr): ${data}`));
+                this.playerProcess.on('close', () => this.server?.close());
+                this.playerProcess.on('error', (err) => {
+                    if (!aborted) reject(err);
+                });
             });
-            player.on('error', (err: Error) => {
-                console.error("Failed to start ffplay. Make sure ffmpeg is installed (`brew install ffmpeg`).", err);
-                server.close();
-                reject(err);
+
+            this.server.on('close', () => {
+                signal.removeEventListener('abort', onAbort);
+                if (!aborted) resolve();
+            });
+
+            this.server.on('error', (err) => {
+                signal.removeEventListener('abort', onAbort);
+                if (!aborted) reject(err);
             });
         });
-
-        server.on('close', () => {
-            console.log('Audio streaming server closed.');
-            resolve();
-        });
-
-        server.on('error', (err) => {
-            console.error('Audio streaming server error:', err);
-            server.close();
-            reject(err);
-        });
-    });
-}
-
-export class ElevenLabsAdapter implements AgentCLI.TextToSpeechPlayer {
-    private apiKey: string;
-    private voiceId: string;
-
-    constructor(options?: AgentCLI.ElevenLabsVoiceOptions) {
-        this.apiKey = process.env.ELEVENLABS_API_KEY!;
-        this.voiceId = options?.voiceId || process.env.ELEVENLABS_VOICE_ID || '21m00Tcm4TlvDq8ikWAM';
-        
-        if (!this.apiKey) {
-            throw new Error("ELEVENLABS_API_KEY is not set in the environment.");
-        }
     }
 
-    async play(text: string): Promise<void> {
+    async play(text: string, signal: AbortSignal): Promise<void> {
         const url = `https://api.elevenlabs.io/v1/text-to-speech/${this.voiceId}/stream`;
         const headers = {
             'Accept': 'audio/mpeg',
@@ -92,6 +96,18 @@ export class ElevenLabsAdapter implements AgentCLI.TextToSpeechPlayer {
             throw new Error(`ElevenLabs API Error: ${response.statusText}`);
         }
 
-        await playStream(response.body);
+        await this._playStream(response.body, signal);
+    }
+
+    async stop(): Promise<void> {
+        if (this.playerProcess) {
+            this.playerProcess.kill();
+            this.playerProcess = null;
+        }
+        if (this.server) {
+            const serverToClose = this.server;
+            this.server = null;
+            await new Promise<void>(resolve => serverToClose.close(() => resolve()));
+        }
     }
 } 

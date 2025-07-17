@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import { createAgent, openai } from '../agentkit-dist';
+import { createAgent, openai } from '@inngest/agent-kit';
 import { provideFinalAnswerTool } from '../tools/assistant';
 import {
     geocodeTool,
@@ -24,6 +24,7 @@ import {
     sendMessage,
     findContact
 } from '../tools/macbook';
+import { hitlTools } from '../tools/hitl';
 import type { VoiceAssistantNetworkState } from '../index';
 import { createSmitheryUrl } from "@smithery/sdk/shared/config.js"
 import { anthropic } from 'inngest';
@@ -96,6 +97,17 @@ const assistant = createAgent<VoiceAssistantNetworkState>({
     If you no longer need to use any tools to form an answer/perform research, use the 'provide_final_answer' tool to give your final response to the user (after you've used all tools needed to address their query)
     You should prefer to use tools instead of assuming you have all the up to date information on something. 
     Anytime you are asked to search for a location or directions, use our maps-related tools before using the 'provide_final_answer' tool.
+
+    You should only use the "provide_final_answer" tool if no other tools need to be invoked. Do not make multiple tool calls, including the "provide_final_answer" tool at the same time.
+    Call the "provide_final_answer" tool only once, after you've used all tools needed to address their query.
+    Always call the "provide_final_answer" tool after you've used all other tools needed to address the users query.
+    Do not assume that you have my approval to respond back to emails or send text messages unless I have explicitly given you instructions to do so.
+    
+    Human-in-the-Loop Guidelines:
+    - Use 'request_human_approval' before performing any action that could have significant consequences (sending emails, making purchases, modifying data)
+    - Use 'ask_human_for_input' when you need clarification or additional information from the user
+    - Use 'notify_human_and_wait' for important notifications that require acknowledgment
+    - Always respect the human's decision if they deny approval
     `;
 
         if (network?.state.data.transcriptionInProgress) {
@@ -130,6 +142,8 @@ const assistant = createAgent<VoiceAssistantNetworkState>({
         sendEmail,
         sendMessage,
         findContact,
+        // HITL tools
+        ...hitlTools,
         // Final answer tool
         provideFinalAnswerTool
     ],
@@ -149,8 +163,7 @@ const assistant = createAgent<VoiceAssistantNetworkState>({
                 args: ["-y", "@notionhq/notion-mcp-server"],
                 env: {
                   "OPENAPI_MCP_HEADERS": `{\"Authorization\":\"Bearer ${process.env.NOTION_API_KEY}\",\"Notion-Version\":\"2022-06-28\"}`
-                },
-                shell: true
+                }
             },
         },
         {

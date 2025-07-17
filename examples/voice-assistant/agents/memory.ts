@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import { createAgent, openai } from '../agentkit-dist';
+import { createAgent, openai } from '@inngest/agent-kit';
 import {
     manageMemoriesTool,
     recallMemoriesTool,
