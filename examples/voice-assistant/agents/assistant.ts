@@ -1,6 +1,11 @@
 import 'dotenv/config';
-import { createAgent, openai } from '@inngest/agent-kit';
+import * as crypto from 'crypto';
+import { createAgent, openai, AgentResult, type ToolResultMessage, type ToolMessage, getStepTools } from '@inngest/agent-kit';
 import { provideFinalAnswerTool } from '../tools/assistant';
+import { requiresApproval } from '../config/tool-approval-policy';
+import { PostgresHistoryAdapter } from '../db';
+import { historyConfig } from '../config/db';
+import { voiceAssistantChannel, type VoiceAssistantNetworkState } from '../index';
 import {
     geocodeTool,
     reverseGeocodeTool,
@@ -24,8 +29,7 @@ import {
     sendMessage,
     findContact
 } from '../tools/macbook';
-import { hitlTools } from '../tools/hitl';
-import type { VoiceAssistantNetworkState } from '../index';
+
 import { createSmitheryUrl } from "@smithery/sdk/shared/config.js"
 import { anthropic } from 'inngest';
 
@@ -102,12 +106,6 @@ const assistant = createAgent<VoiceAssistantNetworkState>({
     Call the "provide_final_answer" tool only once, after you've used all tools needed to address their query.
     Always call the "provide_final_answer" tool after you've used all other tools needed to address the users query.
     Do not assume that you have my approval to respond back to emails or send text messages unless I have explicitly given you instructions to do so.
-    
-    Human-in-the-Loop Guidelines:
-    - Use 'request_human_approval' before performing any action that could have significant consequences (sending emails, making purchases, modifying data)
-    - Use 'ask_human_for_input' when you need clarification or additional information from the user
-    - Use 'notify_human_and_wait' for important notifications that require acknowledgment
-    - Always respect the human's decision if they deny approval
     `;
 
         if (network?.state.data.transcriptionInProgress) {
@@ -142,8 +140,6 @@ const assistant = createAgent<VoiceAssistantNetworkState>({
         sendEmail,
         sendMessage,
         findContact,
-        // HITL tools
-        ...hitlTools,
         // Final answer tool
         provideFinalAnswerTool
     ],
@@ -184,7 +180,205 @@ const assistant = createAgent<VoiceAssistantNetworkState>({
         defaultParameters: {
             max_tokens: 6000
         }
-    })
+    }),
+    lifecycle: {
+        async onResponse({ agent, result, network }): Promise<AgentResult> {
+            console.log(`🔍 [Assistant Lifecycle] onResponse called for agent: ${agent.name}`);
+            
+            // 1. Find all tool calls in the agent's proposed response
+            const allToolCalls = result.output.flatMap((message) =>
+                message.type === "tool_call" ? message.tools : []
+            );
+
+            if (allToolCalls.length === 0) {
+                console.log(`✅ [Assistant Lifecycle] No tool calls found, proceeding without approval`);
+                return result; // No tool calls, proceed normally
+            }
+
+            // 2. Filter to find which ones require approval based on our policy
+            const callsToApprove = allToolCalls.filter((toolCall) =>
+                requiresApproval(toolCall.name)
+            );
+
+            if (callsToApprove.length === 0) {
+                console.log(`✅ [Assistant Lifecycle] No sensitive tools found in ${allToolCalls.length} tool calls, proceeding without approval`);
+                return result; // No sensitive tools, proceed normally
+            }
+
+            console.log(`🚨 [Assistant Lifecycle] Found ${callsToApprove.length} sensitive tools requiring approval: ${callsToApprove.map(t => t.name).join(', ')}`);
+
+            // Get step tools for durable execution
+            const step = await getStepTools();
+            if (!step) {
+                console.error(`❌ [Assistant Lifecycle] Step context not available for approval workflow`);
+                throw new Error('Tool approval requires Inngest step context but none was provided');
+            }
+
+            // 3. Send SSE to CLI and wait for user response (simplified approach)
+            const approvalId = crypto.randomUUID();
+            const approvalEventId = `approval-${approvalId}`;
+            
+            // Save pending approval to database for persistence
+            if (network?.state.threadId) {
+                await step.run("save-pending-approval", async () => {
+                    const historyAdapter = new PostgresHistoryAdapter<VoiceAssistantNetworkState>(historyConfig);
+                    await historyAdapter.savePendingApproval({
+                        approvalId: approvalId,
+                        threadId: network.state.threadId!,
+                        waitForEventId: approvalEventId,
+                        toolCalls: callsToApprove.map((c) => ({
+                            toolName: c.name,
+                            toolInput: c.input,
+                            toolCallId: c.id,
+                        })),
+                        status: "pending",
+                        createdAt: new Date(),
+                        expiresAt: new Date(Date.now() + 30 * 60 * 1000), // 30 min timeout
+                    });
+                    await historyAdapter.close();
+                });
+            }
+            
+            // Send HITL request event via Inngest
+            if (step && network) {
+                const sessionId = network.state.data.sessionId!;
+                
+                // Create the HITL request data with toolCalls included
+                const hitlRequestData = {
+                    messageId: approvalEventId,
+                    agentName: agent.name,
+                    request: `Approve execution of ${callsToApprove.length} sensitive tool(s)`,
+                    expiresAt: new Date(Date.now() + 30000),
+                    timestamp: new Date(),
+                    toolCalls: callsToApprove.map(call => ({
+                        toolName: call.name,
+                        toolInput: call.input
+                    }))
+                };
+                
+                console.log(`[DEBUG] Sending HITL request event for session: ${sessionId}`);
+                console.log('[DEBUG] HITL event data:', hitlRequestData);
+                
+                // Send an Inngest event that will be handled by a separate function
+                // which has access to the realtime publish capability
+                await step.sendEvent("send-hitl-to-cli", {
+                    name: 'app/realtime.hitl.request',
+                    data: {
+                        sessionId,
+                        channelData: hitlRequestData
+                    }
+                });
+                
+                console.log('[DEBUG] HITL event sent to relay function');
+            } else {
+                console.error('[ERROR] Missing step or network context - cannot send HITL request');
+            }
+
+            console.log(`📡 [Assistant Lifecycle] Sent approval request to CLI with eventId: ${approvalEventId}`);
+
+            // Wait for CLI response with matching eventId
+            console.log(`⏳ [Assistant Lifecycle] Waiting for event 'app/hitl.approval.response' with messageId: ${approvalEventId}`);
+            
+            const approvalResponse = await step.waitForEvent("wait-cli-approval", {
+                event: 'app/hitl.approval.response',
+                timeout: '30m',
+                // if: `async.data.messageId == '${approvalEventId}'`, // TODO: bring this back; temp removed due to matching issues
+            });
+
+            console.log(`✅ [Assistant Lifecycle] Received approval response:`, approvalResponse ? JSON.stringify(approvalResponse, null, 2) : 'null (timeout)');
+
+            // Process the response
+            let approvalResults: Array<{
+                originalCallId: string;
+                approved: boolean;
+                reason?: string;
+            }> = [];
+
+            if (approvalResponse?.data.approved) {
+                // User approved - allow all tools
+                approvalResults = callsToApprove.map(call => ({
+                    originalCallId: call.id,
+                    approved: true,
+                    reason: 'Approved by user'
+                }));
+                console.log(`✅ [Assistant Lifecycle] User approved ${callsToApprove.length} sensitive tools`);
+            } else {
+                // User denied or timeout - deny all tools
+                const reason = approvalResponse ? 'Denied by user' : 'Approval timeout';
+                approvalResults = callsToApprove.map(call => ({
+                    originalCallId: call.id,
+                    approved: false,
+                    reason
+                }));
+                console.log(`❌ [Assistant Lifecycle] ${reason} for ${callsToApprove.length} sensitive tools`);
+            }
+
+            // Update database with resolution
+            if (network?.state.threadId) {
+                await step.run("resolve-pending-approval", async () => {
+                    const historyAdapter = new PostgresHistoryAdapter<VoiceAssistantNetworkState>(historyConfig);
+                    await historyAdapter.resolvePendingApproval({
+                        waitForEventId: approvalEventId,
+                        status: approvalResponse?.data.approved ? "approved" : "denied",
+                        resolvedAt: new Date(),
+                        resolvedBy: approvalResponse?.data.userId || 'user',
+                    });
+                    await historyAdapter.close();
+                });
+            }
+
+            console.log(`📋 [Assistant Lifecycle] Received approval results:`, approvalResults);
+
+            // 4. Process approval results and modify the agent response accordingly
+            const deniedToolResults: ToolResultMessage[] = [];
+            result.output = result.output
+                .map((message) => {
+                    if (message.type === "tool_call") {
+                        // Separate approved from denied tools
+                        const approvedTools: ToolMessage[] = [];
+                        message.tools.forEach((tool) => {
+                            const approval = approvalResults.find(
+                                (res: { originalCallId: string; approved: boolean; reason?: string }) => res.originalCallId === tool.id
+                            );
+                            
+                            if (approval?.approved) {
+                                approvedTools.push(tool);
+                                console.log(`✅ [Assistant Lifecycle] Tool '${tool.name}' was approved`);
+                            } else if (approval && !approval.approved) {
+                                // Create a "denied" tool result for conversation continuity
+                                const reason = approval.reason || 'Access denied by user';
+                                deniedToolResults.push({
+                                    role: "tool_result" as const,
+                                    type: "tool_result" as const,
+                                    tool: {
+                                        type: "tool" as const,
+                                        id: tool.id,
+                                        name: tool.name,
+                                        input: tool.input,
+                                    },
+                                    content: {
+                                        error: `Access denied: The tool '${tool.name}' requires approval and was not permitted. Reason: ${reason}`,
+                                    },
+                                    stop_reason: "tool" as const,
+                                });
+                                console.log(`❌ [Assistant Lifecycle] Tool '${tool.name}' was denied: ${reason}`);
+                            }
+                        });
+                        message.tools = approvedTools;
+                    }
+                    return message;
+                })
+                // Remove any tool_call messages that are now empty
+                .filter((m) => m.type !== "tool_call" || m.tools.length > 0);
+
+            // 5. Add the denied tool results to maintain conversation continuity
+            result.output = [...result.output, ...deniedToolResults];
+
+            console.log(`🏁 [Assistant Lifecycle] Policy enforcement complete. Approved: ${approvalResults.filter((r: { approved: boolean }) => r.approved).length}, Denied: ${approvalResults.filter((r: { approved: boolean }) => !r.approved).length}`);
+            
+            return result;
+        }
+    }
 });
 
 export { assistant }

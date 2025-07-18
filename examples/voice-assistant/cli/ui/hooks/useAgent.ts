@@ -43,6 +43,10 @@ export interface HITLRequestEvent {
 	options?: string[];
 	expiresAt: Date;
 	timestamp: Date;
+	toolCalls?: Array<{
+		toolName: string;
+		toolInput: any;
+	}>;
 }
 
 export type StreamEvent = ThoughtEvent | ToolCallEvent | ToolResultEvent | HITLRequestEvent;
@@ -84,6 +88,7 @@ export function useAgent(config: AgentKitConfig, adapters: VoiceAdapters) {
 			tablePrefix: "agentkit_",
 			schema: "public",
 			maxTokens: 8000,
+			verbose: false, // Disable verbose logging for CLI use
 		};
 		historyAdapterRef.current = new PostgresHistoryAdapter(historyConfig);
 		
@@ -309,6 +314,8 @@ export function useAgent(config: AgentKitConfig, adapters: VoiceAdapters) {
 				const { done, value: event } = await reader.read();
 				if (done) break;
 
+				console.log('[DEBUG] Received event:', event.topic, event.data);
+
 				// Handle new event types
 				if (event.topic === 'thought') {
 					const data = event.data as ThoughtEvent;
@@ -336,9 +343,9 @@ export function useAgent(config: AgentKitConfig, adapters: VoiceAdapters) {
 
 					setStatus('AWAITING_RESPONSE');
 				} else if (event.topic === 'hitl_request') {
-					const data = event.data as HITLRequestEvent;
+					const data = event.data as any; // Use any to handle the full data structure
+					console.log('[DEBUG] Received HITL request event:', JSON.stringify(data, null, 2));
 					setPendingHITL(data);
-					setStatus('AWAITING_APPROVAL');
 					addLog(`🤝 Human approval requested: ${data.request}`);
 					addStreamEvent(data); // Remove the spread operator since type is already in data
 				} else if (event.topic === 'hitl_response') {
@@ -475,20 +482,28 @@ export function useAgent(config: AgentKitConfig, adapters: VoiceAdapters) {
 			throw new Error('Inngest adapter not configured');
 		}
 
+		// This now sends the event that the agent is actually waiting for
 		await adapters.inngest.send({
-			name: 'app/hitl.response',
+			name: 'app/cli.approval',
 			data: {
 				messageId,
 				approved,
 				response,
-				timestamp: new Date()
+				userId: "cli-user",
 			}
 		});
 
-		// Clear pending HITL
+		// Clear pending HITL and reset status
 		setPendingHITL(null);
 		setStatus('THINKING');
 	}, [adapters]);
+
+	// Function to approve HITL (alternative method for backwards compatibility)
+	const approveHITL = useCallback(async (approved: boolean, response?: string) => {
+		if (pendingHITL) {
+			await sendHITLResponse(pendingHITL.messageId, approved, response);
+		}
+	}, [pendingHITL, sendHITLResponse]);
 
 	return {
 		status,
@@ -506,5 +521,7 @@ export function useAgent(config: AgentKitConfig, adapters: VoiceAdapters) {
 		createNewThread,
 		loadThread,
 		listThreads,
+		hitlRequest: pendingHITL, // Alias for backwards compatibility
+		approveHITL,
 	};
 } 

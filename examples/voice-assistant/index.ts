@@ -10,10 +10,13 @@ import {
     openai
 } from '@inngest/agent-kit';
 import { PostgresHistoryAdapter } from './db';
+import { historyConfig } from './config/db';
 
 import { assistant } from './agents/assistant';
 import { memoryRetriever, memoryManager } from './agents/memory';
 import { createAddMemoriesFn, createDeleteMemoriesFn, createUpdateMemoriesFn } from './tools/memory';
+import { cliApprovalHandler } from './functions/cli-approval-handler';
+import { realtimeRelayFunction } from './functions/realtime-relay';
 
 // 1. Define the network state
 export interface VoiceAssistantNetworkState {
@@ -34,13 +37,6 @@ export interface VoiceAssistantNetworkState {
 }
 
 // --- Singleton History Adapter Setup ---
-const historyConfig = {
-    connectionString: process.env.POSTGRES_URL || "postgresql://localhost:5432/agentkit_chat",
-    tablePrefix: "agentkit_",
-    schema: "public",
-    maxTokens: 8000, 
-};
-
 // Instantiate the adapter once, outside the workflow
 const historyAdapter = new PostgresHistoryAdapter<VoiceAssistantNetworkState>(historyConfig);
 console.log("✅ Singleton PostgresHistoryAdapter created.");
@@ -82,7 +78,11 @@ export const voiceAssistantChannel = channel((sessionId: string) => `voice-assis
         request: string; 
         options?: string[]; 
         expiresAt: Date;
-        timestamp: Date 
+        timestamp: Date;
+        toolCalls?: Array<{
+            toolName: string;
+            toolInput: any;
+        }>;
     }>())
     .addTopic(topic("hitl_response").type<{ 
         messageId: string; 
@@ -321,6 +321,8 @@ const server = createServer({
         addMemories,
         updateMemories,
         deleteMemories,
+        cliApprovalHandler, // Handle CLI approval responses
+        realtimeRelayFunction, // Relay HITL events to realtime channel
     ],
 });
 

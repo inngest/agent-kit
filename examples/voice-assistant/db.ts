@@ -11,6 +11,7 @@ import pg from "pg";
 const { Pool } = pg;
 import { Tiktoken } from "js-tiktoken/lite";
 import o200k_base from "js-tiktoken/ranks/o200k_base";
+import * as crypto from 'crypto';
 import type { VoiceAssistantNetworkState } from ".";
   
   // PostgreSQL History Configuration
@@ -19,6 +20,7 @@ import type { VoiceAssistantNetworkState } from ".";
     tablePrefix?: string;
     schema?: string;
     maxTokens?: number;
+    verbose?: boolean; // Enable verbose debug logging (default: false)
   }
   
   // Global adapter instance tracking for diagnostics
@@ -36,16 +38,24 @@ import type { VoiceAssistantNetworkState } from ".";
     private isClosing: boolean = false;
     private instanceId: string;
     private createdAt: Date;
+    private verbose: boolean;
+  
+    private log(...args: any[]): void {
+      if (this.verbose) {
+        this.log(...args);
+      }
+    }
   
     constructor(config: PostgresHistoryConfig) {
       // Diagnostic tracking
       this.instanceId = `adapter-${++adapterInstanceCount}-${Date.now()}`;
       this.createdAt = new Date();
       activeAdapters.add(this.instanceId);
+      this.verbose = config.verbose ?? false;
       
-      console.log(`🔧 [${this.instanceId}] PostgresHistoryAdapter created at ${this.createdAt.toISOString()}`);
-      console.log(`📊 [${this.instanceId}] Active adapter instances: ${activeAdapters.size}`);
-      console.log(`📊 [${this.instanceId}] Total adapters created: ${adapterInstanceCount}`);
+      this.log(`🔧 [${this.instanceId}] PostgresHistoryAdapter created at ${this.createdAt.toISOString()}`);
+      this.log(`📊 [${this.instanceId}] Active adapter instances: ${activeAdapters.size}`);
+      this.log(`📊 [${this.instanceId}] Total adapters created: ${adapterInstanceCount}`);
       
       this.pool = new Pool({
         connectionString: config.connectionString,
@@ -68,7 +78,7 @@ import type { VoiceAssistantNetworkState } from ".";
 
       // Add connection event logging
       this.pool.on('connect', (client) => {
-        console.log(`🔗 [${this.instanceId}] New client connected. Pool stats:`, {
+        this.log(`🔗 [${this.instanceId}] New client connected. Pool stats:`, {
           totalCount: this.pool.totalCount,
           idleCount: this.pool.idleCount,
           waitingCount: this.pool.waitingCount
@@ -76,7 +86,7 @@ import type { VoiceAssistantNetworkState } from ".";
       });
 
       this.pool.on('acquire', (client) => {
-        console.log(`📥 [${this.instanceId}] Client acquired from pool. Pool stats:`, {
+        this.log(`📥 [${this.instanceId}] Client acquired from pool. Pool stats:`, {
           totalCount: this.pool.totalCount,
           idleCount: this.pool.idleCount,
           waitingCount: this.pool.waitingCount
@@ -84,7 +94,7 @@ import type { VoiceAssistantNetworkState } from ".";
       });
 
       this.pool.on('release', (client) => {
-        console.log(`📤 [${this.instanceId}] Client released to pool. Pool stats:`, {
+        this.log(`📤 [${this.instanceId}] Client released to pool. Pool stats:`, {
           totalCount: this.pool.totalCount,
           idleCount: this.pool.idleCount,
           waitingCount: this.pool.waitingCount
@@ -92,7 +102,7 @@ import type { VoiceAssistantNetworkState } from ".";
       });
 
       this.pool.on('remove', (client) => {
-        console.log(`🗑️ [${this.instanceId}] Client removed from pool. Pool stats:`, {
+        this.log(`🗑️ [${this.instanceId}] Client removed from pool. Pool stats:`, {
           totalCount: this.pool.totalCount,
           idleCount: this.pool.idleCount,
           waitingCount: this.pool.waitingCount
@@ -104,7 +114,7 @@ import type { VoiceAssistantNetworkState } from ".";
       this.maxTokens = config.maxTokens;
       this.encoder = new Tiktoken(o200k_base);
 
-      console.log(`⚙️ [${this.instanceId}] Pool configuration:`, {
+      this.log(`⚙️ [${this.instanceId}] Pool configuration:`, {
         max: 20,
         idleTimeoutMillis: 30000,
         connectionTimeoutMillis: 2000,
@@ -114,12 +124,13 @@ import type { VoiceAssistantNetworkState } from ".";
     }
   
     // Table names with proper schema and prefix
-    get tableNames() {
-      return {
-        threads: `${this.schema}.${this.tablePrefix}threads`,
-        messages: `${this.schema}.${this.tablePrefix}messages`,
-      };
-    }
+      get tableNames() {
+    return {
+      threads: `${this.schema}.${this.tablePrefix}threads`,
+      messages: `${this.schema}.${this.tablePrefix}messages`,
+      approvals: `${this.schema}.${this.tablePrefix}approvals`,
+    };
+  }
   
     /**
      * Initialize database tables if they don't exist
@@ -173,7 +184,7 @@ import type { VoiceAssistantNetworkState } from ".";
         `);
   
         await client.query("COMMIT");
-        console.log("✅ PostgreSQL tables initialized successfully");
+        this.log("✅ PostgreSQL tables initialized successfully");
       } catch (error) {
         await client.query("ROLLBACK");
         console.error("❌ Failed to initialize PostgreSQL tables:", error);
@@ -190,7 +201,7 @@ import type { VoiceAssistantNetworkState } from ".";
       { state, step }: History.CreateThreadContext<T>
     ): Promise<{ threadId: string }> => {
       const operationStart = Date.now();
-      console.log(`🆕 [${this.instanceId}] createThread starting...`);
+      this.log(`🆕 [${this.instanceId}] createThread starting...`);
       
       if (this.isClosing) {
         console.error(`❌ [${this.instanceId}] createThread called but adapter is closing`);
@@ -205,7 +216,7 @@ import type { VoiceAssistantNetworkState } from ".";
       }
       
       const client = await this.pool.connect();
-      console.log(`🔗 [${this.instanceId}] Client acquired for createThread. Time: ${Date.now() - operationStart}ms`);
+      this.log(`🔗 [${this.instanceId}] Client acquired for createThread. Time: ${Date.now() - operationStart}ms`);
   
       try {
         const operation = async () => {
@@ -221,7 +232,7 @@ import type { VoiceAssistantNetworkState } from ".";
               JSON.stringify(state.data), // Persist initial state data
             ]
           );
-          console.log(`📊 [${this.instanceId}] createThread query completed in ${Date.now() - queryStart}ms`);
+          this.log(`📊 [${this.instanceId}] createThread query completed in ${Date.now() - queryStart}ms`);
           return result.rows[0].thread_id;
         };
   
@@ -229,14 +240,14 @@ import type { VoiceAssistantNetworkState } from ".";
           ? await step.run("create-thread", operation)
           : await operation();
   
-        console.log(`✅ [${this.instanceId}] Created new thread: ${threadId} (total time: ${Date.now() - operationStart}ms)`);
+        this.log(`✅ [${this.instanceId}] Created new thread: ${threadId} (total time: ${Date.now() - operationStart}ms)`);
         return { threadId };
       } catch (error) {
         console.error(`❌ [${this.instanceId}] createThread error after ${Date.now() - operationStart}ms:`, error);
         throw error;
       } finally {
         client.release();
-        console.log(`📤 [${this.instanceId}] Client released after createThread. Total time: ${Date.now() - operationStart}ms`);
+        this.log(`📤 [${this.instanceId}] Client released after createThread. Total time: ${Date.now() - operationStart}ms`);
       }
     };
   
@@ -249,15 +260,15 @@ import type { VoiceAssistantNetworkState } from ".";
      */
     get = async ({ threadId, step }: History.Context<T>): Promise<AgentResult[]> => {
       const operationStart = Date.now();
-      console.log(`📖 [${this.instanceId}] get starting for threadId: ${threadId}`);
+      this.log(`📖 [${this.instanceId}] get starting for threadId: ${threadId}`);
       
       if (this.isClosing) {
-        console.log(`⚠️ [${this.instanceId}] get called but adapter is closing, returning empty history`);
+        this.log(`⚠️ [${this.instanceId}] get called but adapter is closing, returning empty history`);
         return [];
       }
       
       if (!threadId) {
-        console.log(`⚠️ [${this.instanceId}] No threadId provided to get, returning empty history`);
+        this.log(`⚠️ [${this.instanceId}] No threadId provided to get, returning empty history`);
         return [];
       }
 
@@ -269,7 +280,7 @@ import type { VoiceAssistantNetworkState } from ".";
       }
   
       const client = await this.pool.connect();
-      console.log(`🔗 [${this.instanceId}] Client acquired for get. Time: ${Date.now() - operationStart}ms`);
+      this.log(`🔗 [${this.instanceId}] Client acquired for get. Time: ${Date.now() - operationStart}ms`);
   
       try {
         const operation = async () => {
@@ -289,7 +300,7 @@ import type { VoiceAssistantNetworkState } from ".";
           `,
             [threadId]
           );
-          console.log(`📊 [${this.instanceId}] get query returned ${result.rows.length} rows in ${Date.now() - queryStart}ms`);
+          this.log(`📊 [${this.instanceId}] get query returned ${result.rows.length} rows in ${Date.now() - queryStart}ms`);
   
           const conversationResults: AgentResult[] = [];
           let totalTokens = 0;
@@ -331,7 +342,7 @@ import type { VoiceAssistantNetworkState } from ".";
             if (this.maxTokens) {
               const resultTokens = this.countTokensForAgentResult(agentResult);
               if (totalTokens + resultTokens > this.maxTokens) {
-                console.log(`📊 [${this.instanceId}] Token limit of ${this.maxTokens} reached. Returning ${conversationResults.length} of ${result.rows.length} results.`);
+                this.log(`📊 [${this.instanceId}] Token limit of ${this.maxTokens} reached. Returning ${conversationResults.length} of ${result.rows.length} results.`);
                 break;
               }
               totalTokens += resultTokens;
@@ -350,14 +361,14 @@ import type { VoiceAssistantNetworkState } from ".";
             )) as unknown as AgentResult[])
           : await operation();
         
-        console.log(`✅ [${this.instanceId}] get completed with ${results.length} results (total time: ${Date.now() - operationStart}ms)`);
+        this.log(`✅ [${this.instanceId}] get completed with ${results.length} results (total time: ${Date.now() - operationStart}ms)`);
         return results;
       } catch (error) {
         console.error(`❌ [${this.instanceId}] get error after ${Date.now() - operationStart}ms:`, error);
         throw error;
       } finally {
         client.release();
-        console.log(`📤 [${this.instanceId}] Client released after get. Total time: ${Date.now() - operationStart}ms`);
+        this.log(`📤 [${this.instanceId}] Client released after get. Total time: ${Date.now() - operationStart}ms`);
       }
     };
   
@@ -379,20 +390,20 @@ import type { VoiceAssistantNetworkState } from ".";
       };
     }): Promise<void> => {
       const operationStart = Date.now();
-      console.log(`💾 [${this.instanceId}] appendResults starting for threadId: ${threadId}, newResults: ${newResults?.length || 0}, userMessage: ${!!userMessage}`);
+      this.log(`💾 [${this.instanceId}] appendResults starting for threadId: ${threadId}, newResults: ${newResults?.length || 0}, userMessage: ${!!userMessage}`);
       
       if (this.isClosing) {
-        console.log(`⚠️ [${this.instanceId}] appendResults called but adapter is closing, skipping save`);
+        this.log(`⚠️ [${this.instanceId}] appendResults called but adapter is closing, skipping save`);
         return;
       }
       
       if (!threadId) {
-        console.log(`⚠️ [${this.instanceId}] No threadId provided to appendResults, skipping save`);
+        this.log(`⚠️ [${this.instanceId}] No threadId provided to appendResults, skipping save`);
         return;
       }
   
       if (!newResults?.length && !userMessage) {
-        console.log(`⚠️ [${this.instanceId}] No newResults or userMessage provided to appendResults, skipping save`);
+        this.log(`⚠️ [${this.instanceId}] No newResults or userMessage provided to appendResults, skipping save`);
         return;
       }
 
@@ -404,17 +415,17 @@ import type { VoiceAssistantNetworkState } from ".";
       }
   
       const client = await this.pool.connect();
-      console.log(`🔗 [${this.instanceId}] Client acquired for appendResults. Time: ${Date.now() - operationStart}ms`);
+      this.log(`🔗 [${this.instanceId}] Client acquired for appendResults. Time: ${Date.now() - operationStart}ms`);
   
       try {
         const operation = async () => {
           const transactionStart = Date.now();
           await client.query("BEGIN");
-          console.log(`🔄 [${this.instanceId}] Transaction started`);
+          this.log(`🔄 [${this.instanceId}] Transaction started`);
   
           try {
             // Upsert the thread record to ensure it exists before adding messages.
-            console.log(`🔄 [${this.instanceId}] Upserting thread record...`);
+            this.log(`🔄 [${this.instanceId}] Upserting thread record...`);
             const upsertStart = Date.now();
             await client.query(
               `
@@ -425,11 +436,11 @@ import type { VoiceAssistantNetworkState } from ".";
             `,
               [threadId, state.data.userId || null, JSON.stringify(state.data)]
             );
-            console.log(`✅ [${this.instanceId}] Thread upsert completed in ${Date.now() - upsertStart}ms`);
+            this.log(`✅ [${this.instanceId}] Thread upsert completed in ${Date.now() - upsertStart}ms`);
   
             // Insert user message if provided
             if (userMessage) {
-              console.log(`💬 [${this.instanceId}] Inserting user message...`);
+              this.log(`💬 [${this.instanceId}] Inserting user message...`);
               const userMessageStart = Date.now();
               const userChecksum = `user_${userMessage.timestamp.getTime()}_${userMessage.content.substring(0, 50)}`;
   
@@ -446,7 +457,7 @@ import type { VoiceAssistantNetworkState } from ".";
                   userMessage.timestamp,
                 ]
               );
-              console.log(`✅ [${this.instanceId}] User message inserted in ${Date.now() - userMessageStart}ms`);
+              this.log(`✅ [${this.instanceId}] User message inserted in ${Date.now() - userMessageStart}ms`);
             }
             
             // --- FIX: Replace raw agent output with clean final answer ---
@@ -482,7 +493,7 @@ import type { VoiceAssistantNetworkState } from ".";
                         originalResult.prompt,
                         originalResult.history
                     );
-                    console.log(`🤖 [${this.instanceId}] Overwrote assistant result with clean final answer.`);
+                    this.log(`🤖 [${this.instanceId}] Overwrote assistant result with clean final answer.`);
                 }
               }
             }
@@ -490,7 +501,7 @@ import type { VoiceAssistantNetworkState } from ".";
   
             // Insert agent results
             if (finalResultsToSave?.length > 0) {
-              console.log(`🤖 [${this.instanceId}] Inserting ${finalResultsToSave.length} agent messages...`);
+              this.log(`🤖 [${this.instanceId}] Inserting ${finalResultsToSave.length} agent messages...`);
               const agentMessagesStart = Date.now();
               for (const result of finalResultsToSave) {
                 const exportedData = result.export();
@@ -504,14 +515,14 @@ import type { VoiceAssistantNetworkState } from ".";
                   [threadId, result.agentName, exportedData, result.checksum]
                 );
               }
-              console.log(`✅ [${this.instanceId}] Agent messages inserted in ${Date.now() - agentMessagesStart}ms`);
+              this.log(`✅ [${this.instanceId}] Agent messages inserted in ${Date.now() - agentMessagesStart}ms`);
             }
   
             await client.query("COMMIT");
-            console.log(`✅ [${this.instanceId}] Transaction committed in ${Date.now() - transactionStart}ms`);
+            this.log(`✅ [${this.instanceId}] Transaction committed in ${Date.now() - transactionStart}ms`);
   
             const totalSaved = (userMessage ? 1 : 0) + (finalResultsToSave?.length || 0);
-            console.log(`💾 [${this.instanceId}] Saved ${totalSaved} messages to thread ${threadId} (${userMessage ? "1 user + " : ""}${finalResultsToSave?.length || 0} agent)`);
+            this.log(`💾 [${this.instanceId}] Saved ${totalSaved} messages to thread ${threadId} (${userMessage ? "1 user + " : ""}${finalResultsToSave?.length || 0} agent)`);
           } catch (error) {
             console.error(`❌ [${this.instanceId}] Transaction error after ${Date.now() - transactionStart}ms:`, error);
             await client.query("ROLLBACK");
@@ -520,13 +531,13 @@ import type { VoiceAssistantNetworkState } from ".";
         };
   
         step ? await step.run("save-results", operation) : await operation();
-        console.log(`✅ [${this.instanceId}] appendResults completed (total time: ${Date.now() - operationStart}ms)`);
+        this.log(`✅ [${this.instanceId}] appendResults completed (total time: ${Date.now() - operationStart}ms)`);
       } catch (error) {
         console.error(`❌ [${this.instanceId}] appendResults failed after ${Date.now() - operationStart}ms:`, error);
         throw error;
       } finally {
         client.release();
-        console.log(`📤 [${this.instanceId}] Client released after appendResults. Total time: ${Date.now() - operationStart}ms`);
+        this.log(`📤 [${this.instanceId}] Client released after appendResults. Total time: ${Date.now() - operationStart}ms`);
       }
     };
   
@@ -534,14 +545,14 @@ import type { VoiceAssistantNetworkState } from ".";
      * Close the database connection pool
      */
     async close(): Promise<void> {
-      console.log(`🔌 [${this.instanceId}] Closing adapter (age: ${Date.now() - this.createdAt.getTime()}ms)`);
+      this.log(`🔌 [${this.instanceId}] Closing adapter (age: ${Date.now() - this.createdAt.getTime()}ms)`);
       this.isClosing = true;
       activeAdapters.delete(this.instanceId);
-      console.log(`📊 [${this.instanceId}] Active adapters after close: ${activeAdapters.size}`);
+      this.log(`📊 [${this.instanceId}] Active adapters after close: ${activeAdapters.size}`);
       
       try {
       await this.pool.end();
-        console.log(`✅ [${this.instanceId}] PostgreSQL connection pool closed successfully`);
+        this.log(`✅ [${this.instanceId}] PostgreSQL connection pool closed successfully`);
       } catch (error) {
         console.error(`❌ [${this.instanceId}] Error closing pool:`, error);
       }
@@ -552,7 +563,7 @@ import type { VoiceAssistantNetworkState } from ".";
      */
     private async checkConnection(): Promise<boolean> {
       if (this.isClosing) {
-        console.log(`⚠️ [${this.instanceId}] Connection check skipped - adapter is closing`);
+        this.log(`⚠️ [${this.instanceId}] Connection check skipped - adapter is closing`);
         return false;
       }
       
@@ -561,7 +572,7 @@ import type { VoiceAssistantNetworkState } from ".";
         const client = await this.pool.connect();
         await client.query('SELECT 1');
         client.release();
-        console.log(`✅ [${this.instanceId}] Connection health check passed in ${Date.now() - healthCheckStart}ms`);
+        this.log(`✅ [${this.instanceId}] Connection health check passed in ${Date.now() - healthCheckStart}ms`);
         return true;
       } catch (error) {
         console.error(`❌ [${this.instanceId}] Connection health check failed:`, error);
@@ -718,7 +729,7 @@ import type { VoiceAssistantNetworkState } from ".";
   
         await client.query("COMMIT");
   
-        console.log(
+        this.log(
           `🗑️ Deleted thread ${threadId} and ${result.rowCount} associated records`
         );
       } catch (error) {
@@ -727,6 +738,243 @@ import type { VoiceAssistantNetworkState } from ".";
         throw error;
       } finally {
         client.release();
+      }
+    }
+
+    /**
+     * Save a pending tool approval to the database
+     * Part of the deterministic policy enforcement system
+     */
+    async savePendingApproval(details: {
+      approvalId: string;
+      threadId: string;
+      waitForEventId: string;
+      toolCalls: Array<{
+        toolName: string;
+        toolInput: Record<string, unknown>;
+        toolCallId: string;
+      }>;
+      status: "pending";
+      createdAt: Date;
+      expiresAt?: Date;
+    }): Promise<void> {
+      const operationStart = Date.now();
+      this.log(`💾 [${this.instanceId}] savePendingApproval starting for approvalId: ${details.approvalId}`);
+      
+      if (this.isClosing) {
+        this.log(`⚠️ [${this.instanceId}] savePendingApproval called but adapter is closing, skipping save`);
+        return;
+      }
+
+      const client = await this.pool.connect();
+      this.log(`🔗 [${this.instanceId}] Client acquired for savePendingApproval. Time: ${Date.now() - operationStart}ms`);
+
+      try {
+        // Insert one row per tool call to align with the database schema
+        for (const toolCall of details.toolCalls) {
+          await client.query(
+            `
+            INSERT INTO ${this.tableNames.approvals} (
+              approval_id, thread_id, event_id_to_wait_for, 
+              tool_name, tool_input, tool_call_id,
+              status, created_at, expires_at
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+            `,
+            [
+              crypto.randomUUID(), // Generate a unique UUID for each row
+              details.threadId,
+              details.waitForEventId, // This links the batch
+              toolCall.toolName,
+              toolCall.toolInput,
+              toolCall.toolCallId,
+              details.status,
+              details.createdAt,
+              details.expiresAt || null,
+            ]
+          );
+        }
+
+        this.log(`✅ [${this.instanceId}] Saved ${details.toolCalls.length} pending approval(s): ${details.approvalId} (total time: ${Date.now() - operationStart}ms)`);
+      } catch (error) {
+        console.error(`❌ [${this.instanceId}] savePendingApproval error after ${Date.now() - operationStart}ms:`, error);
+        throw error;
+      } finally {
+        client.release();
+        this.log(`📤 [${this.instanceId}] Client released after savePendingApproval. Total time: ${Date.now() - operationStart}ms`);
+      }
+    }
+
+    /**
+     * Update the status of a pending approval
+     * Part of the deterministic policy enforcement system
+     */
+    async resolvePendingApproval(details: {
+      waitForEventId: string;
+      status: "approved" | "denied";
+      resolvedAt: Date;
+      resolvedBy?: string;
+    }): Promise<void> {
+      const operationStart = Date.now();
+      this.log(`🔄 [${this.instanceId}] resolvePendingApproval starting for approvalId: ${details.waitForEventId}`);
+      
+      if (this.isClosing) {
+        this.log(`⚠️ [${this.instanceId}] resolvePendingApproval called but adapter is closing, skipping update`);
+        return;
+      }
+
+      const client = await this.pool.connect();
+      this.log(`🔗 [${this.instanceId}] Client acquired for resolvePendingApproval. Time: ${Date.now() - operationStart}ms`);
+
+      try {
+        await client.query(
+          `
+          UPDATE ${this.tableNames.approvals}
+          SET status = $1, resolved_at = $2, resolved_by = $3
+          WHERE event_id_to_wait_for = $4 AND status = 'pending'
+          `,
+          [
+            details.status,
+            details.resolvedAt,
+            details.resolvedBy || null,
+            details.waitForEventId,
+          ]
+        );
+
+        this.log(`✅ [${this.instanceId}] Resolved pending approvals for event: ${details.waitForEventId} (total time: ${Date.now() - operationStart}ms)`);
+      } catch (error) {
+        console.error(`❌ [${this.instanceId}] resolvePendingApproval error after ${Date.now() - operationStart}ms:`, error);
+        throw error;
+      } finally {
+        client.release();
+        this.log(`📤 [${this.instanceId}] Client released after resolvePendingApproval. Total time: ${Date.now() - operationStart}ms`);
+      }
+    }
+
+    /**
+     * List pending approvals for a given thread or user
+     * Part of the deterministic policy enforcement system
+     */
+    async listPendingApprovals(filters: {
+      threadId?: string;
+      userId?: string;
+      status?: "pending" | "approved" | "denied";
+    }): Promise<Array<{
+      approvalId: string;
+      threadId: string;
+      waitForEventId: string;
+      toolCalls: Array<{
+        toolName: string;
+        toolInput: Record<string, unknown>;
+        toolCallId: string;
+      }>;
+      status: "pending" | "approved" | "denied";
+      createdAt: Date;
+      expiresAt?: Date;
+    }>> {
+      const operationStart = Date.now();
+      this.log(`📋 [${this.instanceId}] listPendingApprovals starting with filters:`, filters);
+      
+      if (this.isClosing) {
+        this.log(`⚠️ [${this.instanceId}] listPendingApprovals called but adapter is closing, returning empty list`);
+        return [];
+      }
+
+      const client = await this.pool.connect();
+      this.log(`🔗 [${this.instanceId}] Client acquired for listPendingApprovals. Time: ${Date.now() - operationStart}ms`);
+
+      try {
+        let query = `
+          SELECT 
+            a.approval_id,
+            a.thread_id,
+            a.event_id_to_wait_for,
+            a.tool_name,
+            a.tool_input,
+            a.tool_call_id,
+            a.status,
+            a.created_at,
+            a.expires_at
+          FROM ${this.tableNames.approvals} a
+        `;
+        
+        const conditions: string[] = [];
+        const params: any[] = [];
+        let paramIndex = 1;
+
+        if (filters.threadId) {
+          conditions.push(`a.thread_id = $${paramIndex++}`);
+          params.push(filters.threadId);
+        }
+
+        if (filters.userId) {
+          // Join with threads table to filter by user
+          query = `
+            SELECT 
+              a.approval_id,
+              a.thread_id,
+              a.event_id_to_wait_for,
+              a.tool_name,
+              a.tool_input,
+              a.tool_call_id,
+              a.status,
+              a.created_at,
+              a.expires_at
+            FROM ${this.tableNames.approvals} a
+            JOIN ${this.tableNames.threads} t ON a.thread_id = t.thread_id
+          `;
+          conditions.push(`t.user_id = $${paramIndex++}`);
+          params.push(filters.userId);
+        }
+
+        if (filters.status) {
+          conditions.push(`a.status = $${paramIndex++}`);
+          params.push(filters.status);
+        }
+
+        if (conditions.length > 0) {
+          query += ` WHERE ${conditions.join(' AND ')}`;
+        }
+
+        query += ` ORDER BY a.created_at DESC`;
+
+        const result = await client.query(query, params);
+
+        // Group rows by approval_id and event_id_to_wait_for to reconstruct tool call arrays
+        const approvalGroups = new Map<string, any>();
+        
+        result.rows.forEach((row) => {
+          const key = `${row.approval_id.split('-')[0]}-${row.event_id_to_wait_for}`;
+          
+          if (!approvalGroups.has(key)) {
+            approvalGroups.set(key, {
+              approvalId: row.approval_id.split('-')[0], // Remove any index suffix
+              threadId: row.thread_id,
+              waitForEventId: row.event_id_to_wait_for,
+              toolCalls: [],
+              status: row.status,
+              createdAt: new Date(row.created_at),
+              expiresAt: row.expires_at ? new Date(row.expires_at) : undefined,
+            });
+          }
+          
+          approvalGroups.get(key)!.toolCalls.push({
+            toolName: row.tool_name,
+            toolInput: row.tool_input,
+            toolCallId: row.tool_call_id,
+          });
+        });
+        
+        const approvals = Array.from(approvalGroups.values());
+
+        this.log(`✅ [${this.instanceId}] Listed ${approvals.length} approvals (total time: ${Date.now() - operationStart}ms)`);
+        return approvals;
+      } catch (error) {
+        console.error(`❌ [${this.instanceId}] listPendingApprovals error after ${Date.now() - operationStart}ms:`, error);
+        throw error;
+      } finally {
+        client.release();
+        this.log(`📤 [${this.instanceId}] Client released after listPendingApprovals. Total time: ${Date.now() - operationStart}ms`);
       }
     }
   }

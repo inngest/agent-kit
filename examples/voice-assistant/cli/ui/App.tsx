@@ -50,6 +50,7 @@ export default function App({ config, adapters }: AppProps) {
 	const [selectedCommandIndex, setSelectedCommandIndex] = useState(0);
 	const [threads, setThreads] = useState<Thread[]>([]);
 	const [selectedThreadIndex, setSelectedThreadIndex] = useState(0);
+	const [threadScrollOffset, setThreadScrollOffset] = useState(0);
 	const [isLoadingThreads, setIsLoadingThreads] = useState(false);
 	const [hitlApprovalInput, setHitlApprovalInput] = useState('');
 	const [selectedHitlOption, setSelectedHitlOption] = useState(0);
@@ -69,6 +70,8 @@ export default function App({ config, adapters }: AppProps) {
 		createNewThread,
 		loadThread,
 		listThreads,
+		hitlRequest,
+		approveHITL,
 	} = useAgent(config, adapters);
 
 	// Spinner animation frames
@@ -137,6 +140,9 @@ export default function App({ config, adapters }: AppProps) {
 			action: async () => {
 				setMode('THREAD_HISTORY');
 				setIsLoadingThreads(true);
+				// Reset scroll position and selection when entering thread history
+				setThreadScrollOffset(0);
+				setSelectedThreadIndex(0);
 				try {
 					const threadList = await listThreads();
 					setThreads(threadList);
@@ -209,12 +215,14 @@ export default function App({ config, adapters }: AppProps) {
 
 	// Handle HITL approval mode
 	useEffect(() => {
-		if (pendingHITL && mode !== 'HITL_APPROVAL') {
+		console.log('[DEBUG] HITL state check - pendingHITL:', pendingHITL, 'hitlRequest:', hitlRequest, 'currentMode:', mode);
+		if ((pendingHITL || hitlRequest) && mode !== 'HITL_APPROVAL') {
+			console.log('[DEBUG] Switching to HITL_APPROVAL mode');
 			setMode('HITL_APPROVAL');
 			setSelectedHitlOption(0);
 			setHitlApprovalInput('');
 		}
-	}, [pendingHITL, mode]);
+	}, [pendingHITL, hitlRequest, mode]);
 
 	// Helper function to capitalize first letter
 	const capitalizeFirstLetter = (str: string): string => {
@@ -264,14 +272,19 @@ export default function App({ config, adapters }: AppProps) {
 	// Handle key inputs
 	useInput((input, key) => {
 		// HITL approval mode handling
-		if (mode === 'HITL_APPROVAL' && pendingHITL) {
+		if (mode === 'HITL_APPROVAL' && (pendingHITL || hitlRequest)) {
+			const currentRequest = pendingHITL || hitlRequest;
 			if (key.escape) {
 				// Deny on escape
-				sendHITLResponse(pendingHITL.messageId, false, 'User cancelled');
+				if (hitlRequest) {
+					approveHITL(false, 'User cancelled');
+				} else if (pendingHITL) {
+					sendHITLResponse(pendingHITL.messageId, false, 'User cancelled');
+				}
 				setMode('VOICE');
 				return;
 			}
-			if (pendingHITL.options && pendingHITL.options.length > 0) {
+			if (pendingHITL?.options && pendingHITL.options.length > 0) {
 				// Handle option selection
 				if (key.upArrow) {
 					setSelectedHitlOption(prev => 
@@ -286,8 +299,12 @@ export default function App({ config, adapters }: AppProps) {
 					return;
 				}
 				if (key.return) {
-					const selectedOption = pendingHITL.options[selectedHitlOption];
+									const selectedOption = pendingHITL!.options![selectedHitlOption];
+				if (hitlRequest) {
+					approveHITL(true, selectedOption);
+				} else if (pendingHITL) {
 					sendHITLResponse(pendingHITL.messageId, true, selectedOption);
+				}
 					setMode('VOICE');
 					return;
 				}
@@ -296,7 +313,17 @@ export default function App({ config, adapters }: AppProps) {
 				if (key.return) {
 					const approved = hitlApprovalInput.toLowerCase().includes('y') || 
 					                hitlApprovalInput.toLowerCase().includes('approve');
-					sendHITLResponse(pendingHITL.messageId, approved, hitlApprovalInput);
+					console.log('[DEBUG] HITL Approval - Input:', hitlApprovalInput, 'Approved:', approved);
+					console.log('[DEBUG] HITL Approval - pendingHITL:', pendingHITL);
+					console.log('[DEBUG] HITL Approval - hitlRequest:', hitlRequest);
+					
+					if (hitlRequest) {
+						console.log('[DEBUG] Calling approveHITL with:', approved, hitlApprovalInput);
+						approveHITL(approved, hitlApprovalInput);
+					} else if (pendingHITL) {
+						console.log('[DEBUG] Calling sendHITLResponse with:', pendingHITL.messageId, approved, hitlApprovalInput);
+						sendHITLResponse(pendingHITL.messageId, approved, hitlApprovalInput);
+					}
 					setMode('VOICE');
 					return;
 				}
@@ -339,18 +366,80 @@ export default function App({ config, adapters }: AppProps) {
 				setMode('VOICE');
 				return;
 			}
+			
+			// Calculate pagination for threads
+			const threadsPerPage = Math.max(1, Math.floor((getVisibleHeight() - 2) / 3));
+			const maxThreadOffset = Math.max(0, threads.length - threadsPerPage);
+			
 			if (key.upArrow) {
-				setSelectedThreadIndex(prev => 
-					prev > 0 ? prev - 1 : threads.length - 1
-				);
+				setSelectedThreadIndex(prev => {
+					const newIndex = prev > 0 ? prev - 1 : threads.length - 1;
+					
+					// Auto-scroll to keep selected thread visible
+					setThreadScrollOffset(currentOffset => {
+						const visibleStart = currentOffset;
+						const visibleEnd = currentOffset + threadsPerPage - 1;
+						
+						if (newIndex < visibleStart) {
+							// Selected thread is above visible area, scroll up
+							return Math.max(0, newIndex);
+						} else if (newIndex > visibleEnd) {
+							// Selected thread is below visible area, scroll down to show it at bottom
+							return Math.min(maxThreadOffset, newIndex - threadsPerPage + 1);
+						}
+						return currentOffset;
+					});
+					
+					return newIndex;
+				});
 				return;
 			}
+			
 			if (key.downArrow) {
-				setSelectedThreadIndex(prev => 
-					prev < threads.length - 1 ? prev + 1 : 0
-				);
+				setSelectedThreadIndex(prev => {
+					const newIndex = prev < threads.length - 1 ? prev + 1 : 0;
+					
+					// Auto-scroll to keep selected thread visible
+					setThreadScrollOffset(currentOffset => {
+						const visibleStart = currentOffset;
+						const visibleEnd = currentOffset + threadsPerPage - 1;
+						
+						if (newIndex < visibleStart) {
+							// Selected thread is above visible area (wrapped around), scroll to top
+							return 0;
+						} else if (newIndex > visibleEnd) {
+							// Selected thread is below visible area, scroll down
+							return Math.min(maxThreadOffset, newIndex - threadsPerPage + 1);
+						}
+						return currentOffset;
+					});
+					
+					return newIndex;
+				});
 				return;
 			}
+			
+			// Page Up/Down for faster scrolling through threads
+			if (key.pageUp) {
+				setThreadScrollOffset(prev => {
+					const newOffset = Math.max(0, prev - threadsPerPage);
+					// Move selection to maintain relative position
+					setSelectedThreadIndex(current => Math.max(0, Math.min(threads.length - 1, current - threadsPerPage)));
+					return newOffset;
+				});
+				return;
+			}
+			
+			if (key.pageDown) {
+				setThreadScrollOffset(prev => {
+					const newOffset = Math.min(maxThreadOffset, prev + threadsPerPage);
+					// Move selection to maintain relative position
+					setSelectedThreadIndex(current => Math.max(0, Math.min(threads.length - 1, current + threadsPerPage)));
+					return newOffset;
+				});
+				return;
+			}
+			
 			if (key.return && threads.length > 0) {
 				const selectedThread = threads[selectedThreadIndex];
 				if (selectedThread) {
@@ -669,7 +758,7 @@ export default function App({ config, adapters }: AppProps) {
 	return (
 		<Box flexDirection="column" width="100%" height="100%">
 			{/* HITL Approval Mode */}
-			{mode === 'HITL_APPROVAL' && pendingHITL ? (
+			{mode === 'HITL_APPROVAL' && (pendingHITL || hitlRequest) ? (
 				<Box flexDirection="column" width="100%" height="100%">
 					<Box borderStyle="single" borderColor="yellow" paddingX={1} paddingY={0} marginBottom={1}>
 						<Text color="yellow" bold>⚠️  Human Approval Required</Text>
@@ -677,10 +766,28 @@ export default function App({ config, adapters }: AppProps) {
 					
 					<Box flexGrow={1} flexDirection="column" paddingX={2}>
 						<Box marginBottom={2}>
-							<Text color="white" bold>{pendingHITL.request}</Text>
+							<Text color="white" bold>
+								{pendingHITL?.request || 
+								 (hitlRequest && `Approve execution of ${hitlRequest.toolCalls?.length || 0} sensitive tool(s)`) || 
+								 'Approval required'}
+							</Text>
 						</Box>
 						
-						{pendingHITL.details && (
+						{hitlRequest?.toolCalls && hitlRequest.toolCalls.length > 0 && (
+							<Box marginBottom={2}>
+								<Text color="gray">Tools requesting approval:</Text>
+								{hitlRequest.toolCalls.map((call: any, index: number) => (
+									<Box key={index} marginLeft={2}>
+										<Text color="cyan">• {call.toolName}</Text>
+										{call.toolInput && (
+											<Text color="gray" dimColor>  {JSON.stringify(call.toolInput)}</Text>
+										)}
+									</Box>
+								))}
+							</Box>
+						)}
+						
+						{pendingHITL?.details && (
 							<Box marginBottom={2}>
 								<Text color="gray">{pendingHITL.details}</Text>
 							</Box>
@@ -688,16 +795,16 @@ export default function App({ config, adapters }: AppProps) {
 						
 						<Box marginBottom={1}>
 							<Text color="gray" dimColor>
-								Expires at: {new Date(pendingHITL.expiresAt).toLocaleTimeString()}
+								Expires at: {pendingHITL?.expiresAt ? new Date(pendingHITL.expiresAt).toLocaleTimeString() : 'Unknown'}
 							</Text>
 						</Box>
 						
-						{pendingHITL.options && pendingHITL.options.length > 0 ? (
+						{pendingHITL?.options && pendingHITL.options.length > 0 ? (
 							<Box flexDirection="column">
 								<Box marginBottom={1}>
 									<Text color="cyan">Select an option:</Text>
 								</Box>
-								{pendingHITL.options.map((option, index) => (
+								{pendingHITL!.options!.map((option, index) => (
 									<Box key={index} marginBottom={0}>
 										<Text color={index === selectedHitlOption ? 'green' : 'white'}>
 											{index === selectedHitlOption ? '▸ ' : '  '}
@@ -717,7 +824,7 @@ export default function App({ config, adapters }: AppProps) {
 					
 					<Box borderStyle="single" borderColor="gray" paddingX={1} marginTop={1}>
 						<Text color="gray">
-							{pendingHITL.options ? '↑/↓ Select • Enter to approve • Esc to deny' : 'Type response • Enter to submit • Esc to cancel'}
+							{pendingHITL?.options ? '↑/↓ Select • Enter to approve • Esc to deny' : 'Type response • Enter to submit • Esc to cancel'}
 						</Text>
 					</Box>
 				</Box>
@@ -765,6 +872,75 @@ export default function App({ config, adapters }: AppProps) {
 					
 					<Box borderStyle="single" borderColor="gray" paddingX={1} marginTop={1}>
 						<Text color="gray">↑/↓ Scroll • Esc to return</Text>
+					</Box>
+				</Box>
+			) : mode === 'THREAD_HISTORY' ? (
+				// Thread History Mode
+				<Box flexDirection="column" width="100%" height="100%">
+					<Box borderStyle="single" borderColor="cyan" paddingX={1} paddingY={0} marginBottom={1}>
+						<Text color="cyan" bold>📋 Conversation History</Text>
+					</Box>
+					
+					<Box flexGrow={1} flexDirection="column" paddingX={2}>
+						{isLoadingThreads ? (
+							<Box justifyContent="center" alignItems="center" flexGrow={1}>
+								<Text color="cyan">Loading threads...</Text>
+							</Box>
+						) : threads.length === 0 ? (
+							<Box justifyContent="center" alignItems="center" flexGrow={1}>
+								<Text color="gray">No conversation threads found</Text>
+							</Box>
+						) : (() => {
+							// Calculate pagination for threads - each thread takes ~3 lines (title + 2 date lines)
+							const threadsPerPage = Math.max(1, Math.floor((getVisibleHeight() - 2) / 3)); // Reserve 2 lines for instructions
+							const maxThreadOffset = Math.max(0, threads.length - threadsPerPage);
+							const visibleThreads = threads.slice(threadScrollOffset, threadScrollOffset + threadsPerPage);
+							const hasMoreThreadsAbove = threadScrollOffset > 0;
+							const hasMoreThreadsBelow = threadScrollOffset + threadsPerPage < threads.length;
+							
+							return (
+								<Box flexDirection="column">
+									{hasMoreThreadsAbove && (
+										<Box justifyContent="center" marginBottom={1}>
+											<Text color="gray" dimColor>↑ Scroll up for more threads</Text>
+										</Box>
+									)}
+									<Box marginBottom={1}>
+										<Text color="cyan">Select a conversation to load ({threadScrollOffset + 1}-{Math.min(threadScrollOffset + threadsPerPage, threads.length)} of {threads.length}):</Text>
+									</Box>
+									{visibleThreads.map((thread, visibleIndex) => {
+										const absoluteIndex = threadScrollOffset + visibleIndex;
+										return (
+											<Box key={thread.threadId} marginBottom={1}>
+												<Text color={absoluteIndex === selectedThreadIndex ? 'green' : 'white'}>
+													{absoluteIndex === selectedThreadIndex ? '▸ ' : '  '}
+													{thread.preview ? thread.preview : 'Empty conversation'}
+												</Text>
+												<Box marginLeft={2}>
+													<Text color="gray" dimColor>
+														Created: {new Date(thread.createdAt).toLocaleDateString()} {new Date(thread.createdAt).toLocaleTimeString()}
+													</Text>
+													{thread.updatedAt !== thread.createdAt && (
+														<Text color="gray" dimColor>
+															Updated: {new Date(thread.updatedAt).toLocaleDateString()} {new Date(thread.updatedAt).toLocaleTimeString()}
+														</Text>
+													)}
+												</Box>
+											</Box>
+										);
+									})}
+									{hasMoreThreadsBelow && (
+										<Box justifyContent="center" marginTop={1}>
+											<Text color="gray" dimColor>↓ Scroll down for more threads</Text>
+										</Box>
+									)}
+								</Box>
+							);
+						})()}
+					</Box>
+					
+					<Box borderStyle="single" borderColor="gray" paddingX={1} marginTop={1}>
+						<Text color="gray">↑/↓ Select thread • PgUp/PgDn Fast scroll • Enter to load • Esc to return</Text>
 					</Box>
 				</Box>
 			) : (

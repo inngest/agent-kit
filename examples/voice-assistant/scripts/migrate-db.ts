@@ -30,10 +30,18 @@ async function runMigration() {
         // Execute migration
         await client.query(migrationSQL);
         
-        console.log('✅ Migration completed successfully!');
+        console.log('✅ Migration 002 completed successfully!');
+
+        // Read and execute the second migration file
+        const approvalMigrationPath = join(__dirname, '../db/migrations/003_add_approvals_table.sql');
+        const approvalMigrationSQL = readFileSync(approvalMigrationPath, 'utf8');
+
+        console.log('🚀 Executing migration: 003_add_approvals_table.sql');
+        await client.query(approvalMigrationSQL);
+        console.log('✅ Migration 003 completed successfully!');
         
         // Verify new columns exist
-        const result = await client.query(`
+        const columnsResult = await client.query(`
             SELECT column_name, data_type 
             FROM information_schema.columns 
             WHERE table_name = 'agentkit_messages' 
@@ -41,10 +49,24 @@ async function runMigration() {
             ORDER BY column_name;
         `);
         
-        console.log('\n📊 New columns added:');
-        result.rows.forEach(row => {
+        console.log('\n📊 Columns from migration 002:');
+        columnsResult.rows.forEach(row => {
             console.log(`  - ${row.column_name}: ${row.data_type}`);
         });
+
+        // Verify the new table exists
+        const tableResult = await client.query(`
+            SELECT table_name 
+            FROM information_schema.tables 
+            WHERE table_schema = 'public' AND table_name = 'agentkit_approvals';
+        `);
+
+        if (tableResult && tableResult.rows && tableResult.rows.length > 0 && tableResult.rows[0]) {
+            console.log('\n📊 Table from migration 003:');
+            console.log(`  - ${tableResult.rows[0].table_name}`);
+        } else {
+            console.log('\n❌ Verification failed: `agentkit_approvals` table not found.');
+        }
         
     } catch (error) {
         console.error('❌ Migration failed:', error);
