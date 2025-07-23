@@ -38,7 +38,7 @@ You can download the full SWE-bench examples by running `make init` and reading 
 
 On the Dev Server's [functions](http://localhost:8288/functions) tab, click the "invoke" button and paste the following payload which is from the SWE-bench dataset.
 
-````json
+```json
 {
   "data": {
     "repo": "pvlib/pvlib-python",
@@ -54,4 +54,3 @@ On the Dev Server's [functions](http://localhost:8288/functions) tab, click the 
   }
 }
 ```
-````
