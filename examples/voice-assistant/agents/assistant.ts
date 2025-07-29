@@ -176,14 +176,17 @@ const assistant = createAgent<VoiceAssistantNetworkState>({
         }
     ],
     model: anthropic({
-        model: "claude-3-5-sonnet-latest",
+        model: "claude-sonnet-4-0",
         defaultParameters: {
             max_tokens: 6000
         }
     }),
     lifecycle: {
         async onResponse({ agent, result, network }): Promise<AgentResult> {
-            console.log(`🔍 [Assistant Lifecycle] onResponse called for agent: ${agent.name}`);
+            const callId = crypto.randomUUID();
+            console.log(`🔍 [Assistant Lifecycle] onResponse called for agent: ${agent.name} (callId: ${callId})`);
+            console.log(`[DEBUG] Session ID: ${network?.state.data.sessionId}`);
+            console.log(`[DEBUG] Network state:`, JSON.stringify(network?.state.data, null, 2));
             
             // 1. Find all tool calls in the agent's proposed response
             const allToolCalls = result.output.flatMap((message) =>
@@ -274,18 +277,38 @@ const assistant = createAgent<VoiceAssistantNetworkState>({
                 console.error('[ERROR] Missing step or network context - cannot send HITL request');
             }
 
+            // Store the approval ID in network state for validation
+            if (network) {
+                network.state.data.pendingApprovalId = approvalEventId;
+            }
+
             console.log(`📡 [Assistant Lifecycle] Sent approval request to CLI with eventId: ${approvalEventId}`);
 
             // Wait for CLI response with matching eventId
             console.log(`⏳ [Assistant Lifecycle] Waiting for event 'app/hitl.approval.response' with messageId: ${approvalEventId}`);
+            console.log(`[DEBUG] waitForEvent condition: async.data.messageId == '${approvalEventId}'`);
             
             const approvalResponse = await step.waitForEvent("wait-cli-approval", {
                 event: 'app/hitl.approval.response',
                 timeout: '30m',
                 // if: `async.data.messageId == '${approvalEventId}'`, // TODO: bring this back; temp removed due to matching issues
+                // Try with explicit string comparison and escaping
+                // if: `async.data.messageId === "${approvalEventId}"`,
+                // match: 'data.messageId',
             });
 
             console.log(`✅ [Assistant Lifecycle] Received approval response:`, approvalResponse ? JSON.stringify(approvalResponse, null, 2) : 'null (timeout)');
+            if (approvalResponse) {
+                console.log(`[DEBUG] Received messageId: ${approvalResponse.data.messageId}`);
+                console.log(`[DEBUG] Expected messageId: ${approvalEventId}`);
+                console.log(`[DEBUG] MessageIds match: ${approvalResponse.data.messageId === approvalEventId}`);
+                
+                // Validate the messageId matches what we're expecting
+                if (approvalResponse.data.messageId !== approvalEventId) {
+                    console.warn(`[WARNING] Received approval for different messageId. Expected: ${approvalEventId}, Got: ${approvalResponse.data.messageId}`);
+                    // You might want to handle this case differently
+                }
+            }
 
             // Process the response
             let approvalResults: Array<{

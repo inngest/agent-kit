@@ -34,6 +34,7 @@ export interface VoiceAssistantNetworkState {
     transcriptionInProgress?: boolean;
     results?: any[]; // Kept for legacy reasons, prefer `messages`
     messages?: any[]; // For client-authoritative history
+    pendingApprovalId?: string; // Track the expected approval ID for HITL
 }
 
 // --- Singleton History Adapter Setup ---
