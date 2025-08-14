@@ -1,6 +1,6 @@
 {
   "name": "@inngest/agent-kit",
-  "version": "0.9.0",
+  "version": "0.10.0",
   "description": "AgentKit is a framework for creating and orchestrating AI agents and AI workflows",
   "main": "dist/index.js",
   "type": "module",
@@ -35,20 +35,14 @@
   },
   "exports": {
     ".": {
+      "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
-      "require": "./dist/index.cjs",
-      "types": {
-        "import": "./dist/index.d.ts",
-        "require": "./dist/index.d.cts"
-      }
+      "require": "./dist/index.cjs"
     },
     "./server": {
+      "types": "./dist/server.d.ts",
       "import": "./dist/server.js",
-      "require": "./dist/server.cjs",
-      "types": {
-        "import": "./dist/server.d.ts",
-        "require": "./dist/server.d.cts"
-      }
+      "require": "./dist/server.cjs"
     }
   },
   "dependencies": {
@@ -58,7 +52,7 @@
     "eventsource": "^3.0.2",
     "express": "^4.21.1",
     "xxhashjs": "^0.2.2",
-    "zod": "^3.23.8",
+    "zod": "^3.23.6",
     "zod-to-json-schema": "^3.24.3"
   },
   "peerDependencies": {
