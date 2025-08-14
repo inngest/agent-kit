@@ -196,6 +196,19 @@ export async function initializeThread<T extends StateData>(
 
   const step = await getStepTools();
 
+  // If a client provided a threadId, ensure it exists in storage by calling createThread.
+  // Adapters should upsert when a threadId already exists on state.
+  if (state.threadId && history.createThread) {
+    const { threadId } = await history.createThread({
+      state,
+      network,
+      input,
+      step,
+    });
+    state.threadId = threadId;
+    return;
+  }
+
   if (!state.threadId && history.createThread) {
     // Create a new thread using the provided createThread function
     const { threadId } = await history.createThread({

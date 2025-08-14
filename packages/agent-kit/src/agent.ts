@@ -21,18 +21,15 @@ import { createNetwork, NetworkRun } from "./network";
 import { State, type StateData } from "./state";
 import { type MCP, type Tool } from "./tool";
 import { AgentResult, type Message, type ToolResultMessage } from "./types";
-import {
-  getInngestFnInput,
-  getStepTools,
-  isInngestFn,
-  type MaybePromise,
-} from "./util";
+import { getInngestFnInput, getStepTools, isInngestFn, type MaybePromise } from "./util";
 import {
   type HistoryConfig,
   initializeThread,
   loadThreadFromStorage,
   saveThreadToStorage,
 } from "./history";
+// Streaming integration will be handled at the network level for now
+import { StreamingContext, createStepWrapper, generateId, type StreamingConfig } from "./streaming";
 
 /**
  * Agent represents a single agent, responsible for a set of tasks.
@@ -177,7 +174,7 @@ export class Agent<T extends StateData> {
    */
   async run(
     input: string,
-    { model, network, state, maxIter = 0 }: Agent.RunOptions<T> | undefined = {}
+    { model, network, state, maxIter = 0, streaming, streamingContext, step }: Agent.RunOptions<T> | undefined = {}
   ): Promise<AgentResult> {
     // Attempt to resolve the MCP tools, if we haven't yet done so.
     await this.initMCP();
@@ -195,6 +192,71 @@ export class Agent<T extends StateData> {
       network || createNetwork<T>({ name: "default", agents: [] }),
       s
     );
+
+    // Handle standalone agent streaming (ignored if part of a network)
+    let standaloneStreamingContext: StreamingContext | undefined;
+    let standaloneWrappedStep: any;
+    if (!network && streaming?.publish) {
+      // Generate IDs for this standalone agent run using Inngest steps for deterministic replay
+      const stepTools = await getStepTools();
+      let agentRunId: string;
+      let messageId: string;
+      
+      if (stepTools) {
+        // Use Inngest steps for deterministic ID generation
+        const ids = await stepTools.run("generate-standalone-agent-ids", async () => {
+          return {
+            agentRunId: generateId(),
+            messageId: generateId(),
+          };
+        });
+        agentRunId = ids.agentRunId;
+        messageId = ids.messageId;
+      } else {
+        // Fallback for non-Inngest contexts
+        agentRunId = generateId();
+        messageId = generateId();
+      }
+      
+      console.log("🔧 [AGENT] Generated IDs for standalone agent run:", {
+        agentName: this.name,
+        agentRunId,
+        messageId,
+        viaStep: !!stepTools,
+        timestamp: new Date().toISOString()
+      });
+      
+      // Create streaming context for this standalone agent
+      standaloneStreamingContext = StreamingContext.fromNetworkState(s as unknown as Record<string, any>, {
+        publish: streaming.publish,
+        runId: agentRunId,
+        messageId,
+        scope: "agent",
+      });
+      
+      // Create wrapped step for standalone agent streaming
+      standaloneWrappedStep = createStepWrapper(await getStepTools(), standaloneStreamingContext);
+      
+      // Emit agent run.started event
+      await standaloneStreamingContext.publishEvent({
+        event: "run.started",
+        data: {
+          runId: agentRunId,
+          scope: "agent",
+          name: this.name,
+          messageId,
+          threadId: s.threadId,
+        },
+      });
+    }
+
+    // Use standalone streaming context if available, otherwise use network-provided context
+    const effectiveStreamingContext = streamingContext || standaloneStreamingContext;
+    // Use standalone wrapped step if available, otherwise use network-provided step
+    const effectiveStep = step || standaloneWrappedStep;
+
+    // Note: Streaming is controlled at the network level when part of a network.
+    // For standalone agents, streaming is controlled by the streaming parameter.
 
     // Initialize conversation thread: Creates a new thread or auto-generates if needed
     await initializeThread({
@@ -230,60 +292,104 @@ export class Agent<T extends StateData> {
     // Store initial result count to track new results
     const initialResultCount = s.results.length;
 
-    do {
-      // Call lifecycles each time we perform inference.
-      if (this.lifecycles?.onStart) {
-        const modified = await this.lifecycles.onStart({
-          agent: this,
-          network: run,
-          input,
-          prompt,
-          history,
-        });
+    try {
+      do {
+        // Call lifecycles each time we perform inference.
+        if (this.lifecycles?.onStart) {
+          const modified = await this.lifecycles.onStart({
+            agent: this,
+            network: run,
+            input,
+            prompt,
+            history,
+          });
 
-        if (modified.stop) {
-          // We allow users to prevent calling the LLM directly here.
-          return result;
+          if (modified.stop) {
+            // We allow users to prevent calling the LLM directly here.
+            return result;
+          }
+
+          prompt = modified.prompt;
+          history = modified.history;
         }
 
-        prompt = modified.prompt;
-        history = modified.history;
+        const inference = await this.performInference(p, prompt, history, run, effectiveStreamingContext, effectiveStep);
+
+        hasMoreActions = Boolean(
+          this.tools.size > 0 &&
+            inference.output.length &&
+            inference.output[inference.output.length - 1]!.stop_reason !== "stop"
+        );
+
+        result = inference;
+        history = [...inference.output];
+        iter++;
+      } while (hasMoreActions && iter < maxIter);
+
+      if (this.lifecycles?.onFinish) {
+        result = await this.lifecycles.onFinish({
+          agent: this,
+          network: run,
+          result,
+        });
       }
 
-      const inference = await this.performInference(p, prompt, history, run);
+      // Note that the routing lifecycles aren't called by the agent.  They're called
+      // by the network.
 
-      hasMoreActions = Boolean(
-        this.tools.size > 0 &&
-          inference.output.length &&
-          inference.output[inference.output.length - 1]!.stop_reason !== "stop"
-      );
-
-      result = inference;
-      history = [...inference.output];
-      iter++;
-    } while (hasMoreActions && iter < maxIter);
-
-    if (this.lifecycles?.onFinish) {
-      result = await this.lifecycles.onFinish({
-        agent: this,
+      // Save new conversation results to storage: Persists only the new AgentResults
+      // generated during this run (excluding any historical results that were loaded).
+      // This allows the conversation to be continued in future runs with full context.
+      await saveThreadToStorage({
+        state: s,
+        history: this.history,
+        input,
+        initialResultCount,
         network: run,
-        result,
       });
+    } catch (error) {
+      // Emit error events for standalone agent streaming
+      if (standaloneStreamingContext) {
+        try {
+          await standaloneStreamingContext.publishEvent({
+            event: "run.failed",
+            data: {
+              runId: standaloneStreamingContext.runId,
+              scope: "agent",
+              name: this.name,
+              error: error instanceof Error ? error.message : String(error),
+              recoverable: false,
+            },
+          });
+        } catch (streamingError) {
+          // Swallow streaming errors to prevent masking the original error
+          console.warn("Failed to publish run.failed event:", streamingError);
+        }
+      }
+      // Re-throw the original error
+      throw error;
+    } finally {
+      // Always emit completion events for standalone agent streaming
+      if (standaloneStreamingContext) {
+        try {
+          await standaloneStreamingContext.publishEvent({
+            event: "run.completed",
+            data: {
+              runId: standaloneStreamingContext.runId,
+              scope: "agent",
+              name: this.name,
+            },
+          });
+          await standaloneStreamingContext.publishEvent({
+            event: "stream.ended",
+            data: {},
+          });
+        } catch (streamingError) {
+          // Swallow streaming errors to prevent breaking the application
+          console.warn("Failed to publish completion events:", streamingError);
+        }
+      }
     }
-
-    // Note that the routing lifecycles aren't called by the agent.  They're called
-    // by the network.
-
-    // Save new conversation results to storage: Persists only the new AgentResults
-    // generated during this run (excluding any historical results that were loaded).
-    // This allows the conversation to be continued in future runs with full context.
-    await saveThreadToStorage({
-      state: s,
-      history: this.history,
-      input,
-      initialResultCount,
-      network: run,
-    });
 
     return result;
   }
@@ -292,7 +398,9 @@ export class Agent<T extends StateData> {
     p: AgenticModel.Any,
     prompt: Message[],
     history: Message[],
-    network: NetworkRun<T>
+    network: NetworkRun<T>,
+    streamingContext?: StreamingContext,
+    step?: any
   ): Promise<AgentResult> {
     const { output, raw } = await p.infer(
       this.name,
@@ -320,8 +428,72 @@ export class Agent<T extends StateData> {
       });
     }
 
-    // And ensure we invoke any call from the agent
-    const toolCallOutput = await this.invokeTools(result.output, network);
+    // Fallback streaming of assistant text if streaming context exists
+    if (streamingContext) {
+      // Find the last assistant text message
+      const lastTextMsg = [...result.output]
+        .reverse()
+        .find((m) => m.type === "text" && m.role === "assistant");
+      let content = "";
+      if (lastTextMsg && lastTextMsg.type === "text") {
+        const anyMsg = lastTextMsg as unknown as { content: string | Array<{ type: "text"; text: string }> };
+        if (typeof anyMsg.content === "string") {
+          content = anyMsg.content;
+        } else if (Array.isArray(anyMsg.content)) {
+          content = anyMsg.content.map((c) => c.text).join("");
+        }
+      }
+
+      if (content && content.length > 0) {
+        // Generate partId deterministically within a step to avoid replay issues
+        const stepTools = step || await getStepTools();
+        const partId = stepTools 
+          ? await stepTools.run(`generate-text-part-id-${streamingContext.messageId}`, async () => {
+              return streamingContext.generatePartId();
+            })
+          : streamingContext.generatePartId();
+        
+        console.log("🔧 [AGENT-TEXT] Generated partId:", partId, "for messageId:", streamingContext.messageId);
+        
+        await streamingContext.publishEvent({
+          event: "part.created",
+          data: {
+            partId,
+            runId: streamingContext.runId,
+            messageId: streamingContext.messageId,
+            type: "text",
+            metadata: { agentName: this.name },
+          },
+        });
+
+        const chunkSize = 50;
+        for (let i = 0; i < content.length; i += chunkSize) {
+          console.log("🔧 [AGENT-TEXT] Publishing text.delta for partId:", partId, "chunk:", i);
+          await streamingContext.publishEvent({
+            event: "text.delta",
+            data: {
+              partId,
+              messageId: streamingContext.messageId,
+              delta: content.slice(i, i + chunkSize),
+            },
+          });
+        }
+
+        await streamingContext.publishEvent({
+          event: "part.completed",
+          data: {
+            partId,
+            runId: streamingContext.runId,
+            messageId: streamingContext.messageId,
+            type: "text",
+            finalContent: content,
+          },
+        });
+      }
+    }
+
+    // And ensure we invoke any call from the agent, streaming tool I/O if possible
+    const toolCallOutput = await this.invokeTools(result.output, network, streamingContext, step);
     if (toolCallOutput.length > 0) {
       result.toolCalls = result.toolCalls.concat(toolCallOutput);
     }
@@ -335,9 +507,13 @@ export class Agent<T extends StateData> {
    */
   private async invokeTools(
     msgs: Message[],
-    network: NetworkRun<T>
+    network: NetworkRun<T>,
+    streamingContext?: StreamingContext,
+    step?: any
   ): Promise<ToolResultMessage[]> {
     const output: ToolResultMessage[] = [];
+    // Best-effort streaming for tool execution: emit tool-call and output deltas via network streaming if available
+    // Determine if a StreamingContext exists by checking for a symbol on step wrapper (not exposed); for now rely on model-level streaming additions later
 
     for (const msg of msgs) {
       if (msg.type !== "tool_call") {
@@ -356,6 +532,54 @@ export class Agent<T extends StateData> {
           );
         }
 
+        // Stream tool arguments if context available
+        const toolArgsJson = JSON.stringify(tool.input ?? {});
+        if (streamingContext) {
+          // Generate partId deterministically within a step to avoid replay issues
+          const stepTools = step || await getStepTools();
+          const toolCallPartId = stepTools 
+            ? await stepTools.run(`generate-tool-part-id-${streamingContext.messageId}-${tool.name}`, async () => {
+                return streamingContext.generatePartId();
+              })
+            : streamingContext.generatePartId();
+          
+          console.log("🔧 [AGENT-TOOL] Generated toolCallPartId:", toolCallPartId, "for tool:", tool.name);
+          
+          await streamingContext.publishEvent({
+            event: "part.created",
+            data: {
+              partId: toolCallPartId,
+              runId: streamingContext.runId,
+              messageId: streamingContext.messageId,
+              type: "tool-call",
+              metadata: { toolName: tool.name, agentName: this.name },
+            },
+          });
+          const argChunkSize = 50;
+          for (let i = 0; i < toolArgsJson.length; i += argChunkSize) {
+            console.log("🔧 [AGENT-TOOL] Publishing tool_call.arguments.delta for partId:", toolCallPartId, "chunk:", i);
+            await streamingContext.publishEvent({
+              event: "tool_call.arguments.delta",
+              data: {
+                partId: toolCallPartId,
+                delta: toolArgsJson.slice(i, i + argChunkSize),
+                toolName: i === 0 ? tool.name : undefined,
+                messageId: streamingContext.messageId,
+              },
+            });
+          }
+          await streamingContext.publishEvent({
+            event: "part.completed",
+            data: {
+              partId: toolCallPartId,
+              runId: streamingContext.runId,
+              messageId: streamingContext.messageId,
+              type: "tool-call",
+              finalContent: tool.input ?? {},
+            },
+          });
+        }
+
         // Call this tool.
         //
         // XXX: You might expect this to be wrapped in a step, but each tool can
@@ -367,7 +591,7 @@ export class Agent<T extends StateData> {
           found.handler(tool.input, {
             agent: this,
             network,
-            step: await getStepTools(),
+            step: step || (await getStepTools()),
           })
         )
           .then((r) => {
@@ -382,6 +606,51 @@ export class Agent<T extends StateData> {
           .catch((err) => {
             return { error: serializeError(err) };
           });
+
+        // Stream tool output if context available
+        if (streamingContext) {
+          // Generate partId deterministically within a step to avoid replay issues
+          const stepTools = step || await getStepTools();
+          const outputPartId = stepTools 
+            ? await stepTools.run(`generate-output-part-id-${streamingContext.messageId}-${tool.name}`, async () => {
+                return streamingContext.generatePartId();
+              })
+            : streamingContext.generatePartId();
+          
+          console.log("🔧 [AGENT-OUTPUT] Generated outputPartId:", outputPartId, "for tool:", tool.name);
+          
+          await streamingContext.publishEvent({
+            event: "part.created",
+            data: {
+              partId: outputPartId,
+              runId: streamingContext.runId,
+              messageId: streamingContext.messageId,
+              type: "tool-output",
+              metadata: { toolName: tool.name, agentName: this.name },
+            },
+          });
+
+          const resultJson = JSON.stringify(result);
+          const outChunk = 80;
+          for (let i = 0; i < resultJson.length; i += outChunk) {
+            console.log("🔧 [AGENT-OUTPUT] Publishing tool_call.output.delta for partId:", outputPartId, "chunk:", i);
+            await streamingContext.publishEvent({
+              event: "tool_call.output.delta",
+              data: { partId: outputPartId, delta: resultJson.slice(i, i + outChunk), messageId: streamingContext.messageId },
+            });
+          }
+
+          await streamingContext.publishEvent({
+            event: "part.completed",
+            data: {
+              partId: outputPartId,
+              runId: streamingContext.runId,
+              messageId: streamingContext.messageId,
+              type: "tool-output",
+              finalContent: result,
+            },
+          });
+        }
 
         output.push({
           role: "tool_result",
@@ -627,6 +896,16 @@ export namespace Agent {
      */
     state?: State<T>;
     maxIter?: number;
+    /**
+     * Streaming configuration for standalone agent runs. When provided, the agent will
+     * automatically emit streaming events throughout its execution. Note: this is ignored
+     * when the agent is run within a network, as networks control streaming.
+     */
+    streaming?: StreamingConfig;
+    // Internal: provided by Network to enable runtime streaming from agents
+    streamingContext?: StreamingContext;
+    // Internal: provided by Network to pass wrapped step tools for automatic step events
+    step?: any;
   }
 
   export interface Lifecycle<T extends StateData> {
