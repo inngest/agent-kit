@@ -14,14 +14,16 @@ import { UnsupportedMessagePart } from "./UnsupportedMessagePart";
 interface MessagePartProps {
   part: MessagePartType;
   index: number;
+  onApprove?: (toolCallId: string) => void;
+  onDeny?: (toolCallId: string, reason?: string) => void;
 }
 
-export function MessagePart({ part, index }: MessagePartProps) {
+export function MessagePart({ part, index, onApprove, onDeny }: MessagePartProps) {
   switch (part.type) {
     case "text":
       return <TextMessagePart key={index} part={part} />;
     case "tool-call":
-      return <ToolCallMessagePart key={index} part={part} />;
+      return <ToolCallMessagePart key={index} part={part} onApprove={onApprove} onDeny={onDeny} />;
     case "data":
       return <DataMessagePart key={index} part={part} />;
     case "file":

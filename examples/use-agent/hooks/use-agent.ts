@@ -224,6 +224,14 @@ const processEvent = (messages: ConversationMessage[], event: NetworkEvent): Con
       
     // A new part of a message is being created (e.g., a text block or tool call).
     case "part.created": {
+      console.log("[StreamingReducer] Creating new part:", {
+        partId: event.data.partId,
+        messageId: event.data.messageId,
+        type: event.data.type,
+        eventTimestamp: event.timestamp,
+        eventSequence: event.sequenceNumber
+      });
+      
       const { messages: newMessages, message } = getOrCreateAssistantMessage(messages, event.data);
       
       let newPart: MessagePart;
@@ -241,9 +249,23 @@ const processEvent = (messages: ConversationMessage[], event: NetworkEvent): Con
           type: "tool-call",
           toolCallId: event.data.partId,
           toolName: event.data.metadata?.toolName || "unknown",
-          input: {},
+          input: "",
           state: "input-streaming",
         };
+      } else if (event.data.type === "tool-output") {
+        // Initialize output streaming on the last tool-call part for this tool
+        const updatedParts = [...message.parts];
+        const targetIdx = [...updatedParts]
+          .reverse()
+          .findIndex((p) => p.type === "tool-call" && (p as ToolCallUIPart).toolName === (event.data.metadata?.toolName || "unknown"));
+        if (targetIdx !== -1) {
+          const realIdx = updatedParts.length - 1 - targetIdx;
+          const toolPart = updatedParts[realIdx] as ToolCallUIPart;
+          updatedParts[realIdx] = { ...toolPart, output: "", state: toolPart.state === "input-streaming" ? "executing" : toolPart.state };
+          const updatedMessage2 = { ...message, parts: updatedParts };
+          return newMessages.map(m => m.id === message.id ? updatedMessage2 : m);
+        }
+        return newMessages;
       } else {
         // If it's an unknown part type, do nothing.
         return newMessages;
@@ -265,6 +287,13 @@ const processEvent = (messages: ConversationMessage[], event: NetworkEvent): Con
         console.warn("[StreamingReducer] Text part NOT FOUND for delta:", {
           searchedPartId: event.data.partId,
           messageId: event.data.messageId,
+          availableMessages: messages.map(m => ({
+            id: m.id,
+            partsCount: m.parts.length,
+            partIds: m.parts.map(p => p.type === 'text' ? p.id : p.type === 'tool-call' ? p.toolCallId : 'unknown')
+          })),
+          eventTimestamp: event.timestamp,
+          eventSequence: event.sequenceNumber
         });
         return messages;
       }
@@ -282,6 +311,43 @@ const processEvent = (messages: ConversationMessage[], event: NetworkEvent): Con
             return part;
           })
         };
+      });
+    }
+
+    // A chunk of tool call arguments has been streamed.
+    case "tool_call.arguments.delta": {
+      const targetPart = findPart(messages, event.data.messageId, event.data.partId) as ToolCallUIPart;
+      if (!targetPart || targetPart.type !== 'tool-call') return messages;
+      return messages.map(message => {
+        if (message.id !== event.data.messageId) return message;
+        return {
+          ...message,
+          parts: message.parts.map(part => {
+            if (part.type === 'tool-call' && part.toolCallId === event.data.partId) {
+              const currentInput = typeof part.input === 'string' ? part.input : '';
+              return { ...part, input: currentInput + (event.data.delta || ''), state: 'input-streaming' };
+            }
+            return part;
+          })
+        };
+      });
+    }
+
+    // A chunk of tool output has been streamed.
+    case "tool_call.output.delta": {
+      // Find the most recent tool-call part to attach output
+      const msg = findMessage(messages, event.data.messageId);
+      if (!msg) return messages;
+      const lastToolIdx = [...msg.parts].reverse().findIndex(p => p.type === 'tool-call');
+      if (lastToolIdx === -1) return messages;
+      const realIdx = msg.parts.length - 1 - lastToolIdx;
+      const part = msg.parts[realIdx] as ToolCallUIPart;
+      return messages.map(m => {
+        if (m.id !== msg.id) return m;
+        const newParts = [...m.parts];
+        const currentOutput = typeof part.output === 'string' ? part.output : '';
+        newParts[realIdx] = { ...part, output: currentOutput + (event.data.delta || ''), state: part.state === 'input-streaming' ? 'executing' : part.state };
+        return { ...m, parts: newParts };
       });
     }
     
@@ -310,7 +376,14 @@ const processEvent = (messages: ConversationMessage[], event: NetworkEvent): Con
                   state: "input-available" as const, 
                   input: event.data.finalContent 
                 };
+              } else {
+                return part;
               }
+            }
+            // Tool output completed -> mark tool-call output available
+            if (part.type === 'tool-call' && event.data.type === 'tool-output') {
+              const p = part as ToolCallUIPart;
+              return { ...p, state: 'output-available', output: event.data.finalContent };
             }
             return part;
           })

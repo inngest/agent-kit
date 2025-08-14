@@ -1,25 +1,36 @@
 import { inngest } from "../client";
 import { createCustomerSupportNetwork } from "../networks/customer-support-network";
-import { conversationChannel, type AgentMessageChunk } from "../../lib/realtime";
+import { conversationChannel } from "../../lib/realtime";
 import { createState } from "@inngest/agent-kit";
 import type { CustomerSupportState } from "../types/state";
 import { PostgresHistoryAdapter } from "../db";
+import { randomUUID } from "crypto";
+// Inline type to avoid depending on private dist paths
+type AgentMessageChunk = {
+  event: string;
+  data: Record<string, any>;
+  timestamp: number;
+  sequenceNumber: number;
+  id: string;
+};
 
 // Instantiate the history adapter ONCE, in the global scope.
 // This is the most important step to prevent connection pool exhaustion in a
 // serverless environment. A single function container will reuse this instance
 // and its underlying connection pool across multiple invocations.
 const historyAdapter = new PostgresHistoryAdapter<CustomerSupportState>({
-  connectionString: process.env.DATABASE_URL || "postgresql://postgres:postgres@localhost:5431/use_agent_db",
-  // Note: While you can configure pool size here (e.g., { max: 5 }), the
-  // "too many clients" error is often due to too many function *containers*
-  // spinning up. The best solution is a server-side connection pooler like PgBouncer.
+  // connectionString is now managed by the shared pool module.
 });
 
 export const runAgentChat = inngest.createFunction(
   {
     id: "run-agent-chat",
     name: "Run Agent Chat",
+    // Ensure only one run executes per thread at a time to prevent parallel routers/agents
+    // concurrency: {
+    //   limit: 1,
+    //   key: "event.data.threadId",
+    // },
     // NOTE: The onStartup property is not a valid Inngest v3 API.
     // Initialization has been moved into a durable step within the handler.
   },
@@ -58,28 +69,13 @@ export const runAgentChat = inngest.createFunction(
       customerId,
     });
     
-    // Publish initial status
-    const initialStatusChunk: AgentMessageChunk = {
-      event: "run.started",
-      data: {
-        networkRunId: `network-${Date.now()}`,
-        messageId: `msg-${Date.now()}`,
-      },
-      timestamp: Date.now(),
-      sequenceNumber: 1,
-    };
-    await step.run("publish-initial-status", () => 
-      publish(
-        conversationChannel(threadId).agent_stream(initialStatusChunk)
-      )
-    );
+    // Debug: Log the thread creation process
+    console.log("[runAgentChat] About to create network with threadId:", threadId);
     
     try {
       const network = createCustomerSupportNetwork(
-        publish,
-        step,
         threadId,
-        createState<CustomerSupportState>({
+        createState({
           customerId,
         }, { 
           messages: history,
@@ -88,8 +84,35 @@ export const runAgentChat = inngest.createFunction(
         historyAdapter // Use the shared global instance
       );
       
-      // Run the network (no step wrapper needed - network handles steps internally)
-      const result = await network.run(message);
+      // Debug: Log before running network
+      console.log("[runAgentChat] About to run network with threadId:", network.state.threadId);
+      console.log("[runAgentChat] Network has history adapter:", !!network.history);
+      console.log("[runAgentChat] Network history type:", network.history?.constructor?.name);
+      
+      // CRITICAL: Test if our network.ts changes are being used
+      console.log("🧪 [VERSION TEST] Network.run method source check:");
+      console.log("Network.run toString preview:", network.run.toString().substring(0, 200));
+      
+      // Run the network with streaming publish; runtime will emit events automatically
+      const result = await network.run(message, {
+        streaming: {
+          publish: async (chunk: AgentMessageChunk) => {
+            // Wrap in Inngest step for durability, retries, and observability
+            await step.run(chunk.id, async () => {
+              await publish(conversationChannel(threadId).agent_stream(chunk));
+              return { published: true, ...chunk };
+            });
+          },
+        },
+      });
+      
+      // Debug: Log after network run
+      console.log("[runAgentChat] Network run completed with threadId:", network.state.threadId);
+      console.log("[runAgentChat] Final thread state:", {
+        threadId: network.state.threadId,
+        resultCount: network.state.results.length,
+        hasHistory: !!network.history
+      });
       
       return {
         success: true,
@@ -97,25 +120,22 @@ export const runAgentChat = inngest.createFunction(
         result,
       };
     } catch (error) {
-      // Publish error
+      // Best-effort error event publish; ignore errors here
       const errorChunk: AgentMessageChunk = {
         event: "error",
         data: {
           error: error instanceof Error ? error.message : "An unknown error occurred",
-          networkRunId: `network-${Date.now()}`,
-          messageId: `error-msg-${Date.now()}`,
-          errorType: error instanceof Error ? error.constructor.name : "Unknown",
-          recoverable: true, // Most errors are recoverable by retrying
-          agentId: "network", // Indicates this is a network-level error
+          scope: "network",
+          recoverable: true,
+          agentId: "network",
         },
         timestamp: Date.now(),
-        sequenceNumber: 999,
+        sequenceNumber: 0,
+        id: "publish-0:network:error",
       };
-      await step.run("publish-error", () =>
-        publish(
-          conversationChannel(threadId).agent_stream(errorChunk)
-        )
-      );
+      try {
+        await publish(conversationChannel(threadId).agent_stream(errorChunk));
+      } catch {}
       
       throw error;
     }

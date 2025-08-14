@@ -6,7 +6,7 @@ import {
   AgentResult,
   type TextMessage,
 } from "@inngest/agent-kit";
-import { Pool } from "pg";
+import pool from "./pool";
 
 // PostgreSQL History Configuration
 export interface PostgresHistoryConfig {
@@ -22,15 +22,15 @@ export class PostgresHistoryAdapter<T extends StateData>
   private tablePrefix: string;
   private schema: string;
 
-  constructor(config: PostgresHistoryConfig) {
-    this.pool = new Pool({
-      connectionString: config.connectionString,
-      max: 20,
-      idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 2000,
-    });
+  constructor(config: Omit<PostgresHistoryConfig, 'connectionString'> & { connectionString?: string }) {
+    this.pool = pool;
     this.tablePrefix = config.tablePrefix || "agentkit_";
     this.schema = config.schema || "public";
+
+    // Gracefully close the pool on exit
+    process.on('SIGTERM', () => {
+      this.close().catch(console.error);
+    });
   }
 
   // Table names with proper schema and prefix
@@ -44,10 +44,36 @@ export class PostgresHistoryAdapter<T extends StateData>
   /**
    * Initialize database tables if they don't exist
    */
-  async initializeTables(): Promise<void> {
+  async initializeTables(): Promise<{
+    status: string;
+    threadsTableExisted: boolean;
+    messagesTableExisted: boolean;
+    message: string;
+  }> {
     const client = await this.pool.connect();
 
     try {
+      const threadsTableName = `${this.tablePrefix}threads`;
+      const messagesTableName = `${this.tablePrefix}messages`;
+
+      const checkThreads = await client.query(
+        `SELECT EXISTS (
+          SELECT FROM information_schema.tables 
+          WHERE table_schema = $1 AND table_name = $2
+        )`,
+        [this.schema, threadsTableName]
+      );
+      const threadsTableExisted = checkThreads.rows[0].exists;
+
+      const checkMessages = await client.query(
+        `SELECT EXISTS (
+          SELECT FROM information_schema.tables 
+          WHERE table_schema = $1 AND table_name = $2
+        )`,
+        [this.schema, messagesTableName]
+      );
+      const messagesTableExisted = checkMessages.rows[0].exists;
+
       await client.query("BEGIN");
 
       // Create threads table
@@ -94,6 +120,18 @@ export class PostgresHistoryAdapter<T extends StateData>
 
       await client.query("COMMIT");
       console.log("✅ PostgreSQL tables initialized successfully");
+
+      const message =
+        threadsTableExisted && messagesTableExisted
+          ? "All tables already existed. Check complete."
+          : "One or more tables were created during initialization.";
+
+      return {
+        status: "completed",
+        threadsTableExisted,
+        messagesTableExisted,
+        message,
+      };
     } catch (error) {
       await client.query("ROLLBACK");
       console.error("❌ Failed to initialize PostgreSQL tables:", error);
@@ -109,11 +147,41 @@ export class PostgresHistoryAdapter<T extends StateData>
   createThread = async (
     { state, step }: History.CreateThreadContext<T>
   ): Promise<{ threadId: string }> => {
-    const client = await this.pool.connect();
+    const operation = async () => {
+      const client = await this.pool.connect();
+      try {
+        // If a threadId already exists on state, upsert that ID to ensure
+        // subsequent message inserts referencing this threadId succeed.
+        if (state.threadId) {
+          console.log(`🔄 Upserting thread: ${state.threadId} for user: ${state.data.userId || 'none'}`);
+          console.log(`📊 Thread data:`, {
+            threadId: state.threadId,
+            userId: state.data.userId || null,
+            metadataSize: JSON.stringify(state.data).length
+          });
+          
+          const upsert = await client.query(
+            `
+            INSERT INTO ${this.tableNames.threads} (thread_id, user_id, metadata)
+            VALUES ($1, $2, $3)
+            ON CONFLICT (thread_id) DO UPDATE
+            SET updated_at = NOW()
+            RETURNING thread_id
+          `,
+            [
+              state.threadId,
+              state.data.userId || null,
+              JSON.stringify(state.data),
+            ]
+          );
+          console.log(`✅ Thread upserted successfully: ${upsert.rows[0].thread_id}`);
+          console.log(`📋 Upsert affected ${upsert.rowCount} rows`);
+          return upsert.rows[0].thread_id;
+        }
 
-    try {
-      const operation = async () => {
-        const result = await client.query(
+        // Otherwise create a new thread and return the generated ID.
+        console.log(`🆕 Creating new thread`);
+        const insert = await client.query(
           `
           INSERT INTO ${this.tableNames.threads} (user_id, metadata)
           VALUES ($1, $2)
@@ -124,18 +192,23 @@ export class PostgresHistoryAdapter<T extends StateData>
             JSON.stringify(state.data), // Persist initial state data
           ]
         );
+        console.log(`✅ New thread created: ${insert.rows[0].thread_id}`);
+        return insert.rows[0].thread_id;
+      } finally {
+        client.release();
+      }
+    };
 
-        return result.rows[0].thread_id;
-      };
-
+    try {
       const threadId = step
         ? await step.run("create-thread", operation)
         : await operation();
 
-      console.log(`🆕 Created new thread: ${threadId}`);
+      console.log(`🆕 Thread creation completed: ${threadId}`);
       return { threadId };
-    } finally {
-      client.release();
+    } catch (error) {
+      console.error("❌ Error in createThread:", error);
+      throw error;
     }
   };
 
@@ -152,10 +225,9 @@ export class PostgresHistoryAdapter<T extends StateData>
       return [];
     }
 
-    const client = await this.pool.connect();
-
-    try {
-      const operation = async () => {
+    const operation = async () => {
+      const client = await this.pool.connect();
+      try {
         // Load complete conversation history (both user messages and agent results)
         const result = await client.query(
           `
@@ -206,19 +278,19 @@ export class PostgresHistoryAdapter<T extends StateData>
         }
 
         return conversationResults;
-      };
+      } finally {
+        client.release();
+      }
+    };
 
-      const results = step
-        ? ((await step.run(
-            "load-complete-history",
-            operation
-          )) as unknown as AgentResult[])
-        : await operation();
-      
-      return results;
-    } finally {
-      client.release();
-    }
+    const results = step
+      ? ((await step.run(
+          "load-complete-history",
+          operation
+        )) as unknown as AgentResult[])
+      : await operation();
+    
+    return results;
   };
 
   /**
@@ -236,7 +308,7 @@ export class PostgresHistoryAdapter<T extends StateData>
       role: "user";
       timestamp: Date;
     };
-  }): Promise<void> => {
+  }): Promise<any> => {
     if (!threadId) {
       console.log("No threadId provided, skipping save");
       return;
@@ -247,16 +319,36 @@ export class PostgresHistoryAdapter<T extends StateData>
       return;
     }
 
-    const client = await this.pool.connect();
-
-    try {
-      const operation = async () => {
+    const operation = async () => {
+      const client = await this.pool.connect();
+      try {
         await client.query("BEGIN");
 
         try {
+          // First, verify the thread exists
+          console.log(`🔍 Verifying thread exists: ${threadId}`);
+          console.log(`🔍 Current step context: ${step ? 'HAS_STEP' : 'NO_STEP'}`);
+          
+          const threadCheck = await client.query(
+            `SELECT thread_id FROM ${this.tableNames.threads} WHERE thread_id = $1`,
+            [threadId]
+          );
+
+          if (threadCheck.rows.length === 0) {
+            // Before failing, let's see what threads DO exist
+            console.log(`❌ Thread ${threadId} not found. Checking what threads exist...`);
+            const allThreads = await client.query(
+              `SELECT thread_id, created_at FROM ${this.tableNames.threads} ORDER BY created_at DESC LIMIT 5`
+            );
+            console.log(`📋 Recent threads in database:`, allThreads.rows);
+            
+            throw new Error(`Thread ${threadId} does not exist in the database. This indicates a thread creation issue.`);
+          }
+          console.log(`✅ Thread verified: ${threadId}`);
+
           // Update thread's updated_at timestamp
           console.log("Updating thread timestamp...");
-          await client.query(
+          const updateResult = await client.query(
             `
             UPDATE ${this.tableNames.threads}
             SET updated_at = NOW()
@@ -264,6 +356,7 @@ export class PostgresHistoryAdapter<T extends StateData>
           `,
             [threadId]
           );
+          console.log(`Updated ${updateResult.rowCount} thread record`);
 
           // Insert user message if provided
           if (userMessage) {
@@ -291,7 +384,7 @@ export class PostgresHistoryAdapter<T extends StateData>
 
           // Insert agent results
           if (newResults?.length > 0) {
-            console.log("Inserting agent messages...");
+            console.log(`Inserting ${newResults.length} agent messages...`);
             for (const result of newResults) {
               const exportedData = result.export();
 
@@ -303,31 +396,46 @@ export class PostgresHistoryAdapter<T extends StateData>
               `,
                 [threadId, result.agentName, exportedData, result.checksum]
               );
-              console.log(`Agent message inserted successfully`);
+              console.log(`Agent message from ${result.agentName} inserted successfully`);
             }
           }
 
           await client.query("COMMIT");
 
           const totalSaved = (userMessage ? 1 : 0) + (newResults?.length || 0);
+          const saveResult = {
+            success: true,
+            threadId,
+            messagesSaved: totalSaved,
+            userMessage: !!userMessage,
+            agentResults: newResults?.length || 0,
+            timestamp: new Date().toISOString()
+          };
+          
           console.log(
             `💾 Saved ${totalSaved} messages to thread ${threadId} (${
               userMessage ? "1 user + " : ""
             }${newResults?.length || 0} agent)`
           );
+          
+          return saveResult;
         } catch (error) {
           console.error("❌ Error during transaction:", error);
           await client.query("ROLLBACK");
           throw error;
         }
-      };
+      } finally {
+        client.release();
+      }
+    };
 
-      step ? await step.run("save-results", operation) : await operation();
+    try {
+      const result = step ? await step.run("save-results", operation) : await operation();
+      console.log("✅ [SAVE-RESULTS] Step completed successfully:", result);
+      return result;
     } catch (error) {
       console.error("❌ appendResults failed:", error);
       throw error;
-    } finally {
-      client.release();
     }
   };
 

@@ -1,423 +1,238 @@
-import { createNetwork, openai } from "@inngest/agent-kit";
+import { createNetwork, openai, createRoutingAgent, createTool, type Network } from "@inngest/agent-kit";
 import type { State } from "@inngest/agent-kit";
-import { triageAgent, billingAgent, technicalSupportAgent } from "../agents";
-import { conversationChannel, type AgentMessageChunk } from "../../lib/realtime";
+import { z } from "zod";
+import { billingAgent, technicalSupportAgent } from "../agents";
 import type { CustomerSupportState } from "../types/state";
-import crypto from "crypto";
 
-// Type for the publish function from Inngest
-type PublishFunction = (channel: any) => Promise<void>;
-
-// Factory function to create a router with realtime publishing
-export function createRealtimeRouter(publish: PublishFunction, step: any, threadId: string) {
-  let networkRunId: string;
-  let messageId: string;
-  let sequenceNumber = 0;
-  let currentAgentRunId: string;
-
-  const publishEvent = (event: string, data: any) => {
-    const chunk: AgentMessageChunk = {
-      event,
-      data,
-      timestamp: Date.now(),
-      sequenceNumber: sequenceNumber++,
-    };
-    
-    console.log("[NETWORK] Publishing event:", {
-      threadId,
-      event,
-      dataKeys: Object.keys(data),
-      partId: data.partId || 'no-partId',
-      sequenceNumber: chunk.sequenceNumber,
-      timestamp: new Date().toISOString()
-    });
-    
-    // Use step.run to ensure each publish is a unique step
-    return step.run(`publish-event-${sequenceNumber}-${event}`, () => {
-      return publish(
-        conversationChannel(threadId).agent_stream(chunk)
-      );
-    });
-  };
-
-  return async ({ network, lastResult, callCount }: any) => {
-    try {
-      const state = network.state.data as CustomerSupportState;
-      
-      if (callCount === 0) {
-      // Generate all initial IDs in a single step for consistency
-      [networkRunId, messageId, currentAgentRunId] = await step.run("generate-initial-ids", () => {
-        return [
-          crypto.randomUUID(), // networkRunId
-          crypto.randomUUID(), // messageId
-          crypto.randomUUID(), // agentRunId for triage agent
-        ];
-      });
-      
-      // Start network
-      await publishEvent("run.started", {
-        runId: networkRunId,
-        scope: "network",
-        name: "Customer Support Network",
-        messageId,
-      });
-      
-      // Start first agent (triage)
-      await publishEvent("run.started", {
-        runId: currentAgentRunId,
-        parentRunId: networkRunId,
-        scope: "agent",
-        name: triageAgent.name,
-        messageId,
-      });
-      
-      return triageAgent;
-    }
-    
-    // Process results from the last agent
-    if (lastResult) {
-      const lastAgentName = lastResult.agentName;
-      const lastMessage = lastResult.output[lastResult.output.length - 1];
-
-      // Complete the previous agent's run
-      await publishEvent("run.completed", {
-        runId: currentAgentRunId, // Use the stored run ID
-        scope: "agent",
-        name: lastAgentName,
-        messageId,
-      });
-
-      // Only stream user-facing responses, not internal triage responses
-      const isTriageAgent = lastAgentName === triageAgent.name;
-      const shouldStreamResponse = !isTriageAgent;
-
-      console.log("[NETWORK] Processing agent result:", {
-        agentName: lastAgentName,
-        isTriageAgent,
-        shouldStreamResponse,
-        callCount,
-        timestamp: new Date().toISOString()
-      });
-
-      // Create and stream the agent's response (only for user-facing agents)
-      if (shouldStreamResponse && lastMessage?.type === "text" && typeof lastMessage.content === "string") {
-        console.log("[NETWORK] About to call streamAgentResponse:", {
-          agentName: lastAgentName,
-          messageId,
-          contentLength: lastMessage.content.length,
-          callCount,
-          timestamp: new Date().toISOString()
-        });
-        try {
-          await streamAgentResponse(step, publishEvent, lastMessage.content, lastAgentName, messageId, currentAgentRunId);
-        } catch (streamError) {
-          await publishEvent("error", {
-            error: streamError instanceof Error ? streamError.message : "Failed to stream agent response",
-            errorType: streamError instanceof Error ? streamError.constructor.name : "StreamError",
-            runId: currentAgentRunId,
-            messageId,
-            scope: "streaming",
-            agentId: lastAgentName,
-            recoverable: true,
-          });
-        }
+// Create a routing agent that mirrors the default routing agent's interface
+const customerSupportRouter = createRoutingAgent<CustomerSupportState>({
+  name: "Customer Support Router",
+  description: "Selects which support agent should handle the next step, or completes the conversation.",
+  model: openai({ model: "gpt-5-nano-2025-08-07" }),
+  lifecycle: {
+    onRoute: ({ result, network }) => {
+      // State-driven short-circuit: if an agent was already invoked this turn,
+      // end the turn to wait for a new user message.
+      if (network?.state?.data?.invoked) {
+        console.log("🔧 [ROUTER-STATE] Agent already invoked this turn:", network.state.data.invokedAgentName);
+        return undefined;
       }
 
-      // Handle tool calls (only for user-facing agents)
-      if (shouldStreamResponse) {
-        for (const toolCall of lastResult.toolCalls) {
-          if (toolCall.type === "tool_result") {
-            try {
-              await streamToolCall(step, publishEvent, toolCall, lastAgentName, messageId, currentAgentRunId);
-            } catch (streamError) {
-              await publishEvent("error", {
-                error: streamError instanceof Error ? streamError.message : "Failed to stream tool call",
-                errorType: streamError instanceof Error ? streamError.constructor.name : "ToolStreamError",
-                runId: currentAgentRunId,
-                messageId,
-                scope: "tool-streaming",
-                agentId: lastAgentName,
-                toolName: toolCall.tool?.name || "unknown",
-                recoverable: true,
-              });
+      const tool = result.toolCalls[0] as any;
+      if (!tool) {
+        return;
+      }
+      if (tool.tool.name === "done") {
+        return undefined;
+      }
+      if (tool.tool.name === "select_agent") {
+        if (
+          typeof tool.content === "object" &&
+          tool.content !== null &&
+          "data" in tool.content &&
+          typeof (tool.content as any).data === "string"
+        ) {
+          const next = (tool.content as any).data as string;
+          // Mark state as invoked so subsequent router calls in this run end
+          try {
+            if (network) {
+              network.state.data.invoked = true;
+              network.state.data.invokedAgentName = next;
             }
-          }
+          } catch {}
+          return [next];
         }
       }
-    }
-    
-    // Routing logic after triage
-    if (callCount === 1 && lastResult?.agentName === triageAgent.name) {
-      const content = lastResult.output[0]?.type === "text" 
-        ? lastResult.output[0].content 
-        : "";
-        
-      if (typeof content === "string") {
-        const lowerContent = content.toLowerCase();
-        let nextAgent;
-        let nextAgentName: string | undefined;
-
-        if (lowerContent.includes("billing") || lowerContent.includes("payment") || lowerContent.includes("invoice")) {
-          state.department = "billing";
-          nextAgent = billingAgent;
-          nextAgentName = billingAgent.name;
-        } else if (lowerContent.includes("technical") || lowerContent.includes("bug") || lowerContent.includes("error")) {
-          state.department = "technical";
-          nextAgent = technicalSupportAgent;
-          nextAgentName = technicalSupportAgent.name;
-        }
-        
-        if (nextAgent && nextAgentName) {
-          state.triageComplete = true;
-          
-          // Generate new run ID for the next agent and start it
-          currentAgentRunId = await step.run(`generate-${state.department}-run-id`, () => crypto.randomUUID());
-          await publishEvent("run.started", {
-            runId: currentAgentRunId,
-            parentRunId: networkRunId,
-            scope: "agent",
-            name: nextAgentName,
-            messageId,
-          });
-          
-          return nextAgent;
-        }
-      }
-    }
-    
-    // Check for continuation
-    if (state.triageComplete && state.department && callCount < 5) {
-      const lastMessage = lastResult?.output[lastResult.output.length - 1];
-      if (lastMessage?.type === "text" && typeof lastMessage.content === "string") {
-        const content = lastMessage.content.toLowerCase();
-        
-        if (content.includes("let me") || content.includes("i'll check") || content.includes("checking")) {
-          if (state.department === "billing") {
-            return billingAgent;
-          } else if (state.department === "technical") {
-            return technicalSupportAgent;
-          }
-        }
-      }
-    }
-    
-      // Complete network
-      await publishEvent("run.completed", {
-        runId: networkRunId,
-        scope: "network",
-        name: "Customer Support Network",
-        messageId,
-      });
-      
-      await publishEvent("stream.ended", {});
-
-      return undefined;
-    } catch (error) {
-      // Publish error event for router-level errors
-      await publishEvent("error", {
-        error: error instanceof Error ? error.message : "Router error occurred",
-        errorType: error instanceof Error ? error.constructor.name : "Unknown",
-        runId: networkRunId || `error-${Date.now()}`,
-        messageId: messageId || `error-msg-${Date.now()}`,
-        scope: "router",
-        agentId: "router",
-        recoverable: true,
-      });
-      
-      // Complete network with error status
-      await publishEvent("run.completed", {
-        runId: networkRunId || `error-${Date.now()}`,
-        scope: "network",
-        name: "Customer Support Network",
-        messageId: messageId || `error-msg-${Date.now()}`,
-        error: true,
-      });
-      
-      await publishEvent("stream.ended", {});
-      
-      // Re-throw to ensure the error bubbles up
-      throw error;
-    }
-  };
-}
-
-// Helper function to stream agent response following the part lifecycle
-async function streamAgentResponse(
-  step: any,
-  publishEvent: (event: string, data: any) => Promise<void>,
-  text: string,
-  agentName: string,
-  messageId: string,
-  agentRunId: string,
-  threadId?: string
-) {
-  const partId = await step.run(`generate-text-part-id-for-${agentName}`, () => crypto.randomUUID());
-  
-  console.log("[NETWORK] streamAgentResponse starting:", {
-    partId,
-    agentName,
-    messageId,
-    agentRunId,
-    threadId,
-    textLength: text.length,
-    textPreview: text.substring(0, 50) + "...",
-    timestamp: new Date().toISOString()
-  });
-  
-  // Create text part
-  await publishEvent("part.created", {
-    partId,
-    runId: agentRunId,
-    messageId,
-    type: "text",
-    metadata: {
-      agentName,
+      return;
     },
-  });
-  
-  console.log("[NETWORK] part.created sent:", { partId, agentName });
+  },
 
-  // Stream text in chunks
-  const chunkSize = 20;
-  for (let i = 0; i < text.length; i += chunkSize) {
-    const delta = text.substring(i, i + chunkSize);
-    console.log("[NETWORK] Sending text.delta:", {
-      partId,
-      agentName,
-      deltaContent: delta,
-      deltaIndex: Math.floor(i / chunkSize),
-      timestamp: new Date().toISOString()
-    });
-    
-    await publishEvent("text.delta", {
-      partId,
-      messageId, // Ensure the messageId is included for client-side lookup
-      delta,
-    });
-    
-    // Small delay to simulate typing
-    await step.sleep(`typing-delay-${i}`, "50ms");
-  }
+  tools: ([
+    // Agent selection tool, identical schema to the default router
+    (createTool as any)({
+      name: "select_agent",
+      description: "Select an agent to handle the next step of the conversation",
+      parameters: z
+        .object({
+          name: z
+            .string()
+            .describe("The name of the agent that should handle the request"),
+          reason: z
+            .string()
+            .describe("Brief explanation of why this agent was chosen"),
+        })
+        .strict() as unknown as z.ZodType<any>,
+      handler: (args: any, ctx: any) => {
+        const { name, reason } = args as { name: string; reason: string };
+        const { network } = ctx as { network: any };
+        if (typeof name !== "string") {
+          throw new Error("The routing agent requested an invalid agent");
+        }
 
-  // Complete the text part
-  console.log("[NETWORK] Sending part.completed:", {
-    partId,
-    agentName,
-    agentRunId,
-    textLength: text.length,
-    timestamp: new Date().toISOString()
-  });
-  
-  await publishEvent("part.completed", {
-    partId,
-    runId: agentRunId,
-    messageId,
-    type: "text",
-    finalContent: text,
-  });
-}
+        const agent = network.agents.get(name);
+        if (agent === undefined) {
+          throw new Error(
+            `The routing agent requested an agent that doesn't exist: ${name}`
+          );
+        }
 
-// Helper function to stream tool calls
-async function streamToolCall(
-  step: any,
-  publishEvent: (event: string, data: any) => Promise<void>,
-  toolCall: any,
-  agentName: string,
-  messageId: string,
-  agentRunId: string,
-) {
-  const toolCallPartId = await step.run(`generate-tool-part-id-for-${toolCall.tool.name}`, () => crypto.randomUUID());
-  
-  // Create tool call part
-  await publishEvent("part.created", {
-    partId: toolCallPartId,
-    runId: agentRunId,
-    messageId,
-    type: "tool-call",
-    metadata: {
-      toolName: toolCall.tool.name,
-      agentName,
-    },
-  });
+        // Record routing decision in state for observability
+        const now = new Date().toISOString();
+        network.state.data.lastRoutingDecision = {
+          nextAgent: agent.name,
+          reason: reason || `Routing to ${agent.name}`,
+          timestamp: now,
+        };
+        const prior = Array.isArray(network.state.data.routingDecisions)
+          ? network.state.data.routingDecisions
+          : [];
+        network.state.data.routingDecisions = [
+          ...prior,
+          { agent: agent.name, reason: reason || `Routing to ${agent.name}`, timestamp: now },
+        ];
 
-  // Stream tool arguments
-  const argsJson = JSON.stringify(toolCall.tool.input);
-  const chunkSize = 10;
-  for (let i = 0; i < argsJson.length; i += chunkSize) {
-    const delta = argsJson.substring(i, i + chunkSize);
-    await publishEvent("tool_call.arguments.delta", {
-      partId: toolCallPartId,
-      delta,
-      toolName: i === 0 ? toolCall.tool.name : undefined,
-    });
-    await step.sleep(`tool-args-delay-${i}`, "30ms");
-  }
-
-  // Complete tool call arguments
-  await publishEvent("part.completed", {
-    partId: toolCallPartId,
-    runId: agentRunId,
-    messageId,
-    type: "tool-call",
-    finalContent: toolCall.tool.input,
-  });
-
-  // Stream tool output if available
-  if (toolCall.result) {
-    const outputPartId = await step.run(`generate-tool-output-part-id-for-${toolCall.tool.name}`, () => crypto.randomUUID());
-    
-    await publishEvent("part.created", {
-      partId: outputPartId,
-      runId: agentRunId,
-      messageId,
-      type: "tool-output",
-      metadata: {
-        toolName: toolCall.tool.name,
-        agentName,
+        // Returning the agent name mirrors the default router's behavior
+        return agent.name;
       },
-    });
+    }),
 
-    const resultJson = JSON.stringify(toolCall.result);
-    for (let i = 0; i < resultJson.length; i += chunkSize) {
-      const delta = resultJson.substring(i, i + chunkSize);
-      await publishEvent("tool_call.output.delta", {
-        partId: outputPartId,
-        delta,
-      });
-      await step.sleep(`tool-output-delay-${i}`, "30ms");
+    // Done tool to explicitly end the conversation when appropriate
+    (createTool as any)({
+      name: "done",
+      description:
+        "Signal that the conversation is complete and no more agents need to be called",
+      parameters: z
+        .object({
+          summary: z
+            .string()
+            .describe("Brief summary of what was accomplished"),
+        })
+        .strict() as unknown as z.ZodType<any>,
+      handler: (args: any, ctx: any) => {
+        const { summary } = args as { summary?: string };
+        const { network } = ctx as { network: any };
+        network.state.data.conversationComplete = true;
+        network.state.data.lastRoutingDecision = {
+          nextAgent: "DONE",
+          reason: summary || "Conversation completed successfully",
+          timestamp: new Date().toISOString(),
+        };
+        return summary || "Conversation completed successfully";
+      },
+    }),
+  ]) as any,
+
+  // Allow the model to choose between selecting an agent or finishing
+  tool_choice: "any",
+
+  system: async ({ network }) => {
+    if (!network) {
+      throw new Error(
+        "The routing agent can only be used within a network of agents"
+      );
     }
 
-    await publishEvent("part.completed", {
-      partId: outputPartId,
-      runId: agentRunId,
-      messageId,
-      type: "tool-output",
-      finalContent: toolCall.result,
-    });
-  }
-}
+    const agents = await network.availableAgents();
 
-// Factory function to create the customer support network with runtime dependencies
+    return `You are the orchestrator between a group of customer support agents. Each agent is suited for specific tasks and has a name, description, and tools.
+
+The following agents are available:
+<agents>
+  ${agents
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    .map((a: any) => {
+      return `
+    <agent>
+      <name>${a.name}</name>
+      <description>${a.description}</description>
+      <tools>${JSON.stringify(Array.from(a.tools.values()))}</tools>
+    </agent>`;
+    })
+    .join("\n")}
+</agents>
+
+Your responsibilities:
+1. Analyze the conversation history and current state
+2. Determine if the request has been completed or if more work is needed
+3. Either:
+   - Call select_agent to route to the appropriate agent for the next step
+   - Call done if the conversation is complete or the user's request has been fulfilled
+
+Turn handling and completion policy:
+- If the last agent’s reply is asking the user for information or confirmation, end this turn by calling the done tool so the system can wait for the user's reply. Do not immediately route to any agent again until a new user message arrives.
+- Do not route the same agent twice in a row without a new user message that changes context.
+- Prefer the minimal number of agent hops necessary to satisfy the user.
+
+**CRITICAL: When to call DONE:**
+- If a billing agent has processed a refund (status: "pending_approval" or "completed")
+- If a technical agent has provided a solution or answer
+- If the customer's original request has been addressed
+- If an agent has taken the requested action (refund, subscription change, etc.)
+
+**Agent Specializations:**
+- Billing Support: payment, subscription, invoice, and refund issues
+- Technical Support: bugs, errors, feature questions, and integrations
+
+**BE EFFICIENT:** Most customer requests can be resolved by ONE agent. Only route to multiple agents if the request genuinely requires different specializations. After an agent has processed the customer's request, call DONE.
+`;
+  },
+});
+
+// Hybrid router: code-first guard, then delegate to routing agent for selection
+const hybridRouter: Network.Router<CustomerSupportState> = async ({ input, network }) => {
+  // If an agent has already been scheduled/invoked in this run, end the turn
+  if (network.state.data.invoked) {
+    return undefined;
+  }
+
+  // Delegate selection to the routing agent
+  const result = await customerSupportRouter.run(input, {
+    network,
+    model: customerSupportRouter.model || network.defaultModel,
+  });
+
+  const agentNames = customerSupportRouter.lifecycles.onRoute({
+    result,
+    agent: customerSupportRouter,
+    network,
+  });
+
+  const nextName = Array.isArray(agentNames) ? agentNames[0] : undefined;
+  if (!nextName) {
+    return undefined;
+  }
+
+  const next = network.agents.get(nextName);
+  if (!next) {
+    return undefined;
+  }
+
+  // Mark state so subsequent router call (same run) exits
+  network.state.data.invoked = true;
+  network.state.data.invokedAgentName = next.name;
+
+  return next;
+};
+
+// Factory function to create the customer support network with routing logic only
 export function createCustomerSupportNetwork(
-  publish: PublishFunction,
-  step: any, // Inngest step object
   threadId: string,
   initialState: State<CustomerSupportState>,
   historyAdapter?: any
 ) {
   console.log("[NETWORK] Creating network for thread:", {
     threadId,
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
   });
-  
+
   return createNetwork<CustomerSupportState>({
     name: "Customer Support Network",
     description: "Handles customer support inquiries with specialized agents",
-    agents: [triageAgent, billingAgent, technicalSupportAgent],
-    defaultModel: openai({ model: "gpt-4o-mini" }),
-    maxIter: 5,
+    agents: [billingAgent, technicalSupportAgent],
+    defaultModel: openai({ model: "gpt-5-nano-2025-08-07" }),
+    maxIter: 10, // Allow proper conversation flow
     defaultState: initialState,
-    router: createRealtimeRouter(publish, step, threadId),
+    router: hybridRouter, // Hybrid: code-based guard + routing agent selection
     history: historyAdapter,
   });
 }

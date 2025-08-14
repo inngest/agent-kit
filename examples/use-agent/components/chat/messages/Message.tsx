@@ -5,9 +5,11 @@ import { MessagePart } from "./MessagePart";
 
 interface MessageProps {
   message: ConversationMessage;
+  onApprove?: (toolCallId: string) => void;
+  onDeny?: (toolCallId: string, reason?: string) => void;
 }
 
-export function Message({ message }: MessageProps) {
+export function Message({ message, onApprove, onDeny }: MessageProps) {
   const isUser = message.role === 'user';
   return (
     <div className={`flex gap-3 ${isUser ? 'justify-end' : 'justify-start'}`}>
@@ -17,7 +19,7 @@ export function Message({ message }: MessageProps) {
         </div>
         <div className={`rounded-lg p-4 ${isUser ? 'bg-blue-500 text-white' : 'bg-gray-100 dark:bg-gray-800'}`}>
           {message.parts.map((part, index) => (
-            <MessagePart key={index} part={part} index={index} />
+            <MessagePart key={index} part={part} index={index} onApprove={onApprove} onDeny={onDeny} />
           ))}
         </div>
       </div>

@@ -98,10 +98,7 @@ export const technicalSupportAgent = createAgent<CustomerSupportState>({
 Be technical when needed but explain things clearly. Always gather enough information to properly diagnose issues.
 If an issue requires engineering attention, create a support ticket with appropriate priority.`,
   model: openai({ 
-    model: "gpt-4o-mini",
-    defaultParameters: {
-      temperature: 0.3
-    }
+    model: "gpt-5-nano-2025-08-07",
   }),
   tools: [checkSystemStatusTool, createSupportTicketTool, searchKnowledgeBaseTool],
 }); 

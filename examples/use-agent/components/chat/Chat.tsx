@@ -14,7 +14,7 @@ interface ChatProps {
 
 export function Chat({ threadId: providedThreadId }: ChatProps) {
   const [threadId] = useState(providedThreadId || uuidv4());
-  const [inputValue, setInputValue] = useState("");
+  const [inputValue, setInputValue] = useState("I need a refund");
 
   const { 
     messages, 
@@ -34,6 +34,53 @@ export function Chat({ threadId: providedThreadId }: ChatProps) {
 
     sendMessage(inputValue);
     setInputValue("");
+  };
+
+  const handleApprove = async (toolCallId: string) => {
+    try {
+      const response = await fetch("/api/approve-tool", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          toolCallId, 
+          threadId, 
+          action: "approve" 
+        }),
+      });
+      
+      if (!response.ok) {
+        throw new Error("Failed to approve tool call");
+      }
+      
+      console.log(`[Chat] Tool ${toolCallId} approved`);
+    } catch (error) {
+      console.error("[Chat] Error approving tool:", error);
+      // Could show an error toast here
+    }
+  };
+
+  const handleDeny = async (toolCallId: string, reason?: string) => {
+    try {
+      const response = await fetch("/api/approve-tool", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          toolCallId, 
+          threadId, 
+          action: "deny",
+          reason 
+        }),
+      });
+      
+      if (!response.ok) {
+        throw new Error("Failed to deny tool call");
+      }
+      
+      console.log(`[Chat] Tool ${toolCallId} denied`, reason ? `with reason: ${reason}` : '');
+    } catch (error) {
+      console.error("[Chat] Error denying tool:", error);
+      // Could show an error toast here
+    }
   };
 
   return (
@@ -76,7 +123,12 @@ export function Chat({ threadId: providedThreadId }: ChatProps) {
         </div>
       )}
       
-      <MessageList messages={messages} status={status} />
+      <MessageList 
+        messages={messages} 
+        status={status} 
+        onApprove={handleApprove}
+        onDeny={handleDeny}
+      />
       <ChatInput
         inputValue={inputValue}
         onInputChange={(e) => setInputValue(e.target.value)}

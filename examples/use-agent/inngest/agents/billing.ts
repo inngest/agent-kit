@@ -6,9 +6,10 @@ import type { CustomerSupportState } from "../types/state";
 const checkSubscriptionTool = createTool({
   name: "check_subscription",
   description: "Check the current subscription status for a customer",
+  // Cast to generic ZodType to avoid deep type instantiation issues
   parameters: z.object({
-    customerId: z.string().describe("The customer ID to check subscription for"),
-  }),
+    customerId: z.string(),
+  }) as unknown as z.ZodType<any>,
   handler: async ({ customerId }) => {
     // Mock implementation
     return {
@@ -26,9 +27,9 @@ const processRefundTool = createTool({
   description: "Process a refund request for a customer",
   parameters: z.object({
     customerId: z.string(),
-    amount: z.number().describe("Amount to refund in dollars"),
-    reason: z.string().describe("Reason for the refund"),
-  }),
+    amount: z.number(),
+    reason: z.string(),
+  }) as unknown as z.ZodType<any>,
   handler: async ({ customerId, amount, reason }) => {
     // Mock implementation
     return {
@@ -45,11 +46,13 @@ const processRefundTool = createTool({
 const getInvoiceHistoryTool = createTool({
   name: "get_invoice_history",
   description: "Get invoice history for a customer",
-  parameters: z.object({
+  parameters: (z.object({
     customerId: z.string(),
-    limit: z.number().optional(),
-  }),
-  handler: async ({ customerId, limit = 5 }) => {
+    // Optional params should use .nullable() for OpenAI tool schema compatibility
+    limit: z.number().nullable(),
+  }) as unknown) as z.ZodType<any>,
+  handler: async ({ customerId, limit }) => {
+    const effectiveLimit = typeof limit === "number" ? limit : 5;
     // Mock implementation
     return {
       customerId,
@@ -57,7 +60,7 @@ const getInvoiceHistoryTool = createTool({
         { id: "inv_001", date: "2024-01-01", amount: "$99.00", status: "paid" },
         { id: "inv_002", date: "2023-12-01", amount: "$99.00", status: "paid" },
         { id: "inv_003", date: "2023-11-01", amount: "$99.00", status: "paid" },
-      ].slice(0, limit),
+      ].slice(0, effectiveLimit),
     };
   },
 });
@@ -75,10 +78,7 @@ export const billingAgent = createAgent<CustomerSupportState>({
 Be helpful, accurate with financial information, and empathetic when dealing with payment issues.
 Always confirm customer details before making any changes.`,
   model: openai({ 
-    model: "gpt-4o-mini",
-    defaultParameters: {
-      temperature: 0.2
-    }
+    model: "gpt-5-nano-2025-08-07",
   }),
   tools: [checkSubscriptionTool, processRefundTool, getInvoiceHistoryTool],
 }); 
