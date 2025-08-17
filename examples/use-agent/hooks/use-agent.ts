@@ -709,6 +709,8 @@ export interface UseAgentReturn {
   status: AgentStatus;
   /** A function to send a message to the agent. */
   sendMessage: (message: string) => Promise<void>;
+  /** A function to regenerate the last response by resending the last user message. */
+  regenerate: () => void;
   /** The connection status to the real-time event stream. */
   isConnected: boolean;
   /** The name of the currently active agent. */
@@ -832,10 +834,26 @@ export function useAgent({ threadId, onError }: UseAgentOptions): UseAgentReturn
     dispatch({ type: 'CLEAR_ERROR' });
   }, []);
 
+  // Callback to regenerate the last response by resending the last user message
+  const regenerate = useCallback(() => {
+    const lastUserMessage = [...state.messages].reverse().find(msg => msg.role === 'user');
+    if (lastUserMessage && lastUserMessage.parts.length > 0) {
+      const lastUserContent = lastUserMessage.parts
+        .filter(part => part.type === 'text')
+        .map(part => (part as TextUIPart).content)
+        .join(' ');
+      
+      if (lastUserContent.trim()) {
+        sendMessage(lastUserContent);
+      }
+    }
+  }, [state.messages, sendMessage]);
+
   return {
     messages: state.messages,
     status: state.agentStatus,
     sendMessage,
+    regenerate,
     isConnected: state.isConnected,
     currentAgent: state.currentAgent,
     error: state.error,

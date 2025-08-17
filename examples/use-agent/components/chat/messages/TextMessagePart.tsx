@@ -1,5 +1,6 @@
 
 import type { TextUIPart } from "@/hooks/use-agent";
+import { Response } from '@/components/ai-elements/response';
 
 interface TextMessagePartProps {
   part: TextUIPart;
@@ -7,8 +8,8 @@ interface TextMessagePartProps {
 
 export function TextMessagePart({ part }: TextMessagePartProps) {
   return (
-    <div className="relative w-full whitespace-pre-wrap pr-4">
+    <Response className="w-full">
       {part.content}
-    </div>
+    </Response>
   );
 }

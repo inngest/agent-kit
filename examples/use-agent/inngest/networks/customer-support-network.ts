@@ -1,8 +1,28 @@
 import { createNetwork, openai, createRoutingAgent, createTool, type Network } from "@inngest/agent-kit";
-import type { State } from "@inngest/agent-kit";
+import type { State, AgentResult, ToolResultMessage, ToolCallMessage, TextMessage } from "@inngest/agent-kit";
 import { z } from "zod";
 import { billingAgent, technicalSupportAgent } from "../agents";
 import type { CustomerSupportState } from "../types/state";
+
+// Utility functions for checking message types and getting last result
+function lastResult(results: AgentResult[] | undefined) {
+  if (!results) {
+    return undefined;
+  }
+  return results[results.length - 1];
+}
+
+type MessageType =
+  | TextMessage["type"]
+  | ToolCallMessage["type"]
+  | ToolResultMessage["type"];
+
+function isLastMessageOfType(
+  result: AgentResult,
+  type: MessageType
+) {
+  return result.output[result.output.length - 1]?.type === type;
+}
 
 // Create a routing agent that mirrors the default routing agent's interface
 const customerSupportRouter = createRoutingAgent<CustomerSupportState>({
@@ -159,9 +179,10 @@ Your responsibilities:
    - Call done if the conversation is complete or the user's request has been fulfilled
 
 Turn handling and completion policy:
-- If the last agent’s reply is asking the user for information or confirmation, end this turn by calling the done tool so the system can wait for the user's reply. Do not immediately route to any agent again until a new user message arrives.
+- If the last agent's reply is asking the user for information or confirmation, end this turn by calling the done tool so the system can wait for the user's reply. Do not immediately route to any agent again until a new user message arrives.
 - Do not route the same agent twice in a row without a new user message that changes context.
 - Prefer the minimal number of agent hops necessary to satisfy the user.
+- When an agent makes a tool call, the system will automatically route back to that same agent to handle the tool result.
 
 **CRITICAL: When to call DONE:**
 - If a billing agent has processed a refund (status: "pending_approval" or "completed")
@@ -180,12 +201,40 @@ Turn handling and completion policy:
 
 // Hybrid router: code-first guard, then delegate to routing agent for selection
 const hybridRouter: Network.Router<CustomerSupportState> = async ({ input, network }) => {
+  console.log("🔧 [ROUTER] Router called, checking conditions...");
+  
   // If an agent has already been scheduled/invoked in this run, end the turn
   if (network.state.data.invoked) {
+    console.log("🔧 [ROUTER] Agent already invoked this turn, ending:", network.state.data.invokedAgentName);
     return undefined;
   }
 
+  // Check if the last result was a tool call, if so route back to the previous agent  
+  const lastAgentResult = lastResult(network.state.results);
+  console.log("🔧 [ROUTER] Last result:", {
+    hasResult: !!lastAgentResult,
+    agentName: lastAgentResult?.agentName,
+    lastMessageType: lastAgentResult?.output?.[lastAgentResult.output.length - 1]?.type,
+    totalResults: network.state.results?.length || 0
+  });
+  
+  if (lastAgentResult && isLastMessageOfType(lastAgentResult, "tool_call")) {
+    console.log("🔧 [ROUTER] Last result was a tool call, routing back to agent:", lastAgentResult.agentName);
+    
+    const previousAgent = network.agents.get(lastAgentResult.agentName);
+    if (previousAgent) {
+      // Mark state so subsequent router call (same run) exits
+      network.state.data.invoked = true;
+      network.state.data.invokedAgentName = previousAgent.name;
+      
+      return previousAgent;
+    } else {
+      console.log("🔧 [ROUTER] Could not find previous agent:", lastAgentResult.agentName);
+    }
+  }
+
   // Delegate selection to the routing agent
+  console.log("🔧 [ROUTER] No tool call detected, delegating to routing agent...");
   const result = await customerSupportRouter.run(input, {
     network,
     model: customerSupportRouter.model || network.defaultModel,
