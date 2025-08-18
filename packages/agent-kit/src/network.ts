@@ -368,7 +368,7 @@ export class NetworkRun<T extends StateData> extends Network<T> {
     });
 
     this.state = state;
-    
+
     // Restore execution state from persisted results
     // This makes the network replay-aware when used with Inngest
     this._counter = this.state.results.length;
@@ -505,10 +505,10 @@ export class NetworkRun<T extends StateData> extends Network<T> {
     fn: () => Promise<T> | T
   ): Promise<T> {
     const step = await getStepTools();
-    
+
     if (step) {
       // Wrap in step for memoization during Inngest replays
-      return await step.run(stepId, fn) as T;
+      return (await step.run(stepId, fn)) as T;
     } else {
       // Non-Inngest context, execute directly
       return await fn();
@@ -550,10 +550,10 @@ export class NetworkRun<T extends StateData> extends Network<T> {
     // Use actual results count for stable callCount across replays
     const callCount = this.state.results.length;
     const lastResult = this.state.results[callCount - 1];
-    
+
     // Create a deterministic step ID for this router call
     const stepId = `${this.name}-router-${callCount}`;
-    
+
     const agent = await this.wrapInStep(stepId, async () => {
       return await router({
         input,
@@ -563,7 +563,7 @@ export class NetworkRun<T extends StateData> extends Network<T> {
         callCount,
       });
     });
-    
+
     if (!agent) {
       return;
     }
@@ -591,17 +591,17 @@ export class NetworkRun<T extends StateData> extends Network<T> {
       network: this,
       model: routingAgent.model || this.defaultModel,
     });
-    
+
     // Wrap onRoute lifecycle in step to prevent duplicate execution during replays
     const stepId = `${this.name}-${routingAgent.name}-onRoute-${this.state.results.length}`;
-    
-    const agentNames = await this.wrapInStep(stepId, async () => {
-      return routingAgent.lifecycles.onRoute({
+
+    const agentNames = await this.wrapInStep(stepId, () =>
+      routingAgent.lifecycles.onRoute({
         result,
         agent: routingAgent,
         network: this,
-      });
-    });
+      })
+    );
 
     return (agentNames || [])
       .map((name) => this.agents.get(name))
