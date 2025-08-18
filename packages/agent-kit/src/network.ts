@@ -4,7 +4,7 @@ import { createRoutingAgent, type Agent, RoutingAgent } from "./agent";
 import { createState, State, type StateData } from "./state";
 import { createTool } from "./tool";
 import type { AgentResult, Message } from "./types";
-import { type MaybePromise } from "./util";
+import { type MaybePromise, getStepTools } from "./util";
 import {
   type HistoryConfig,
   initializeThread,
@@ -368,6 +368,10 @@ export class NetworkRun<T extends StateData> extends Network<T> {
     });
 
     this.state = state;
+    
+    // Restore execution state from persisted results
+    // This makes the network replay-aware when used with Inngest
+    this._counter = this.state.results.length;
   }
 
   public override run(): never {
@@ -492,6 +496,25 @@ export class NetworkRun<T extends StateData> extends Network<T> {
     return this;
   }
 
+  /**
+   * Helper to wrap a function call in an Inngest step when available.
+   * This provides automatic memoization during Inngest replays.
+   */
+  private async wrapInStep<T>(
+    stepId: string,
+    fn: () => Promise<T> | T
+  ): Promise<T> {
+    const step = await getStepTools();
+    
+    if (step) {
+      // Wrap in step for memoization during Inngest replays
+      return await step.run(stepId, fn) as T;
+    } else {
+      // Non-Inngest context, execute directly
+      return await fn();
+    }
+  }
+
   private async getNextAgents(
     input: string,
     router?: Network.Router<T>
@@ -524,13 +547,23 @@ export class NetworkRun<T extends StateData> extends Network<T> {
       return agent;
     });
 
-    const agent = await router({
-      input,
-      network: this,
-      stack,
-      lastResult: this.state.results.pop(),
-      callCount: this._counter,
+    // Use actual results count for stable callCount across replays
+    const callCount = this.state.results.length;
+    const lastResult = this.state.results[callCount - 1];
+    
+    // Create a deterministic step ID for this router call
+    const stepId = `${this.name}-router-${callCount}`;
+    
+    const agent = await this.wrapInStep(stepId, async () => {
+      return await router({
+        input,
+        network: this,
+        stack,
+        lastResult,
+        callCount,
+      });
     });
+    
     if (!agent) {
       return;
     }
@@ -558,10 +591,16 @@ export class NetworkRun<T extends StateData> extends Network<T> {
       network: this,
       model: routingAgent.model || this.defaultModel,
     });
-    const agentNames = routingAgent.lifecycles.onRoute({
-      result,
-      agent: routingAgent,
-      network: this,
+    
+    // Wrap onRoute lifecycle in step to prevent duplicate execution during replays
+    const stepId = `${this.name}-${routingAgent.name}-onRoute-${this.state.results.length}`;
+    
+    const agentNames = await this.wrapInStep(stepId, async () => {
+      return routingAgent.lifecycles.onRoute({
+        result,
+        agent: routingAgent,
+        network: this,
+      });
     });
 
     return (agentNames || [])
