@@ -382,7 +382,10 @@ export class Agent<T extends StateData> {
           });
           await standaloneStreamingContext.publishEvent({
             event: "stream.ended",
-            data: {},
+            data: {
+              scope: "agent",
+              messageId: standaloneStreamingContext.messageId,
+            },
           });
         } catch (streamingError) {
           // Swallow streaming errors to prevent breaking the application

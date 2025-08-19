@@ -2,6 +2,7 @@
 
 import { useEffect, useReducer, useCallback } from "react";
 import { useInngestSubscription, InngestSubscriptionState } from "@inngest/realtime/hooks";
+import type { StreamingEvent } from "../../../packages/agent-kit/src/streaming";
 
 // ----- DEBUG CONFIGURATION ------------------------------------------
 
@@ -56,20 +57,9 @@ const debugError = (isDebugEnabled: boolean, ...args: any[]) => {
 // ----- DATA & UI MODELS (As per spec) -----------------------------
 
 /**
- * Represents a single event received from the real-time network stream.
- * These events contain information about agent actions, message updates, and status changes.
- * @interface NetworkEvent
+ * Type alias for streaming events - uses the strongly typed StreamingEvent from AgentKit
  */
-interface NetworkEvent {
-  /** The type of event (e.g., "run.started", "part.created", "text.delta") */
-  event: string;
-  /** Event-specific data payload containing relevant information */
-  data: any;
-  /** Unix timestamp when the event was created */
-  timestamp: number;
-  /** Sequential number for ordering events within a conversation turn */
-  sequenceNumber: number;
-}
+type NetworkEvent = StreamingEvent;
 
 /**
  * Union type representing all possible message parts that can appear in a conversation.
@@ -552,6 +542,15 @@ const processEvent = (messages: ConversationMessage[], event: NetworkEvent, isDe
           input: "",
           state: "input-streaming",
         };
+      } else if (event.data.type === "reasoning") {
+        // Create an empty reasoning part, which will be filled by 'reasoning.delta' events.
+        newPart = {
+          type: "reasoning",
+          id: event.data.partId,
+          agentName: event.data.metadata?.agentName || "unknown",
+          content: "",
+          status: "streaming",
+        };
       } else if (event.data.type === "tool-output") {
         // Initialize output streaming on the last tool-call part for this tool
         // We search in reverse to find the most recent tool call of this type
@@ -667,7 +666,8 @@ const processEvent = (messages: ConversationMessage[], event: NetworkEvent, isDe
           ...message,
           parts: message.parts.map(part => {
             if ((part.type === 'text' && part.id === event.data.partId) || 
-                (part.type === 'tool-call' && part.toolCallId === event.data.partId)) {
+                (part.type === 'tool-call' && part.toolCallId === event.data.partId) ||
+                (part.type === 'reasoning' && part.id === event.data.partId)) {
               
               // For text, set status to 'complete' and set the final content.
               if (part.type === 'text') {
@@ -682,6 +682,13 @@ const processEvent = (messages: ConversationMessage[], event: NetworkEvent, isDe
                   ...part, 
                   state: "input-available" as const, 
                   input: event.data.finalContent 
+                };
+              // For reasoning, set status to 'complete' and set the final content.
+              } else if (part.type === 'reasoning') {
+                return { 
+                  ...part, 
+                  status: "complete" as const, 
+                  content: event.data.finalContent 
                 };
               } else {
                 return part;
@@ -698,7 +705,7 @@ const processEvent = (messages: ConversationMessage[], event: NetworkEvent, isDe
       });
     }
     
-    // An error occurred during agent execution.
+    // This case is handled by run.failed above - keeping for backward compatibility
     case "error": {
       const { messages: newMessages, message } = getOrCreateAssistantMessage(messages, event.data);
       
@@ -717,6 +724,112 @@ const processEvent = (messages: ConversationMessage[], event: NetworkEvent, isDe
       };
       
       return newMessages.map(m => m.id === message.id ? updatedMessage : m);
+    }
+
+    // Agent run failed - create an error part
+    case "run.failed": {
+      const { messages: newMessages, message } = getOrCreateAssistantMessage(messages, event.data);
+      
+      // Create a new error part and add it to the message.
+      const errorPart: ErrorUIPart = {
+        type: "error",
+        id: `error-${Date.now()}`,
+        error: event.data.error || "Agent run failed",
+        agentId: event.data.name,
+        recoverable: event.data.recoverable ?? false,
+      };
+      
+      const updatedMessage = {
+        ...message,
+        parts: [...message.parts, errorPart]
+      };
+      
+      return newMessages.map(m => m.id === message.id ? updatedMessage : m);
+    }
+
+    // Reasoning content being streamed
+    case "reasoning.delta": {
+      return messages.map(message => {
+        if (message.id !== event.data.messageId) return message;
+        
+        return {
+          ...message,
+          parts: message.parts.map(part => {
+            if (part.type === 'reasoning' && part.id === event.data.partId) {
+              return { ...part, content: part.content + event.data.delta };
+            }
+            return part;
+          })
+        };
+      });
+    }
+
+    // Token usage updates (could be displayed in header or status)
+    case "usage.updated": {
+      // For now, we'll just pass through - could be used for token counters in UI
+      debugLog(isDebugEnabled, "[StreamingReducer] Usage updated:", event.data.usage);
+      return messages;
+    }
+
+    // Step lifecycle events (could be used for progress indicators)
+    case "step.started": {
+      debugLog(isDebugEnabled, "[StreamingReducer] Step started:", event.data.stepId);
+      return messages;
+    }
+
+    case "step.completed": {
+      debugLog(isDebugEnabled, "[StreamingReducer] Step completed:", event.data.stepId);
+      return messages;
+    }
+
+    case "step.failed": {
+      debugLog(isDebugEnabled, "[StreamingReducer] Step failed:", event.data.stepId, event.data.error);
+      return messages;
+    }
+
+    // Human-in-the-loop approval requested
+    case "hitl.requested": {
+      const { messages: newMessages, message } = getOrCreateAssistantMessage(messages, event.data);
+      
+      // Create a HITL part for approval request
+      const hitlPart: HitlUIPart = {
+        type: "hitl",
+        id: event.data.requestId,
+        toolCalls: (event.data.toolCalls as Array<{ toolName: string; toolInput: any }>).map(tc => ({
+          toolName: tc.toolName,
+          toolInput: tc.toolInput,
+        })),
+        status: "pending",
+        expiresAt: event.data.expiresAt,
+        metadata: event.data.metadata,
+      };
+      
+      const updatedMessage = {
+        ...message,
+        parts: [...message.parts, hitlPart]
+      };
+      
+      return newMessages.map(m => m.id === message.id ? updatedMessage : m);
+    }
+
+    // Human-in-the-loop resolution
+    case "hitl.resolved": {
+      return messages.map(message => {
+        return {
+          ...message,
+          parts: message.parts.map(part => {
+            if (part.type === 'hitl' && part.id === event.data.requestId) {
+              return { 
+                ...part, 
+                status: event.data.resolution as "approved" | "denied",
+                resolvedBy: event.data.resolvedBy,
+                resolvedAt: event.data.resolvedAt,
+              };
+            }
+            return part;
+          })
+        };
+      });
     }
     
     // If the event type is unknown, return the state unchanged.
@@ -859,6 +972,12 @@ const updateAgentStatus = (state: StreamingState, event: NetworkEvent): Streamin
       return state;
       
     case "stream.ended":
+      return {
+        ...state,
+        agentStatus: "idle",
+        currentAgent: undefined
+      };
+      
     case "run.completed":
       if (event.data.scope === 'network') {
         return {

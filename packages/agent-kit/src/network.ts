@@ -586,7 +586,13 @@ export class NetworkRun<T extends StateData> extends Network<T> {
               messageId: networkRunId, // Use networkRunId for network completion
             },
           });
-          await streamingContext.publishEvent({ event: "stream.ended", data: {} });
+          await streamingContext.publishEvent({ 
+            event: "stream.ended", 
+            data: { 
+              scope: "network",
+              messageId: networkRunId,
+            } 
+          });
         }
         return this;
       }
@@ -751,7 +757,13 @@ export class NetworkRun<T extends StateData> extends Network<T> {
               messageId: networkRunId, // Use networkRunId for network completion in finally block
             },
           });
-          await streamingContext.publishEvent({ event: "stream.ended", data: {} });
+          await streamingContext.publishEvent({ 
+            event: "stream.ended", 
+            data: { 
+              scope: "network",
+              messageId: networkRunId,
+            } 
+          });
         } catch (streamingError) {
           // Swallow streaming errors to prevent breaking the application
           console.warn("Failed to publish completion events:", streamingError);

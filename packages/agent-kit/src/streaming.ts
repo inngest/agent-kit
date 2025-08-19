@@ -33,6 +33,8 @@ export interface RunStartedEvent extends AgentMessageChunk {
     parentRunId?: string; // If this is a nested run (e.g., agent within network)
     scope: "network" | "agent"; // Level of execution
     name: string; // Name of the network or agent
+    messageId?: string; // Optional message context
+    threadId?: string; // Thread context
     metadata?: Record<string, any>; // Additional context
   };
 }
@@ -43,6 +45,7 @@ export interface RunCompletedEvent extends AgentMessageChunk {
     runId: string;
     scope: "network" | "agent";
     name: string;
+    messageId?: string; // Optional message context
     result?: any; // Final result from the run
     usage?: {
       promptTokens: number;
@@ -59,6 +62,7 @@ export interface RunFailedEvent extends AgentMessageChunk {
     runId: string;
     scope: "network" | "agent";
     name: string;
+    messageId?: string; // Optional message context
     error: string;
     recoverable: boolean;
     metadata?: Record<string, any>;
@@ -120,11 +124,13 @@ export interface PartCreatedEvent extends AgentMessageChunk {
   data: {
     partId: string; // Unique identifier for this part
     runId: string; // Which run this part belongs to
-    type: "text" | "tool-call" | "reasoning" | "data" | "file" | "refusal";
+    messageId: string; // Which message this part belongs to
+    type: "text" | "tool-call" | "tool-output" | "reasoning" | "data" | "file" | "refusal";
     metadata?: {
       toolName?: string; // For tool-call parts
       dataType?: string; // For data parts
       mimeType?: string; // For file parts
+      agentName?: string; // For tracking which agent created this part
     };
   };
 }
@@ -134,6 +140,7 @@ export interface PartCompletedEvent extends AgentMessageChunk {
   data: {
     partId: string;
     runId: string;
+    messageId: string; // Which message this part belongs to
     type: string;
     finalContent: any; // The complete, aggregated content of this part
   };
@@ -144,6 +151,7 @@ export interface PartFailedEvent extends AgentMessageChunk {
   data: {
     partId: string;
     runId: string;
+    messageId: string; // Which message this part belongs to
     type: string;
     error: string;
     recoverable: boolean;
@@ -158,6 +166,7 @@ export interface TextDeltaEvent extends AgentMessageChunk {
   event: "text.delta";
   data: {
     partId: string; // Which part this delta belongs to
+    messageId: string; // Which message this delta belongs to
     delta: string; // The text chunk
   };
 }
@@ -166,6 +175,7 @@ export interface ToolCallArgumentsDeltaEvent extends AgentMessageChunk {
   event: "tool_call.arguments.delta";
   data: {
     partId: string;
+    messageId: string; // Which message this delta belongs to
     delta: string; // JSON string chunk
     toolName?: string; // Included on first delta
   };
@@ -175,6 +185,7 @@ export interface ToolCallOutputDeltaEvent extends AgentMessageChunk {
   event: "tool_call.output.delta";
   data: {
     partId: string;
+    messageId: string; // Which message this delta belongs to
     delta: string; // Incremental tool output
   };
 }
@@ -183,6 +194,7 @@ export interface ReasoningDeltaEvent extends AgentMessageChunk {
   event: "reasoning.delta";
   data: {
     partId: string; // Which part this delta belongs to
+    messageId: string; // Which message this delta belongs to
     delta: string; // The reasoning/thinking content chunk
   };
 }
@@ -191,6 +203,7 @@ export interface DataDeltaEvent extends AgentMessageChunk {
   event: "data.delta";
   data: {
     partId: string;
+    messageId: string; // Which message this delta belongs to
     delta: any; // Incremental structured data
   };
 }
@@ -259,7 +272,41 @@ export interface MetadataUpdatedEvent extends AgentMessageChunk {
 
 export interface StreamEndedEvent extends AgentMessageChunk {
   event: "stream.ended";
-  data: {};
+  data: {
+    scope: "network" | "agent";
+    messageId?: string; // Optional message context
+  };
+}
+
+// Legacy/generic error event for backward compatibility
+export interface GenericErrorEvent extends AgentMessageChunk {
+  event: "error";
+  data: {
+    error: string;
+    agentId?: string;
+    recoverable?: boolean;
+    messageId?: string;
+  };
+}
+
+// =============================================================================
+// SEQUENCE COUNTER FOR SHARED STREAMING CONTEXTS
+// =============================================================================
+
+/**
+ * A simple sequence counter that can be shared between streaming contexts
+ * to ensure events are numbered correctly across related contexts
+ */
+class SequenceCounter {
+  private value: number = 0;
+
+  getNext(): number {
+    return this.value++;
+  }
+
+  current(): number {
+    return this.value;
+  }
 }
 
 // =============================================================================
@@ -279,7 +326,8 @@ export interface StreamingConfig {
  */
 export class StreamingContext {
   private publish: (chunk: AgentMessageChunk) => Promise<void>;
-  private sequenceNumber: number = 0;
+  private sequenceCounter: SequenceCounter;
+  private debug: boolean;
   
   public readonly runId: string;
   public readonly parentRunId?: string;
@@ -294,6 +342,8 @@ export class StreamingContext {
     messageId: string;
     threadId?: string;
     scope: "network" | "agent";
+    sequenceCounter?: SequenceCounter;
+    debug?: boolean;
   }) {
     this.publish = config.publish;
     this.runId = config.runId;
@@ -301,19 +351,23 @@ export class StreamingContext {
     this.messageId = config.messageId;
     this.threadId = config.threadId;
     this.scope = config.scope;
+    this.sequenceCounter = config.sequenceCounter || new SequenceCounter();
+    this.debug = config.debug ?? (process.env.NODE_ENV === 'development');
   }
 
   /**
    * Create a child streaming context for agent runs within network runs
    */
   createChildContext(agentRunId: string): StreamingContext {
-    console.log("🔧 [CHILD-CTX] Creating child context:", {
-      parentRunId: this.runId,
-      childRunId: agentRunId,
-      inheritedMessageId: this.messageId,
-      scope: "agent",
-      timestamp: new Date().toISOString()
-    });
+    if (this.debug) {
+      console.log("🔧 [CHILD-CTX] Creating child context:", {
+        parentRunId: this.runId,
+        childRunId: agentRunId,
+        inheritedMessageId: this.messageId,
+        scope: "agent",
+        timestamp: new Date().toISOString()
+      });
+    }
     return new StreamingContext({
       publish: this.publish,
       runId: agentRunId,
@@ -321,6 +375,8 @@ export class StreamingContext {
       messageId: this.messageId,
       threadId: this.threadId,
       scope: "agent",
+      sequenceCounter: this.sequenceCounter, // Share the same counter
+      debug: this.debug, // Inherit debug setting
     });
   }
 
@@ -332,63 +388,16 @@ export class StreamingContext {
     messageId: string;
     scope: "network" | "agent";
   }): StreamingContext {
-    const newContext = new StreamingContext({
+    return new StreamingContext({
       publish: this.publish,
       runId: config.runId,
       parentRunId: this.runId,
       messageId: config.messageId,
       threadId: this.threadId,
       scope: config.scope,
+      sequenceCounter: this.sequenceCounter, // Share the same counter instance
+      debug: this.debug, // Inherit debug setting
     });
-    
-    // Create a shared sequence reference object
-    const sharedSequence = { value: this.sequenceNumber };
-    
-    // Make both contexts use the shared sequence
-    const originalPublishEvent = this.publishEvent.bind(this);
-    const newPublishEvent = newContext.publishEvent.bind(newContext);
-    
-    this.publishEvent = async (event) => {
-      const stepId = this.generateStreamingStepId(event, sharedSequence.value);
-      const chunk = {
-        ...event,
-        timestamp: Date.now(),
-        sequenceNumber: sharedSequence.value,
-        id: stepId,
-      };
-      try {
-        await this.publish(chunk);
-        sharedSequence.value++; // Increment shared counter
-      } catch (err) {
-        console.warn("[Streaming] Failed to publish event; continuing execution", {
-          error: err instanceof Error ? err.message : String(err),
-          event: chunk.event,
-          sequenceNumber: chunk.sequenceNumber,
-        });
-      }
-    };
-    
-    newContext.publishEvent = async (event) => {
-      const stepId = (newContext as any).generateStreamingStepId(event, sharedSequence.value);
-      const chunk = {
-        ...event,
-        timestamp: Date.now(),
-        sequenceNumber: sharedSequence.value,
-        id: stepId,
-      };
-      try {
-        await newContext.publish(chunk);
-        sharedSequence.value++; // Increment shared counter
-      } catch (err) {
-        console.warn("[Streaming] Failed to publish event; continuing execution", {
-          error: err instanceof Error ? err.message : String(err),
-          event: chunk.event,
-          sequenceNumber: chunk.sequenceNumber,
-        });
-      }
-    };
-    
-    return newContext;
   }
 
   /**
@@ -401,21 +410,26 @@ export class StreamingContext {
       runId: string;
       messageId: string;
       scope: "network" | "agent";
+      debug?: boolean;
     }
   ): StreamingContext {
-    console.log("🔧 [STREAMING-CTX] Creating StreamingContext with:", {
-      runId: config.runId,
-      messageId: config.messageId,
-      scope: config.scope,
-      threadId: networkState.threadId,
-      timestamp: new Date().toISOString()
-    });
+    const debug = config.debug ?? (process.env.NODE_ENV === 'development');
+    if (debug) {
+      console.log("🔧 [STREAMING-CTX] Creating StreamingContext with:", {
+        runId: config.runId,
+        messageId: config.messageId,
+        scope: config.scope,
+        threadId: networkState.threadId,
+        timestamp: new Date().toISOString()
+      });
+    }
     return new StreamingContext({
       publish: config.publish,
       runId: config.runId,
       messageId: config.messageId,
       threadId: networkState.threadId,
       scope: config.scope,
+      debug,
     });
   }
 
@@ -424,27 +438,28 @@ export class StreamingContext {
    * Provides a stepId in the chunk for optional Inngest step wrapping by the developer.
    */
   async publishEvent(event: Omit<AgentMessageChunk, 'timestamp' | 'sequenceNumber' | 'id'>): Promise<void> {
-    // Generate step ID with the current sequence number that will be used for this event
-    const stepId = this.generateStreamingStepId(event, this.sequenceNumber);
+    // Get the next sequence number from the shared counter
+    const sequenceNumber = this.sequenceCounter.getNext();
+    
+    // Generate step ID with the sequence number
+    const stepId = this.generateStreamingStepId(event, sequenceNumber);
     
     const chunk: AgentMessageChunk = {
       ...event,
       timestamp: Date.now(),
-      sequenceNumber: this.sequenceNumber, // Use the current sequence number
-      id: stepId, // Use the step ID generated with the same sequence number
+      sequenceNumber,
+      id: stepId,
     };
 
     try {
       await this.publish(chunk);
-      // Only increment sequence number after successful publish
-      this.sequenceNumber++;
     } catch (err) {
       // Swallow publishing errors to avoid breaking execution; best-effort streaming
       // eslint-disable-next-line no-console
       console.warn("[Streaming] Failed to publish event; continuing execution", {
         error: err instanceof Error ? err.message : String(err),
         event: chunk.event,
-        sequenceNumber: chunk.sequenceNumber, // Log which sequence number failed
+        sequenceNumber: chunk.sequenceNumber,
       });
     }
   }
@@ -465,8 +480,10 @@ export class StreamingContext {
    */
   generatePartId(): string {
     const partId = `part_${this.messageId}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    console.log("🔧 [PART-ID] Generated partId:", partId, "for messageId:", this.messageId, "at", new Date().toISOString());
-    console.trace("🔧 [PART-ID] Call stack for partId generation");
+    if (this.debug) {
+      console.log("🔧 [PART-ID] Generated partId:", partId, "for messageId:", this.messageId, "at", new Date().toISOString());
+      console.trace("🔧 [PART-ID] Call stack for partId generation");
+    }
     return partId;
   }
 
@@ -501,7 +518,8 @@ export type StreamingEvent =
   | HitlResolvedEvent
   | UsageUpdatedEvent
   | MetadataUpdatedEvent
-  | StreamEndedEvent;
+  | StreamEndedEvent
+  | GenericErrorEvent;
 
 /**
  * Type guard to check if an event is a specific type
@@ -516,10 +534,13 @@ export function isEventType<T extends StreamingEvent>(
 /**
  * Utility to generate unique IDs
  */
-export function generateId(): string {
+export function generateId(debug?: boolean): string {
   const id = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-  console.log("🔧 [ID-GEN] Generated new ID:", id, "at", new Date().toISOString());
-  console.trace("🔧 [ID-GEN] Call stack for ID generation");
+  const isDebug = debug ?? (process.env.NODE_ENV === 'development');
+  if (isDebug) {
+    console.log("🔧 [ID-GEN] Generated new ID:", id, "at", new Date().toISOString());
+    console.trace("🔧 [ID-GEN] Call stack for ID generation");
+  }
   return id;
 }
 
@@ -570,6 +591,7 @@ export class StepWrapper {
   private wrapStepMethod(methodName: string) {
     return async (...args: any[]) => {
       const stepId = typeof args[0] === 'string' ? args[0] : `${methodName}-${generateId()}`;
+      const startTime = Date.now();
       
       // Publish step_started before execution
       await this.context.publishEvent({
@@ -589,6 +611,9 @@ export class StepWrapper {
         // Execute the original step method
         const result = await this.originalStep[methodName](...args);
 
+        // Calculate duration
+        const duration = Date.now() - startTime;
+
         // Publish step_completed on success
         await this.context.publishEvent({
           event: "step.completed",
@@ -596,12 +621,15 @@ export class StepWrapper {
             stepId: stepId,
             runId: this.context.runId,
             result: methodName === 'run' ? undefined : result, // Don't include result data for security
-            duration: undefined // TODO: Add timing if needed
+            duration: duration
           }
         });
 
         return result;
       } catch (error) {
+        // Calculate duration even for failed steps
+        const duration = Date.now() - startTime;
+
         // Publish step_failed on error
         await this.context.publishEvent({
           event: "step.failed",
@@ -610,7 +638,8 @@ export class StepWrapper {
             runId: this.context.runId,
             error: error instanceof Error ? error.message : String(error),
             recoverable: true, // Most step failures are recoverable via retries
-            retryAttempt: undefined // TODO: Track retry attempts if needed
+            retryAttempt: undefined, // TODO: Track retry attempts if needed
+            duration: duration
           }
         });
         
@@ -626,6 +655,8 @@ export class StepWrapper {
     const wrapper = this;
     return {
       infer: async (stepId: string, options: any) => {
+        const startTime = Date.now();
+        
         // Publish step_started for AI inference
         await wrapper.context.publishEvent({
           event: "step.started",
@@ -644,18 +675,24 @@ export class StepWrapper {
           // Call original AI inference method
           const result = await wrapper.originalStep.ai.infer(stepId, options);
 
+          // Calculate duration
+          const duration = Date.now() - startTime;
+
           // Publish step_completed
           await wrapper.context.publishEvent({
             event: "step.completed",
             data: {
               stepId: stepId,
               runId: wrapper.context.runId,
-              duration: undefined // TODO: Add timing
+              duration: duration
             }
           });
 
           return result;
         } catch (error) {
+          // Calculate duration even for failed AI calls
+          const duration = Date.now() - startTime;
+
           // Publish step_failed on AI inference error
           await wrapper.context.publishEvent({
             event: "step.failed",
@@ -663,7 +700,8 @@ export class StepWrapper {
               stepId: stepId,
               runId: wrapper.context.runId,
               error: error instanceof Error ? error.message : String(error),
-              recoverable: true
+              recoverable: true,
+              duration: duration
             }
           });
           
@@ -671,8 +709,52 @@ export class StepWrapper {
         }
       },
 
-      // TODO: Add other AI methods like 'wrap' if they exist
-      wrap: wrapper.originalStep.ai?.wrap ? wrapper.originalStep.ai.wrap.bind(wrapper.originalStep.ai) : undefined
+      // Wrap ai.wrap method if it exists
+      wrap: wrapper.originalStep.ai?.wrap ? async (...args: any[]) => {
+        const stepId = typeof args[0] === 'string' ? args[0] : `ai-wrap-${generateId()}`;
+        const startTime = Date.now();
+        
+        await wrapper.context.publishEvent({
+          event: "step.started",
+          data: {
+            stepId: stepId,
+            runId: wrapper.context.runId,
+            description: "AI wrap operation",
+            metadata: { method: "ai.wrap" }
+          }
+        });
+
+        try {
+          const result = await wrapper.originalStep.ai.wrap(...args);
+          const duration = Date.now() - startTime;
+
+          await wrapper.context.publishEvent({
+            event: "step.completed",
+            data: {
+              stepId: stepId,
+              runId: wrapper.context.runId,
+              duration: duration
+            }
+          });
+
+          return result;
+        } catch (error) {
+          const duration = Date.now() - startTime;
+
+          await wrapper.context.publishEvent({
+            event: "step.failed",
+            data: {
+              stepId: stepId,
+              runId: wrapper.context.runId,
+              error: error instanceof Error ? error.message : String(error),
+              recoverable: true,
+              duration: duration
+            }
+          });
+          
+          throw error;
+        }
+      } : undefined
     };
   }
 
