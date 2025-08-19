@@ -84,6 +84,9 @@ export namespace MCP {
       | TransportWebsocket
       | TransportStreamableHttp
       | TransportStdio;
+    // Optional server-specific tool filtering
+    includeTools?: (string | RegExp)[];
+    excludeTools?: (string | RegExp)[];
   };
 
   export type Transport =
@@ -127,5 +130,26 @@ export namespace MCP {
       type: "object";
       properties?: unknown;
     };
+  };
+
+  /**
+   * Configuration for MCP tool filtering at the agent level.
+   * These settings apply globally to all MCP servers connected to an agent.
+   */
+  export type Config = {
+    /**
+     * Include list - if provided, only tools matching these patterns are loaded.
+     * Supports both exact string matches and regular expressions.
+     * Applied first as an allowlist.
+     */
+    includeTools?: (string | RegExp)[];
+    
+    /**
+     * Exclude list - tools matching these patterns will not be loaded.
+     * Supports both exact string matches and regular expressions.
+     * Applied after includeTools, so exclude patterns take precedence for safety.
+     * If a tool matches both include and exclude, it will be excluded.
+     */
+    excludeTools?: (string | RegExp)[];
   };
 }
