@@ -1,9 +1,4 @@
-Phase 1:
-
-- redesign input area
-- integrate ability to create new chat, paginate through a list of past threads, load a selected thread - via db adapter
-
-Phase 2:
+1/
 
 - Add support for agent in message part events
 - Make save-results step happen at the end
@@ -12,16 +7,17 @@ Phase 2:
 - Make streaming simulated reasoning and LLM tokens configurable (for testing)
 - Test with single agent setup (no network involved)
 
-Phase 3:
+2/
 
 - Review the spec and add additional tasks here
 
-Phase 4:
+3/
 
 - Move use-agent hook to agentkit package and test
 - Add automated testing
 
-Phase 5 (later later):
+4/
 
 - Add support for sources in message events
+- Integrate llm + reasoning token streaming
 - Add support for reasoning parts

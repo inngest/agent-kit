@@ -4,7 +4,7 @@ import { conversationChannel } from "../../lib/realtime";
 import { createState } from "@inngest/agent-kit";
 import type { CustomerSupportState } from "../types/state";
 import { PostgresHistoryAdapter } from "../db";
-import { randomUUID } from "crypto";
+
 // Inline type to avoid depending on private dist paths
 type AgentMessageChunk = {
   event: string;

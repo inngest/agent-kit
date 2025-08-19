@@ -9,23 +9,14 @@ import {
   useEditMessage, // handles the edit message state and edit message functionality
   useIsMobile, // handles the mobile state and mobile sidebar open/close
 } from "@/hooks";
-import { Toaster } from '@/components/ui/sonner';
-import { toast } from 'sonner';
-import { DesktopSidebar } from "./sidebar/DesktopSidebar";
-import { MobileSidebar } from "./sidebar/MobileSidebar";
-import { MessageActions, MessageTitle, MessageEditor, MessageError } from './message';
-import EmptyState from './EmptyState';
-
+import { ResponsivePromptInput } from '@/components/ai-elements/prompt-input';
 import {
   Conversation,
   ConversationContent,
   ConversationScrollButton,
 } from '@/components/ai-elements/conversation';
 import { Message, MessageContent } from '@/components/ai-elements/message';
-import {
-  ResponsivePromptInput,
-} from '@/components/ai-elements/prompt-input';
- 
+import { MessageActions, MessageTitle, MessageEditor, MessageError } from './message';
 import {
   Source,
   Sources,
@@ -37,14 +28,15 @@ import {
   ReasoningContent,
   ReasoningTrigger,
 } from '@/components/ai-elements/reasoning';
-
-import {
-  Branch,
-  BranchMessages,
-} from '@/components/ai-elements/branch';
+import { Branch, BranchMessages } from '@/components/ai-elements/branch';
 import { MessagePart } from "./message-parts";
 import { ChatHeader, HeaderActions } from './header/ChatHeader';
-import ShareDialog from './header/ShareDialog';
+import { ShareDialog } from './header/ShareDialog';
+import { DesktopSidebar } from "./sidebar/DesktopSidebar";
+import { MobileSidebar } from "./sidebar/MobileSidebar";
+import { Toaster } from '@/components/ui/sonner';
+import { toast } from 'sonner';
+import { EmptyState } from './EmptyState';
 
 interface ChatProps {
   threadId?: string;
