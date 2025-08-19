@@ -4,7 +4,7 @@ import { createRoutingAgent, type Agent, RoutingAgent } from "./agent";
 import { createState, State, type StateData } from "./state";
 import { createTool } from "./tool";
 import type { AgentResult, Message } from "./types";
-import { type MaybePromise } from "./util";
+import { type MaybePromise, getStepTools } from "./util";
 import {
   type HistoryConfig,
   initializeThread,
@@ -492,6 +492,25 @@ export class NetworkRun<T extends StateData> extends Network<T> {
     return this;
   }
 
+  /**
+   * Helper to wrap a function call in an Inngest step when available.
+   * This provides automatic memoization during Inngest replays.
+   */
+  private async wrapInStep<T>(
+    stepId: string,
+    fn: () => Promise<T> | T
+  ): Promise<T> {
+    const step = await getStepTools();
+
+    if (step) {
+      // Wrap in step for memoization during Inngest replays
+      return (await step.run(stepId, fn)) as T;
+    } else {
+      // Non-Inngest context, execute directly
+      return await fn();
+    }
+  }
+
   private async getNextAgents(
     input: string,
     router?: Network.Router<T>
@@ -524,13 +543,23 @@ export class NetworkRun<T extends StateData> extends Network<T> {
       return agent;
     });
 
-    const agent = await router({
-      input,
-      network: this,
-      stack,
-      lastResult: this.state.results.pop(),
-      callCount: this._counter,
+    // callCount represents agents called in THIS run
+    const callCount = this._counter;
+    const lastResult = this.state.results[this.state.results.length - 1];
+
+    // Use total results for deterministic step ID (for Inngest memoization)
+    const stepId = `${this.name}-router-${this.state.results.length}`;
+
+    const agent = await this.wrapInStep(stepId, async () => {
+      return await router({
+        input,
+        network: this,
+        stack,
+        lastResult,
+        callCount,
+      });
     });
+
     if (!agent) {
       return;
     }
@@ -558,11 +587,17 @@ export class NetworkRun<T extends StateData> extends Network<T> {
       network: this,
       model: routingAgent.model || this.defaultModel,
     });
-    const agentNames = routingAgent.lifecycles.onRoute({
-      result,
-      agent: routingAgent,
-      network: this,
-    });
+
+    // Wrap onRoute lifecycle in step to prevent duplicate execution during replays
+    const stepId = `${this.name}-${routingAgent.name}-onRoute-${this.state.results.length}`;
+
+    const agentNames = await this.wrapInStep(stepId, () =>
+      routingAgent.lifecycles.onRoute({
+        result,
+        agent: routingAgent,
+        network: this,
+      })
+    );
 
     return (agentNames || [])
       .map((name) => this.agents.get(name))
