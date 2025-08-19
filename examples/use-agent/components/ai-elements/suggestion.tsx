@@ -1,26 +1,21 @@
 'use client';
 
-import type { ComponentProps } from 'react';
+import type { ComponentProps, HTMLAttributes } from 'react';
 import { Button } from '@/components/ui/button';
-import {
-  ScrollArea,
-  ScrollBar,
-} from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 
-export type SuggestionsProps = ComponentProps<typeof ScrollArea>;
+export type SuggestionsProps = HTMLAttributes<HTMLDivElement>;
 
 export const Suggestions = ({
   className,
   children,
   ...props
 }: SuggestionsProps) => (
-  <ScrollArea className="w-full overflow-x-auto whitespace-nowrap" {...props}>
-    <div className={cn('flex w-max flex-nowrap items-center gap-2', className)}>
+  <div className={cn('w-full', className)} {...props}>
+    <div className="flex flex-wrap items-center justify-center gap-2">
       {children}
     </div>
-    <ScrollBar className="hidden" orientation="horizontal" />
-  </ScrollArea>
+  </div>
 );
 
 export type SuggestionProps = Omit<ComponentProps<typeof Button>, 'onClick'> & {

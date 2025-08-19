@@ -29,13 +29,13 @@ export const Action = ({
   label,
   className,
   variant = 'ghost',
-  size = 'sm',
+  size = 'icon',
   ...props
 }: ActionProps) => {
   const button = (
     <Button
       className={cn(
-        'size-9 p-1.5 text-muted-foreground hover:text-foreground',
+        'size-8 p-0.5 text-muted-foreground hover:text-foreground',
         className,
       )}
       size={size}
@@ -43,7 +43,7 @@ export const Action = ({
       variant={variant}
       {...props}
     >
-      {children}
+      <span className="[&>svg]:size-4">{children}</span>
       <span className="sr-only">{label || tooltip}</span>
     </Button>
   );

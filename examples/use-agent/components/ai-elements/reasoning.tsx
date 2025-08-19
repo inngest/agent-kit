@@ -8,7 +8,7 @@ import {
 } from '@/components/ui/collapsible';
 import { BrainIcon, ChevronDownIcon } from 'lucide-react';
 import type { ComponentProps } from 'react';
-import { createContext, memo, useContext, useEffect, useState } from 'react';
+import { createContext, memo, useContext, useEffect, useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { Response } from './response';
 
@@ -17,6 +17,7 @@ type ReasoningContextValue = {
   isOpen: boolean;
   setIsOpen: (open: boolean) => void;
   duration: number;
+  hasStreamStarted: boolean;
 };
 
 const ReasoningContext = createContext<ReasoningContextValue | null>(null);
@@ -35,6 +36,7 @@ export type ReasoningProps = ComponentProps<typeof Collapsible> & {
   defaultOpen?: boolean;
   onOpenChange?: (open: boolean) => void;
   duration?: number;
+  hasStreamStarted?: boolean;
 };
 
 export const Reasoning = memo(
@@ -45,6 +47,7 @@ export const Reasoning = memo(
     defaultOpen = false,
     onOpenChange,
     duration: durationProp,
+    hasStreamStarted = false,
     children,
     ...props
   }: ReasoningProps) => {
@@ -60,6 +63,7 @@ export const Reasoning = memo(
 
     const [hasAutoClosedRef, setHasAutoClosedRef] = useState(false);
     const [startTime, setStartTime] = useState<number | null>(null);
+    const [hasClosedOnStart, setHasClosedOnStart] = useState(false);
 
     // Track duration when streaming starts and ends
     useEffect(() => {
@@ -73,19 +77,41 @@ export const Reasoning = memo(
       }
     }, [isStreaming, startTime, setDuration]);
 
-    // Auto-open when streaming starts, auto-close when streaming ends (once only)
+    // Auto-open when streaming starts (until stream starts producing text)
     useEffect(() => {
-      if (isStreaming && !isOpen) {
+      if (isStreaming && !isOpen && !hasStreamStarted) {
         setIsOpen(true);
-      } else if (!isStreaming && isOpen && !defaultOpen && !hasAutoClosedRef) {
-        // Add a small delay before closing to allow user to see the content
-        const timer = setTimeout(() => {
-          setIsOpen(false);
-          setHasAutoClosedRef(true);
-        }, 1000);
-        return () => clearTimeout(timer);
       }
-    }, [isStreaming, isOpen, defaultOpen, setIsOpen, hasAutoClosedRef]);
+    }, [isStreaming, isOpen, hasStreamStarted, setIsOpen]);
+
+    // Auto-close once when streaming finishes (on transition only)
+    const prevIsStreamingRef = useRef(isStreaming);
+    useEffect(() => {
+      const wasStreaming = prevIsStreamingRef.current;
+      let timer: any;
+      if (wasStreaming && !isStreaming && !defaultOpen && !hasAutoClosedRef) {
+        if (isOpen) {
+          timer = setTimeout(() => {
+            setIsOpen(false);
+            setHasAutoClosedRef(true);
+          }, 1000);
+        } else {
+          setHasAutoClosedRef(true);
+        }
+      }
+      prevIsStreamingRef.current = isStreaming;
+      return () => {
+        if (timer) clearTimeout(timer);
+      };
+    }, [isStreaming, isOpen, defaultOpen, hasAutoClosedRef, setIsOpen]);
+
+    // Immediately minimize once the first text delta arrives (only once)
+    useEffect(() => {
+      if (hasStreamStarted && isOpen && !hasClosedOnStart) {
+        setIsOpen(false);
+        setHasClosedOnStart(true);
+      }
+    }, [hasStreamStarted, isOpen, hasClosedOnStart, setIsOpen]);
 
     const handleOpenChange = (open: boolean) => {
       setIsOpen(open);
@@ -93,7 +119,7 @@ export const Reasoning = memo(
 
     return (
       <ReasoningContext.Provider
-        value={{ isStreaming, isOpen, setIsOpen, duration }}
+        value={{ isStreaming, isOpen, setIsOpen, duration, hasStreamStarted }}
       >
         <Collapsible
           className={cn('not-prose mb-4', className)}
@@ -121,23 +147,30 @@ export const ReasoningTrigger = memo(
     children,
     ...props
   }: ReasoningTriggerProps) => {
-    const { isStreaming, isOpen, duration } = useReasoning();
+    const { isStreaming, isOpen, duration, hasStreamStarted } = useReasoning();
 
     return (
       <CollapsibleTrigger
         className={cn(
-          'flex items-center gap-2 text-muted-foreground text-sm',
+          'flex items-center gap-2 text-muted-foreground text-xs font-medium',
           className,
         )}
         {...props}
       >
         {children ?? (
           <>
-            <BrainIcon className="size-4" />
-            {isStreaming || duration === 0 ? (
-              <p>Thinking...</p>
+            <BrainIcon className="size-3 opacity-60" />
+            {isStreaming && !hasStreamStarted ? (
+              <p>
+                <span className="ak-shimmer-wrap relative inline-block opacity-80">
+                  <span className="ak-shimmer-base text-foreground">Planning next move...</span>
+                  <span aria-hidden="true" className="ak-shimmer-overlay">Planning next move...</span>
+                </span>
+              </p>
             ) : (
-              <p>Thought for {duration} seconds</p>
+              <p>
+                <span className="text-foreground opacity-65">Thought for {duration} seconds</span>
+              </p>
             )}
             <ChevronDownIcon
               className={cn(
@@ -145,6 +178,33 @@ export const ReasoningTrigger = memo(
                 isOpen ? 'rotate-180' : 'rotate-0',
               )}
             />
+            <style>{`
+              .ak-shimmer-overlay {
+                position: absolute;
+                inset: 0;
+                color: transparent;
+                background-image: linear-gradient(
+                  90deg,
+                  rgba(255, 255, 255, 0) 0%,
+                  rgba(255, 255, 255, 0) 35%,
+                  rgba(255, 255, 255, 0.9) 50%,
+                  rgba(255, 255, 255, 0) 65%,
+                  rgba(255, 255, 255, 0) 100%
+                );
+                background-size: 200% 100%;
+                background-repeat: no-repeat;
+                -webkit-background-clip: text;
+                background-clip: text;
+                -webkit-text-fill-color: transparent;
+                animation: ak-shimmer-sweep 2s ease-in-out infinite;
+                pointer-events: none;
+                will-change: background-position;
+              }
+              @keyframes ak-shimmer-sweep {
+                0% { background-position: -200% 0; }
+                100% { background-position: 200% 0; }
+              }
+            `}</style>
           </>
         )}
       </CollapsibleTrigger>
@@ -156,21 +216,55 @@ export type ReasoningContentProps = ComponentProps<
   typeof CollapsibleContent
 > & {
   children: string;
+  simulateTyping?: boolean;
+  typingSpeedMs?: number;
+  chunkSize?: number;
 };
 
 export const ReasoningContent = memo(
-  ({ className, children, ...props }: ReasoningContentProps) => (
-    <CollapsibleContent
-      className={cn(
-        'mt-4 text-sm',
-        'text-popover-foreground outline-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:slide-out-to-top-2 data-[state=open]:slide-in-from-top-2',
-        className,
-      )}
-      {...props}
-    >
-      <Response className="grid gap-2">{children}</Response>
-    </CollapsibleContent>
-  ),
+  ({ className, children, simulateTyping = false, typingSpeedMs = 30, chunkSize = 3, ...props }: ReasoningContentProps) => {
+    const [typed, setTyped] = useState<string>(simulateTyping ? '' : children);
+    const hasPlayedRef = useRef(false);
+    const indexRef = useRef(0);
+
+    useEffect(() => {
+      if (!simulateTyping) {
+        setTyped(children);
+        return;
+      }
+      if (hasPlayedRef.current) return;
+      let index = indexRef.current || 0;
+      const text = String(children ?? '');
+      if (text.length === 0) {
+        setTyped('');
+        return;
+      }
+      const timer = setInterval(() => {
+        const next = Math.min(text.length, index + chunkSize);
+        setTyped(text.slice(0, next));
+        index = next;
+        indexRef.current = next;
+        if (index >= text.length) {
+          clearInterval(timer);
+          hasPlayedRef.current = true;
+        }
+      }, Math.max(typingSpeedMs, 10));
+      return () => clearInterval(timer);
+    }, [children, simulateTyping, typingSpeedMs, chunkSize]);
+
+    return (
+      <CollapsibleContent
+        className={cn(
+          'mt-4 text-xs opacity-80',
+          'text-popover-foreground outline-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:slide-out-to-top-2 data-[state=open]:slide-in-from-top-2',
+          className,
+        )}
+        {...props}
+      >
+        <Response className="grid gap-2">{typed}</Response>
+      </CollapsibleContent>
+    );
+  },
 );
 
 Reasoning.displayName = 'Reasoning';

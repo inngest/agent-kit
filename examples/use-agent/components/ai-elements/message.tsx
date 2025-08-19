@@ -6,6 +6,7 @@ import {
 import type { ComponentProps, HTMLAttributes } from 'react';
 import { cn } from '@/lib/utils';
 import type { UIMessage } from 'ai';
+import { Bot } from 'lucide-react';
 
 export type MessageProps = HTMLAttributes<HTMLDivElement> & {
   from: UIMessage['role'];
@@ -14,8 +15,10 @@ export type MessageProps = HTMLAttributes<HTMLDivElement> & {
 export const Message = ({ className, from, ...props }: MessageProps) => (
   <div
     className={cn(
-      'group flex w-full items-end justify-end gap-2 py-4',
-      from === 'user' ? 'is-user' : 'is-assistant flex-row-reverse justify-end',
+      'group flex w-full items-end gap-2 pb-4',
+      from === 'user'
+        ? 'is-user justify-end pt-4'
+        : 'is-assistant justify-start pt-0',
       '[&>div]:max-w-[80%]',
       className,
     )}
@@ -32,9 +35,10 @@ export const MessageContent = ({
 }: MessageContentProps) => (
   <div
     className={cn(
-      'flex flex-col gap-2 rounded-lg text-sm text-foreground px-4 py-3 overflow-hidden',
+      'flex flex-col gap-2 rounded-lg text-[16px] font-base text-foreground px-0 py-0 overflow-hidden',
+      // Add padding only for user bubbles
+      'group-[.is-user]:px-4 group-[.is-user]:py-3',
       'group-[.is-user]:bg-primary group-[.is-user]:text-primary-foreground',
-      'group-[.is-assistant]:bg-secondary group-[.is-assistant]:text-foreground',
       className,
     )}
     {...props}
@@ -44,21 +48,31 @@ export const MessageContent = ({
 );
 
 export type MessageAvatarProps = ComponentProps<typeof Avatar> & {
-  src: string;
+  src?: string;
   name?: string;
+  variant?: 'assistant' | 'user';
+  icon?: React.ReactNode;
 };
 
 export const MessageAvatar = ({
   src,
   name,
+  variant,
+  icon,
   className,
   ...props
 }: MessageAvatarProps) => (
   <Avatar
-    className={cn('size-8 ring ring-1 ring-border', className)}
+    className={cn('size-8', variant !== 'assistant' && 'ring ring-border', className)}
     {...props}
   >
-    <AvatarImage alt="" className="mt-0 mb-0" src={src} />
-    <AvatarFallback>{name?.slice(0, 2) || 'ME'}</AvatarFallback>
+    {src ? <AvatarImage alt="" className="mt-0 mb-0" src={src} /> : null}
+    <AvatarFallback className={cn(variant === 'assistant' && 'bg-transparent')}>
+      {variant === 'assistant' ? (
+        icon ?? <Bot className="h-4 w-4" />
+      ) : (
+        name?.slice(0, 2) || 'ME'
+      )}
+    </AvatarFallback>
   </Avatar>
 );
