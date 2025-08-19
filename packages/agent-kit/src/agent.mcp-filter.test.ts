@@ -1,4 +1,4 @@
-import { describe, expect, test, vi, beforeEach } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 import { createAgent } from "./agent";
 import { openai } from "./models";
 
@@ -49,7 +49,7 @@ describe("MCP Tool Filtering", () => {
     // Check that excluded tools are not present
     expect(agent.tools.has("test-server-delete_file")).toBe(false);
     expect(agent.tools.has("test-server-remove_user")).toBe(false);
-    
+
     // Check that other tools are present
     expect(agent.tools.has("test-server-read_file")).toBe(true);
     expect(agent.tools.has("test-server-write_file")).toBe(true);
@@ -72,7 +72,7 @@ describe("MCP Tool Filtering", () => {
     // Check that tools matching regex are excluded
     expect(agent.tools.has("test-server-delete_file")).toBe(false);
     expect(agent.tools.has("test-server-remove_user")).toBe(false);
-    
+
     // Check that other tools are present
     expect(agent.tools.has("test-server-read_file")).toBe(true);
     expect(agent.tools.has("test-server-write_file")).toBe(true);
@@ -96,7 +96,7 @@ describe("MCP Tool Filtering", () => {
     expect(agent.tools.has("test-server-read_file")).toBe(true);
     expect(agent.tools.has("test-server-list_files")).toBe(true);
     expect(agent.tools.has("test-server-get_user")).toBe(true);
-    
+
     // Check that other tools are excluded
     expect(agent.tools.has("test-server-write_file")).toBe(false);
     expect(agent.tools.has("test-server-delete_file")).toBe(false);
@@ -170,7 +170,7 @@ describe("MCP Tool Filtering", () => {
     expect(agent.tools.has("test-server-write_file")).toBe(true);
     expect(agent.tools.has("test-server-get_user")).toBe(true);
     expect(agent.tools.has("test-server-update_user")).toBe(true);
-    
+
     // Should exclude tools that fail either filter
     expect(agent.tools.has("test-server-delete_file")).toBe(false); // Global exclude
     expect(agent.tools.has("test-server-remove_user")).toBe(false); // Global exclude

@@ -143,7 +143,7 @@ export namespace MCP {
      * Applied first as an allowlist.
      */
     includeTools?: (string | RegExp)[];
-    
+
     /**
      * Exclude list - tools matching these patterns will not be loaded.
      * Supports both exact string matches and regular expressions.
