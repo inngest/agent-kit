@@ -11,7 +11,8 @@ import {
 } from "@/hooks";
 import { Toaster } from '@/components/ui/sonner';
 import { toast } from 'sonner';
-import { DesktopSidebar, MobileSidebar } from "./sidebar";
+import { DesktopSidebar } from "./sidebar/DesktopSidebar";
+import { MobileSidebar } from "./sidebar/MobileSidebar";
 import { MessageActions, MessageTitle, MessageEditor, MessageError } from './message';
 import EmptyState from './EmptyState';
 
