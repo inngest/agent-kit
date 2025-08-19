@@ -368,10 +368,6 @@ export class NetworkRun<T extends StateData> extends Network<T> {
     });
 
     this.state = state;
-
-    // Restore execution state from persisted results
-    // This makes the network replay-aware when used with Inngest
-    this._counter = this.state.results.length;
   }
 
   public override run(): never {
@@ -547,12 +543,12 @@ export class NetworkRun<T extends StateData> extends Network<T> {
       return agent;
     });
 
-    // Use actual results count for stable callCount across replays
-    const callCount = this.state.results.length;
-    const lastResult = this.state.results[callCount - 1];
+    // callCount represents agents called in THIS run
+    const callCount = this._counter;
+    const lastResult = this.state.results[this.state.results.length - 1];
 
-    // Create a deterministic step ID for this router call
-    const stepId = `${this.name}-router-${callCount}`;
+    // Use total results for deterministic step ID (for Inngest memoization)
+    const stepId = `${this.name}-router-${this.state.results.length}`;
 
     const agent = await this.wrapInStep(stepId, async () => {
       return await router({
