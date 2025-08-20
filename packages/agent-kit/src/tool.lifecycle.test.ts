@@ -1,6 +1,16 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable @typescript-eslint/no-unsafe-member-access */
+/* eslint-disable @typescript-eslint/no-unsafe-assignment */
+/* eslint-disable @typescript-eslint/no-unsafe-argument */
+/* eslint-disable @typescript-eslint/no-unsafe-call */
+
 import { describe, expect, it, vi } from "vitest";
 import { createAgent, createTool } from "./index";
 import { z } from "zod";
+import type { Agent } from "./agent";
+import type { Tool } from "./tool";
+import type { NetworkRun } from "./network";
+import type { StateData } from "./state";
 
 describe("Tool Lifecycle Hooks", () => {
   describe("Regular Tools", () => {
@@ -23,8 +33,8 @@ describe("Tool Lifecycle Hooks", () => {
       });
 
       // Simulate tool execution
-      const mockAgent = { name: "TestAgent" } as any;
-      const mockNetwork = { state: { data: {} } } as any;
+      const mockAgent = { name: "TestAgent" } as Agent<StateData>;
+      const mockNetwork = { state: { data: {} } } as NetworkRun<StateData>;
 
       await tool.handler(
         { value: "test" },
@@ -37,7 +47,7 @@ describe("Tool Lifecycle Hooks", () => {
       );
     });
 
-    it("should call onSuccess hook after successful tool execution", async () => {
+    it("should call onSuccess hook after successful tool execution", () => {
       const onSuccessSpy = vi.fn().mockResolvedValue({
         result: "enhanced-result",
       });
@@ -48,13 +58,13 @@ describe("Tool Lifecycle Hooks", () => {
         lifecycle: {
           onSuccess: onSuccessSpy,
         },
-        handler: async () => "original-result",
+        handler: () => Promise.resolve("original-result"),
       });
 
       expect(tool.lifecycle?.onSuccess).toBe(onSuccessSpy);
     });
 
-    it("should call onError hook when tool throws error", async () => {
+    it("should call onError hook when tool throws error", () => {
       const onErrorSpy = vi.fn().mockResolvedValue({
         error: "handled-error",
         handled: true,
@@ -66,7 +76,7 @@ describe("Tool Lifecycle Hooks", () => {
         lifecycle: {
           onError: onErrorSpy,
         },
-        handler: async () => {
+        handler: () => {
           throw new Error("test error");
         },
       });
@@ -85,7 +95,7 @@ describe("Tool Lifecycle Hooks", () => {
         name: "test-tool",
         description: "Test tool",
         lifecycle,
-        handler: async () => "result",
+        handler: () => Promise.resolve("result"),
       });
 
       expect(tool.lifecycle).toBe(lifecycle);
@@ -135,7 +145,7 @@ describe("Tool Lifecycle Hooks", () => {
 
       // Simulate pattern matching logic from listMCPTools
       const toolName = "github-create_issue";
-      let matchedLifecycle = undefined;
+      let matchedLifecycle: any = undefined;
 
       const agentLifecycles = (agent as any).toolLifecycles;
       for (const [pattern, config] of Object.entries(agentLifecycles)) {
@@ -146,7 +156,7 @@ describe("Tool Lifecycle Hooks", () => {
       }
 
       expect(matchedLifecycle).toBeDefined();
-      expect((matchedLifecycle as any).onStart).toBe(onStartSpy);
+      expect(matchedLifecycle.onStart).toBe(onStartSpy);
     });
 
     it("should match patterns with regex", () => {
@@ -167,9 +177,10 @@ describe("Tool Lifecycle Hooks", () => {
 
       // Simulate pattern matching logic
       const toolName = "filesystem-read_file";
-      let matchedLifecycle = undefined;
+      let matchedLifecycle: any = undefined;
 
       const agentLifecycles = (agent as any).toolLifecycles;
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       for (const [pattern, config] of Object.entries(agentLifecycles)) {
         if ((config as any).match?.test(toolName)) {
           matchedLifecycle = config;
@@ -178,7 +189,7 @@ describe("Tool Lifecycle Hooks", () => {
       }
 
       expect(matchedLifecycle).toBeDefined();
-      expect((matchedLifecycle as any).onStart).toBe(onStartSpy);
+      expect(matchedLifecycle.onStart).toBe(onStartSpy);
     });
 
     it("should prefer exact match over pattern match", () => {
@@ -204,7 +215,7 @@ describe("Tool Lifecycle Hooks", () => {
 
       // Simulate pattern matching logic with exact match first
       const toolName = "github-create_issue";
-      let matchedLifecycle = undefined;
+      let matchedLifecycle: any = undefined;
 
       const agentLifecycles = (agent as any).toolLifecycles;
       for (const [pattern, config] of Object.entries(agentLifecycles)) {
@@ -220,8 +231,8 @@ describe("Tool Lifecycle Hooks", () => {
       }
 
       expect(matchedLifecycle).toBeDefined();
-      expect((matchedLifecycle as any).onStart).toBe(exactOnStart);
-      expect((matchedLifecycle as any).onStart).not.toBe(patternOnStart);
+      expect(matchedLifecycle.onStart).toBe(exactOnStart);
+      expect(matchedLifecycle.onStart).not.toBe(patternOnStart);
     });
 
     it("should handle multiple lifecycle hooks in pattern", () => {
@@ -263,10 +274,11 @@ describe("Tool Lifecycle Hooks", () => {
         name: "test-tool",
         description: "Test tool",
         lifecycle: {
-          onStart: async () => ({
-            input: {},
-            continue: false, // Prevent execution
-          }),
+          onStart: () =>
+            Promise.resolve({
+              input: {},
+              continue: false, // Prevent execution
+            }),
         },
         handler: handlerSpy,
       });
@@ -276,10 +288,10 @@ describe("Tool Lifecycle Hooks", () => {
       expect(lifecycle?.onStart).toBeDefined();
 
       const result = await lifecycle!.onStart!({
-        tool: tool as any,
+        tool: tool as Tool.Any,
         input: {},
-        agent: {} as any,
-        network: {} as any,
+        agent: {} as Agent<StateData>,
+        network: {} as NetworkRun<StateData>,
       });
 
       expect(result.continue).toBe(false);
@@ -291,20 +303,21 @@ describe("Tool Lifecycle Hooks", () => {
         name: "test-tool",
         description: "Test tool",
         lifecycle: {
-          onStart: async ({ input }) => ({
-            input: { ...input, enhanced: true },
-            continue: true,
-          }),
+          onStart: ({ input }) =>
+            Promise.resolve({
+              input: { ...input, enhanced: true },
+              continue: true,
+            }),
         },
-        handler: async (input) => input,
+        handler: (input) => Promise.resolve(input),
       });
 
       const lifecycle = tool.lifecycle;
       const result = await lifecycle!.onStart!({
-        tool: tool as any,
+        tool: tool as Tool.Any,
         input: { original: true },
-        agent: {} as any,
-        network: {} as any,
+        agent: {} as Agent<StateData>,
+        network: {} as NetworkRun<StateData>,
       });
 
       expect(result.input).toEqual({ original: true, enhanced: true });
@@ -315,20 +328,21 @@ describe("Tool Lifecycle Hooks", () => {
         name: "test-tool",
         description: "Test tool",
         lifecycle: {
-          onSuccess: async ({ result }) => ({
-            result: `[ENHANCED] ${result}`,
-          }),
+          onSuccess: ({ result }) =>
+            Promise.resolve({
+              result: `[ENHANCED] ${result}`,
+            }),
         },
-        handler: async () => "original",
+        handler: () => Promise.resolve("original"),
       });
 
       const lifecycle = tool.lifecycle;
       const result = await lifecycle!.onSuccess!({
-        tool: tool as any,
+        tool: tool as Tool.Any,
         input: {},
         result: "original",
-        agent: {} as any,
-        network: {} as any,
+        agent: {} as Agent<StateData>,
+        network: {} as NetworkRun<StateData>,
       });
 
       expect(result.result).toBe("[ENHANCED] original");
@@ -339,23 +353,24 @@ describe("Tool Lifecycle Hooks", () => {
         name: "test-tool",
         description: "Test tool",
         lifecycle: {
-          onError: async ({ error }) => ({
-            error: `Handled: ${error.message}`,
-            handled: true,
-          }),
+          onError: ({ error }: { error: Error }) =>
+            Promise.resolve({
+              error: `Handled: ${error.message}`,
+              handled: true,
+            }),
         },
-        handler: async () => {
+        handler: () => {
           throw new Error("test error");
         },
       });
 
       const lifecycle = tool.lifecycle;
       const result = await lifecycle!.onError!({
-        tool: tool as any,
+        tool: tool as Tool.Any,
         input: {},
         error: new Error("test error"),
-        agent: {} as any,
-        network: {} as any,
+        agent: {} as Agent<StateData>,
+        network: {} as NetworkRun<StateData>,
       });
 
       expect(result.error).toBe("Handled: test error");
