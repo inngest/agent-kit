@@ -38,7 +38,7 @@ export const MessageContent = ({
       'flex flex-col gap-2 rounded-lg text-[16px] font-base text-foreground px-0 py-0 overflow-hidden',
       // Add padding only for user bubbles
       'group-[.is-user]:px-4 group-[.is-user]:py-3',
-      'group-[.is-user]:bg-primary group-[.is-user]:text-primary-foreground',
+      'group-[.is-user]:bg-[#F4F4F4] group-[.is-user]:text-gray-900 dark:group-[.is-user]:bg-gray-800 dark:group-[.is-user]:text-gray-100',
       className,
     )}
     {...props}

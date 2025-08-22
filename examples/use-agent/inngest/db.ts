@@ -6,6 +6,7 @@ import {
   AgentResult,
   type TextMessage,
 } from "@inngest/agent-kit";
+import { Pool } from "pg";
 import pool from "./pool";
 
 // PostgreSQL History Configuration
@@ -563,5 +564,147 @@ export class PostgresHistoryAdapter<T extends StateData>
     } finally {
       client.release();
     }
+  }
+
+  /**
+   * List threads with pagination support
+   */
+  async listThreadsWithPagination(userId: string, limit: number = 20, offset: number = 0): Promise<{
+    threads: Array<{
+      id: string;
+      title: string;
+      messageCount: number;
+      lastMessageAt: Date;
+      createdAt: Date;
+      updatedAt: Date;
+    }>;
+    hasMore: boolean;
+    total: number;
+  }> {
+    const client = await this.pool.connect();
+
+    try {
+      // Get total count for this user
+      const countResult = await client.query(
+        `SELECT COUNT(*) as total FROM ${this.tableNames.threads} WHERE user_id = $1`,
+        [userId]
+      );
+      const total = parseInt(countResult.rows[0].total);
+
+      // Get threads with message counts and last message time
+      const threadsResult = await client.query(
+        `
+        SELECT 
+          t.thread_id,
+          t.metadata,
+          t.created_at,
+          t.updated_at,
+          COUNT(m.id) as message_count,
+          MAX(m.created_at) as last_message_at
+        FROM ${this.tableNames.threads} t
+        LEFT JOIN ${this.tableNames.messages} m ON t.thread_id = m.thread_id
+        WHERE t.user_id = $1
+        GROUP BY t.thread_id, t.metadata, t.created_at, t.updated_at
+        ORDER BY t.updated_at DESC
+        LIMIT $2 OFFSET $3
+        `,
+        [userId, limit, offset]
+      );
+
+      const threads = threadsResult.rows.map(row => ({
+        id: row.thread_id,
+        title: this.extractTitleFromMetadata(row.metadata) || "New conversation",
+        messageCount: parseInt(row.message_count),
+        lastMessageAt: row.last_message_at || row.created_at,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+      }));
+
+      const hasMore = offset + limit < total;
+
+      return {
+        threads,
+        hasMore,
+        total,
+      };
+    } finally {
+      client.release();
+    }
+  }
+
+  /**
+   * Generate thread title from first user message
+   */
+  async generateThreadTitle(threadId: string): Promise<string> {
+    const client = await this.pool.connect();
+
+    try {
+      const result = await client.query(
+        `
+        SELECT content 
+        FROM ${this.tableNames.messages}
+        WHERE thread_id = $1 AND message_type = 'user'
+        ORDER BY created_at ASC
+        LIMIT 1
+        `,
+        [threadId]
+      );
+
+      if (result.rows.length > 0) {
+        const content = result.rows[0].content;
+        // Truncate to 50 characters for title
+        return content.length > 50 ? content.substring(0, 47) + "..." : content;
+      }
+
+      return "New conversation";
+    } finally {
+      client.release();
+    }
+  }
+
+  /**
+   * Update thread title in metadata
+   */
+  async updateThreadTitle(threadId: string, title: string): Promise<void> {
+    const client = await this.pool.connect();
+
+    try {
+      // Get current metadata
+      const current = await client.query(
+        `SELECT metadata FROM ${this.tableNames.threads} WHERE thread_id = $1`,
+        [threadId]
+      );
+
+      if (current.rows.length === 0) {
+        throw new Error(`Thread ${threadId} not found`);
+      }
+
+      const metadata = current.rows[0].metadata || {};
+      metadata.title = title;
+
+      // Update with new title
+      await client.query(
+        `
+        UPDATE ${this.tableNames.threads}
+        SET metadata = $2, updated_at = NOW()
+        WHERE thread_id = $1
+        `,
+        [threadId, JSON.stringify(metadata)]
+      );
+
+      console.log(`✅ Updated thread ${threadId} title to: ${title}`);
+    } finally {
+      client.release();
+    }
+  }
+
+  /**
+   * Extract title from thread metadata
+   */
+  private extractTitleFromMetadata(metadata: any): string | null {
+    if (metadata && typeof metadata === 'object' && metadata.title) {
+      return metadata.title;
+    }
+    return null;
   }
 }

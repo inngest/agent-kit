@@ -154,7 +154,7 @@ export type PromptInputSubmitProps = ComponentProps<typeof Button> & {
 
 export const PromptInputSubmit = ({
   className,
-  variant = 'default',
+  variant = 'secondary',
   size = 'icon',
   status,
   children,
@@ -172,7 +172,7 @@ export const PromptInputSubmit = ({
 
   return (
     <Button
-      className={cn('gap-1.5 rounded-lg', className)}
+      className={cn('gap-1.5 rounded-lg bg-[#ECECEC] hover:bg-gray-200 text-gray-900 dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-gray-100', className)}
       size={size}
       type="submit"
       variant={variant}

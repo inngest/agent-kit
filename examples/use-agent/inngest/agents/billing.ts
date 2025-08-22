@@ -8,12 +8,12 @@ const checkSubscriptionTool = createTool({
   description: "Check the current subscription status for a customer",
   // Cast to generic ZodType to avoid deep type instantiation issues
   parameters: z.object({
-    customerId: z.string(),
+    userId: z.string(),
   }) as unknown as z.ZodType<any>,
-  handler: async ({ customerId }) => {
+  handler: async ({ userId }) => {
     // Mock implementation
     return {
-      customerId,
+      userId,
       plan: "Professional",
       status: "active",
       nextBillingDate: "2024-02-01",
@@ -26,15 +26,15 @@ const processRefundTool = createTool({
   name: "process_refund",
   description: "Process a refund request for a customer",
   parameters: z.object({
-    customerId: z.string(),
+    userId: z.string(),
     amount: z.number(),
     reason: z.string(),
   }) as unknown as z.ZodType<any>,
-  handler: async ({ customerId, amount, reason }) => {
+  handler: async ({ userId, amount, reason }) => {
     // Mock implementation
     return {
       refundId: `ref_${Date.now()}`,
-      customerId,
+      userId,
       amount,
       reason,
       status: "pending_approval",
@@ -47,15 +47,15 @@ const getInvoiceHistoryTool = createTool({
   name: "get_invoice_history",
   description: "Get invoice history for a customer",
   parameters: (z.object({
-    customerId: z.string(),
+    userId: z.string(),
     // Optional params should use .nullable() for OpenAI tool schema compatibility
     limit: z.number().nullable(),
   }) as unknown) as z.ZodType<any>,
-  handler: async ({ customerId, limit }) => {
+  handler: async ({ userId, limit }) => {
     const effectiveLimit = typeof limit === "number" ? limit : 5;
     // Mock implementation
     return {
-      customerId,
+      userId,
       invoices: [
         { id: "inv_001", date: "2024-01-01", amount: "$99.00", status: "paid" },
         { id: "inv_002", date: "2023-12-01", amount: "$99.00", status: "paid" },

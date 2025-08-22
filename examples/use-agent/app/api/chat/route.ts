@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { inngest } from "@/inngest/client";
 import { randomUUID } from "crypto";
+import { TEST_USER_ID } from "@/lib/constants";
 
 export async function POST(req: NextRequest) {
   try {
-    const { message, threadId: providedThreadId, customerId, history } = await req.json();
+    const { message, threadId: providedThreadId, userId, history } = await req.json();
     
     if (!message || typeof message !== "string") {
       return NextResponse.json(
@@ -23,7 +24,7 @@ export async function POST(req: NextRequest) {
         threadId,
         message,
         history,
-        customerId: customerId || "anonymous",
+        userId: userId || TEST_USER_ID,
       },
     });
     

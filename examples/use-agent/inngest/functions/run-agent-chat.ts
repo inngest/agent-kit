@@ -4,6 +4,7 @@ import { conversationChannel } from "../../lib/realtime";
 import { createState } from "@inngest/agent-kit";
 import type { CustomerSupportState } from "../types/state";
 import { PostgresHistoryAdapter } from "../db";
+import { TEST_USER_ID } from "../../lib/constants";
 
 // Inline type to avoid depending on private dist paths
 type AgentMessageChunk = {
@@ -41,10 +42,10 @@ export const runAgentChat = inngest.createFunction(
     // would typically run database migrations as part of a deployment script.
     await step.run("initialize-db-tables", () => historyAdapter.initializeTables());
     
-    const { threadId, message, customerId, history } = event.data as {
+    const { threadId, message, userId, history } = event.data as {
       threadId: string;
       message: string;
-      customerId: string;
+      userId: string;
       history: Array<{ type: 'text'; role: 'user' | 'assistant'; content: string; }>;
     };
     
@@ -66,7 +67,7 @@ export const runAgentChat = inngest.createFunction(
     console.log("[runAgentChat] Function execution started:", {
       threadId,
       timestamp: new Date().toISOString(),
-      customerId,
+      userId,
     });
     
     // Debug: Log the thread creation process
@@ -76,7 +77,7 @@ export const runAgentChat = inngest.createFunction(
       const network = createCustomerSupportNetwork(
         threadId,
         createState({
-          customerId,
+          userId: userId || TEST_USER_ID,
         }, { 
           messages: history,
           threadId 

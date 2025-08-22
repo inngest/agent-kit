@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { 
   SearchIcon, 
   SettingsIcon, 
@@ -14,7 +14,8 @@ import {
   EditIcon,
   TrashIcon,
   UserIcon,
-  CircleUserRoundIcon
+  CircleUserRoundIcon,
+  LoaderIcon
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -27,6 +28,7 @@ import { cn } from '@/lib/utils';
 import { SearchCommandMenu } from './SearchCommandMenu';
 import { CommandShortcut } from '@/components/ui/command';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { useThreads, type Thread } from '@/hooks';
 
 interface DesktopSidebarProps {
   isMinimized: boolean;
@@ -35,36 +37,20 @@ interface DesktopSidebarProps {
   onSearchChat: () => void;
   className?: string;
   hideToggleButton?: boolean;
+  onThreadSelect?: (threadId: string) => void;
+  currentThreadId?: string | null;
 }
 
-// Mock thread data
-const mockThreads = [
-  { id: '1', title: 'Customer refund inquiry' },
-  { id: '2', title: 'Billing question about subscription' },
-  { id: '3', title: 'Product support request' },
-  { id: '4', title: 'Account setup help' },
-  { id: '5', title: 'Integration documentation' },
-  { id: '6', title: 'API rate limiting issues' },
-  { id: '7', title: 'Password reset not working' },
-  { id: '8', title: 'Feature request for dashboard' },
-  { id: '9', title: 'Payment method update needed' },
-  { id: '10', title: 'Data export functionality' },
-  { id: '11', title: 'Mobile app sync problems' },
-  { id: '12', title: 'Team member permissions' },
-  { id: '13', title: 'Webhook configuration help' },
-  { id: '14', title: 'Performance optimization question' },
-  { id: '15', title: 'SSL certificate renewal' },
-  { id: '16', title: 'Database backup restore' },
-  { id: '17', title: 'Third-party integration setup' },
-  { id: '18', title: 'User role management' },
-  { id: '19', title: 'Analytics dashboard not loading' },
-  { id: '20', title: 'Email notification settings' },
-  { id: '21', title: 'Two-factor authentication setup' },
-  { id: '22', title: 'Custom domain configuration' },
-  { id: '23', title: 'Bulk data import guidance' },
-  { id: '24', title: 'Enterprise license upgrade' },
-  { id: '25', title: 'GDPR compliance questions' },
-];
+// Skeleton loader component for threads
+function ThreadSkeleton() {
+  return (
+    <div className="w-full h-auto px-4 py-1.5 rounded-md">
+      <div className="animate-pulse">
+        <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-3/4"></div>
+      </div>
+    </div>
+  );
+}
 
 const mockUser = {
   email: 'twerbel@inngest.com',
@@ -73,15 +59,16 @@ const mockUser = {
 };
 
 interface ThreadCardProps {
-  thread: typeof mockThreads[0];
+  thread: Thread;
   isMinimized: boolean;
+  isCurrentThread: boolean;
   onSelect: (threadId: string) => void;
   onShare: (threadId: string) => void;
   onRename: (threadId: string) => void;
   onDelete: (threadId: string) => void;
 }
 
-function ThreadCard({ thread, isMinimized, onSelect, onShare, onRename, onDelete }: ThreadCardProps) {
+function ThreadCard({ thread, isMinimized, isCurrentThread, onSelect, onShare, onRename, onDelete }: ThreadCardProps) {
   const [isHovered, setIsHovered] = useState(false);
 
   if (isMinimized) return null;
@@ -91,7 +78,7 @@ function ThreadCard({ thread, isMinimized, onSelect, onShare, onRename, onDelete
       className={cn(
         'w-full h-auto px-4 py-1.5 justify-start text-left font-normal relative transition-colors duration-200 cursor-pointer rounded-md',
         'hover:bg-[#EFEFEF] dark:hover:bg-gray-800',
-        isHovered && 'bg-[#EFEFEF] dark:bg-gray-800'
+        (isHovered || isCurrentThread) && 'bg-[#EFEFEF] dark:bg-gray-800'
       )}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
@@ -181,11 +168,23 @@ export function DesktopSidebar({
   onNewChat, 
   onSearchChat, 
   className,
-  hideToggleButton
+  hideToggleButton,
+  onThreadSelect,
+  currentThreadId
 }: DesktopSidebarProps) {
   const [isLogoHovered, setIsLogoHovered] = useState(false);
   const [isSearchMenuOpen, setIsSearchMenuOpen] = useState(false);
   const [isSearchButtonHovered, setIsSearchButtonHovered] = useState(false);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  // Use the real threads hook for data, Chat component handles thread selection
+  const {
+    threads,
+    loading,
+    hasMore,
+    error,
+    loadMore
+  } = useThreads();
   
   // Initialize minimized state from localStorage for desktop only
   useEffect(() => {
@@ -208,8 +207,7 @@ export function DesktopSidebar({
     setIsLogoHovered(false);
   }, [isMinimized]);
   const handleThreadSelect = (threadId: string) => {
-    console.log('Select thread:', threadId);
-    // TODO: Implement thread navigation
+    onThreadSelect?.(threadId);
   };
 
   const handleThreadShare = (threadId: string) => {
@@ -222,7 +220,7 @@ export function DesktopSidebar({
     // TODO: Implement thread renaming
   };
 
-  const handleThreadDelete = (threadId: string) => {
+  const handleThreadDelete = async (threadId: string) => {
     console.log('Delete thread:', threadId);
     // TODO: Implement thread deletion
   };
@@ -243,6 +241,21 @@ export function DesktopSidebar({
   const handleProfile = () => {
     handleUserAction('profile');
   };
+
+  const handleNewChatClick = () => {
+    // Don't create thread optimistically - let AgentKit handle it after first message
+    onNewChat();
+  };
+
+  // Infinite scroll handler
+  const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
+    const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
+    const isNearBottom = scrollHeight - scrollTop <= clientHeight + 100; // 100px threshold
+
+    if (isNearBottom && hasMore && !loading) {
+      loadMore();
+    }
+  }, [hasMore, loading, loadMore]);
 
   return (
     <div className={cn(
@@ -318,7 +331,7 @@ export function DesktopSidebar({
           <TooltipTrigger asChild>
             <Button
               variant="ghost"
-              onClick={onNewChat}
+              onClick={handleNewChatClick}
               className={cn(
                 'transition-all duration-200 hover:bg-[#EFEFEF] dark:hover:bg-gray-800 cursor-pointer',
                 isMinimized 
@@ -393,24 +406,41 @@ export function DesktopSidebar({
           />
         ) : (
           /* History section - only visible when maximized */
-          <div className="flex-1 px-2 overflow-y-auto min-h-0">
+          <div className="flex-1 px-2 overflow-y-auto min-h-0" ref={scrollContainerRef} onScroll={handleScroll}>
             <div className="px-4 py-0 pt-4">
               <h2 className="text-sm font-normal text-gray-500 dark:text-gray-400 opacity-70">
                 Chats
               </h2>
             </div>
+            
+            {error && (
+              <div className="px-4 py-2 text-sm text-red-600 dark:text-red-400">
+                {error}
+              </div>
+            )}
+            
             <div className="space-y-1 pb-2 pt-2">
-              {mockThreads.map((thread) => (
+              {threads.map((thread) => (
                 <ThreadCard
                   key={thread.id}
                   thread={thread}
                   isMinimized={isMinimized}
+                  isCurrentThread={currentThreadId === thread.id}
                   onSelect={handleThreadSelect}
                   onShare={handleThreadShare}
                   onRename={handleThreadRename}
                   onDelete={handleThreadDelete}
                 />
               ))}
+              
+              {/* Loading skeletons */}
+              {loading && (
+                <>
+                  <ThreadSkeleton />
+                  <ThreadSkeleton />
+                  <ThreadSkeleton />
+                </>
+              )}
             </div>
           </div>
         )}
