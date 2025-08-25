@@ -1,6 +1,6 @@
 import { inngest } from "../client";
 import { createCustomerSupportNetwork } from "../networks/customer-support-network";
-import { conversationChannel } from "../../lib/realtime";
+import { userChannel } from "../../lib/realtime";
 import { createState } from "@inngest/agent-kit";
 import type { CustomerSupportState } from "../types/state";
 import { PostgresHistoryAdapter } from "../db";
@@ -100,8 +100,17 @@ export const runAgentChat = inngest.createFunction(
           publish: async (chunk: AgentMessageChunk) => {
             // Wrap in Inngest step for durability, retries, and observability
             await step.run(chunk.id, async () => {
-              await publish(conversationChannel(threadId).agent_stream(chunk));
-              return { published: true, ...chunk };
+              // UNIFIED STREAMING: Publish to user channel with threadId in event data
+              const enrichedChunk = {
+                ...chunk,
+                data: {
+                  ...chunk.data,
+                  threadId, // Ensure threadId is in event data for client-side filtering
+                  userId, // Also include userId for additional context
+                }
+              };
+              await publish(userChannel(userId).agent_stream(enrichedChunk));
+              return { published: true, ...enrichedChunk };
             });
           },
         },
@@ -129,13 +138,15 @@ export const runAgentChat = inngest.createFunction(
           scope: "network",
           recoverable: true,
           agentId: "network",
+          threadId, // Include threadId for client filtering
+          userId, // Include userId for channel routing
         },
         timestamp: Date.now(),
         sequenceNumber: 0,
         id: "publish-0:network:error",
       };
       try {
-        await publish(conversationChannel(threadId).agent_stream(errorChunk));
+        await publish(userChannel(userId).agent_stream(errorChunk));
       } catch {}
       
       throw error;

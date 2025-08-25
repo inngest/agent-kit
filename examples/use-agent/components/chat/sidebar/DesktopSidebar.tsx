@@ -39,6 +39,14 @@ interface DesktopSidebarProps {
   hideToggleButton?: boolean;
   onThreadSelect?: (threadId: string) => void;
   currentThreadId?: string | null;
+  
+  // NEW: Thread data passed from parent
+  threads?: Thread[];
+  loading?: boolean;
+  hasMore?: boolean;
+  error?: string | null;
+  onLoadMore?: () => Promise<void>;
+  onDeleteThread?: (threadId: string) => Promise<void>;
 }
 
 // Skeleton loader component for threads
@@ -170,21 +178,26 @@ export function DesktopSidebar({
   className,
   hideToggleButton,
   onThreadSelect,
-  currentThreadId
+  currentThreadId,
+  threads: passedThreads,
+  loading: passedLoading,
+  hasMore: passedHasMore,
+  error: passedError,
+  onLoadMore,
+  onDeleteThread
 }: DesktopSidebarProps) {
   const [isLogoHovered, setIsLogoHovered] = useState(false);
   const [isSearchMenuOpen, setIsSearchMenuOpen] = useState(false);
   const [isSearchButtonHovered, setIsSearchButtonHovered] = useState(false);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
-  // Use the real threads hook for data, Chat component handles thread selection
-  const {
-    threads,
-    loading,
-    hasMore,
-    error,
-    loadMore
-  } = useThreads();
+  // Use passed data from parent or fallback to hook (for backwards compatibility)
+  const fallbackThreads = useThreads();
+  const threads = passedThreads || fallbackThreads.threads;
+  const loading = passedLoading ?? fallbackThreads.loading;
+  const hasMore = passedHasMore ?? fallbackThreads.hasMore;
+  const error = passedError ?? fallbackThreads.error;
+  const loadMore = onLoadMore || fallbackThreads.loadMore;
   
   // Initialize minimized state from localStorage for desktop only
   useEffect(() => {
@@ -221,8 +234,12 @@ export function DesktopSidebar({
   };
 
   const handleThreadDelete = async (threadId: string) => {
-    console.log('Delete thread:', threadId);
-    // TODO: Implement thread deletion
+    if (onDeleteThread) {
+      await onDeleteThread(threadId);
+    } else {
+      console.log('Delete thread:', threadId);
+      // TODO: Implement thread deletion
+    }
   };
 
   const handleUserAction = (action: string) => {

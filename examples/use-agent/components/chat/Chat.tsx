@@ -1,14 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useRouter } from 'next/navigation';
 import { v4 as uuidv4 } from 'uuid';
 import {
-  useAgent, // orchestrates the agent and realtime event stream
+  useChat, // Unified hook combining useAgent and useThreads
   useMessageActions, // handles message actions like copy, edit, regenerate, etc.
   useSidebar, // handles the sidebar state and mobile sidebar open/close
   useEditMessage, // handles the edit message state and edit message functionality
   useIsMobile, // handles the mobile state and mobile sidebar open/close
 } from "@/hooks";
+import { TEST_USER_ID } from "@/lib/constants";
 import { ResponsivePromptInput } from '@/components/ai-elements/prompt-input';
 import {
   Conversation,
@@ -91,14 +93,13 @@ function MockedSources({ hasCompletedText, message }: MockedSourcesProps) {
   );
 }
 
-export function Chat({ threadId: providedThreadId }: ChatProps) {
-  const [threadId, setThreadId] = useState(providedThreadId || uuidv4());
+export function Chat({ threadId: providedThreadId }: ChatProps = {}) {
+  const router = useRouter();
   const [inputValue, setInputValue] = useState("I need a refund");
   const [hoveredMessage, setHoveredMessage] = useState<string | null>(null);
   const [shareOpen, setShareOpen] = useState(false);
-  const [loadedThreadMessages, setLoadedThreadMessages] = useState<any[]>([]);
-  const [isViewingLoadedThread, setIsViewingLoadedThread] = useState(false);
-  const [threadLoading, setThreadLoading] = useState(false);
+
+  // No more error suppression needed - unified streaming eliminates stream cancellation errors!
   const isMobile = useIsMobile();
 
   const { 
@@ -110,17 +111,11 @@ export function Chat({ threadId: providedThreadId }: ChatProps) {
 
   const { copyMessage, likeMessage, dislikeMessage, readAloud, shareMessage } = useMessageActions();
 
-  const { 
-    messages, 
-    status, 
-    sendMessage, 
-    regenerate,
-    isConnected, 
-    currentAgent, 
-    error, 
-    clearError 
-  } = useAgent({
-    threadId,
+  // Use the unified useChat hook with URL-provided threadId
+  const chat = useChat({
+    userId: TEST_USER_ID,
+    initialThreadId: providedThreadId,
+    debug: true
   });
 
   const {
@@ -130,22 +125,52 @@ export function Chat({ threadId: providedThreadId }: ChatProps) {
     handleEditMessage,
     handleSaveEdit,
     handleCancelEdit,
-  } = useEditMessage({ sendMessage });
+  } = useEditMessage({ sendMessage: chat.sendMessage });
+
+  // URL-aware navigation functions
+  const handleNewChat = () => {
+    chat.createNewThread();
+    router.push('/'); // Navigate to home for new conversations
+  };
+
+  const handleThreadSelect = (threadId: string) => {
+    // Just navigate to the thread URL - the new page will handle loading the thread data
+    router.push(`/chat/${threadId}`);
+  };
+
+  // Handle invalid thread IDs - redirect to home if thread doesn't exist
+  useEffect(() => {
+    if (providedThreadId && chat.currentThreadId && chat.currentThreadId !== providedThreadId) {
+      // If useChat loaded a different thread than requested, the requested thread likely doesn't exist
+      console.warn(`Thread ${providedThreadId} not found, redirecting to home`);
+      toast.error('Conversation not found');
+      router.push('/');
+    }
+  }, [providedThreadId, chat.currentThreadId, router]);
 
   // Reasoning component internally tracks duration via isStreaming; no extra timers needed here.
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!inputValue.trim() || status !== "idle") return;
+    if (!inputValue.trim() || chat.status !== "idle") return;
 
-    // If we're viewing a loaded thread, switch back to live mode when sending a message
-    if (isViewingLoadedThread) {
-      setIsViewingLoadedThread(false);
-      setLoadedThreadMessages([]);
+    // Only log if there are potential issues
+    if (chat.messages.length === 0) {
+      console.log('📤 [HANDLE-SUBMIT] Starting new conversation in thread:', chat.currentThreadId);
     }
 
-    sendMessage(inputValue);
+    // If this is the first message and we're on the home page, navigate to the thread URL
+    const isFirstMessage = chat.messages.length === 0;
+    const isOnHomePage = !providedThreadId;
+    
+    // Send message - useChat handles optimistic thread creation automatically!
+    await chat.sendMessage(inputValue);
     setInputValue("");
+
+    // Navigate to thread URL after sending first message from home page
+    if (isFirstMessage && isOnHomePage && chat.currentThreadId) {
+      router.push(`/chat/${chat.currentThreadId}`);
+    }
   };
 
   const handleApprove = async (toolCallId: string) => {
@@ -155,7 +180,7 @@ export function Chat({ threadId: providedThreadId }: ChatProps) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
           toolCallId, 
-          threadId, 
+          threadId: chat.currentThreadId, 
           action: "approve" 
         }),
       });
@@ -177,7 +202,7 @@ export function Chat({ threadId: providedThreadId }: ChatProps) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
           toolCallId, 
-          threadId, 
+          threadId: chat.currentThreadId, 
           action: "deny",
           reason 
         }),
@@ -199,107 +224,34 @@ export function Chat({ threadId: providedThreadId }: ChatProps) {
 
   const handleRegenerateFrom = (message: any) => {
     // Find the user message that preceded this assistant message
-    const messageIndex = messages.findIndex(m => m.id === message.id);
-    const precedingUserMessage = messages.slice(0, messageIndex).reverse().find(m => m.role === 'user');
+    const messageIndex = chat.messages.findIndex(m => m.id === message.id);
+    const precedingUserMessage = chat.messages.slice(0, messageIndex).reverse().find(m => m.role === 'user');
     
     if (precedingUserMessage) {
       const userContent = precedingUserMessage.parts
-        .filter(part => part.type === 'text')
-        .map(part => (part as any).content)
+        .filter((part: any) => part.type === 'text')
+        .map((part: any) => (part as any).content)
         .join(' ');
       
       if (userContent.trim()) {
-        sendMessage(userContent);
+        // useChat handles everything automatically!
+        chat.sendMessage(userContent);
       }
     }
   };
 
-  const handleNewChat = () => {
-    // Generate new thread ID and reset everything
-    const newThreadId = uuidv4();
-    setThreadId(newThreadId);
-    setIsViewingLoadedThread(false);
-    setLoadedThreadMessages([]);
-    setThreadLoading(false);
-  };
-
-  const handleThreadSelect = async (selectedThreadId: string) => {
-    if (selectedThreadId === threadId && isViewingLoadedThread) return; // Already viewing this thread
-    
-    // Immediately clear current conversation and show blank state
-    setThreadId(selectedThreadId);
-    setIsViewingLoadedThread(true);
-    setLoadedThreadMessages([]); // Clear immediately (goes blank/white)
-    setThreadLoading(true);
-    
-    try {
-      const response = await fetch(`/api/threads/${selectedThreadId}`);
-      if (!response.ok) {
-        throw new Error('Failed to load thread');
-      }
-      
-      const data = await response.json();
-      
-      // Convert loaded messages to the format expected by the UI
-      const convertedMessages = data.messages.map((msg: any, index: number) => {
-        if (msg.type === 'user') {
-          return {
-            id: `loaded-${index}`,
-            role: 'user' as const,
-            parts: [{
-              type: 'text' as const,
-              id: `loaded-text-${index}`,
-              content: msg.content || 'No content',
-              status: 'complete' as const
-            }],
-            createdAt: new Date(msg.createdAt),
-          };
-        } else {
-          // For agent messages, extract content from the data.output array
-          let content = 'No content';
-          if (msg.data?.output && Array.isArray(msg.data.output)) {
-            const textMessage = msg.data.output.find((output: any) => output.type === 'text' && output.role === 'assistant');
-            if (textMessage?.content) {
-              content = textMessage.content;
-            }
-          }
-          
-          return {
-            id: `loaded-${index}`,
-            role: 'assistant' as const,
-            parts: [{
-              type: 'text' as const,
-              id: `loaded-text-${index}`,
-              content,
-              status: 'complete' as const
-            }],
-            agentName: msg.agentName,
-            createdAt: new Date(msg.createdAt),
-          };
-        }
-      });
-      
-      setLoadedThreadMessages(convertedMessages);
-    } catch (err) {
-      console.error('Failed to load thread:', err);
-      // Reset to new chat state on error
-      handleNewChat();
-    } finally {
-      setThreadLoading(false);
-    }
-  };
+  // Thread management is now handled by useChat - no manual coordination needed!
 
   const handleDeleteConversation = async () => {
+    if (!chat.currentThreadId) return;
+    
     try {
-      const res = await fetch('/api/chat/delete', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ threadId }),
-      });
-      if (!res.ok) throw new Error('Failed to delete conversation');
+      await chat.deleteThread(chat.currentThreadId);
+      // After deletion, navigate to home and start a new conversation
+      handleNewChat();
       toast.success('Conversation deleted');
     } catch (err) {
-      console.error('[Chat] Delete conversation failed:', err);
+      console.error('Error deleting conversation:', err);
       toast.error('Could not delete this conversation');
     }
   };
@@ -309,8 +261,24 @@ export function Chat({ threadId: providedThreadId }: ChatProps) {
     // TODO: Implement chat search functionality
   };
 
-  // Determine which messages to display: loaded thread vs live conversation
-  const displayMessages = isViewingLoadedThread ? loadedThreadMessages : messages;
+  // useChat provides messages for the current thread
+  const displayMessages = chat.messages;
+  
+  // DEBUG: Only log when there are potential issues
+  if (displayMessages.length > 0) {
+    const userCount = displayMessages.filter(m => m.role === 'user').length;
+    const assistantCount = displayMessages.filter(m => m.role === 'assistant').length;
+    
+    // Only log if there's an imbalance or no user messages
+    if ((assistantCount > 0 && userCount === 0) || (userCount > assistantCount + 1)) {
+      console.warn('🚨 [DISPLAY-MESSAGES] Message imbalance detected:', {
+        threadId: chat.currentThreadId,
+        userMessages: userCount,
+        assistantMessages: assistantCount,
+        messageIds: displayMessages.map(m => m.id),
+      });
+    }
+  }
 
   // Identify the most recent assistant message (used to position the thinking indicator)
   const lastAssistantId = [...displayMessages].reverse().find(m => m.role === 'assistant')?.id;
@@ -327,7 +295,13 @@ export function Chat({ threadId: providedThreadId }: ChatProps) {
           onNewChat={handleNewChat}
           onSearchChat={handleSearchChat}
           onThreadSelect={handleThreadSelect}
-          currentThreadId={isViewingLoadedThread ? threadId : null}
+          currentThreadId={chat.currentThreadId}
+          threads={chat.threads}
+          loading={chat.threadsLoading}
+          hasMore={chat.threadsHasMore}
+          error={chat.threadsError}
+          onLoadMore={chat.loadMoreThreads}
+          onDeleteThread={chat.deleteThread}
         />
       )}
       
@@ -343,7 +317,13 @@ export function Chat({ threadId: providedThreadId }: ChatProps) {
             onNewChat={handleNewChat}
             onSearchChat={handleSearchChat}
             onThreadSelect={handleThreadSelect}
-            currentThreadId={isViewingLoadedThread ? threadId : null}
+            currentThreadId={chat.currentThreadId}
+            threads={chat.threads}
+            loading={chat.threadsLoading}
+            hasMore={chat.threadsHasMore}
+            error={chat.threadsError}
+            onLoadMore={chat.loadMoreThreads}
+            onDeleteThread={chat.deleteThread}
           />
         )}
         {/* Responsive chat header (mobile/tablet) within chat area */}
@@ -361,21 +341,28 @@ export function Chat({ threadId: providedThreadId }: ChatProps) {
           onShare={() => setShareOpen(true)}
         />
 
-        <ShareDialog open={shareOpen} onOpenChange={setShareOpen} threadId={threadId} />
+        <ShareDialog open={shareOpen} onOpenChange={setShareOpen} threadId={chat.currentThreadId || ''} />
 
         <div className="flex flex-col h-full p-0 max-w-none overflow-hidden pt-12 xl:pt-6">
           <div className="flex flex-col h-full min-h-0">
         
             {/* Error Banner */}
-            {error && (<MessageError error={error} onDismiss={clearError} />)}
+            {chat.error && (<MessageError error={chat.error} onDismiss={chat.clearError} />)}
 
-            {displayMessages.length === 0 && !threadLoading ? (
+            {chat.isLoadingInitialThread ? (
+              <div className="flex-1 flex items-center justify-center">
+                <div className="flex flex-col items-center gap-3">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                  <div className="text-muted-foreground text-sm">Loading conversation...</div>
+                </div>
+              </div>
+            ) : displayMessages.length === 0 ? (
               <EmptyState
                 value={inputValue}
                 onChange={setInputValue}
                 onSubmit={handleSubmit}
-                status={status}
-                isConnected={isConnected}
+                status={chat.status}
+                isConnected={chat.isConnected}
                 suggestions={mockSuggestions}
                 onSuggestionClick={handleSuggestionClick}
               />
@@ -412,10 +399,10 @@ export function Chat({ threadId: providedThreadId }: ChatProps) {
                             <>
                               <Message from={message.role} key={message.id} className="flex-col items-start">
                                 {hasTextDelta && (
-                                  <MessageTitle currentAgent={currentAgent} />
+                                  <MessageTitle currentAgent={chat.currentAgent} />
                                 )}
                                 <MessageContent className="px-0.5">
-                                  {message.parts.map((part, index) => (
+                                  {message.parts.map((part: any, index: number) => (
                                     <MessagePart 
                                       key={index} 
                                       part={part} 
@@ -467,7 +454,7 @@ export function Chat({ threadId: providedThreadId }: ChatProps) {
                               <BranchMessages>
                                 <Message from={message.role} key={message.id} className="flex-col items-end">
                                   <MessageContent>
-                                    {message.parts.map((part, index) => (
+                                    {message.parts.map((part: any, index: number) => (
                                       <MessagePart 
                                         key={index} 
                                         part={part} 
@@ -522,23 +509,25 @@ export function Chat({ threadId: providedThreadId }: ChatProps) {
             </Conversation>
             )}
 
-            {/* Input field - always visible */}
-            <div className="px-3 pb-4">
-              <ResponsivePromptInput
-                value={inputValue}
-                onChange={setInputValue}
-                onSubmit={handleSubmit}
-                placeholder={isViewingLoadedThread ? "Continue this conversation..." : "Ask anything"}
-                disabled={!isConnected || status !== 'idle' || threadLoading}
-                status={
-                  status === 'thinking' ? 'submitted' :
-                  status === 'responding' ? 'streaming' :
-                  status === 'error' ? 'error' :
-                  undefined
-                }
-                className="flex-shrink-0"
-              />
-            </div>
+            {/* Input field - visible when there are messages or when loading initial thread */}
+            {(displayMessages.length > 0 || chat.isLoadingInitialThread) && (
+              <div className="px-3 pb-4">
+                <ResponsivePromptInput
+                  value={inputValue}
+                  onChange={setInputValue}
+                  onSubmit={handleSubmit}
+                  placeholder="Ask anything"
+                  disabled={!chat.isConnected || chat.status !== 'idle' || chat.isLoadingInitialThread}
+                  status={
+                    chat.status === 'thinking' ? 'submitted' :
+                    chat.status === 'responding' ? 'streaming' :
+                    chat.status === 'error' ? 'error' :
+                    undefined
+                  }
+                  className="flex-shrink-0"
+                />
+              </div>
+            )}
           </div>
         </div>
       </div>

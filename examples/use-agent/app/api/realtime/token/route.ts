@@ -1,25 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSubscriptionToken } from "@inngest/realtime";
 import { inngest } from "@/inngest/client";
-import { conversationChannel } from "@/lib/realtime";
+import { userChannel } from "@/lib/realtime";
+import { TEST_USER_ID } from "@/lib/constants";
 
 export async function POST(req: NextRequest) {
   try {
-    const { threadId } = await req.json();
+    const { userId, threadId } = await req.json();
+    const effectiveUserId = userId || TEST_USER_ID;
     
-    if (!threadId || typeof threadId !== "string") {
-      return NextResponse.json(
-        { error: "Thread ID is required" },
-        { status: 400 }
-      );
-    }
+    // Note: threadId is now optional - we subscribe to user channel, not thread channel
+    console.log("Creating user-scoped subscription token:", { userId: effectiveUserId, threadId });
     
     // TODO: Add authentication/authorization here
-    // Verify that the user has access to this thread
+    // Verify that the user is authenticated and authorized
     
-    // Create a subscription token for the conversation channel
+    // Create a subscription token for the user channel (unified stream)
     const token = await getSubscriptionToken(inngest, {
-      channel: conversationChannel(threadId),
+      channel: userChannel(effectiveUserId), // Subscribe to ALL user's threads
       topics: ["agent_stream"], // Subscribe to the agent_stream topic
     });
     

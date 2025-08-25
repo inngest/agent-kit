@@ -4,4 +4,4 @@ export * from "./use-sidebar";
 export * from "./use-edit-message";
 export * from "./use-mobile";
 export * from "./use-threads";
-export * from "./use-thread-loader";
+export * from "./use-chat";

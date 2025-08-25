@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { TEST_USER_ID } from '@/lib/constants';
 
 export interface Thread {
@@ -22,9 +22,25 @@ export interface UseThreadsReturn {
   addOptimisticThread: (threadId: string, title: string) => void;
   currentThreadId: string | null;
   setCurrentThreadId: (id: string | null) => void;
+  
+  // NEW: Thread content loading
+  loadThreadHistory: (threadId: string) => Promise<any[]>;
 }
 
-export function useThreads(userId: string = TEST_USER_ID): UseThreadsReturn {
+export function useThreads(config?: {
+  userId?: string;
+  // Custom fetch functions for flexibility
+  fetchThreads?: (userId: string, pagination: { limit: number; offset: number }) => Promise<{
+    threads: Thread[];
+    hasMore: boolean;
+    total: number;
+  }>;
+  fetchHistory?: (threadId: string) => Promise<any[]>;
+  createThreadFn?: (userId: string) => Promise<{ threadId: string; title: string }>;
+  deleteThreadFn?: (threadId: string) => Promise<void>;
+  renameThreadFn?: (threadId: string, title: string) => Promise<void>;
+}): UseThreadsReturn {
+  const userId = config?.userId || TEST_USER_ID;
   const [threads, setThreads] = useState<Thread[]>([]);
   const [loading, setLoading] = useState(false);
   const [hasMore, setHasMore] = useState(true);
@@ -32,21 +48,58 @@ export function useThreads(userId: string = TEST_USER_ID): UseThreadsReturn {
   const [currentThreadId, setCurrentThreadId] = useState<string | null>(null);
   const [offset, setOffset] = useState(0);
 
+  // Stable default fetch functions using useCallback
+  const fetchThreadsDefault = useCallback(async (userId: string, pagination: { limit: number; offset: number }) => {
+    const response = await fetch(
+      `/api/threads?userId=${encodeURIComponent(userId)}&limit=${pagination.limit}&offset=${pagination.offset}`
+    );
+    if (!response.ok) {
+      throw new Error('Failed to load threads');
+    }
+    return response.json();
+  }, []);
+
+  const fetchHistoryDefault = useCallback(async (threadId: string) => {
+    const response = await fetch(`/api/threads/${threadId}`);
+    if (!response.ok) {
+      throw new Error('Failed to load thread history');
+    }
+    const data = await response.json();
+    return data.messages;
+  }, []);
+
+  const createThreadDefault = useCallback(async (userId: string) => {
+    const response = await fetch('/api/threads', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId }),
+    });
+    if (!response.ok) {
+      throw new Error('Failed to create thread');
+    }
+    return response.json();
+  }, []);
+
+  const deleteThreadDefault = useCallback(async (threadId: string) => {
+    const response = await fetch(`/api/threads/${threadId}`, { method: 'DELETE' });
+    if (!response.ok) {
+      throw new Error('Failed to delete thread');
+    }
+  }, []);
+
+  // Use provided functions or stable defaults
+  const fetchThreadsFn = config?.fetchThreads || fetchThreadsDefault;
+  const fetchHistoryFn = config?.fetchHistory || fetchHistoryDefault;
+  const createThreadFn = config?.createThreadFn || createThreadDefault;
+  const deleteThreadFn = config?.deleteThreadFn || deleteThreadDefault;
+
   const loadThreads = useCallback(async (isLoadMore = false) => {
     try {
       setLoading(true);
       setError(null);
       
       const currentOffset = isLoadMore ? offset : 0;
-      const response = await fetch(
-        `/api/threads?userId=${encodeURIComponent(userId)}&limit=20&offset=${currentOffset}`
-      );
-
-      if (!response.ok) {
-        throw new Error('Failed to load threads');
-      }
-
-      const data = await response.json();
+      const data = await fetchThreadsFn(userId, { limit: 20, offset: currentOffset });
       
       if (isLoadMore) {
         setThreads(prev => [...prev, ...data.threads]);
@@ -64,7 +117,7 @@ export function useThreads(userId: string = TEST_USER_ID): UseThreadsReturn {
     } finally {
       setLoading(false);
     }
-  }, [userId, offset]);
+  }, [userId, offset, fetchThreadsFn]);
 
   const loadMore = useCallback(async () => {
     if (!hasMore || loading) return;
@@ -78,17 +131,7 @@ export function useThreads(userId: string = TEST_USER_ID): UseThreadsReturn {
 
   const createThread = useCallback(async (): Promise<string> => {
     try {
-      const response = await fetch('/api/threads', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to create thread');
-      }
-
-      const data = await response.json();
+      const data = await createThreadFn(userId);
       return data.threadId;
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to create thread';
@@ -96,7 +139,7 @@ export function useThreads(userId: string = TEST_USER_ID): UseThreadsReturn {
       console.error('Error creating thread:', err);
       throw err;
     }
-  }, [userId]);
+  }, [userId, createThreadFn]);
 
   const addOptimisticThread = useCallback((threadId: string, title: string) => {
     const newThread: Thread = {
@@ -127,13 +170,7 @@ export function useThreads(userId: string = TEST_USER_ID): UseThreadsReturn {
         setCurrentThreadId(null);
       }
 
-      const response = await fetch(`/api/threads/${threadId}`, {
-        method: 'DELETE',
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to delete thread');
-      }
+      await deleteThreadFn(threadId);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to delete thread';
       setError(errorMessage);
@@ -143,12 +180,17 @@ export function useThreads(userId: string = TEST_USER_ID): UseThreadsReturn {
       await refresh();
       throw err;
     }
-  }, [currentThreadId, refresh]);
+  }, [currentThreadId, refresh, deleteThreadFn]);
 
-  // Initial load
+  // NEW: Load thread history method
+  const loadThreadHistory = useCallback(async (threadId: string): Promise<any[]> => {
+    return fetchHistoryFn(threadId);
+  }, [fetchHistoryFn]);
+
+  // Initial load - only when userId changes, not when loadThreads changes
   useEffect(() => {
     loadThreads(false);
-  }, [userId]);
+  }, [userId]); // Intentionally NOT including loadThreads to prevent loop
 
   return {
     threads,
@@ -162,6 +204,7 @@ export function useThreads(userId: string = TEST_USER_ID): UseThreadsReturn {
     addOptimisticThread,
     currentThreadId,
     setCurrentThreadId,
+    loadThreadHistory,
   };
 }
 

@@ -2,6 +2,7 @@
 
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { DesktopSidebar } from './DesktopSidebar';
+import type { Thread } from '@/hooks';
 
 interface MobileSidebarProps {
   isOpen: boolean;
@@ -10,6 +11,14 @@ interface MobileSidebarProps {
   onSearchChat: () => void;
   onThreadSelect?: (threadId: string) => void;
   currentThreadId?: string | null;
+  
+  // NEW: Thread data passed from parent  
+  threads?: Thread[];
+  loading?: boolean;
+  hasMore?: boolean;
+  error?: string | null;
+  onLoadMore?: () => Promise<void>;
+  onDeleteThread?: (threadId: string) => Promise<void>;
 }
 
 export function MobileSidebar({
@@ -18,7 +27,13 @@ export function MobileSidebar({
   onNewChat,
   onSearchChat,
   onThreadSelect,
-  currentThreadId
+  currentThreadId,
+  threads,
+  loading,
+  hasMore,
+  error,
+  onLoadMore,
+  onDeleteThread
 }: MobileSidebarProps) {
   const handleNewChat = () => {
     onOpenChange(false);
@@ -52,6 +67,12 @@ export function MobileSidebar({
           onSearchChat={handleSearchChat}
           onThreadSelect={handleThreadSelect}
           currentThreadId={currentThreadId}
+          threads={threads}
+          loading={loading}
+          hasMore={hasMore}
+          error={error}
+          onLoadMore={onLoadMore}
+          onDeleteThread={onDeleteThread}
           className="w-full"
           hideToggleButton
         />

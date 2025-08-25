@@ -362,10 +362,9 @@ export class PostgresHistoryAdapter<T extends StateData>
           // Insert user message if provided
           if (userMessage) {
             console.log("Inserting user message...");
-            const userChecksum = `user_${userMessage.timestamp.getTime()}_${userMessage.content.substring(
-              0,
-              50
-            )}`;
+            // Create a deterministic checksum that includes content for deduplication
+            const contentHash = Buffer.from(userMessage.content).toString('base64').substring(0, 20);
+            const userChecksum = `user_${contentHash}_${userMessage.timestamp.getTime()}`;
 
             await client.query(
               `
