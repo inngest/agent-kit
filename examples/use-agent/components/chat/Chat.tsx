@@ -282,6 +282,24 @@ export function Chat({ threadId: providedThreadId }: ChatProps = {}) {
     }
   };
 
+  // Enhanced delete function that handles navigation for sidebar deletions
+  const handleDeleteThreadWithNavigation = async (threadId: string) => {
+    try {
+      await deleteThread(threadId);
+      
+      // If we're deleting the current thread, redirect to home page
+      if (currentThreadId === threadId) {
+        router.push('/');
+        toast.success('Conversation deleted');
+      } else {
+        toast.success('Conversation deleted');
+      }
+    } catch (err) {
+      console.error('Error deleting thread:', err);
+      toast.error('Could not delete this conversation');
+    }
+  };
+
   const handleSearchChat = () => {
     console.log('Search chat');
     // TODO: Implement chat search functionality
@@ -326,7 +344,7 @@ export function Chat({ threadId: providedThreadId }: ChatProps = {}) {
           hasMore={threadsHasMore}
           error={threadsError}
           onLoadMore={loadMoreThreads}
-          onDeleteThread={deleteThread}
+          onDeleteThread={handleDeleteThreadWithNavigation}
         />
       )}
       
@@ -348,7 +366,7 @@ export function Chat({ threadId: providedThreadId }: ChatProps = {}) {
             hasMore={threadsHasMore}
             error={threadsError}
             onLoadMore={loadMoreThreads}
-            onDeleteThread={deleteThread}
+            onDeleteThread={handleDeleteThreadWithNavigation}
           />
         )}
         {/* Responsive chat header (mobile/tablet) within chat area */}
