@@ -26,17 +26,16 @@ export function createTool<
   handler: (
     input: ZodOutput<TInput>,
     opts: Tool.Options<TState>
-  ) => MaybePromise<any>; // eslint-disable-line @typescript-eslint/no-explicit-any
+  ) => MaybePromise<unknown>;
 }): Tool<TInput> {
   return {
     name,
     description,
     parameters,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    handler: handler as any as <TState extends StateData>(
+    handler: handler as <TState extends StateData>(
       input: ZodOutput<TInput>,
       opts: Tool.Options<TState>
-    ) => MaybePromise<any>, // eslint-disable-line @typescript-eslint/no-explicit-any
+    ) => MaybePromise<unknown>,
   };
 }
 
@@ -57,7 +56,7 @@ export type Tool<TInput extends Tool.Input> = {
   handler: <TState extends StateData>(
     input: ZodOutput<TInput>,
     opts: Tool.Options<TState>
-  ) => MaybePromise<any>; // eslint-disable-line @typescript-eslint/no-explicit-any
+  ) => MaybePromise<unknown>;
 };
 
 export namespace Tool {
