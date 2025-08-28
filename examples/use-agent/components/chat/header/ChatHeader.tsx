@@ -2,7 +2,8 @@
 
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { PlusIcon, Trash2Icon, ShareIcon, ChevronDownIcon, MenuIcon, SearchIcon, CheckIcon } from 'lucide-react';
+import { PlusIcon, Trash2Icon, ShareIcon, ChevronDownIcon, MenuIcon, SearchIcon, CheckIcon, FlaskConicalIcon } from 'lucide-react';
+import Link from 'next/link';
 import type { HTMLAttributes } from 'react';
 import {
   DropdownMenu,
@@ -95,6 +96,12 @@ export function ChatHeader({ onNewChat, onDelete, onShare, onOpenMobileSidebar, 
             <ShareIcon className="h-4 w-4 mr-1.5" />
             <span>Share</span>
           </Button>
+          <Link href="/test" className="hidden sm:inline-flex">
+            <Button variant="outline" size="sm" aria-label="Hook Testing Suite">
+              <FlaskConicalIcon className="h-4 w-4 mr-1.5" />
+              <span>Tests</span>
+            </Button>
+          </Link>
         </div>
       </div>
     </div>
@@ -122,6 +129,12 @@ export function HeaderActions({ onNewChat, onDelete, onShare, className, ...prop
         <ShareIcon className="h-4 w-4 mr-1.5" />
         <span>Share</span>
       </Button>
+      <Link href="/test">
+        <Button variant="outline" size="sm" aria-label="Hook Testing Suite">
+          <FlaskConicalIcon className="h-4 w-4 mr-1.5" />
+          <span>Tests</span>
+        </Button>
+      </Link>
     </div>
   );
 }
