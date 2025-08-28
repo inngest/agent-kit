@@ -56,34 +56,7 @@ const debugError = (isDebugEnabled: boolean, ...args: any[]) => {
   }
 };
 
-// ----- GLOBAL DIAGNOSTICS ------------------------------------------
-
-declare global {
-  interface Window {
-    __AK_DIAG__?: any;
-  }
-}
-
-const getAkDiag = () => {
-  if (typeof window === "undefined") return undefined as any;
-  if (!window.__AK_DIAG__) {
-    window.__AK_DIAG__ = {
-      pageLoadId: `pl-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-      agents: [] as Array<{ id: string; source: string; threadId?: string; userId?: string }>,
-      subs: {} as Record<string, Set<string>>, // key -> instanceIds
-      counts: {
-        tokenRequests: 0,
-        connectionTransitions: {} as Record<string, number>,
-        threadSets: [] as Array<{ from?: string; to: string; t: number; id: string }>,
-        emptyWarnCount: 0,
-      },
-      _dupLogged: false,
-      _subDupLoggedKeys: new Set<string>(),
-      summaryScheduled: false,
-    };
-  }
-  return window.__AK_DIAG__;
-};
+// Removed global diagnostics - no longer needed
 
 // ----- DATA & UI MODELS (As per spec) -----------------------------
 
@@ -1897,8 +1870,6 @@ export interface UseAgentReturn {
  * ```
  */
 export function useAgent({ threadId, userId = TEST_USER_ID, onError, debug = DEFAULT_DEBUG_MODE }: UseAgentOptions): UseAgentReturn {
-  const diag = getAkDiag();
-  const instanceIdRef = useRef<string>(`agent-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
   const emptyWarnedThreadsRef = useRef<Set<string>>(new Set());
 
   // MULTI-THREAD STATE: Initialize with the provided threadId as the current thread
@@ -1925,18 +1896,6 @@ export function useAgent({ threadId, userId = TEST_USER_ID, onError, debug = DEF
     refreshToken: async () => {
       if (debug) {
         console.log("[useAgent] 🔄 Creating stable user subscription for userId:", userId);
-        console.log(`[AK][SUB] token:request`, { userId, contextThreadId: threadId });
-      }
-      if (diag) {
-        diag.counts.tokenRequests += 1;
-        const key = String(userId);
-        const set = diag.subs[key] || new Set<string>();
-        set.add(instanceIdRef.current);
-        diag.subs[key] = set;
-        if (!diag._subDupLoggedKeys.has(key) && set.size > 1) {
-          diag._subDupLoggedKeys.add(key);
-          console.warn(`[AK][SUB][DUP]`, { key, instances: Array.from(set) });
-        }
       }
       const response = await fetch("/api/realtime/token", {
         method: "POST",
@@ -1947,41 +1906,12 @@ export function useAgent({ threadId, userId = TEST_USER_ID, onError, debug = DEF
       const token = await response.json();
       if (debug) {
         console.log("[useAgent] ✅ User subscription token created for userId:", userId);
-        console.log(`[AK][SUB] token:received`, { userId, ok: true });
       }
       return token;
     },
   });
 
-  // AGENT CREATE TELEMETRY (once)
-  useEffect(() => {
-    if (!diag) return;
-    const id = instanceIdRef.current;
-    const source = (typeof window !== 'undefined' && (window as any).__AK_AGENT_SOURCE__) || 'local';
-    diag.agents.push({ id, source, threadId, userId });
-    console.log(`[AK][AGENT][CREATE]`, { pageLoadId: diag.pageLoadId, instanceId: id, source, userId, initialThreadId: threadId });
-    if (!diag._dupLogged && diag.agents.length > 1) {
-      diag._dupLogged = true;
-      console.warn(`[AK][AGENT][DUP]`, { pageLoadId: diag.pageLoadId, instances: diag.agents });
-    }
-    // Strict mode probe: detect double-mount in dev quickly by scheduling summary
-    if (!diag.summaryScheduled) {
-      diag.summaryScheduled = true;
-      setTimeout(() => {
-        const subSummary = Object.fromEntries(Object.entries(diag.subs).map(([k, v]: any) => [k, (v as Set<string>).size]));
-        console.log(`[AK][STREAM][SUMMARY]`, {
-          pageLoadId: diag.pageLoadId,
-          agents: diag.agents.map((a: any) => ({ id: a.id, source: a.source })),
-          subscriptionsByKey: subSummary,
-          tokenRequests: diag.counts.tokenRequests,
-          connectionTransitions: diag.counts.connectionTransitions,
-          threadSwitches: diag.counts.threadSets.length,
-          emptyThreadWarnings: diag.counts.emptyWarnCount,
-        });
-      }, 1200);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // Removed diagnostic telemetry - no longer needed
 
   // Effect to process new real-time events when they arrive.
   // MULTI-THREAD: Process ALL events and route to correct thread buffers
@@ -1995,11 +1925,6 @@ export function useAgent({ threadId, userId = TEST_USER_ID, onError, debug = DEF
         currentThreadId: state.currentThreadId,
         activeThreads: Object.keys(state.threads),
       });
-      
-      // telemetry: count events
-      if (diag) {
-        // noop per-event detail; summary will show totals
-      }
 
       // Process ALL events - no filtering! Events are routed in the reducer
       dispatch({
@@ -2016,11 +1941,7 @@ export function useAgent({ threadId, userId = TEST_USER_ID, onError, debug = DEF
       type: 'CONNECTION_STATE_CHANGED',
       state: connectionState
     });
-    debugLog(debug, `[AK][CONNECTION] state`, { state: connectionState, isActive: connectionState === InngestSubscriptionState.Active });
-    if (diag) {
-      const key = String(connectionState);
-      diag.counts.connectionTransitions[key] = (diag.counts.connectionTransitions[key] || 0) + 1;
-    }
+    debugLog(debug, `[useAgent] Connection state changed:`, { state: connectionState, isActive: connectionState === InngestSubscriptionState.Active });
   }, [connectionState]);
 
   // Effect to handle errors from the real-time subscription.
@@ -2133,19 +2054,13 @@ export function useAgent({ threadId, userId = TEST_USER_ID, onError, debug = DEF
    * Switch to a different thread (updates currentThreadId and marks as viewed)
    */
   const setCurrentThread = useCallback((targetThreadId: string) => {
-    if (diag) {
-      const from = stateRef.current.currentThreadId;
-      const to = targetThreadId;
-      const now = Date.now();
-      const id = instanceIdRef.current;
-      diag.counts.threadSets.push({ from, to, t: now, id });
-      // Detect flapping: 3+ switches within 500ms
-      const recent = diag.counts.threadSets.filter((s: any) => now - s.t < 500);
-      if (recent.length >= 3) {
-        console.warn(`[AK][THREAD][FLAP]`, { recent });
-      }
-      console.log(`[AK][THREAD][SET]`, { instanceId: id, from, to });
-    }
+    // 🔍 DIAGNOSTIC: Verify thread switching without duplication
+    console.log('🔍 [DIAG] Thread switch requested:', {
+      from: stateRef.current.currentThreadId,
+      to: targetThreadId,
+      threadsInMemory: Object.keys(stateRef.current.threads).length,
+      timestamp: new Date().toISOString()
+    });
     dispatch({ type: 'SET_CURRENT_THREAD', threadId: targetThreadId });
   }, []);
 
@@ -2208,19 +2123,29 @@ export function useAgent({ threadId, userId = TEST_USER_ID, onError, debug = DEF
    * Replace messages in a specific thread
    */
   const replaceThreadMessages = useCallback((targetThreadId: string, messages: ConversationMessage[]) => {
-          // Only log if there are potential duplicates
+      // Check for duplicate message IDs
       const messageIds = messages.map(m => m.id);
       const uniqueIds = new Set(messageIds);
       if (messageIds.length !== uniqueIds.size) {
-        console.error(`[AK][DUP] replace-thread-messages`, {
+        debugWarn(debug, `[useAgent] Duplicate message IDs detected in replaceThreadMessages:`, {
           targetThreadId,
           totalMessages: messageIds.length,
           uniqueIds: uniqueIds.size,
           duplicateIds: messageIds.filter((id, index) => messageIds.indexOf(id) !== index),
         });
       }
+      
+      // 🔍 DIAGNOSTIC: Verify thread message replacement
+      console.log('🔍 [DIAG] Replacing thread messages:', {
+        targetThreadId,
+        messageCount: messages.length,
+        hasValidIds: messages.every(m => m.id && typeof m.id === 'string'),
+        messageIds: messages.map(m => ({ id: m.id, role: m.role })),
+        timestamp: new Date().toISOString()
+      });
+      
     dispatch({ type: 'REPLACE_THREAD_MESSAGES', threadId: targetThreadId, messages });
-  }, []);
+  }, [debug]);
 
   /**
    * Mark a thread as viewed (clear hasNewMessages flag)
@@ -2301,7 +2226,6 @@ export function useAgent({ threadId, userId = TEST_USER_ID, onError, debug = DEF
     if (!emptyWarnedThreadsRef.current.has(tid)) {
       emptyWarnedThreadsRef.current.add(tid);
       debugWarn(debug, `🚨 [CURRENT-THREAD] Empty thread detected:`, { threadId: tid });
-      if (diag) diag.counts.emptyWarnCount += 1;
     }
   }
   
