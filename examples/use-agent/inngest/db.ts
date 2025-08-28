@@ -703,7 +703,7 @@ export class PostgresHistoryAdapter<T extends StateData>
           t.metadata,
           t.created_at,
           t.updated_at,
-          COUNT(m.id) as message_count,
+          COUNT(m.message_id) as message_count,
           MAX(m.created_at) as last_message_at
         FROM ${this.tableNames.threads} t
         LEFT JOIN ${this.tableNames.messages} m ON t.thread_id = m.thread_id
@@ -731,6 +731,11 @@ export class PostgresHistoryAdapter<T extends StateData>
         hasMore,
         total,
       };
+    } catch (error) {
+      console.error("❌ Error in listThreadsWithPagination:", error);
+      console.error("❌ Query details:", { userId, limit, offset });
+      console.error("❌ Table names:", this.tableNames);
+      throw error;
     } finally {
       client.release();
     }
