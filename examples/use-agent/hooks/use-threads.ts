@@ -54,6 +54,7 @@ export function useThreads(config?: {
       `/api/threads?userId=${encodeURIComponent(userId)}&limit=${pagination.limit}&offset=${pagination.offset}`
     );
     if (!response.ok) {
+      console.error(`[AK][THREADS] list:fail`, { status: response.status });
       throw new Error('Failed to load threads');
     }
     return response.json();
@@ -62,6 +63,7 @@ export function useThreads(config?: {
   const fetchHistoryDefault = useCallback(async (threadId: string) => {
     const response = await fetch(`/api/threads/${threadId}`);
     if (!response.ok) {
+      console.error(`[AK][THREADS] history:fail`, { threadId, status: response.status });
       throw new Error('Failed to load thread history');
     }
     const data = await response.json();
@@ -75,6 +77,7 @@ export function useThreads(config?: {
       body: JSON.stringify({ userId }),
     });
     if (!response.ok) {
+      console.error(`[AK][THREADS] create:fail`, { status: response.status });
       throw new Error('Failed to create thread');
     }
     return response.json();
@@ -83,6 +86,7 @@ export function useThreads(config?: {
   const deleteThreadDefault = useCallback(async (threadId: string) => {
     const response = await fetch(`/api/threads/${threadId}`, { method: 'DELETE' });
     if (!response.ok) {
+      console.error(`[AK][THREADS] delete:fail`, { threadId, status: response.status });
       throw new Error('Failed to delete thread');
     }
   }, []);
@@ -113,7 +117,7 @@ export function useThreads(config?: {
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to load threads';
       setError(errorMessage);
-      console.error('Error loading threads:', err);
+      console.error('[AK][THREADS] load:error', err);
     } finally {
       setLoading(false);
     }
