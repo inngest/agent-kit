@@ -1,12 +1,13 @@
 import { Chat } from "@/components/chat/Chat";
 
 interface ThreadPageProps {
-  params: {
+  params: Promise<{
     threadId: string;
-  };
+  }>;
 }
 
-export default function ThreadPage({ params }: ThreadPageProps) {
-  return <Chat threadId={params.threadId} />;
+export default async function ThreadPage({ params }: ThreadPageProps) {
+  const { threadId } = await params;
+  return <Chat threadId={threadId} />;
 }
 
