@@ -1,10 +1,14 @@
 /**
  * AgentKit Streaming System
- * 
+ *
  * This module provides automatic event streaming capabilities for AgentKit networks and agents.
- * It defines the event schema that matches the useAgent hook expectations and provides 
+ * It defines the event schema that matches the useAgent hook expectations and provides
  * streaming context management for transparent event publishing.
  */
+
+import { type Inngest } from "inngest";
+import { type GetStepTools } from "inngest";
+import { type State, type StateData } from "./state";
 
 /**
  * Base interface for all streaming events
@@ -13,7 +17,7 @@ export interface AgentMessageChunk {
   /** The event name (e.g., "run.started", "part.created") */
   event: string;
   /** Event-specific data payload */
-  data: Record<string, any>;
+  data: Record<string, unknown>;
   /** When the event occurred (Unix timestamp) */
   timestamp: number;
   /** Monotonic sequence number for ordering events */
@@ -35,7 +39,7 @@ export interface RunStartedEvent extends AgentMessageChunk {
     name: string; // Name of the network or agent
     messageId?: string; // Optional message context
     threadId?: string; // Thread context
-    metadata?: Record<string, any>; // Additional context
+    metadata?: Record<string, unknown>; // Additional context
   };
 }
 
@@ -46,7 +50,7 @@ export interface RunCompletedEvent extends AgentMessageChunk {
     scope: "network" | "agent";
     name: string;
     messageId?: string; // Optional message context
-    result?: any; // Final result from the run
+    result?: unknown; // Final result from the run
     usage?: {
       promptTokens: number;
       completionTokens: number;
@@ -65,7 +69,7 @@ export interface RunFailedEvent extends AgentMessageChunk {
     messageId?: string; // Optional message context
     error: string;
     recoverable: boolean;
-    metadata?: Record<string, any>;
+    metadata?: Record<string, unknown>;
   };
 }
 
@@ -76,7 +80,7 @@ export interface RunInterruptedEvent extends AgentMessageChunk {
     scope: "network" | "agent";
     name: string;
     reason: "max_tokens" | "user_cancellation" | "timeout" | "other";
-    metadata?: Record<string, any>;
+    metadata?: Record<string, unknown>;
   };
 }
 
@@ -90,7 +94,7 @@ export interface StepStartedEvent extends AgentMessageChunk {
     stepId: string; // Unique identifier for this step
     runId: string; // Which run this step belongs to
     description?: string; // Human-readable description
-    metadata?: Record<string, any>;
+    metadata?: Record<string, unknown>;
   };
 }
 
@@ -99,7 +103,7 @@ export interface StepCompletedEvent extends AgentMessageChunk {
   data: {
     stepId: string;
     runId: string;
-    result?: any; // Step result if applicable
+    result?: unknown; // Step result if applicable
     duration?: number; // Execution time in milliseconds
   };
 }
@@ -125,7 +129,14 @@ export interface PartCreatedEvent extends AgentMessageChunk {
     partId: string; // Unique identifier for this part
     runId: string; // Which run this part belongs to
     messageId: string; // Which message this part belongs to
-    type: "text" | "tool-call" | "tool-output" | "reasoning" | "data" | "file" | "refusal";
+    type:
+      | "text"
+      | "tool-call"
+      | "tool-output"
+      | "reasoning"
+      | "data"
+      | "file"
+      | "refusal";
     metadata?: {
       toolName?: string; // For tool-call parts
       dataType?: string; // For data parts
@@ -142,7 +153,7 @@ export interface PartCompletedEvent extends AgentMessageChunk {
     runId: string;
     messageId: string; // Which message this part belongs to
     type: string;
-    finalContent: any; // The complete, aggregated content of this part
+    finalContent: unknown; // The complete, aggregated content of this part
   };
 }
 
@@ -204,7 +215,7 @@ export interface DataDeltaEvent extends AgentMessageChunk {
   data: {
     partId: string;
     messageId: string; // Which message this delta belongs to
-    delta: any; // Incremental structured data
+    delta: unknown; // Incremental structured data
   };
 }
 
@@ -220,7 +231,7 @@ export interface HitlRequestedEvent extends AgentMessageChunk {
     toolCalls: Array<{
       partId: string; // The tool-call part that needs approval
       toolName: string;
-      toolInput: any;
+      toolInput: unknown;
     }>;
     expiresAt: string; // ISO timestamp
     metadata?: {
@@ -265,7 +276,7 @@ export interface MetadataUpdatedEvent extends AgentMessageChunk {
   event: "metadata.updated";
   data: {
     runId: string;
-    metadata: Record<string, any>;
+    metadata: Record<string, unknown>;
     type: "model_switch" | "parameter_change" | "context_update" | "other";
   };
 }
@@ -328,7 +339,7 @@ export class StreamingContext {
   private publish: (chunk: AgentMessageChunk) => Promise<void>;
   private sequenceCounter: SequenceCounter;
   private debug: boolean;
-  
+
   public readonly runId: string;
   public readonly parentRunId?: string;
   public readonly messageId: string;
@@ -352,7 +363,7 @@ export class StreamingContext {
     this.threadId = config.threadId;
     this.scope = config.scope;
     this.sequenceCounter = config.sequenceCounter || new SequenceCounter();
-    this.debug = config.debug ?? (process.env.NODE_ENV === 'development');
+    this.debug = config.debug ?? process.env.NODE_ENV === "development";
   }
 
   /**
@@ -365,7 +376,7 @@ export class StreamingContext {
         childRunId: agentRunId,
         inheritedMessageId: this.messageId,
         scope: "agent",
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     }
     return new StreamingContext({
@@ -403,8 +414,8 @@ export class StreamingContext {
   /**
    * Extract context information from network state
    */
-  static fromNetworkState<T extends Record<string, any>>(
-    networkState: T,
+  static fromNetworkState(
+    networkState: State<StateData>,
     config: {
       publish: (chunk: AgentMessageChunk) => Promise<void>;
       runId: string;
@@ -413,14 +424,14 @@ export class StreamingContext {
       debug?: boolean;
     }
   ): StreamingContext {
-    const debug = config.debug ?? (process.env.NODE_ENV === 'development');
+    const debug = config.debug ?? process.env.NODE_ENV === "development";
     if (debug) {
       console.log("🔧 [STREAMING-CTX] Creating StreamingContext with:", {
         runId: config.runId,
         messageId: config.messageId,
         scope: config.scope,
         threadId: networkState.threadId,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     }
     return new StreamingContext({
@@ -437,13 +448,15 @@ export class StreamingContext {
    * Publish an event with automatic sequence numbering.
    * Provides a stepId in the chunk for optional Inngest step wrapping by the developer.
    */
-  async publishEvent(event: Omit<AgentMessageChunk, 'timestamp' | 'sequenceNumber' | 'id'>): Promise<void> {
+  async publishEvent(
+    event: Omit<AgentMessageChunk, "timestamp" | "sequenceNumber" | "id">
+  ): Promise<void> {
     // Get the next sequence number from the shared counter
     const sequenceNumber = this.sequenceCounter.getNext();
-    
+
     // Generate step ID with the sequence number
     const stepId = this.generateStreamingStepId(event, sequenceNumber);
-    
+
     const chunk: AgentMessageChunk = {
       ...event,
       timestamp: Date.now(),
@@ -455,25 +468,27 @@ export class StreamingContext {
       await this.publish(chunk);
     } catch (err) {
       // Swallow publishing errors to avoid breaking execution; best-effort streaming
-      // eslint-disable-next-line no-console
-      console.warn("[Streaming] Failed to publish event; continuing execution", {
-        error: err instanceof Error ? err.message : String(err),
-        event: chunk.event,
-        sequenceNumber: chunk.sequenceNumber,
-      });
+
+      console.warn(
+        "[Streaming] Failed to publish event; continuing execution",
+        {
+          error: err instanceof Error ? err.message : String(err),
+          event: chunk.event,
+          sequenceNumber: chunk.sequenceNumber,
+        }
+      );
     }
   }
-
-
 
   /**
    * Generate intelligent step IDs for streaming events
    */
-  private generateStreamingStepId(event: Omit<AgentMessageChunk, 'timestamp' | 'sequenceNumber' | 'id'>, sequenceNumber: number): string {
+  private generateStreamingStepId(
+    event: Omit<AgentMessageChunk, "timestamp" | "sequenceNumber" | "id">,
+    sequenceNumber: number
+  ): string {
     return `publish-${sequenceNumber}:${event.event}`;
   }
-
-
 
   /**
    * Generate a unique part ID for this streaming context
@@ -481,7 +496,14 @@ export class StreamingContext {
   generatePartId(): string {
     const partId = `part_${this.messageId}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     if (this.debug) {
-      console.log("🔧 [PART-ID] Generated partId:", partId, "for messageId:", this.messageId, "at", new Date().toISOString());
+      console.log(
+        "🔧 [PART-ID] Generated partId:",
+        partId,
+        "for messageId:",
+        this.messageId,
+        "at",
+        new Date().toISOString()
+      );
       console.trace("🔧 [PART-ID] Call stack for partId generation");
     }
     return partId;
@@ -498,7 +520,7 @@ export class StreamingContext {
 /**
  * Union type of all possible streaming events
  */
-export type StreamingEvent = 
+export type StreamingEvent =
   | RunStartedEvent
   | RunCompletedEvent
   | RunFailedEvent
@@ -526,7 +548,7 @@ export type StreamingEvent =
  */
 export function isEventType<T extends StreamingEvent>(
   event: AgentMessageChunk,
-  eventType: T['event']
+  eventType: T["event"]
 ): event is T {
   return event.event === eventType;
 }
@@ -536,243 +558,67 @@ export function isEventType<T extends StreamingEvent>(
  */
 export function generateId(debug?: boolean): string {
   const id = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-  const isDebug = debug ?? (process.env.NODE_ENV === 'development');
+  const isDebug = debug ?? process.env.NODE_ENV === "development";
   if (isDebug) {
-    console.log("🔧 [ID-GEN] Generated new ID:", id, "at", new Date().toISOString());
+    console.log(
+      "🔧 [ID-GEN] Generated new ID:",
+      id,
+      "at",
+      new Date().toISOString()
+    );
     console.trace("🔧 [ID-GEN] Call stack for ID generation");
   }
   return id;
 }
 
 // =============================================================================
-// STEP WRAPPER FOR TRANSPARENT EVENT PUBLISHING
+// STEP WRAPPER FOR TRANSPARENT EVENT PUBLISHING (Proxy-based)
 // =============================================================================
-
-/**
- * StepWrapper acts as a proxy around the Inngest step object to automatically
- * publish step lifecycle events without requiring developers to modify their code.
- */
-export class StepWrapper {
-  private originalStep: any;
-  private context: StreamingContext;
-
-  constructor(originalStep: any, context: StreamingContext) {
-    this.originalStep = originalStep;
-    this.context = context;
-    
-    // Create proxy to intercept all method calls
-    return new Proxy(this, {
-      get: (target, prop, receiver) => {
-        // Return bound methods from our wrapper
-        if (prop in target && typeof target[prop as keyof StepWrapper] === 'function') {
-          return Reflect.get(target, prop, receiver);
-        }
-        
-        // Handle the 'ai' property specially
-        if (prop === 'ai') {
-          return target.createAiWrapper();
-        }
-        
-        // For known step methods, wrap them
-        const knownStepMethods = ['run', 'sleep', 'invoke', 'waitForEvent', 'sendEvent', 'sleepUntil'];
-        if (knownStepMethods.includes(prop as string)) {
-          return target.wrapStepMethod(prop as string);
-        }
-        
-        // For everything else, return the original property
-        return Reflect.get(target.originalStep, prop);
-      }
-    });
-  }
-
-  /**
-   * Wrap the 'run' method to emit step events
-   */
-  private wrapStepMethod(methodName: string) {
-    return async (...args: any[]) => {
-      const stepId = typeof args[0] === 'string' ? args[0] : `${methodName}-${generateId()}`;
-      const startTime = Date.now();
-      
-      // Publish step_started before execution
-      await this.context.publishEvent({
-        event: "step.started",
-        data: {
-          stepId: stepId,
-          runId: this.context.runId,
-          description: `Executing ${methodName}: ${stepId}`,
-          metadata: {
-            method: methodName,
-            args: args.slice(1) // Exclude stepId from args in metadata
-          }
-        }
-      });
-
-      try {
-        // Execute the original step method
-        const result = await this.originalStep[methodName](...args);
-
-        // Calculate duration
-        const duration = Date.now() - startTime;
-
-        // Publish step_completed on success
-        await this.context.publishEvent({
-          event: "step.completed",
-          data: {
-            stepId: stepId,
-            runId: this.context.runId,
-            result: methodName === 'run' ? undefined : result, // Don't include result data for security
-            duration: duration
-          }
-        });
-
-        return result;
-      } catch (error) {
-        // Calculate duration even for failed steps
-        const duration = Date.now() - startTime;
-
-        // Publish step_failed on error
-        await this.context.publishEvent({
-          event: "step.failed",
-          data: {
-            stepId: stepId,
-            runId: this.context.runId,
-            error: error instanceof Error ? error.message : String(error),
-            recoverable: true, // Most step failures are recoverable via retries
-            retryAttempt: undefined, // TODO: Track retry attempts if needed
-            duration: duration
-          }
-        });
-        
-        throw error; // Re-throw to maintain original behavior
-      }
-    };
-  }
-
-  /**
-   * Create a wrapper for the AI inference methods
-   */
-  private createAiWrapper() {
-    const wrapper = this;
-    return {
-      infer: async (stepId: string, options: any) => {
-        const startTime = Date.now();
-        
-        // Publish step_started for AI inference
-        await wrapper.context.publishEvent({
-          event: "step.started",
-          data: {
-            stepId: stepId,
-            runId: wrapper.context.runId,
-            description: "AI inference",
-            metadata: {
-              method: "ai.infer",
-              model: options?.model?.options?.model || "unknown"
-            }
-          }
-        });
-
-        try {
-          // Call original AI inference method
-          const result = await wrapper.originalStep.ai.infer(stepId, options);
-
-          // Calculate duration
-          const duration = Date.now() - startTime;
-
-          // Publish step_completed
-          await wrapper.context.publishEvent({
-            event: "step.completed",
-            data: {
-              stepId: stepId,
-              runId: wrapper.context.runId,
-              duration: duration
-            }
-          });
-
-          return result;
-        } catch (error) {
-          // Calculate duration even for failed AI calls
-          const duration = Date.now() - startTime;
-
-          // Publish step_failed on AI inference error
-          await wrapper.context.publishEvent({
-            event: "step.failed",
-            data: {
-              stepId: stepId,
-              runId: wrapper.context.runId,
-              error: error instanceof Error ? error.message : String(error),
-              recoverable: true,
-              duration: duration
-            }
-          });
-          
-          throw error;
-        }
-      },
-
-      // Wrap ai.wrap method if it exists
-      wrap: wrapper.originalStep.ai?.wrap ? async (...args: any[]) => {
-        const stepId = typeof args[0] === 'string' ? args[0] : `ai-wrap-${generateId()}`;
-        const startTime = Date.now();
-        
-        await wrapper.context.publishEvent({
-          event: "step.started",
-          data: {
-            stepId: stepId,
-            runId: wrapper.context.runId,
-            description: "AI wrap operation",
-            metadata: { method: "ai.wrap" }
-          }
-        });
-
-        try {
-          const result = await wrapper.originalStep.ai.wrap(...args);
-          const duration = Date.now() - startTime;
-
-          await wrapper.context.publishEvent({
-            event: "step.completed",
-            data: {
-              stepId: stepId,
-              runId: wrapper.context.runId,
-              duration: duration
-            }
-          });
-
-          return result;
-        } catch (error) {
-          const duration = Date.now() - startTime;
-
-          await wrapper.context.publishEvent({
-            event: "step.failed",
-            data: {
-              stepId: stepId,
-              runId: wrapper.context.runId,
-              error: error instanceof Error ? error.message : String(error),
-              recoverable: true,
-              duration: duration
-            }
-          });
-          
-          throw error;
-        }
-      } : undefined
-    };
-  }
-
-  /**
-   * Direct access to original step for compatibility
-   */
-  get original() {
-    return this.originalStep;
-  }
-}
 
 /**
  * Helper function to create a StepWrapper if streaming context is available
  */
-export function createStepWrapper(originalStep: any, context?: StreamingContext): any {
+export function createStepWrapper(
+  originalStep: GetStepTools<Inngest.Any> | undefined,
+  context?: StreamingContext
+): GetStepTools<Inngest.Any> | undefined {
   if (!context || !originalStep) {
     return originalStep;
   }
-  
-  return new StepWrapper(originalStep, context);
+
+  // Use a Proxy to dynamically wrap the step tools
+  return new Proxy(originalStep, {
+    get(target, prop, receiver) {
+      // If the property is one we want to wrap (e.g., 'run'), return our wrapped version.
+      if (prop === "run") {
+        return async <T>(stepId: string, fn: () => Promise<T>): Promise<T> => {
+          // Delegate to the original Inngest step.run while emitting streaming events
+          const originalRun = (Reflect.get(
+            target,
+            "run",
+            receiver
+          ) as unknown) as <R>(id: string, fn: () => Promise<R>) => Promise<R>;
+
+          try {
+            console.log("🔎 [WRAPPED_STEP.RUN] Invoked", {
+              stepId,
+              runId: context.runId,
+              delegatingToTargetRun: true,
+              scope: context.scope,
+            });
+          } catch {}
+          // Do not publish streaming step events here to avoid nested step.* within Inngest steps
+          // Rely on the actual Inngest step.run for step visibility in the console
+          return originalRun(stepId, fn);
+        };
+      }
+
+      // For any other property, just reflect it from the original step object.
+      return Reflect.get(
+        target,
+        prop,
+        receiver
+      ) as unknown as GetStepTools<Inngest.Any>[keyof GetStepTools<Inngest.Any>];
+    },
+  });
 }
