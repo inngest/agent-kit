@@ -45,7 +45,10 @@
               "advanced-patterns/ui-streaming",
               "advanced-patterns/multi-steps-tools",
               "advanced-patterns/retries",
-              "advanced-patterns/multitenancy"
+              "advanced-patterns/multitenancy",
+              "advanced-patterns/use-agent",
+              "advanced-patterns/use-threads",
+              "advanced-patterns/use-chat"
             ]
           },
           {
