@@ -195,15 +195,11 @@ export function DesktopSidebar({
   const [isSearchButtonHovered, setIsSearchButtonHovered] = useState(false);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
-  // Use passed data from parent or fallback to hook (for backwards compatibility)
-  const fallbackThreads = useThreads();
-  const threads = passedThreads || fallbackThreads.threads;
-  const loading = passedLoading ?? fallbackThreads.loading;
-  const hasMore = passedHasMore ?? fallbackThreads.hasMore;
-  const error = passedError ?? fallbackThreads.error;
-  const loadMore = onLoadMore || fallbackThreads.loadMore;
-  
-  // Removed: localStorage-based initialization. Sidebar state is controlled by parent and defaults to open.
+  // Telemetry: Track data source
+  console.log('[AK_TELEMETRY] DesktopSidebar.dataSource', {
+    source: 'passed', // No longer has a fallback
+    threadCount: passedThreads?.length || 0,
+  });
 
   // Reset hover state when minimized state changes
   useEffect(() => {
@@ -255,14 +251,17 @@ export function DesktopSidebar({
   };
 
   // Infinite scroll handler
-  const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
-    const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
-    const isNearBottom = scrollHeight - scrollTop <= clientHeight + 100; // 100px threshold
+  const handleScroll = useCallback(
+    (e: React.UIEvent<HTMLDivElement>) => {
+      const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
+      const isNearBottom = scrollHeight - scrollTop <= clientHeight + 100; // 100px threshold
 
-    if (isNearBottom && hasMore && !loading) {
-      loadMore();
-    }
-  }, [hasMore, loading, loadMore]);
+      if (isNearBottom && passedHasMore && !passedLoading) {
+        onLoadMore?.();
+      }
+    },
+    [passedHasMore, passedLoading, onLoadMore]
+  );
 
   return (
     <div className={cn(
@@ -420,14 +419,14 @@ export function DesktopSidebar({
               </h2>
             </div>
             
-            {error && (
+            {passedError && (
               <div className="px-4 py-2 text-sm text-red-600 dark:text-red-400">
-                {error}
+                {passedError}
               </div>
             )}
             
             <div className="space-y-1 pb-2 pt-2">
-              {threads.map((thread) => (
+              {passedThreads?.map((thread) => (
                 <ThreadCard
                   key={thread.id}
                   thread={thread}
@@ -441,7 +440,7 @@ export function DesktopSidebar({
               ))}
               
               {/* Loading skeletons */}
-              {loading && (
+              {passedLoading && (
                 <>
                   <ThreadSkeleton />
                   <ThreadSkeleton />
