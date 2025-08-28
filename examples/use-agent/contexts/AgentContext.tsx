@@ -8,7 +8,7 @@ interface AgentContextType {
   agent: UseAgentReturn;
 }
 
-const AgentContext = createContext<AgentContextType | null>(null);
+export const AgentContext = createContext<AgentContextType | null>(null);
 
 interface AgentProviderProps {
   children: React.ReactNode;
@@ -18,7 +18,21 @@ interface AgentProviderProps {
 
 export function AgentProvider({ children, userId = TEST_USER_ID, debug = true }: AgentProviderProps) {
   // Create a stable fallback threadId that only gets generated once
-  const fallbackThreadIdRef = useRef<string>(`thread-${Date.now()}`);
+  const fallbackThreadIdRef = useRef<string | null>(null);
+  if (fallbackThreadIdRef.current === null) {
+    fallbackThreadIdRef.current = `thread-${Date.now()}`;
+  }
+
+  // 🔍 TELEMETRY: Track global agent provider lifecycle
+  const providerInstanceId = useRef<string | null>(null);
+  if (providerInstanceId.current === null) {
+    providerInstanceId.current = `provider-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  }
+  
+  // Mark global source for diagnostics before instantiating agent
+  if (typeof window !== 'undefined') {
+    (window as any).__AK_AGENT_SOURCE__ = 'provider';
+  }
 
   // Create a single stable useAgent instance that persists across navigation
   const agent = useAgent({
@@ -34,7 +48,13 @@ export function AgentProvider({ children, userId = TEST_USER_ID, debug = true }:
   );
 }
 
-export function useGlobalAgent(): UseAgentReturn {
+export function useGlobalAgent(): UseAgentReturn | null {
+  const context = useContext(AgentContext);
+  return context?.agent || null;
+}
+
+// Legacy function that throws - kept for backward compatibility
+export function useGlobalAgentStrict(): UseAgentReturn {
   const context = useContext(AgentContext);
   if (!context) {
     throw new Error('useGlobalAgent must be used within an AgentProvider');
