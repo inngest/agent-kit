@@ -126,6 +126,9 @@ export function Chat({ threadId: providedThreadId }: ChatProps = {}) {
     messages,
     sendMessage,
     
+    // Thread creation (hybrid pattern)
+    createNewThread,
+    
     // Status and state
     status,
     isLoadingInitialThread,
@@ -147,10 +150,26 @@ export function Chat({ threadId: providedThreadId }: ChatProps = {}) {
     handleCancelEdit,
   } = useEditMessage({ sendMessage: sendMessage });
 
-  // URL-aware navigation functions
+  /**
+   * HYBRID THREAD CREATION: Supporting both architectural patterns
+   * 
+   * The useChat hook now provides createNewThread() function to support both:
+   * 1. Function-driven pattern (imperative) - Good for widgets, embedded components
+   * 2. URL-driven pattern (declarative) - Good for SPAs where URL is source of truth
+   */
   const handleNewChat = () => {
+    // OPTION 1: Function-driven approach (recommended for widgets/components)
+    // const newThreadId = createNewThread(); // Handles all state coordination internally
+    // router.push(`/chat/${newThreadId}`);   // Optional: also update URL for SPAs
+    
+    // OPTION 2: URL-driven approach (current SPA pattern - works great for Next.js apps)
     const newThreadId = uuidv4();
-    router.push(`/chat/${newThreadId}`); // Navigate to the new thread's URL
+    router.push(`/chat/${newThreadId}`); // URL change triggers thread switch via useChat
+    
+    // Architecture guidance:
+    // - Function-driven: Better for widgets, multi-chat panels, non-SPA contexts
+    // - URL-driven: Better for traditional SPAs where URL represents application state
+    // Both approaches ensure proper state coordination between agent and threads
   };
 
   const handleThreadSelect = (threadId: string) => {

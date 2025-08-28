@@ -30,6 +30,9 @@ export interface UseChatReturn {
   deleteThread: (threadId: string) => Promise<void>;
   loadMoreThreads: () => Promise<void>;
   refreshThreads: () => Promise<void>;
+  
+  // Thread creation (supports both URL-driven and function-driven patterns)
+  createNewThread: () => string;
 }
 
 export interface UseChatConfig {
@@ -257,6 +260,23 @@ export const useChat = (config?: UseChatConfig): UseChatReturn => {
     ]
   );
   
+  // 8. Hybrid thread creation function (supports both patterns)
+  const createNewThread = useCallback(() => {
+    const newThreadId = uuidv4();
+    
+    // Update both agent and threads state for proper coordination
+    agent.setCurrentThread(newThreadId);
+    threads.setCurrentThreadId(newThreadId);
+    
+    console.log('[AK_TELEMETRY] useChat.createNewThread', {
+      newThreadId,
+      usage: 'hybrid-pattern',
+      timestamp: new Date().toISOString()
+    });
+    
+    return newThreadId;
+  }, [agent.setCurrentThread, threads.setCurrentThreadId]);
+  
   // 9. Merge thread list with agent unread state
   const threadsWithUnreadState = threads.threads.map(thread => ({
     ...thread,
@@ -299,5 +319,8 @@ export const useChat = (config?: UseChatConfig): UseChatReturn => {
     deleteThread: threads.deleteThread,
     loadMoreThreads: threads.loadMore,
     refreshThreads: threads.refresh,
+    
+    // Thread creation (hybrid pattern support)
+    createNewThread,
   };
 };
