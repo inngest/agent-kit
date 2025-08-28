@@ -1607,12 +1607,16 @@ const processThreadBufferedEvents = (
   
   // Create a working copy of the thread for processing
   let workingThread = { ...thread, eventBuffer: new Map(thread.eventBuffer) };
+  const processedEvents: NetworkEvent[] = [];
   
   // Process events in sequence order
   while (workingThread.eventBuffer.has(nextSeq)) {
     const event = workingThread.eventBuffer.get(nextSeq)!;
     
     debugLog(isDebugEnabled, `[Thread ${threadId}] Processing event:`, event.event, `(seq: ${nextSeq})`);
+    
+    // Store processed event for content analysis
+    processedEvents.push(event);
     
     // Process the event and update thread state (immutably)
     workingThread = processThreadEvent(workingThread, event, isDebugEnabled);
@@ -1627,12 +1631,66 @@ const processThreadBufferedEvents = (
     debugLog(isDebugEnabled, `[Thread ${threadId}] Processed ${processedCount} events, next expected: ${nextSeq}`);
   }
   
+  // Helper function to check if an event represents content-bearing activity
+  const isContentBearingEvent = (event: NetworkEvent): boolean => {
+    switch (event.event) {
+      // Text content deltas
+      case 'text.delta':
+        return true;
+      
+      // Tool activity deltas
+      case 'tool_call.arguments.delta':
+      case 'tool_call.output.delta':
+        return true;
+      
+      // Reasoning deltas
+      case 'reasoning.delta':
+        return true;
+      
+      // Part creation for content types
+      case 'part.created':
+        return (event.data as any).type === 'text' || 
+               (event.data as any).type === 'tool-call' || 
+               (event.data as any).type === 'tool-output' ||
+               (event.data as any).type === 'reasoning';
+      
+      // Part completion with actual content
+      case 'part.completed':
+        return ((event.data as any).type === 'text' || 
+                (event.data as any).type === 'tool-call' || 
+                (event.data as any).type === 'tool-output' ||
+                (event.data as any).type === 'reasoning') && 
+               Boolean((event.data as any).finalContent);
+      
+      // Ignore lifecycle/metadata events
+      case 'run.started':
+      case 'run.completed':
+      case 'run.failed':
+      case 'stream.ended':
+      case 'step.started':
+      case 'step.completed':
+      case 'step.failed':
+      case 'usage.updated':
+      case 'metadata.updated':
+      default:
+        return false;
+    }
+  };
+
+  // Check if any of the processed events were content-bearing
+  const hasContentBearingEvents = processedCount > 0 && 
+    threadId !== currentState.currentThreadId &&
+    processedEvents.some(isContentBearingEvent);
+
+  // Only mark as having new messages if we processed content-bearing events for a non-current thread
+  const shouldMarkAsUnread = hasContentBearingEvents;
+
   // Update the thread with all processed changes including sequence tracking
   currentState = updateThread(currentState, threadId, {
     ...workingThread,
     nextExpectedSequence: nextSeq,
     lastProcessedSequence: nextSeq - 1, // Track the highest sequence we've fully processed
-    hasNewMessages: threadId !== currentState.currentThreadId,
+    hasNewMessages: shouldMarkAsUnread || workingThread.hasNewMessages, // Preserve existing unread state
   });
   
   return currentState;
