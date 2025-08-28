@@ -96,10 +96,11 @@ const convertDatabaseToUIFormat = (dbMessages: any[]): ConversationMessage[] => 
       };
     }
   });
+  // Check for duplicate message IDs from database
   const ids = result.map(m => m.id);
   const dupes = ids.filter((id, idx) => ids.indexOf(id) !== idx);
   if (dupes.length > 0) {
-    console.warn(`[AK][DB][DUP] convert`, { duplicateIds: dupes });
+    console.warn(`[useChat] Duplicate message IDs from database:`, { duplicateIds: dupes });
   }
   return result;
 };
@@ -128,26 +129,25 @@ export const useChat = (config?: UseChatConfig): UseChatReturn => {
     }
   }, [config?.initialThreadId, threads.currentThreadId, threads.setCurrentThreadId]);
   
-  // 4. Use global agent instance if available, otherwise create local instance
+  // 4. Require global agent from provider - no local fallback
   const globalAgent = useGlobalAgent();
   
-  const localAgent = useAgent({
-    threadId: currentThreadId,
-    userId: config?.userId || TEST_USER_ID,
-    debug: config?.debug,
-  });
+  if (!globalAgent) {
+    throw new Error(
+      'useChat requires AgentProvider to be mounted in a parent component. ' +
+      'Wrap your app with <AgentProvider> in layout.tsx or use useAgent directly if you need an independent connection.'
+    );
+  }
   
-  // Use global agent if available, otherwise fall back to local agent
-  const agent = globalAgent || localAgent;
-
-  // Tag source for diagnostics once per mount
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      (window as any).__AK_AGENT_SOURCE__ = globalAgent ? 'provider' : 'local';
-      console.log(`[AK][CHAT][AGENT-SOURCE]`, { chosen: globalAgent ? 'global' : 'local' });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const agent = globalAgent;
+  
+  // 🔍 DIAGNOSTIC: Verify single agent instance
+  console.log('🔍 [DIAG] useChat using global agent:', {
+    hasGlobalAgent: !!globalAgent,
+    agentConnected: agent.isConnected,
+    currentThread: agent.currentThreadId,
+    timestamp: new Date().toISOString()
+  });
   
   // 5. Sync agent to current thread (works for both global and local agents)
   useEffect(() => {
@@ -159,7 +159,6 @@ export const useChat = (config?: UseChatConfig): UseChatReturn => {
   // 6. Sophisticated thread switching with smart deduplication
   const switchToThread = useCallback(async (selectedThreadId: string) => {
     try {
-      console.log(`[AK][THREAD] switch:start`, { to: selectedThreadId });
       // Step 1: Switch to the thread immediately in the agent state.
       // This ensures any subsequent actions (like sending a message) are
       // correctly targeted to the new thread.
@@ -196,7 +195,7 @@ export const useChat = (config?: UseChatConfig): UseChatReturn => {
         agent.replaceThreadMessages(selectedThreadId, finalMessages);
       }
     } catch (err) {
-      console.error('[AK][THREAD] switch:error', err);
+      console.error('[useChat] Error switching thread:', err);
     }
   }, [agent, agent.setCurrentThread, agent.getThread, agent.replaceThreadMessages]);
 
@@ -240,6 +239,23 @@ export const useChat = (config?: UseChatConfig): UseChatReturn => {
     await agent.sendMessage(message, options);
   }, [agent.messages.length, agent.sendMessage, threads.currentThreadId, threads.addOptimisticThread]);
   
+  // 9. Merge thread list with agent unread state
+  const threadsWithUnreadState = threads.threads.map(thread => ({
+    ...thread,
+    hasNewMessages: agent.threads[thread.id]?.hasNewMessages || false,
+  }));
+  
+  // 🔍 DIAGNOSTIC: Verify unread state merging
+  const unreadCount = threadsWithUnreadState.filter(t => t.hasNewMessages).length;
+  if (unreadCount > 0) {
+    console.log('🔍 [DIAG] Unread threads detected:', {
+      totalThreads: threadsWithUnreadState.length,
+      unreadCount,
+      unreadThreads: threadsWithUnreadState.filter(t => t.hasNewMessages).map(t => t.id),
+      timestamp: new Date().toISOString()
+    });
+  }
+
   return {
     // Agent state
     messages: agent.messages,
@@ -249,8 +265,8 @@ export const useChat = (config?: UseChatConfig): UseChatReturn => {
     error: agent.error,
     clearError: agent.clearError,
     
-    // Thread state
-    threads: threads.threads,
+    // Thread state (enhanced with unread indicators)
+    threads: threadsWithUnreadState,
     threadsLoading: threads.loading,
     threadsHasMore: threads.hasMore,
     threadsError: threads.error,
