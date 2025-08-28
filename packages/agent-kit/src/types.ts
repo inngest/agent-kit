@@ -131,7 +131,13 @@ export class AgentResult {
      * raw represents the raw API response from the call.  This is a JSON
      * string, and the format depends on the agent's model.
      */
-    public raw?: string
+    public raw?: string,
+
+    /**
+     * id represents the unique identifier for this agent result.
+     * This is used for persistence and message identification.
+     */
+    public id?: string
   ) {}
 
   // checksum memoizes a checksum so that it doe snot have to be calculated many times.
