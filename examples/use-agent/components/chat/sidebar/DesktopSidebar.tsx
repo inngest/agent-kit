@@ -199,21 +199,7 @@ export function DesktopSidebar({
   const error = passedError ?? fallbackThreads.error;
   const loadMore = onLoadMore || fallbackThreads.loadMore;
   
-  // Initialize minimized state from localStorage for desktop only
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const isSmallScreen = window.matchMedia('(max-width: 767px)').matches;
-    if (isSmallScreen) return; // Always start closed on mobile
-    const stored = window.localStorage.getItem('useAgent.sidebarMinimized');
-    if (stored !== null) {
-      const shouldBeMinimized = stored === 'true';
-      if (shouldBeMinimized !== isMinimized) {
-        onToggle();
-      }
-    }
-    // We only want to run this on mount
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // Removed: localStorage-based initialization. Sidebar state is controlled by parent and defaults to open.
 
   // Reset hover state when minimized state changes
   useEffect(() => {
