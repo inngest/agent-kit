@@ -63,28 +63,35 @@ export interface HistoryConfig<T extends StateData> {
   get?: (ctx: History.Context<T>) => Promise<AgentResult[]>;
 
   /**
-   * appendResults is called to save new results to storage after a network
-   * or agent run completes. This receives only the new results that
-   * were generated during the current run, excluding any historical results that
-   * were loaded via history.get().
+   * appendUserMessage is called at the beginning of a run to persist the
+   * user's message immediately. This ensures user intent is captured even
+   * if the agent run fails, enabling a "regenerate" workflow.
    *
-   * This hook is called at the end of execution after all agents have run,
-   * allowing you to persist both the user's input message and the new conversation
-   * results to your database. The userMessage parameter contains the user's input
-   * that triggered this conversation turn, enabling you to store complete conversation
-   * history including both user and assistant messages.
+   * @param ctx - Context containing the user message with its canonical ID
+   * @returns Promise that resolves when the message is successfully saved
+   */
+  appendUserMessage?: (
+    ctx: History.Context<T> & {
+      userMessage: {
+        id: string; // The canonical, client-generated message ID
+        content: string;
+        role: "user";
+        timestamp: Date;
+      };
+    }
+  ) => Promise<any>;
+
+  /**
+   * appendResults is called to save new agent results to storage after a
+   * network or agent run completes. This receives only the new results that
+   * were generated during the current run.
    *
-   * @param ctx - Context containing state, threadId, step, new results and user message
+   * @param ctx - Context containing state, threadId, step, and new agent results
    * @returns Promise that resolves when results are successfully saved
    */
   appendResults?: (
     ctx: History.Context<T> & {
       newResults: AgentResult[];
-      userMessage?: {
-        content: string;
-        role: "user";
-        timestamp: Date;
-      };
     }
   ) => Promise<void>;
 }
@@ -199,13 +206,13 @@ export async function initializeThread<T extends StateData>(
   // If a client provided a threadId, ensure it exists in storage by calling createThread.
   // Adapters should upsert when a threadId already exists on state.
   if (state.threadId && history.createThread) {
-    const { threadId } = await history.createThread({
+    await history.createThread({
       state,
       network,
       input,
       step,
     });
-    state.threadId = threadId;
+    // Do not re-assign the threadId here. The state's threadId is the source of truth.
     return;
   }
 
@@ -315,20 +322,11 @@ export async function loadThreadFromStorage<T extends StateData>(
 export async function saveThreadToStorage<T extends StateData>(
   config: SaveThreadToStorageConfig<T>
 ): Promise<void> {
-  const { state, history, input, initialResultCount, network } = config;
+  const { state, history, initialResultCount, network, input } = config;
   if (!history?.appendResults) return;
 
   const step = await getStepTools();
   const newResults = state.getResultsFrom(initialResultCount);
-
-  // Create user message object from input if input is provided
-  const userMessage = input.trim()
-    ? {
-        content: input,
-        role: "user" as const,
-        timestamp: new Date(),
-      }
-    : undefined;
 
   await history.appendResults({
     state,
@@ -337,6 +335,5 @@ export async function saveThreadToStorage<T extends StateData>(
     newResults,
     input,
     threadId: state.threadId,
-    userMessage,
   });
 }

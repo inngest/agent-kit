@@ -69,6 +69,7 @@ describe("History Module", () => {
     mockHistoryConfig = {
       createThread: vi.fn(),
       get: vi.fn(),
+      appendUserMessage: vi.fn(),
       appendResults: vi.fn(),
     };
 
@@ -195,14 +196,16 @@ describe("History Module", () => {
     });
 
     /**
-     * @test Should not modify existing threadId
+     * @test Should call createThread to upsert but not modify existing threadId
      * @description Ensures that existing threadIds are preserved and not overwritten
      */
-    test("should not modify existing threadId", async () => {
+    test("should call createThread to upsert but not modify existing threadId", async () => {
       const existingThreadId = "existing-thread-456";
       mockState.threadId = existingThreadId;
+
+      // A correct upsert implementation should return the same ID it was given
       mockHistoryConfig.createThread = vi.fn().mockResolvedValue({
-        threadId: "new-thread",
+        threadId: existingThreadId,
       }) as HistoryConfig<TestState>["createThread"];
 
       const config: ThreadOperationConfig<TestState> = {
@@ -214,7 +217,9 @@ describe("History Module", () => {
 
       await initializeThread(config);
 
-      expect(mockHistoryConfig.createThread).not.toHaveBeenCalled();
+      // It SHOULD be called to ensure the thread exists in the DB (upsert)
+      expect(mockHistoryConfig.createThread).toHaveBeenCalled();
+      // But it should NOT change the original threadId
       expect(mockState.threadId).toBe(existingThreadId);
     });
   });
@@ -564,11 +569,6 @@ describe("History Module", () => {
         newResults: [newResult1, newResult2],
         input: "test input",
         threadId: mockState.threadId,
-        userMessage: {
-          content: "test input",
-          role: "user",
-          timestamp: expect.any(Date),
-        },
       });
     });
 
@@ -597,11 +597,6 @@ describe("History Module", () => {
         newResults: [],
         input: "test input",
         threadId: mockState.threadId,
-        userMessage: {
-          content: "test input",
-          role: "user",
-          timestamp: expect.any(Date),
-        },
       });
     });
 
@@ -633,11 +628,6 @@ describe("History Module", () => {
         newResults: allResults,
         input: "test input",
         threadId: mockState.threadId,
-        userMessage: {
-          content: "test input",
-          role: "user",
-          timestamp: expect.any(Date),
-        },
       });
     });
   });
@@ -717,11 +707,6 @@ describe("History Module", () => {
         newResults: [newResult],
         input: "Hello",
         threadId: mockState.threadId,
-        userMessage: {
-          content: "Hello",
-          role: "user",
-          timestamp: expect.any(Date),
-        },
       });
     });
 
@@ -793,11 +778,6 @@ describe("History Module", () => {
         newResults: [newResult],
         input: "How are you?",
         threadId: mockState.threadId,
-        userMessage: {
-          content: "How are you?",
-          role: "user",
-          timestamp: expect.any(Date),
-        },
       });
     });
   });
@@ -973,11 +953,6 @@ describe("History Module", () => {
         newResults: largeResultArray.slice(500),
         input: "test input",
         threadId: mockState.threadId,
-        userMessage: {
-          content: "test input",
-          role: "user",
-          timestamp: expect.any(Date),
-        },
       });
     });
   });
