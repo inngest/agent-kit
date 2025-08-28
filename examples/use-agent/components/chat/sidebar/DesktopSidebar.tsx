@@ -93,10 +93,14 @@ function ThreadCard({ thread, isMinimized, isCurrentThread, onSelect, onShare, o
       onClick={() => onSelect(thread.id)}
     >
       <div className="flex items-center justify-between w-full">
-        <div className="flex-1 min-w-0">
+        <div className="flex-1 min-w-0 flex items-center gap-2">
           <h3 className="text-sm font-normal truncate text-gray-900 dark:text-gray-100">
             {thread.title}
           </h3>
+          {/* Unread indicator */}
+          {thread.hasNewMessages && !isCurrentThread && (
+            <div className="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0" />
+          )}
         </div>
         
         {/* Thread actions popover - visible on hover */}
