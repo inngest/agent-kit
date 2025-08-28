@@ -11,7 +11,8 @@ import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 import { type Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import { ListToolsResultSchema } from "@modelcontextprotocol/sdk/types.js";
 import { EventSource } from "eventsource";
-import { referenceFunction, type Inngest } from "inngest";
+import { randomUUID } from "crypto";
+import { referenceFunction, type Inngest, type GetStepTools } from "inngest";
 import { type InngestFunction } from "inngest/components/InngestFunction";
 import { serializeError } from "inngest/helpers/errors";
 import { type MinimalEventPayload } from "inngest/types";
@@ -21,7 +22,12 @@ import { createNetwork, NetworkRun } from "./network";
 import { State, type StateData } from "./state";
 import { type MCP, type Tool } from "./tool";
 import { AgentResult, type Message, type ToolResultMessage } from "./types";
-import { getInngestFnInput, getStepTools, isInngestFn, type MaybePromise } from "./util";
+import {
+  getInngestFnInput,
+  getStepTools,
+  isInngestFn,
+  type MaybePromise,
+} from "./util";
 import {
   type HistoryConfig,
   initializeThread,
@@ -29,7 +35,12 @@ import {
   saveThreadToStorage,
 } from "./history";
 // Streaming integration will be handled at the network level for now
-import { StreamingContext, createStepWrapper, generateId, type StreamingConfig } from "./streaming";
+import {
+  StreamingContext,
+  createStepWrapper,
+  generateId,
+  type StreamingConfig,
+} from "./streaming";
 
 /**
  * Agent represents a single agent, responsible for a set of tasks.
@@ -174,7 +185,15 @@ export class Agent<T extends StateData> {
    */
   async run(
     input: string,
-    { model, network, state, maxIter = 0, streaming, streamingContext, step }: Agent.RunOptions<T> | undefined = {}
+    {
+      model,
+      network,
+      state,
+      maxIter = 0,
+      streaming,
+      streamingContext,
+      step,
+    }: Agent.RunOptions<T> | undefined = {}
   ): Promise<AgentResult> {
     // Attempt to resolve the MCP tools, if we haven't yet done so.
     await this.initMCP();
@@ -195,19 +214,19 @@ export class Agent<T extends StateData> {
 
     // Handle standalone agent streaming (ignored if part of a network)
     let standaloneStreamingContext: StreamingContext | undefined;
-    let standaloneWrappedStep: any;
+    let standaloneWrappedStep: GetStepTools<Inngest.Any> | undefined;
     if (!network && streaming?.publish) {
       // Generate IDs for this standalone agent run using Inngest steps for deterministic replay
       const stepTools = await getStepTools();
       let agentRunId: string;
       let messageId: string;
-      
+
       if (stepTools) {
         // Use Inngest steps for deterministic ID generation
-        const ids = await stepTools.run("generate-standalone-agent-ids", async () => {
+        const ids = await stepTools.run("generate-standalone-agent-ids", () => {
           return {
             agentRunId: generateId(),
-            messageId: generateId(),
+            messageId: randomUUID(),
           };
         });
         agentRunId = ids.agentRunId;
@@ -215,28 +234,31 @@ export class Agent<T extends StateData> {
       } else {
         // Fallback for non-Inngest contexts
         agentRunId = generateId();
-        messageId = generateId();
+        messageId = randomUUID();
       }
-      
+
       console.log("🔧 [AGENT] Generated IDs for standalone agent run:", {
         agentName: this.name,
         agentRunId,
         messageId,
         viaStep: !!stepTools,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
-      
+
       // Create streaming context for this standalone agent
-      standaloneStreamingContext = StreamingContext.fromNetworkState(s as unknown as Record<string, any>, {
+      standaloneStreamingContext = StreamingContext.fromNetworkState(s, {
         publish: streaming.publish,
         runId: agentRunId,
         messageId,
         scope: "agent",
       });
-      
+
       // Create wrapped step for standalone agent streaming
-      standaloneWrappedStep = createStepWrapper(await getStepTools(), standaloneStreamingContext);
-      
+      standaloneWrappedStep = createStepWrapper(
+        stepTools,
+        standaloneStreamingContext
+      );
+
       // Emit agent run.started event
       await standaloneStreamingContext.publishEvent({
         event: "run.started",
@@ -251,9 +273,11 @@ export class Agent<T extends StateData> {
     }
 
     // Use standalone streaming context if available, otherwise use network-provided context
-    const effectiveStreamingContext = streamingContext || standaloneStreamingContext;
+    const effectiveStreamingContext =
+      streamingContext || standaloneStreamingContext;
     // Use standalone wrapped step if available, otherwise use network-provided step
-    const effectiveStep = step || standaloneWrappedStep;
+    const effectiveStep: GetStepTools<Inngest.Any> | undefined =
+      step || standaloneWrappedStep;
 
     // Note: Streaming is controlled at the network level when part of a network.
     // For standalone agents, streaming is controlled by the streaming parameter.
@@ -313,15 +337,27 @@ export class Agent<T extends StateData> {
           history = modified.history;
         }
 
-        const inference = await this.performInference(p, prompt, history, run, effectiveStreamingContext, effectiveStep);
+        const inference = await this.performInference(
+          p,
+          prompt,
+          history,
+          run,
+          effectiveStreamingContext,
+          effectiveStep
+        );
 
         hasMoreActions = Boolean(
           this.tools.size > 0 &&
             inference.output.length &&
-            inference.output[inference.output.length - 1]!.stop_reason !== "stop"
+            inference.output[inference.output.length - 1]!.stop_reason !==
+              "stop"
         );
 
         result = inference;
+        // Set the canonical message ID from streaming context for standalone agents
+        if (standaloneStreamingContext) {
+          result.id = standaloneStreamingContext.messageId;
+        }
         history = [...inference.output];
         iter++;
       } while (hasMoreActions && iter < maxIter);
@@ -403,7 +439,7 @@ export class Agent<T extends StateData> {
     history: Message[],
     network: NetworkRun<T>,
     streamingContext?: StreamingContext,
-    step?: any
+    step?: GetStepTools<Inngest.Any>
   ): Promise<AgentResult> {
     const { output, raw } = await p.infer(
       this.name,
@@ -439,7 +475,9 @@ export class Agent<T extends StateData> {
         .find((m) => m.type === "text" && m.role === "assistant");
       let content = "";
       if (lastTextMsg && lastTextMsg.type === "text") {
-        const anyMsg = lastTextMsg as unknown as { content: string | Array<{ type: "text"; text: string }> };
+        const anyMsg = lastTextMsg as unknown as {
+          content: string | Array<{ type: "text"; text: string }>;
+        };
         if (typeof anyMsg.content === "string") {
           content = anyMsg.content;
         } else if (Array.isArray(anyMsg.content)) {
@@ -449,15 +487,16 @@ export class Agent<T extends StateData> {
 
       if (content && content.length > 0) {
         // Generate partId deterministically within a step to avoid replay issues
-        const stepTools = step || await getStepTools();
-        const partId = stepTools 
-          ? await stepTools.run(`generate-text-part-id-${streamingContext.messageId}`, async () => {
-              return streamingContext.generatePartId();
-            })
+        const stepTools = step || (await getStepTools());
+        const partId = stepTools
+          ? await stepTools.run(
+              `generate-text-part-id-${streamingContext.messageId}`,
+              () => {
+                return streamingContext.generatePartId();
+              }
+            )
           : streamingContext.generatePartId();
-        
-        console.log("🔧 [AGENT-TEXT] Generated partId:", partId, "for messageId:", streamingContext.messageId);
-        
+
         await streamingContext.publishEvent({
           event: "part.created",
           data: {
@@ -471,7 +510,6 @@ export class Agent<T extends StateData> {
 
         const chunkSize = 50;
         for (let i = 0; i < content.length; i += chunkSize) {
-          console.log("🔧 [AGENT-TEXT] Publishing text.delta for partId:", partId, "chunk:", i);
           await streamingContext.publishEvent({
             event: "text.delta",
             data: {
@@ -496,7 +534,12 @@ export class Agent<T extends StateData> {
     }
 
     // And ensure we invoke any call from the agent, streaming tool I/O if possible
-    const toolCallOutput = await this.invokeTools(result.output, network, streamingContext, step);
+    const toolCallOutput = await this.invokeTools(
+      result.output,
+      network,
+      streamingContext,
+      step
+    );
     if (toolCallOutput.length > 0) {
       result.toolCalls = result.toolCalls.concat(toolCallOutput);
     }
@@ -512,7 +555,7 @@ export class Agent<T extends StateData> {
     msgs: Message[],
     network: NetworkRun<T>,
     streamingContext?: StreamingContext,
-    step?: any
+    step?: GetStepTools<Inngest.Any>
   ): Promise<ToolResultMessage[]> {
     const output: ToolResultMessage[] = [];
     // Best-effort streaming for tool execution: emit tool-call and output deltas via network streaming if available
@@ -539,15 +582,16 @@ export class Agent<T extends StateData> {
         const toolArgsJson = JSON.stringify(tool.input ?? {});
         if (streamingContext) {
           // Generate partId deterministically within a step to avoid replay issues
-          const stepTools = step || await getStepTools();
-          const toolCallPartId = stepTools 
-            ? await stepTools.run(`generate-tool-part-id-${streamingContext.messageId}-${tool.name}`, async () => {
-                return streamingContext.generatePartId();
-              })
+          const stepTools = step || (await getStepTools());
+          const toolCallPartId = stepTools
+            ? await stepTools.run(
+                `generate-tool-part-id-${streamingContext.messageId}-${tool.name}`,
+                () => {
+                  return streamingContext.generatePartId();
+                }
+              )
             : streamingContext.generatePartId();
-          
-          console.log("🔧 [AGENT-TOOL] Generated toolCallPartId:", toolCallPartId, "for tool:", tool.name);
-          
+
           await streamingContext.publishEvent({
             event: "part.created",
             data: {
@@ -560,7 +604,6 @@ export class Agent<T extends StateData> {
           });
           const argChunkSize = 50;
           for (let i = 0; i < toolArgsJson.length; i += argChunkSize) {
-            console.log("🔧 [AGENT-TOOL] Publishing tool_call.arguments.delta for partId:", toolCallPartId, "chunk:", i);
             await streamingContext.publishEvent({
               event: "tool_call.arguments.delta",
               data: {
@@ -590,38 +633,42 @@ export class Agent<T extends StateData> {
         // human in the loop tasks.
         //
 
-        const result = await Promise.resolve(
+        type ToolHandlerResult =
+          | { data: unknown }
+          | { error: ReturnType<typeof serializeError> };
+
+        const result: ToolHandlerResult = await Promise.resolve(
           found.handler(tool.input, {
             agent: this,
             network,
-            step: step || (await getStepTools()),
+            step: step as GetStepTools<Inngest.Any>,
           })
         )
           .then((r) => {
             return {
-              // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
               data:
                 typeof r === "undefined"
                   ? `${tool.name} successfully executed`
                   : r,
             };
           })
-          .catch((err) => {
+          .catch((err: Error) => {
             return { error: serializeError(err) };
           });
 
         // Stream tool output if context available
         if (streamingContext) {
           // Generate partId deterministically within a step to avoid replay issues
-          const stepTools = step || await getStepTools();
-          const outputPartId = stepTools 
-            ? await stepTools.run(`generate-output-part-id-${streamingContext.messageId}-${tool.name}`, async () => {
-                return streamingContext.generatePartId();
-              })
+          const stepTools = step || (await getStepTools());
+          const outputPartId = stepTools
+            ? await stepTools.run(
+                `generate-output-part-id-${streamingContext.messageId}-${tool.name}`,
+                () => {
+                  return streamingContext.generatePartId();
+                }
+              )
             : streamingContext.generatePartId();
-          
-          console.log("🔧 [AGENT-OUTPUT] Generated outputPartId:", outputPartId, "for tool:", tool.name);
-          
+
           await streamingContext.publishEvent({
             event: "part.created",
             data: {
@@ -636,10 +683,13 @@ export class Agent<T extends StateData> {
           const resultJson = JSON.stringify(result);
           const outChunk = 80;
           for (let i = 0; i < resultJson.length; i += outChunk) {
-            console.log("🔧 [AGENT-OUTPUT] Publishing tool_call.output.delta for partId:", outputPartId, "chunk:", i);
             await streamingContext.publishEvent({
               event: "tool_call.output.delta",
-              data: { partId: outputPartId, delta: resultJson.slice(i, i + outChunk), messageId: streamingContext.messageId },
+              data: {
+                partId: outputPartId,
+                delta: resultJson.slice(i, i + outChunk),
+                messageId: streamingContext.messageId,
+              },
             });
           }
 
@@ -908,7 +958,7 @@ export namespace Agent {
     // Internal: provided by Network to enable runtime streaming from agents
     streamingContext?: StreamingContext;
     // Internal: provided by Network to pass wrapped step tools for automatic step events
-    step?: any;
+    step?: GetStepTools<Inngest.Any>;
   }
 
   export interface Lifecycle<T extends StateData> {
