@@ -29,16 +29,20 @@ export function AgentProvider({ children, userId = TEST_USER_ID, debug = true }:
     providerInstanceId.current = `provider-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
   }
   
-  // Mark global source for diagnostics before instantiating agent
-  if (typeof window !== 'undefined') {
-    (window as any).__AK_AGENT_SOURCE__ = 'provider';
-  }
-
   // Create a single stable useAgent instance that persists across navigation
   const agent = useAgent({
     threadId: fallbackThreadIdRef.current, // Start with fallback, will be updated via setCurrentThread
     userId,
     debug,
+  });
+  
+  // 🔍 DIAGNOSTIC: Verify provider creates single agent instance
+  console.log('🔍 [DIAG] AgentProvider created agent:', {
+    providerId: providerInstanceId.current,
+    userId,
+    fallbackThreadId: fallbackThreadIdRef.current,
+    agentConnected: agent?.isConnected || false,
+    timestamp: new Date().toISOString()
   });
 
   return (
