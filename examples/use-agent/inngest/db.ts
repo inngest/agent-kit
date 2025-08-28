@@ -43,7 +43,7 @@ export class PostgresHistoryAdapter<T extends StateData>
   }
 
   /**
-   * Initialize database tables if they don't exist
+   * Initialize database tables if they don't exist, and run any necessary migrations
    */
   async initializeTables(): Promise<{
     status: string;
@@ -88,20 +88,69 @@ export class PostgresHistoryAdapter<T extends StateData>
         )
       `);
 
-      // Create unified messages table that can store both user messages and agent results
-      await client.query(`
-        CREATE TABLE IF NOT EXISTS ${this.tableNames.messages} (
-          id SERIAL PRIMARY KEY,
-          thread_id UUID NOT NULL REFERENCES ${this.tableNames.threads}(thread_id) ON DELETE CASCADE,
-          message_type TEXT NOT NULL CHECK (message_type IN ('user', 'agent')),
-          agent_name TEXT, -- NULL for user messages, agent name for agent results
-          content TEXT, -- User message content (for user messages)
-          data JSONB, -- Full AgentResult data (for agent results)
-          checksum TEXT NOT NULL,
-          created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-          UNIQUE(thread_id, checksum)
-        )
-      `);
+      // Create or migrate messages table
+      if (!messagesTableExisted) {
+        // Create new messages table with message_id column
+        await client.query(`
+          CREATE TABLE ${this.tableNames.messages} (
+            id SERIAL PRIMARY KEY,
+            message_id UUID NOT NULL,
+            thread_id UUID NOT NULL REFERENCES ${this.tableNames.threads}(thread_id) ON DELETE CASCADE,
+            message_type TEXT NOT NULL CHECK (message_type IN ('user', 'agent')),
+            agent_name TEXT, -- NULL for user messages, agent name for agent results
+            content TEXT, -- User message content (for user messages)
+            data JSONB, -- Full AgentResult data (for agent results)
+            checksum TEXT NOT NULL,
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+            UNIQUE(thread_id, checksum),
+            UNIQUE(thread_id, message_id)
+          )
+        `);
+        console.log("✅ Created new messages table with message_id column");
+      } else {
+        // Check if message_id column exists and add it if missing
+        const checkMessageIdColumn = await client.query(`
+          SELECT EXISTS (
+            SELECT FROM information_schema.columns 
+            WHERE table_schema = $1 AND table_name = $2 AND column_name = 'message_id'
+          )
+        `, [this.schema, messagesTableName]);
+        
+        const messageIdColumnExists = checkMessageIdColumn.rows[0].exists;
+        
+        if (!messageIdColumnExists) {
+          console.log("🔄 Adding message_id column to existing messages table...");
+          
+          // Add the message_id column
+          await client.query(`
+            ALTER TABLE ${this.tableNames.messages} 
+            ADD COLUMN message_id UUID
+          `);
+          
+          // Populate existing rows with generated UUIDs
+          await client.query(`
+            UPDATE ${this.tableNames.messages} 
+            SET message_id = gen_random_uuid() 
+            WHERE message_id IS NULL
+          `);
+          
+          // Make the column NOT NULL after populating
+          await client.query(`
+            ALTER TABLE ${this.tableNames.messages} 
+            ALTER COLUMN message_id SET NOT NULL
+          `);
+          
+          // Add the unique constraint
+          await client.query(`
+            ALTER TABLE ${this.tableNames.messages} 
+            ADD CONSTRAINT unique_thread_message_id UNIQUE(thread_id, message_id)
+          `);
+          
+          console.log("✅ Successfully migrated messages table to include message_id column");
+        } else {
+          console.log("✅ Messages table already has message_id column");
+        }
+      }
 
       // Create indexes for performance
       await client.query(`
@@ -124,7 +173,7 @@ export class PostgresHistoryAdapter<T extends StateData>
 
       const message =
         threadsTableExisted && messagesTableExisted
-          ? "All tables already existed. Check complete."
+          ? "Tables existed. Migration check completed."
           : "One or more tables were created during initialization.";
 
       return {
@@ -233,6 +282,7 @@ export class PostgresHistoryAdapter<T extends StateData>
         const result = await client.query(
           `
           SELECT 
+            message_id,
             message_type,
             content,
             data,
@@ -260,7 +310,10 @@ export class PostgresHistoryAdapter<T extends StateData>
               "user", // agentName: "user" (matches UI pattern)
               [userMessage], // output contains the user message
               [], // no tool calls for user messages
-              new Date(row.created_at)
+              new Date(row.created_at),
+              undefined, // prompt
+              undefined, // history
+              undefined // raw
             );
 
             conversationResults.push(fakeUserResult);
@@ -271,7 +324,10 @@ export class PostgresHistoryAdapter<T extends StateData>
             data.agentName,
             data.output,
             data.toolCalls,
-            new Date(data.createdAt)
+            new Date(data.createdAt),
+            undefined, // prompt
+            undefined, // history
+            data.raw // raw response
           );
 
             conversationResults.push(realAgentResult);
@@ -295,28 +351,87 @@ export class PostgresHistoryAdapter<T extends StateData>
   };
 
   /**
-   * Save new conversation results to storage.
+   * Save a user message to storage at the beginning of a run.
    */
-  appendResults = async ({
+  appendUserMessage = async ({
     threadId,
-    newResults,
     userMessage,
     step,
   }: History.Context<T> & {
-    newResults: AgentResult[];
-    userMessage?: {
+    userMessage: {
+      id: string;
       content: string;
       role: "user";
       timestamp: Date;
     };
   }): Promise<any> => {
     if (!threadId) {
+      console.log("No threadId provided, skipping user message save");
+      return;
+    }
+
+    const operation = async () => {
+      const client = await this.pool.connect();
+      try {
+        const contentHash = Buffer.from(userMessage.content).toString('base64').substring(0, 20);
+        const userChecksum = `user_${contentHash}_${userMessage.timestamp.getTime()}`;
+
+        await client.query(
+          `
+          INSERT INTO ${this.tableNames.messages} (thread_id, message_id, message_type, content, checksum, created_at)
+          VALUES ($1, $2, 'user', $3, $4, $5)
+          ON CONFLICT (thread_id, message_id) DO NOTHING
+        `,
+          [
+            threadId,
+            userMessage.id, // Use the canonical, client-generated message ID
+            userMessage.content,
+            userChecksum,
+            userMessage.timestamp,
+          ]
+        );
+        console.log(`[DB] User message ${userMessage.id} inserted successfully for thread ${threadId}`);
+        
+        return {
+          success: true,
+          messageId: userMessage.id,
+          threadId,
+          contentLength: userMessage.content.length,
+          timestamp: userMessage.timestamp.toISOString(),
+          checksum: userChecksum,
+        };
+      } finally {
+        client.release();
+      }
+    };
+    
+    try {
+      const result = step ? await step.run("save-user-message", operation) : await operation();
+      console.log("✅ [SAVE-USER-MESSAGE] Step completed successfully:", result);
+      return result;
+    } catch (error) {
+      console.error("❌ appendUserMessage failed:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Save new agent results to storage.
+   */
+  appendResults = async ({
+    threadId,
+    newResults,
+    step,
+  }: History.Context<T> & {
+    newResults: AgentResult[];
+  }): Promise<any> => {
+    if (!threadId) {
       console.log("No threadId provided, skipping save");
       return;
     }
 
-    if (!newResults?.length && !userMessage) {
-      console.log("No newResults or userMessage provided, skipping save");
+    if (!newResults?.length) {
+      console.log("No newResults provided, skipping save");
       return;
     }
 
@@ -359,42 +474,24 @@ export class PostgresHistoryAdapter<T extends StateData>
           );
           console.log(`Updated ${updateResult.rowCount} thread record`);
 
-          // Insert user message if provided
-          if (userMessage) {
-            console.log("Inserting user message...");
-            // Create a deterministic checksum that includes content for deduplication
-            const contentHash = Buffer.from(userMessage.content).toString('base64').substring(0, 20);
-            const userChecksum = `user_${contentHash}_${userMessage.timestamp.getTime()}`;
-
-            await client.query(
-              `
-              INSERT INTO ${this.tableNames.messages} (thread_id, message_type, content, checksum, created_at)
-              VALUES ($1, 'user', $2, $3, $4)
-              ON CONFLICT (thread_id, checksum) DO NOTHING
-            `,
-              [
-                threadId,
-                userMessage.content,
-                userChecksum,
-                userMessage.timestamp,
-              ]
-            );
-            console.log("User message inserted successfully");
-          }
-
           // Insert agent results
           if (newResults?.length > 0) {
             console.log(`Inserting ${newResults.length} agent messages...`);
             for (const result of newResults) {
               const exportedData = result.export();
+              
+              // Use the canonical message ID from the AgentResult if available,
+              // otherwise generate a new UUID. This ensures streaming and DB use the same ID.
+              const { randomUUID } = await import('crypto');
+              const messageId = result.id || randomUUID();
 
               await client.query(
                 `
-                INSERT INTO ${this.tableNames.messages} (thread_id, message_type, agent_name, data, checksum)
-                VALUES ($1, 'agent', $2, $3, $4)
+                INSERT INTO ${this.tableNames.messages} (thread_id, message_id, message_type, agent_name, data, checksum)
+                VALUES ($1, $2, 'agent', $3, $4, $5)
                 ON CONFLICT (thread_id, checksum) DO NOTHING
               `,
-                [threadId, result.agentName, exportedData, result.checksum]
+                [threadId, messageId, result.agentName, exportedData, result.checksum]
               );
               console.log(`Agent message from ${result.agentName} inserted successfully`);
             }
@@ -402,20 +499,17 @@ export class PostgresHistoryAdapter<T extends StateData>
 
           await client.query("COMMIT");
 
-          const totalSaved = (userMessage ? 1 : 0) + (newResults?.length || 0);
+          const totalSaved = newResults?.length || 0;
           const saveResult = {
             success: true,
             threadId,
             messagesSaved: totalSaved,
-            userMessage: !!userMessage,
             agentResults: newResults?.length || 0,
             timestamp: new Date().toISOString()
           };
           
           console.log(
-            `💾 Saved ${totalSaved} messages to thread ${threadId} (${
-              userMessage ? "1 user + " : ""
-            }${newResults?.length || 0} agent)`
+            `💾 Saved ${totalSaved} agent results to thread ${threadId}`
           );
           
           return saveResult;
@@ -506,6 +600,7 @@ export class PostgresHistoryAdapter<T extends StateData>
       const result = await client.query(
         `
         SELECT 
+          message_id,
           message_type,
           agent_name,
           content,
@@ -519,6 +614,7 @@ export class PostgresHistoryAdapter<T extends StateData>
       );
 
       return result.rows.map((row) => ({
+        message_id: row.message_id,
         type: row.message_type,
         agentName: row.agent_name,
         content: row.content, // For user messages
