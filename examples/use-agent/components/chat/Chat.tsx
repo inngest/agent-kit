@@ -45,7 +45,7 @@ interface ChatProps {
 }
 
 const mockSuggestions = [
-  "How can I track my order?",
+  "I need a refund",
   "What's your return policy?",
   "I need help with billing",
   "Can I change my subscription?",
@@ -95,17 +95,9 @@ function MockedSources({ hasCompletedText, message }: MockedSourcesProps) {
 
 export function Chat({ threadId: providedThreadId }: ChatProps = {}) {
   const router = useRouter();
-  const [inputValue, setInputValue] = useState("I need a refund");
+  const [inputValue, setInputValue] = useState("");
   const [hoveredMessage, setHoveredMessage] = useState<string | null>(null);
   const [shareOpen, setShareOpen] = useState(false);
-  useEffect(() => {
-    // Component lifecycle logs can be useful for debugging mount/unmount issues
-    // but can be noisy. Let's keep them behind the debug flag.
-    // console.log(`[AK][CHAT] mount`, { providedThreadId });
-    return () => {
-      // console.log(`[AK][CHAT] unmount`);
-    };
-  }, [providedThreadId]);
 
   // No more error suppression needed - unified streaming eliminates stream cancellation errors!
   const isMobile = useIsMobile();
@@ -127,7 +119,6 @@ export function Chat({ threadId: providedThreadId }: ChatProps = {}) {
     threadsLoading,
     threadsHasMore,
     threadsError,
-    createNewThread,
     deleteThread,
     loadMoreThreads,
     
@@ -158,7 +149,7 @@ export function Chat({ threadId: providedThreadId }: ChatProps = {}) {
 
   // URL-aware navigation functions
   const handleNewChat = () => {
-    const newThreadId = createNewThread();
+    const newThreadId = uuidv4();
     router.push(`/chat/${newThreadId}`); // Navigate to the new thread's URL
   };
 
@@ -267,7 +258,6 @@ export function Chat({ threadId: providedThreadId }: ChatProps = {}) {
   };
 
   // Thread management is now handled by useChat - no manual coordination needed!
-
   const handleDeleteConversation = async () => {
     if (!currentThreadId) return;
     
@@ -307,21 +297,6 @@ export function Chat({ threadId: providedThreadId }: ChatProps = {}) {
 
   // useChat provides messages for the current thread
   const displayMessages = messages;
-  
-  // DEBUG: Only log when there are potential issues
-  if (displayMessages.length > 0) {
-    const userCount = displayMessages.filter(m => m.role === 'user').length;
-    const assistantCount = displayMessages.filter(m => m.role === 'assistant').length;
-    
-    // Only log if there's an imbalance or no user messages
-    if ((assistantCount > 0 && userCount === 0) || (userCount > assistantCount + 1)) {
-      console.warn('🚨 [DISPLAY-MESSAGES] Message imbalance detected:', {
-        threadId: currentThreadId,
-        userMessages: userCount,
-        assistantMessages: assistantCount,
-      });
-    }
-  }
 
   // Identify the most recent assistant message (used to position the thinking indicator)
   const lastAssistantId = [...displayMessages].reverse().find(m => m.role === 'assistant')?.id;
@@ -393,12 +368,7 @@ export function Chat({ threadId: providedThreadId }: ChatProps = {}) {
             {error && (<MessageError error={error} onDismiss={clearError} />)}
 
             {isLoadingInitialThread ? (
-              <div className="flex-1 flex items-center justify-center">
-                <div className="flex flex-col items-center gap-3">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-                  <div className="text-muted-foreground text-sm">Loading conversation...</div>
-                </div>
-              </div>
+              <div className="flex-1" />
             ) : displayMessages.length === 0 ? (
               <EmptyState
                 value={inputValue}

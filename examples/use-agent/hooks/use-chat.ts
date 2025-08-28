@@ -26,7 +26,6 @@ export interface UseChatReturn {
   
   // Unified actions (handles coordination automatically)
   sendMessage: (message: string, options?: { messageId?: string }) => Promise<void>;
-  createNewThread: () => string;
   switchToThread: (threadId: string) => Promise<void>;
   deleteThread: (threadId: string) => Promise<void>;
   loadMoreThreads: () => Promise<void>;
@@ -226,16 +225,6 @@ export const useChat = (config?: UseChatConfig): UseChatReturn => {
     }
   }, [config?.initialThreadId, hasLoadedInitialThread, agent.currentThreadId, switchToThread]);
   
-  // 7. New thread creation
-  const createNewThread = useCallback((): string => {
-    const newThreadId = uuidv4();
-    agent.setCurrentThread(newThreadId);
-    agent.clearThreadMessages(newThreadId);
-    threads.setCurrentThreadId(newThreadId);
-    console.log('[AK_TELEMETRY] useChat.createNewThread', { newThreadId });
-    return newThreadId;
-  }, [agent.setCurrentThread, agent.clearThreadMessages, threads.setCurrentThreadId]);
-
   // 8. Enhanced message sending with optimistic updates
   const sendMessage = useCallback(
     async (message: string, options?: { messageId?: string }) => {
@@ -306,7 +295,6 @@ export const useChat = (config?: UseChatConfig): UseChatReturn => {
     
     // Unified actions (all coordination handled internally)
     sendMessage,
-    createNewThread,
     switchToThread,
     deleteThread: threads.deleteThread,
     loadMoreThreads: threads.loadMore,

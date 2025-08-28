@@ -58,35 +58,53 @@ export const runAgentChat = inngest.createFunction(
         historyAdapter // Use the shared global instance
       );
       
-      // Run the network with streaming publish; runtime will emit events automatically
-      const result = await network.run(message, {
+      // Run the network with streaming enabled
+      const networkRun = await network.run(message, {
         streaming: {
           publish: async (chunk: AgentMessageChunk) => {
-            try {
-              // UNIFIED STREAMING: Publish to user channel with threadId in event data
+            await step.run(chunk.id, async () => {
               const enrichedChunk = {
                 ...chunk,
                 data: {
                   ...chunk.data,
                   threadId, // Ensure threadId is in event data for client-side filtering
                   userId, // Also include userId for additional context
-                }
-              };
-              await publish(userChannel(userId).agent_stream(enrichedChunk));
-            } catch (error) {
-              // Gracefully handle connection errors - streaming is best-effort
-              if (error && typeof error === 'object' && 'message' in error) {
-                const errorMessage = (error as Error).message.toLowerCase();
-                if (errorMessage.includes('broken pipe') || 
-                    errorMessage.includes('connection closed') ||
-                    errorMessage.includes('websocket')) {
-                  // These are expected with WebSocket connection churn
-                  return;
-                }
-              }
-              // Log other errors but don't fail the stream
-              console.warn('Streaming publish error:', error);
-            }
+                },
+            };
+
+            await publish(userChannel(userId).agent_stream(enrichedChunk));
+            
+            return enrichedChunk;
+              // try {
+              //   // UNIFIED STREAMING: Publish to user channel with threadId in event data
+              //   const enrichedChunk = {
+              //     ...chunk,
+              //     data: {
+              //       ...chunk.data,
+              //       threadId, // Ensure threadId is in event data for client-side filtering
+              //       userId, // Also include userId for additional context
+              //     },
+              //   };
+              //   await publish(userChannel(userId).agent_stream(enrichedChunk));
+              //   return enrichedChunk;
+              // } catch (error) {
+              //   // Gracefully handle connection errors - streaming is best-effort
+              //   if (error && typeof error === "object" && "message" in error) {
+              //     const errorMessage = (error as Error).message.toLowerCase();
+              //     if (
+              //       errorMessage.includes("broken pipe") ||
+              //       errorMessage.includes("connection closed") ||
+              //       errorMessage.includes("websocket")
+              //     ) {
+              //       // These are expected with WebSocket connection churn
+              //       return chunk;
+              //     }
+              //   }
+              //   // Log other errors but don't fail the stream
+              //   console.warn("Streaming publish error:", error);
+              //   return chunk;
+              // }
+            });
           },
         },
         messageId, // Pass the canonical message ID to the network run
@@ -95,7 +113,7 @@ export const runAgentChat = inngest.createFunction(
       return {
         success: true,
         threadId,
-        result,
+        message: "Agent network completed successfully"
       };
     } catch (error) {
       // Best-effort error event publish; ignore errors here
