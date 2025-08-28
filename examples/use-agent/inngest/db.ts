@@ -484,6 +484,15 @@ export class PostgresHistoryAdapter<T extends StateData>
               // otherwise generate a new UUID. This ensures streaming and DB use the same ID.
               const { randomUUID } = await import('crypto');
               const messageId = result.id || randomUUID();
+              
+              // 🔍 DIAGNOSTIC: Verify UUID usage and persistence
+              console.log('🔍 [DIAG] Persisting agent message:', {
+                agentName: result.agentName,
+                messageId,
+                usedResultId: !!result.id,
+                threadId,
+                timestamp: new Date().toISOString()
+              });
 
               await client.query(
                 `

@@ -639,6 +639,14 @@ export class NetworkRun<T extends StateData> extends Network<T> {
         // CRITICAL FIX: Set the canonical message ID on the AgentResult
         // This ensures the streaming agentMessageId becomes the persisted message_id
         call.id = agentMessageId;
+        
+        // 🔍 DIAGNOSTIC: Verify UUID generation and assignment
+        console.log('🔍 [DIAG] Network assigned message ID:', {
+          agentName: agent.name,
+          agentMessageId,
+          isValidUUID: /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(agentMessageId),
+          timestamp: new Date().toISOString()
+        });
 
         if (agentStreamingContext) {
           await agentStreamingContext.publishEvent({
