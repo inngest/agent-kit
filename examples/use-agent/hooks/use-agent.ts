@@ -4,6 +4,7 @@ import { useEffect, useReducer, useCallback, useRef } from "react";
 import { useInngestSubscription, InngestSubscriptionState } from "@inngest/realtime/hooks";
 import type { StreamingEvent } from "../../../packages/agent-kit/src/streaming";
 import { TEST_USER_ID } from "@/lib/constants";
+import { v4 as uuidv4 } from 'uuid';
 
 // ----- DEBUG CONFIGURATION ------------------------------------------
 
@@ -53,6 +54,35 @@ const debugError = (isDebugEnabled: boolean, ...args: any[]) => {
   if (isDebugEnabled) {
     console.error(...args);
   }
+};
+
+// ----- GLOBAL DIAGNOSTICS ------------------------------------------
+
+declare global {
+  interface Window {
+    __AK_DIAG__?: any;
+  }
+}
+
+const getAkDiag = () => {
+  if (typeof window === "undefined") return undefined as any;
+  if (!window.__AK_DIAG__) {
+    window.__AK_DIAG__ = {
+      pageLoadId: `pl-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      agents: [] as Array<{ id: string; source: string; threadId?: string; userId?: string }>,
+      subs: {} as Record<string, Set<string>>, // key -> instanceIds
+      counts: {
+        tokenRequests: 0,
+        connectionTransitions: {} as Record<string, number>,
+        threadSets: [] as Array<{ from?: string; to: string; t: number; id: string }>,
+        emptyWarnCount: 0,
+      },
+      _dupLogged: false,
+      _subDupLoggedKeys: new Set<string>(),
+      summaryScheduled: false,
+    };
+  }
+  return window.__AK_DIAG__;
 };
 
 // ----- DATA & UI MODELS (As per spec) -----------------------------
@@ -259,6 +289,8 @@ export interface ConversationMessage {
   agentId?: string;
   /** When this message was created */
   timestamp: Date;
+  /** The status of the message, particularly for optimistic user messages */
+  status?: 'sending' | 'sent' | 'failed';
 }
 
 /**
@@ -362,7 +394,11 @@ type MultiThreadStreamingAction =
   /** Dispatched when switching the currently displayed thread */
   | { type: 'SET_CURRENT_THREAD'; threadId: string }
   /** Dispatched when the user sends a message to a specific thread */
-  | { type: 'MESSAGE_SENT'; threadId: string; message: string }
+  | { type: 'MESSAGE_SENT'; threadId: string; message: string; messageId: string }
+  /** Dispatched when the message was successfully sent to the backend */
+  | { type: 'MESSAGE_SEND_SUCCESS'; threadId: string; messageId: string }
+  /** Dispatched when the message failed to send to the backend */
+  | { type: 'MESSAGE_SEND_FAILED'; threadId: string; messageId: string; error: string }
   /** Dispatched after a user message is sent to prepare the thread for new responses */
   | { type: 'RESET_FOR_NEW_TURN'; threadId: string }
   /** Dispatched when a thread-specific error occurs */
@@ -637,7 +673,27 @@ const processEvent = (messages: ConversationMessage[], event: NetworkEvent, isDe
         eventSequence: event.sequenceNumber
       });
       
+      // 🐛 DEBUG: Let's see what's happening with part.created events
+      console.log(`🔍 [PART-CREATED-DEBUG] Event details:`, {
+        event: event.event,
+        sequenceNumber: event.sequenceNumber,
+        partId: event.data.partId,
+        messageId: event.data.messageId,
+        partType: event.data.type,
+        timestamp: event.timestamp,
+        messagesCount: messages.length,
+        metadata: event.data.metadata
+      });
+      
       const { messages: newMessages, message } = getOrCreateAssistantMessage(messages, event.data);
+      
+      console.log(`🔍 [PART-CREATED-DEBUG] Message creation result:`, {
+        messageId: message.id,
+        messageRole: message.role,
+        wasNewMessage: newMessages.length > messages.length,
+        currentPartsCount: message.parts.length,
+        existingPartIds: message.parts.map(p => p.type === 'text' ? p.id : p.type === 'tool-call' ? p.toolCallId : 'unknown')
+      });
       
       let newPart: MessagePart;
       if (event.data.type === "text") {
@@ -701,16 +757,22 @@ const processEvent = (messages: ConversationMessage[], event: NetworkEvent, isDe
     case "text.delta": {
       debugLog(isDebugEnabled, `🔍 [TEXT-DELTA] Processing seq:${event.sequenceNumber} delta:"${event.data.delta}" partId:${event.data.partId}`);
       
+      // 🐛 DEBUG: Let's see what's happening with text.delta events
+      console.log(`🔍 [TEXT-DELTA-DEBUG] Event details:`, {
+        event: event.event,
+        sequenceNumber: event.sequenceNumber,
+        partId: event.data.partId,
+        messageId: event.data.messageId,
+        delta: event.data.delta,
+        timestamp: event.timestamp,
+        messagesCount: messages.length
+      });
+      
       const targetPart = findPart(messages, event.data.messageId, event.data.partId) as TextUIPart;
       if (!targetPart) {
         debugWarn(isDebugEnabled, "[StreamingReducer] Text part NOT FOUND for delta:", {
           searchedPartId: event.data.partId,
           messageId: event.data.messageId,
-          availableMessages: messages.map(m => ({
-            id: m.id,
-            partsCount: m.parts.length,
-            partIds: m.parts.map(p => p.type === 'text' ? p.id : p.type === 'tool-call' ? p.toolCallId : 'unknown')
-          })),
           eventTimestamp: event.timestamp,
           eventSequence: event.sequenceNumber
         });
@@ -791,10 +853,13 @@ const processEvent = (messages: ConversationMessage[], event: NetworkEvent, isDe
               
               // For text, set status to 'complete' and set the final content.
               if (part.type === 'text') {
+                const finalText = typeof event.data.finalContent === 'string'
+                  ? event.data.finalContent
+                  : String(event.data.finalContent ?? '');
                 return { 
                   ...part, 
                   status: "complete" as const, 
-                  content: event.data.finalContent 
+                  content: finalText 
                 };
               // For tool-calls, set state to 'input-available' and set the final input.
               } else if (part.type === 'tool-call') {
@@ -805,10 +870,13 @@ const processEvent = (messages: ConversationMessage[], event: NetworkEvent, isDe
                 };
               // For reasoning, set status to 'complete' and set the final content.
               } else if (part.type === 'reasoning') {
+                const finalReasoning = typeof event.data.finalContent === 'string'
+                  ? event.data.finalContent
+                  : String(event.data.finalContent ?? '');
                 return { 
                   ...part, 
                   status: "complete" as const, 
-                  content: event.data.finalContent 
+                  content: finalReasoning 
                 };
               } else {
                 return part;
@@ -1078,38 +1146,8 @@ const updateThread = (
     const beforeCount = currentThread.messages.length;
     const afterCount = updates.messages.length;
     
-    // Check for duplicate IDs in the updated messages
-    const messageIds = updates.messages.map(m => m.id);
-    const uniqueIds = new Set(messageIds);
-    
-    if (messageIds.length !== uniqueIds.size) {
-      const duplicateIds = messageIds.filter((id, index) => messageIds.indexOf(id) !== index);
-      console.error(`🚨 [UPDATE-THREAD] DUPLICATE IDs DETECTED in thread ${threadId}:`, {
-        totalMessages: messageIds.length,
-        uniqueIds: uniqueIds.size,
-        duplicateIds,
-        allIds: messageIds,
-        duplicateDetails: duplicateIds.map(dupId => ({
-          id: dupId,
-          occurrences: messageIds.filter(id => id === dupId).length,
-          messages: updates.messages!.filter(m => m.id === dupId).map(m => ({
-            role: m.role,
-            timestamp: m.timestamp.toISOString(),
-            content: m.parts[0]?.type === 'text' ? (m.parts[0] as any).content.substring(0, 30) : 'non-text'
-          }))
-        }))
-      });
-      
-      // CRITICAL: Auto-fix duplicates before updating state
-      const deduplicatedMap = new Map();
-      updates.messages!.forEach(msg => {
-        deduplicatedMap.set(msg.id, msg);
-      });
-      const deduplicatedMessages = Array.from(deduplicatedMap.values());
-      
-      console.log(`🔧 [AUTO-FIX] Removing duplicates before state update: ${updates.messages!.length} → ${deduplicatedMessages.length}`);
-      updates.messages = deduplicatedMessages;
-    }
+    // Log message count changes for debugging
+    // Note: Removed auto-fix deduplication - duplicates should be prevented at source
     
     console.log(`🔍 [UPDATE-THREAD] Messages changing in thread ${threadId}: ${beforeCount} → ${afterCount}`);
     if (beforeCount > 0 && afterCount === 0) {
@@ -1155,9 +1193,12 @@ const multiThreadStreamingReducer = (
   switch (action.type) {
     // MULTI-THREAD: Process all events and route to correct thread buffers
     case 'REALTIME_MESSAGES_RECEIVED': {
+      console.log(`🔍 [REDUCER] REALTIME_MESSAGES_RECEIVED action received with ${action.messages.length} messages`);
+      
       debugLog(isDebugEnabled, `🔍 [SUBSCRIPTION] Received ${action.messages.length} total messages, lastProcessed: ${state.lastProcessedIndex}`);
       
       if (action.messages.length <= state.lastProcessedIndex) {
+        console.log(`🚫 [REDUCER] No new messages to process (${action.messages.length} <= ${state.lastProcessedIndex}), returning early`);
         debugLog(isDebugEnabled, `[SUBSCRIPTION] No new messages to process (${action.messages.length} <= ${state.lastProcessedIndex})`);
         return state;
       }
@@ -1166,6 +1207,20 @@ const multiThreadStreamingReducer = (
       const newEvents: NetworkEvent[] = newMessages
         .filter(message => message?.data?.event && message.data.sequenceNumber !== undefined)
         .map(message => message.data as NetworkEvent);
+
+      // 🐛 DEBUG: Let's see what events are coming through
+      if (newEvents.length > 0) {
+        console.log(`🔍 [STREAM-EVENTS-DEBUG] Received ${newEvents.length} new events:`, 
+          newEvents.map(e => ({
+            event: e.event,
+            seq: e.sequenceNumber,
+            messageId: (e.data as any)?.messageId,
+            partId: (e.data as any)?.partId,
+            threadId: (e.data as any)?.threadId,
+            delta: e.event === 'text.delta' ? (e.data as any)?.delta : undefined
+          }))
+        );
+      }
 
       if (newEvents.length === 0) {
         debugLog(isDebugEnabled, `[SUBSCRIPTION] No valid events in new messages, updating lastProcessedIndex to ${action.messages.length - 1}`);
@@ -1198,6 +1253,17 @@ const multiThreadStreamingReducer = (
       
       // Group events by thread
       const eventsByThread: Record<string, NetworkEvent[]> = {};
+      console.log(`🔍 [REDUCER] Processing ${newEvents.length} new events:`, 
+        newEvents.map(e => ({
+          event: e.event,
+          hasData: !!e.data,
+          threadId: (e.data as any)?.threadId,
+          messageId: (e.data as any)?.messageId,
+          partId: (e.data as any)?.partId,
+          delta: e.event === 'text.delta' ? (e.data as any)?.delta : undefined
+        }))
+      );
+      
       newEvents.forEach(event => {
         const threadId = event.data && 'threadId' in event.data ? event.data.threadId : null;
         if (threadId && typeof threadId === 'string') {
@@ -1206,19 +1272,43 @@ const multiThreadStreamingReducer = (
           }
           eventsByThread[threadId].push(event);
         } else {
-          console.warn(`🚨 [EVENT-ROUTING] Event missing threadId:`, event);
+          debugWarn(isDebugEnabled, `🚨 [EVENT-ROUTING] Event missing threadId:`, event);
         }
       });
-
-      // Process events for each thread
-      Object.entries(eventsByThread).forEach(([threadId, threadEvents]) => {
-              // Only log if processing events for a thread with issues
-      if (threadEvents.length > 0) {
-        console.log(`🎯 [EVENT-ROUTING] Processing ${threadEvents.length} events for thread ${threadId} (${threadId === state.currentThreadId ? 'current' : 'background'})`);
-      }
-        
-        updatedState = processThreadEvents(updatedState, threadId, threadEvents, isDebugEnabled);
+      
+      console.log(`🔍 [REDUCER] Events grouped by thread:`, {
+        threadIds: Object.keys(eventsByThread),
+        eventCounts: Object.entries(eventsByThread).map(([tid, events]) => ({
+          threadId: tid,
+          count: events.length,
+          eventTypes: events.map(e => e.event)
+        })),
+        currentStateThreadId: state.currentThreadId
       });
+
+        // Process events for each thread
+  Object.entries(eventsByThread).forEach(([threadId, threadEvents]) => {
+          // Only log if processing events for a thread with issues
+  if (threadEvents.length > 0) {
+    console.log(`🎯 [EVENT-ROUTING] Processing ${threadEvents.length} events for thread ${threadId} (${threadId === state.currentThreadId ? 'current' : 'background'})`);
+    
+    // 🐛 DEBUG: Log events being processed for the current thread
+    if (threadId === state.currentThreadId) {
+      console.log(`🔍 [CURRENT-THREAD-DEBUG] Processing events for current thread ${threadId}:`,
+        threadEvents.map(e => ({
+          event: e.event,
+          seq: e.sequenceNumber,
+          messageId: (e.data as any)?.messageId,
+          partId: (e.data as any)?.partId,
+          delta: e.event === 'text.delta' ? (e.data as any)?.delta : undefined,
+          type: (e.data as any)?.type
+        }))
+      );
+    }
+  }
+    
+    updatedState = processThreadEvents(updatedState, threadId, threadEvents, isDebugEnabled);
+  });
 
       return updatedState;
     }
@@ -1257,58 +1347,64 @@ const multiThreadStreamingReducer = (
     case 'MESSAGE_SENT': {
       const existingMessages = state.threads[action.threadId]?.messages || [];
       const now = new Date();
-      const uniqueTimestamp = Date.now();
-      const randomSuffix = Math.random().toString(36).substring(2, 8);
       const userMessage: ConversationMessage = {
-        id: `user-${uniqueTimestamp}-${randomSuffix}-${action.threadId}`,
+        id: action.messageId, // Use the canonical, client-generated ID
         role: "user",
         parts: [{ 
           type: "text", 
-          id: `text-${uniqueTimestamp}-${randomSuffix}`, 
+          id: `text-${action.messageId}`, 
           content: action.message, 
           status: "complete" 
         }],
         timestamp: now,
+        status: 'sending', // Initial status for optimistic message
       };
       
-      // CRITICAL: Enhanced duplicate checking for user messages
-      const isDuplicate = existingMessages.some(msg => {
-        // Check exact ID match
-        if (msg.id === userMessage.id) return true;
-        
-        // Check for same content in user messages (content-based deduplication)
-        if (msg.role === 'user' && userMessage.role === 'user') {
-          const existingContent = msg.parts[0]?.type === 'text' ? (msg.parts[0] as any).content : '';
-          const newContent = userMessage.parts[0]?.type === 'text' ? (userMessage.parts[0] as any).content : '';
-          
-          if (existingContent === newContent && existingContent.length > 0) {
-            console.log(`🔍 [MESSAGE-SENT-DEDUP] Found duplicate user content: "${newContent.substring(0, 30)}..." (Existing ID: ${msg.id}, New ID: ${userMessage.id})`);
-            return true;
-          }
-        }
-        
-        return false;
-      });
+      // Simple ID-based duplicate checking only
+      // Note: ID collisions are extremely unlikely with timestamp + random suffix + threadId
+      const isDuplicate = existingMessages.some(msg => msg.id === userMessage.id);
       
       if (isDuplicate) {
-        console.warn(`🚨 [MESSAGE-SENT] Preventing duplicate user message:`, {
+        debugWarn(isDebugEnabled, `🚨 [MESSAGE-SENT] Preventing duplicate user message:`, {
           messageId: userMessage.id,
-          content: action.message.substring(0, 30) + "...",
           threadId: action.threadId,
-          existingCount: existingMessages.length
         });
         return state; // Don't add duplicate
       }
       
       // Only log if this is the first message or there are issues
       if (existingMessages.length === 0) {
-        console.log(`📝 [MESSAGE-SENT] Starting new conversation in thread ${action.threadId} with message: "${action.message.substring(0, 30)}..."`);
+        debugLog(isDebugEnabled, `📝 [MESSAGE-SENT] Starting new conversation in thread ${action.threadId}`);
       }
       
       return updateThread(state, action.threadId, {
         messages: [...existingMessages, userMessage],
         agentStatus: "thinking",
         error: undefined,
+      });
+    }
+
+    // Mark a message as successfully sent
+    case 'MESSAGE_SEND_SUCCESS': {
+      return updateThread(state, action.threadId, {
+        messages: state.threads[action.threadId].messages.map(msg =>
+          msg.id === action.messageId ? { ...msg, status: 'sent' } : msg
+        ),
+      });
+    }
+
+    // Mark a message as failed to send and add error info
+    case 'MESSAGE_SEND_FAILED': {
+      return updateThread(state, action.threadId, {
+        messages: state.threads[action.threadId].messages.map(msg =>
+          msg.id === action.messageId ? { ...msg, status: 'failed' } : msg
+        ),
+        agentStatus: "error",
+        error: {
+          message: action.error,
+          timestamp: new Date(),
+          recoverable: true,
+        },
       });
     }
 
@@ -1437,12 +1533,53 @@ const processThreadEvents = (
   isDebugEnabled: boolean
 ): MultiThreadStreamingState => {
   let currentState = ensureThread(state, threadId);
-  const thread = currentState.threads[threadId];
+  let thread = currentState.threads[threadId];
   
+  // Check for a sequence reset BEFORE filtering.
+  // A new agent run will restart the sequence at 0.
+  const runStartedEvent = events.find(e => e.event === 'run.started' && e.sequenceNumber === 0);
+  if (runStartedEvent && thread.lastProcessedSequence > 0) {
+    debugLog(isDebugEnabled, `🔄 [SEQUENCE-RESET] Detected new agent run for thread ${threadId}. Resetting sequence state.`);
+    
+    // Reset the sequence tracking for this thread
+    currentState = updateThread(currentState, threadId, {
+      lastProcessedSequence: -1, // Reset to -1 so seq 0 is processed
+      nextExpectedSequence: 0,
+      eventBuffer: new Map(),
+    });
+    
+    // Use the updated thread state for the rest of this function
+    thread = currentState.threads[threadId];
+  }
+
   // CRITICAL: Filter out events we've already processed to prevent duplicates
+  console.log(`🔍 [SEQUENCE-DEBUG] Thread ${threadId} filtering events:`, {
+    totalEvents: events.length,
+    lastProcessedSequence: thread.lastProcessedSequence,
+    eventDetails: events.map(e => ({
+      seq: e.sequenceNumber,
+      event: e.event,
+      alreadyProcessed: e.sequenceNumber <= thread.lastProcessedSequence,
+      messageId: (e.data as any)?.messageId,
+      partId: (e.data as any)?.partId,
+      delta: e.event === 'text.delta' ? (e.data as any)?.delta : undefined
+    }))
+  });
+
   const unprocessedEvents = events.filter(event => 
     event.sequenceNumber > thread.lastProcessedSequence
   );
+  
+  console.log(`🔍 [SEQUENCE-DEBUG] Thread ${threadId} after filtering:`, {
+    unprocessedCount: unprocessedEvents.length,
+    filteredOut: events.length - unprocessedEvents.length,
+    unprocessedEvents: unprocessedEvents.map(e => ({
+      seq: e.sequenceNumber,
+      event: e.event,
+      messageId: (e.data as any)?.messageId,
+      delta: e.event === 'text.delta' ? (e.data as any)?.delta : undefined
+    }))
+  });
   
   if (unprocessedEvents.length === 0) {
     debugLog(isDebugEnabled, `[Thread ${threadId}] No new events to process (all already processed)`);
@@ -1453,16 +1590,6 @@ const processThreadEvents = (
     newEvents: unprocessedEvents.map(e => `${e.event}:${e.sequenceNumber}`),
     isCurrentThread: threadId === state.currentThreadId,
   });
-  
-  // Check for sequence reset
-  const hasSequenceReset = detectSequenceReset(thread.nextExpectedSequence, unprocessedEvents);
-  if (hasSequenceReset) {
-    debugLog(isDebugEnabled, `[Thread ${threadId}] Detected sequence reset, clearing buffer`);
-    currentState = updateThread(currentState, threadId, {
-      eventBuffer: new Map(),
-      nextExpectedSequence: 0,
-    });
-  }
   
   // Add only unprocessed events to thread's buffer
   const newBuffer = new Map(currentState.threads[threadId].eventBuffer);
@@ -1679,9 +1806,9 @@ export interface UseAgentReturn {
   
   // === ACTIONS ===
   /** Send a message to the current thread */
-  sendMessage: (message: string) => Promise<void>;
+  sendMessage: (message: string, options?: { messageId?: string }) => Promise<void>;
   /** Send a message to a specific thread */
-  sendMessageToThread: (threadId: string, message: string) => Promise<void>;
+  sendMessageToThread: (threadId: string, message: string, options?: { messageId?: string }) => Promise<void>;
   /** Regenerate the last response in the current thread */
   regenerate: () => void;
   /** Clear the current error for the active thread */
@@ -1770,6 +1897,10 @@ export interface UseAgentReturn {
  * ```
  */
 export function useAgent({ threadId, userId = TEST_USER_ID, onError, debug = DEFAULT_DEBUG_MODE }: UseAgentOptions): UseAgentReturn {
+  const diag = getAkDiag();
+  const instanceIdRef = useRef<string>(`agent-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
+  const emptyWarnedThreadsRef = useRef<Set<string>>(new Set());
+
   // MULTI-THREAD STATE: Initialize with the provided threadId as the current thread
   const [state, dispatch] = useReducer(
     (state: MultiThreadStreamingState, action: MultiThreadStreamingAction) => 
@@ -1794,6 +1925,18 @@ export function useAgent({ threadId, userId = TEST_USER_ID, onError, debug = DEF
     refreshToken: async () => {
       if (debug) {
         console.log("[useAgent] 🔄 Creating stable user subscription for userId:", userId);
+        console.log(`[AK][SUB] token:request`, { userId, contextThreadId: threadId });
+      }
+      if (diag) {
+        diag.counts.tokenRequests += 1;
+        const key = String(userId);
+        const set = diag.subs[key] || new Set<string>();
+        set.add(instanceIdRef.current);
+        diag.subs[key] = set;
+        if (!diag._subDupLoggedKeys.has(key) && set.size > 1) {
+          diag._subDupLoggedKeys.add(key);
+          console.warn(`[AK][SUB][DUP]`, { key, instances: Array.from(set) });
+        }
       }
       const response = await fetch("/api/realtime/token", {
         method: "POST",
@@ -1804,20 +1947,59 @@ export function useAgent({ threadId, userId = TEST_USER_ID, onError, debug = DEF
       const token = await response.json();
       if (debug) {
         console.log("[useAgent] ✅ User subscription token created for userId:", userId);
+        console.log(`[AK][SUB] token:received`, { userId, ok: true });
       }
       return token;
     },
   });
 
+  // AGENT CREATE TELEMETRY (once)
+  useEffect(() => {
+    if (!diag) return;
+    const id = instanceIdRef.current;
+    const source = (typeof window !== 'undefined' && (window as any).__AK_AGENT_SOURCE__) || 'local';
+    diag.agents.push({ id, source, threadId, userId });
+    console.log(`[AK][AGENT][CREATE]`, { pageLoadId: diag.pageLoadId, instanceId: id, source, userId, initialThreadId: threadId });
+    if (!diag._dupLogged && diag.agents.length > 1) {
+      diag._dupLogged = true;
+      console.warn(`[AK][AGENT][DUP]`, { pageLoadId: diag.pageLoadId, instances: diag.agents });
+    }
+    // Strict mode probe: detect double-mount in dev quickly by scheduling summary
+    if (!diag.summaryScheduled) {
+      diag.summaryScheduled = true;
+      setTimeout(() => {
+        const subSummary = Object.fromEntries(Object.entries(diag.subs).map(([k, v]: any) => [k, (v as Set<string>).size]));
+        console.log(`[AK][STREAM][SUMMARY]`, {
+          pageLoadId: diag.pageLoadId,
+          agents: diag.agents.map((a: any) => ({ id: a.id, source: a.source })),
+          subscriptionsByKey: subSummary,
+          tokenRequests: diag.counts.tokenRequests,
+          connectionTransitions: diag.counts.connectionTransitions,
+          threadSwitches: diag.counts.threadSets.length,
+          emptyThreadWarnings: diag.counts.emptyWarnCount,
+        });
+      }, 1200);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Effect to process new real-time events when they arrive.
   // MULTI-THREAD: Process ALL events and route to correct thread buffers
   useEffect(() => {
+    // 🐛 DEBUG: Log raw realtime data to see what's actually arriving
     if (realtimeData) {
+      // no-op: noisy raw logging removed
+
       debugLog(debug, "[useAgent] Processing all events for multi-thread routing:", {
         totalEvents: realtimeData.length,
         currentThreadId: state.currentThreadId,
         activeThreads: Object.keys(state.threads),
       });
+      
+      // telemetry: count events
+      if (diag) {
+        // noop per-event detail; summary will show totals
+      }
 
       // Process ALL events - no filtering! Events are routed in the reducer
       dispatch({
@@ -1834,6 +2016,11 @@ export function useAgent({ threadId, userId = TEST_USER_ID, onError, debug = DEF
       type: 'CONNECTION_STATE_CHANGED',
       state: connectionState
     });
+    debugLog(debug, `[AK][CONNECTION] state`, { state: connectionState, isActive: connectionState === InngestSubscriptionState.Active });
+    if (diag) {
+      const key = String(connectionState);
+      diag.counts.connectionTransitions[key] = (diag.counts.connectionTransitions[key] || 0) + 1;
+    }
   }, [connectionState]);
 
   // Effect to handle errors from the real-time subscription.
@@ -1863,7 +2050,7 @@ export function useAgent({ threadId, userId = TEST_USER_ID, onError, debug = DEF
   /**
    * Helper function to send a message to a specific thread
    */
-  const sendMessageToThread = useCallback(async (targetThreadId: string, message: string) => {
+  const sendMessageToThread = useCallback(async (targetThreadId: string, message: string, options?: { messageId?: string }) => {
     if (!message.trim()) return;
 
     // CRITICAL: Always get the latest state to avoid closure issues
@@ -1886,15 +2073,17 @@ export function useAgent({ threadId, userId = TEST_USER_ID, onError, debug = DEF
     });
     
     const simpleHistory = formatMessagesToAgentKitHistory(currentMessages);
+    const messageId = options?.messageId || uuidv4();
 
     // Optimistically update the target thread
-    dispatch({ type: 'MESSAGE_SENT', threadId: targetThreadId, message });
+    dispatch({ type: 'MESSAGE_SENT', threadId: targetThreadId, message, messageId });
     dispatch({ type: 'RESET_FOR_NEW_TURN', threadId: targetThreadId });
 
     // Send to backend
     try {
       debugLog(debug, "[useAgent] Sending message to thread:", {
         targetThreadId,
+        messageId,
         message: message.substring(0, 50) + "...",
         historyLength: simpleHistory.length,
       });
@@ -1902,33 +2091,40 @@ export function useAgent({ threadId, userId = TEST_USER_ID, onError, debug = DEF
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message, threadId: targetThreadId, history: simpleHistory }),
+        body: JSON.stringify({ message, threadId: targetThreadId, history: simpleHistory, messageId }),
       });
       
       if (!response.ok) {
         const errorBody = await response.json();
         debugError(debug, "API Error:", errorBody);
-        throw new Error(errorBody.error?.message || "Failed to send message");
+        const errorMessage = errorBody.error?.message || "Failed to send message";
+        dispatch({ type: 'MESSAGE_SEND_FAILED', threadId: targetThreadId, messageId, error: errorMessage });
+        throw new Error(errorMessage);
       }
+
+      // Mark the message as successfully sent
+      dispatch({ type: 'MESSAGE_SEND_SUCCESS', threadId: targetThreadId, messageId });
+
     } catch (error) {
       debugError(debug, "[useAgent] Error sending message:", error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
       dispatch({
-        type: 'THREAD_ERROR',
+        type: 'MESSAGE_SEND_FAILED',
         threadId: targetThreadId,
-        error: error instanceof Error ? error.message : String(error),
-        recoverable: true
+        messageId,
+        error: errorMessage,
       });
-      onError?.(error instanceof Error ? error : new Error(String(error)));
+      onError?.(error instanceof Error ? error : new Error(errorMessage));
     }
   }, [debug, onError]); // Removed state.threads dependency to prevent recreation on every state change
 
   /**
    * Send a message to the currently active thread
    */
-  const sendMessage = useCallback(async (message: string) => {
+  const sendMessage = useCallback(async (message: string, options?: { messageId?: string }) => {
     const currentThreadId = state.currentThreadId;
     console.log(`📤 [SEND-MESSAGE] Sending to current thread: ${currentThreadId}`);
-    await sendMessageToThread(currentThreadId, message);
+    await sendMessageToThread(currentThreadId, message, options);
   }, [sendMessageToThread, state.currentThreadId]);
 
   // === THREAD MANAGEMENT FUNCTIONS ===
@@ -1937,7 +2133,19 @@ export function useAgent({ threadId, userId = TEST_USER_ID, onError, debug = DEF
    * Switch to a different thread (updates currentThreadId and marks as viewed)
    */
   const setCurrentThread = useCallback((targetThreadId: string) => {
-    console.log(`🎯 [SET-CURRENT-THREAD] Switching to thread: ${targetThreadId} from ${stateRef.current.currentThreadId}`);
+    if (diag) {
+      const from = stateRef.current.currentThreadId;
+      const to = targetThreadId;
+      const now = Date.now();
+      const id = instanceIdRef.current;
+      diag.counts.threadSets.push({ from, to, t: now, id });
+      // Detect flapping: 3+ switches within 500ms
+      const recent = diag.counts.threadSets.filter((s: any) => now - s.t < 500);
+      if (recent.length >= 3) {
+        console.warn(`[AK][THREAD][FLAP]`, { recent });
+      }
+      console.log(`[AK][THREAD][SET]`, { instanceId: id, from, to });
+    }
     dispatch({ type: 'SET_CURRENT_THREAD', threadId: targetThreadId });
   }, []);
 
@@ -1949,35 +2157,7 @@ export function useAgent({ threadId, userId = TEST_USER_ID, onError, debug = DEF
     const thread = currentState.threads[targetThreadId];
     if (!thread) return undefined;
     
-    // Check for duplicate message IDs in the thread before returning
-    const messageIds = thread.messages.map(m => m.id);
-    const uniqueIds = new Set(messageIds);
-    
-    if (messageIds.length !== uniqueIds.size) {
-      console.error(`🚨 [GET-THREAD] Thread ${targetThreadId} has duplicate message IDs:`, {
-        totalMessages: messageIds.length,
-        uniqueIds: uniqueIds.size,
-        duplicateIds: messageIds.filter((id, index) => messageIds.indexOf(id) !== index)
-      });
-      
-      // Return deduplicated messages
-      const deduplicatedMap = new Map();
-      thread.messages.forEach(msg => {
-        deduplicatedMap.set(msg.id, msg);
-      });
-      const deduplicatedMessages = Array.from(deduplicatedMap.values());
-      
-      console.log(`🔧 [GET-THREAD] Returning deduplicated messages: ${thread.messages.length} → ${deduplicatedMessages.length}`);
-      
-      return {
-        messages: deduplicatedMessages,
-        status: thread.agentStatus,
-        currentAgent: thread.currentAgent,
-        hasNewMessages: thread.hasNewMessages,
-        lastActivity: thread.lastActivity,
-        error: thread.error,
-      };
-    }
+    // Return thread data directly - duplicates should be prevented at source
     
     return {
       messages: thread.messages,
@@ -2032,7 +2212,8 @@ export function useAgent({ threadId, userId = TEST_USER_ID, onError, debug = DEF
       const messageIds = messages.map(m => m.id);
       const uniqueIds = new Set(messageIds);
       if (messageIds.length !== uniqueIds.size) {
-        console.error(`🚨 [REPLACE-THREAD-MESSAGES] Duplicate IDs being passed to thread ${targetThreadId}:`, {
+        console.error(`[AK][DUP] replace-thread-messages`, {
+          targetThreadId,
           totalMessages: messageIds.length,
           uniqueIds: uniqueIds.size,
           duplicateIds: messageIds.filter((id, index) => messageIds.indexOf(id) !== index),
@@ -2091,16 +2272,8 @@ export function useAgent({ threadId, userId = TEST_USER_ID, onError, debug = DEF
   const currentThread = stateRef.current.threads[stateRef.current.currentThreadId];
   const rawCurrentMessages = currentThread?.messages || [];
   
-  // FINAL SAFETY: Deduplicate messages before returning to UI
-  const seenCurrentIds = new Set();
-  const currentMessages = rawCurrentMessages.filter(msg => {
-    if (seenCurrentIds.has(msg.id)) {
-      console.warn(`🚨 [CURRENT-MESSAGES] Filtering duplicate message ID: ${msg.id}`);
-      return false;
-    }
-    seenCurrentIds.add(msg.id);
-    return true;
-  });
+  // Use messages directly from state - duplicates should be prevented at source
+  const currentMessages = rawCurrentMessages;
 
   // CRITICAL DEBUG: Track message imbalances and duplicates
   const userMessages = currentMessages.filter(m => m.role === 'user');
@@ -2114,39 +2287,22 @@ export function useAgent({ threadId, userId = TEST_USER_ID, onError, debug = DEF
     const uniqueContents = new Set(userContents);
     
     if (userContents.length !== uniqueContents.size) {
-      console.warn(`🚨 [DUPLICATE-USER-MESSAGES] Thread ${stateRef.current.currentThreadId} has duplicate user messages!`, {
-        totalUserMessages: userMessages.length,
-        uniqueContents: uniqueContents.size,
-        duplicateContents: userContents.filter((content, index) => userContents.indexOf(content) !== index),
-        allUserMessages: userMessages.map(m => ({
-          id: m.id,
-          content: m.parts[0]?.type === 'text' ? (m.parts[0] as any).content.substring(0, 30) + "..." : 'non-text',
-          timestamp: m.timestamp.toISOString()
-        }))
-      });
+      debugWarn(debug, `🚨 [DUPLICATE-USER-MESSAGES] Thread ${stateRef.current.currentThreadId} has duplicate user messages!`);
     }
   }
   
   if (debug && userMessages.length === 0 && assistantMessages.length > 0) {
-    console.warn(`🚨 [MISSING-USER-MESSAGES] Thread ${stateRef.current.currentThreadId} has assistant messages but NO user messages!`, {
-      rawMessageCount: rawCurrentMessages.length,
-      finalMessageCount: currentMessages.length,
-      assistantCount: assistantMessages.length,
-      userCount: userMessages.length,
-      allMessageIds: currentMessages.map(m => ({ id: m.id, role: m.role })),
-    });
+    debugWarn(debug, `🚨 [MISSING-USER-MESSAGES] Thread ${stateRef.current.currentThreadId} has assistant messages but NO user messages!`);
   }
   
   // Debug: Only log critical thread issues
   if (debug && currentMessages.length === 0 && currentThread) {
-    console.warn(`🚨 [CURRENT-THREAD] Empty thread detected:`, {
-      threadId: stateRef.current.currentThreadId,
-      threadExists: !!currentThread,
-      rawMessageCount: rawCurrentMessages.length,
-      duplicatesFiltered: rawCurrentMessages.length - currentMessages.length,
-      threadsInState: Object.keys(stateRef.current.threads),
-      threadStatus: currentThread?.agentStatus || 'unknown',
-    });
+    const tid = stateRef.current.currentThreadId;
+    if (!emptyWarnedThreadsRef.current.has(tid)) {
+      emptyWarnedThreadsRef.current.add(tid);
+      debugWarn(debug, `🚨 [CURRENT-THREAD] Empty thread detected:`, { threadId: tid });
+      if (diag) diag.counts.emptyWarnCount += 1;
+    }
   }
   
   return {
