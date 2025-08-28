@@ -109,6 +109,10 @@ export const useChat = (config?: UseChatConfig): UseChatReturn => {
   // Stable thread ID generation - only create once
   const [fallbackThreadId] = useState(() => config?.initialThreadId || uuidv4());
   
+  // Instance tracking for telemetry
+  const [instanceId] = useState(() => Math.random().toString(36).substr(2, 8));
+  console.log('[AK_TELEMETRY] useChat.instance', { instanceId, initialThreadId: config?.initialThreadId });
+  
   // 1. Thread management hook
   const threads = useThreads({
     userId: config?.userId || TEST_USER_ID,
@@ -159,6 +163,7 @@ export const useChat = (config?: UseChatConfig): UseChatReturn => {
   // 6. Sophisticated thread switching with smart deduplication
   const switchToThread = useCallback(async (selectedThreadId: string) => {
     try {
+      console.log('[AK_TELEMETRY] useChat.switchToThread:start', { selectedThreadId, prevAgentThread: agent.currentThreadId, prevThreadsThread: threads.currentThreadId });
       // Step 1: Switch to the thread immediately in the agent state.
       // This ensures any subsequent actions (like sending a message) are
       // correctly targeted to the new thread.
@@ -193,9 +198,11 @@ export const useChat = (config?: UseChatConfig): UseChatReturn => {
 
         // Load the intelligently reconciled messages into the agent state.
         agent.replaceThreadMessages(selectedThreadId, finalMessages);
+        console.log('[AK_TELEMETRY] useChat.switchToThread:success', { selectedThreadId, historicalCount: historicalMessages.length, optimisticKept: recentOptimisticMessages.length });
       }
     } catch (err) {
       console.error('[useChat] Error switching thread:', err);
+      console.log('[AK_TELEMETRY] useChat.switchToThread:error', { selectedThreadId, error: err instanceof Error ? err.message : String(err) });
     }
   }, [agent, agent.setCurrentThread, agent.getThread, agent.replaceThreadMessages]);
 
@@ -225,19 +232,41 @@ export const useChat = (config?: UseChatConfig): UseChatReturn => {
     agent.setCurrentThread(newThreadId);
     agent.clearThreadMessages(newThreadId);
     threads.setCurrentThreadId(newThreadId);
+    console.log('[AK_TELEMETRY] useChat.createNewThread', { newThreadId });
     return newThreadId;
   }, [agent.setCurrentThread, agent.clearThreadMessages, threads.setCurrentThreadId]);
-  
+
   // 8. Enhanced message sending with optimistic updates
-  const sendMessage = useCallback(async (message: string, options?: { messageId?: string }) => {
-    // If this is the first message in a new thread, add to sidebar optimistically
-    if (agent.messages.length === 0 && threads.currentThreadId) {
-      const title = message.length > 50 ? message.substring(0, 47) + "..." : message;
-      threads.addOptimisticThread(threads.currentThreadId, title);
-    }
-    
-    await agent.sendMessage(message, options);
-  }, [agent.messages.length, agent.sendMessage, threads.currentThreadId, threads.addOptimisticThread]);
+  const sendMessage = useCallback(
+    async (message: string, options?: { messageId?: string }) => {
+      // If this is the first message in a new thread, add to sidebar optimistically
+      // Use the stable `currentThreadId` from the hook's scope, not the one from `threads` state
+      if (agent.messages.length === 0 && currentThreadId) {
+        const title =
+          message.length > 50 ? message.substring(0, 47) + "..." : message;
+        console.log(
+          "[AK_TELEMETRY] useChat.sendMessage:optimisticAdd",
+          { threadId: currentThreadId, title }
+        );
+        threads.addOptimisticThread(currentThreadId, title);
+      }
+
+      console.log("[AK_TELEMETRY] useChat.sendMessage:start", {
+        threadId: currentThreadId,
+        messageLength: message.length,
+      });
+      await agent.sendMessage(message, options);
+      console.log("[AK_TELEMETRY] useChat.sendMessage:sent", {
+        threadId: currentThreadId,
+      });
+    },
+    [
+      agent.messages.length,
+      agent.sendMessage,
+      currentThreadId,
+      threads.addOptimisticThread,
+    ]
+  );
   
   // 9. Merge thread list with agent unread state
   const threadsWithUnreadState = threads.threads.map(thread => ({
