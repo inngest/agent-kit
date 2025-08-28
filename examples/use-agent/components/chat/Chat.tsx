@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { useRouter } from 'next/navigation';
 import { v4 as uuidv4 } from 'uuid';
 import {
@@ -98,6 +98,14 @@ export function Chat({ threadId: providedThreadId }: ChatProps = {}) {
   const [inputValue, setInputValue] = useState("I need a refund");
   const [hoveredMessage, setHoveredMessage] = useState<string | null>(null);
   const [shareOpen, setShareOpen] = useState(false);
+  useEffect(() => {
+    // Component lifecycle logs can be useful for debugging mount/unmount issues
+    // but can be noisy. Let's keep them behind the debug flag.
+    // console.log(`[AK][CHAT] mount`, { providedThreadId });
+    return () => {
+      // console.log(`[AK][CHAT] unmount`);
+    };
+  }, [providedThreadId]);
 
   // No more error suppression needed - unified streaming eliminates stream cancellation errors!
   const isMobile = useIsMobile();
@@ -112,7 +120,28 @@ export function Chat({ threadId: providedThreadId }: ChatProps = {}) {
   const { copyMessage, likeMessage, dislikeMessage, readAloud, shareMessage } = useMessageActions();
 
   // Use the unified useChat hook with URL-provided threadId
-  const chat = useChat({
+  const {
+    // Thread management
+    currentThreadId,
+    threads,
+    threadsLoading,
+    threadsHasMore,
+    threadsError,
+    createNewThread,
+    deleteThread,
+    loadMoreThreads,
+    
+    // Message management
+    messages,
+    sendMessage,
+    
+    // Status and state
+    status,
+    isLoadingInitialThread,
+    isConnected,
+    error,
+    clearError
+  } = useChat({
     userId: TEST_USER_ID,
     initialThreadId: providedThreadId,
     debug: true
@@ -125,12 +154,12 @@ export function Chat({ threadId: providedThreadId }: ChatProps = {}) {
     handleEditMessage,
     handleSaveEdit,
     handleCancelEdit,
-  } = useEditMessage({ sendMessage: chat.sendMessage });
+  } = useEditMessage({ sendMessage: sendMessage });
 
   // URL-aware navigation functions
   const handleNewChat = () => {
-    chat.createNewThread();
-    router.push('/'); // Navigate to home for new conversations
+    const newThreadId = createNewThread();
+    router.push(`/chat/${newThreadId}`); // Navigate to the new thread's URL
   };
 
   const handleThreadSelect = (threadId: string) => {
@@ -140,36 +169,33 @@ export function Chat({ threadId: providedThreadId }: ChatProps = {}) {
 
   // Handle invalid thread IDs - redirect to home if thread doesn't exist
   useEffect(() => {
-    if (providedThreadId && chat.currentThreadId && chat.currentThreadId !== providedThreadId) {
+    if (providedThreadId && currentThreadId && currentThreadId !== providedThreadId) {
       // If useChat loaded a different thread than requested, the requested thread likely doesn't exist
-      console.warn(`Thread ${providedThreadId} not found, redirecting to home`);
+      console.warn(`[CHAT] thread-mismatch`, { requested: providedThreadId, loaded: currentThreadId });
       toast.error('Conversation not found');
       router.push('/');
     }
-  }, [providedThreadId, chat.currentThreadId, router]);
+  }, [providedThreadId, currentThreadId, router]);
 
   // Reasoning component internally tracks duration via isStreaming; no extra timers needed here.
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!inputValue.trim() || chat.status !== "idle") return;
+    if (!inputValue.trim() || status !== "idle") return;
 
-    // Only log if there are potential issues
-    if (chat.messages.length === 0) {
-      console.log('📤 [HANDLE-SUBMIT] Starting new conversation in thread:', chat.currentThreadId);
-    }
-
-    // If this is the first message and we're on the home page, navigate to the thread URL
-    const isFirstMessage = chat.messages.length === 0;
+    const isFirstMessage = messages.length === 0;
     const isOnHomePage = !providedThreadId;
     
+    // Create a canonical message ID on the client
+    const messageId = uuidv4();
+    
     // Send message - useChat handles optimistic thread creation automatically!
-    await chat.sendMessage(inputValue);
+    await sendMessage(inputValue, { messageId });
     setInputValue("");
 
     // Navigate to thread URL after sending first message from home page
-    if (isFirstMessage && isOnHomePage && chat.currentThreadId) {
-      router.push(`/chat/${chat.currentThreadId}`);
+    if (isFirstMessage && isOnHomePage && currentThreadId) {
+      router.push(`/chat/${currentThreadId}`);
     }
   };
 
@@ -180,7 +206,7 @@ export function Chat({ threadId: providedThreadId }: ChatProps = {}) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
           toolCallId, 
-          threadId: chat.currentThreadId, 
+          threadId: currentThreadId, 
           action: "approve" 
         }),
       });
@@ -202,7 +228,7 @@ export function Chat({ threadId: providedThreadId }: ChatProps = {}) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
           toolCallId, 
-          threadId: chat.currentThreadId, 
+          threadId: currentThreadId, 
           action: "deny",
           reason 
         }),
@@ -224,8 +250,8 @@ export function Chat({ threadId: providedThreadId }: ChatProps = {}) {
 
   const handleRegenerateFrom = (message: any) => {
     // Find the user message that preceded this assistant message
-    const messageIndex = chat.messages.findIndex(m => m.id === message.id);
-    const precedingUserMessage = chat.messages.slice(0, messageIndex).reverse().find(m => m.role === 'user');
+    const messageIndex = messages.findIndex(m => m.id === message.id);
+    const precedingUserMessage = messages.slice(0, messageIndex).reverse().find(m => m.role === 'user');
     
     if (precedingUserMessage) {
       const userContent = precedingUserMessage.parts
@@ -235,7 +261,7 @@ export function Chat({ threadId: providedThreadId }: ChatProps = {}) {
       
       if (userContent.trim()) {
         // useChat handles everything automatically!
-        chat.sendMessage(userContent);
+        sendMessage(userContent);
       }
     }
   };
@@ -243,10 +269,10 @@ export function Chat({ threadId: providedThreadId }: ChatProps = {}) {
   // Thread management is now handled by useChat - no manual coordination needed!
 
   const handleDeleteConversation = async () => {
-    if (!chat.currentThreadId) return;
+    if (!currentThreadId) return;
     
     try {
-      await chat.deleteThread(chat.currentThreadId);
+      await deleteThread(currentThreadId);
       // After deletion, navigate to home and start a new conversation
       handleNewChat();
       toast.success('Conversation deleted');
@@ -262,7 +288,7 @@ export function Chat({ threadId: providedThreadId }: ChatProps = {}) {
   };
 
   // useChat provides messages for the current thread
-  const displayMessages = chat.messages;
+  const displayMessages = messages;
   
   // DEBUG: Only log when there are potential issues
   if (displayMessages.length > 0) {
@@ -272,10 +298,9 @@ export function Chat({ threadId: providedThreadId }: ChatProps = {}) {
     // Only log if there's an imbalance or no user messages
     if ((assistantCount > 0 && userCount === 0) || (userCount > assistantCount + 1)) {
       console.warn('🚨 [DISPLAY-MESSAGES] Message imbalance detected:', {
-        threadId: chat.currentThreadId,
+        threadId: currentThreadId,
         userMessages: userCount,
         assistantMessages: assistantCount,
-        messageIds: displayMessages.map(m => m.id),
       });
     }
   }
@@ -295,13 +320,13 @@ export function Chat({ threadId: providedThreadId }: ChatProps = {}) {
           onNewChat={handleNewChat}
           onSearchChat={handleSearchChat}
           onThreadSelect={handleThreadSelect}
-          currentThreadId={chat.currentThreadId}
-          threads={chat.threads}
-          loading={chat.threadsLoading}
-          hasMore={chat.threadsHasMore}
-          error={chat.threadsError}
-          onLoadMore={chat.loadMoreThreads}
-          onDeleteThread={chat.deleteThread}
+          currentThreadId={currentThreadId}
+          threads={threads}
+          loading={threadsLoading}
+          hasMore={threadsHasMore}
+          error={threadsError}
+          onLoadMore={loadMoreThreads}
+          onDeleteThread={deleteThread}
         />
       )}
       
@@ -317,13 +342,13 @@ export function Chat({ threadId: providedThreadId }: ChatProps = {}) {
             onNewChat={handleNewChat}
             onSearchChat={handleSearchChat}
             onThreadSelect={handleThreadSelect}
-            currentThreadId={chat.currentThreadId}
-            threads={chat.threads}
-            loading={chat.threadsLoading}
-            hasMore={chat.threadsHasMore}
-            error={chat.threadsError}
-            onLoadMore={chat.loadMoreThreads}
-            onDeleteThread={chat.deleteThread}
+            currentThreadId={currentThreadId}
+            threads={threads}
+            loading={threadsLoading}
+            hasMore={threadsHasMore}
+            error={threadsError}
+            onLoadMore={loadMoreThreads}
+            onDeleteThread={deleteThread}
           />
         )}
         {/* Responsive chat header (mobile/tablet) within chat area */}
@@ -341,15 +366,15 @@ export function Chat({ threadId: providedThreadId }: ChatProps = {}) {
           onShare={() => setShareOpen(true)}
         />
 
-        <ShareDialog open={shareOpen} onOpenChange={setShareOpen} threadId={chat.currentThreadId || ''} />
+        <ShareDialog open={shareOpen} onOpenChange={setShareOpen} threadId={currentThreadId || ''} />
 
         <div className="flex flex-col h-full p-0 max-w-none overflow-hidden pt-12 xl:pt-6">
           <div className="flex flex-col h-full min-h-0">
         
             {/* Error Banner */}
-            {chat.error && (<MessageError error={chat.error} onDismiss={chat.clearError} />)}
+            {error && (<MessageError error={error} onDismiss={clearError} />)}
 
-            {chat.isLoadingInitialThread ? (
+            {isLoadingInitialThread ? (
               <div className="flex-1 flex items-center justify-center">
                 <div className="flex flex-col items-center gap-3">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
@@ -361,8 +386,8 @@ export function Chat({ threadId: providedThreadId }: ChatProps = {}) {
                 value={inputValue}
                 onChange={setInputValue}
                 onSubmit={handleSubmit}
-                status={chat.status}
-                isConnected={chat.isConnected}
+                status={status}
+                isConnected={isConnected}
                 suggestions={mockSuggestions}
                 onSuggestionClick={handleSuggestionClick}
               />
@@ -371,11 +396,9 @@ export function Chat({ threadId: providedThreadId }: ChatProps = {}) {
               <ConversationContent className="p-0 pt-4 pb-12 px-3">
                 {displayMessages.map((message, messageIndex) => (
                   <div key={message.id}>
-                
-
                     {/* Reasoning indicator above the assistant message using shared component */}
                     {message.role === 'assistant' && message.id === lastAssistantId && (
-                      <div className="mb-6 relative left-0.5">
+                      <div key={`${message.id}-reasoning`} className="mb-6 relative left-0.5">
                         <Reasoning 
                           className="w-full"
                           isStreaming={status === 'thinking' || status === 'responding'}
@@ -389,22 +412,22 @@ export function Chat({ threadId: providedThreadId }: ChatProps = {}) {
                     )}
 
                     {message.role === 'assistant' ? (
-                      <div>
+                      <div key={`${message.id}-content`}>
                         {/* Reasoning dropdown stays the same component; it will auto-close when streaming ends */}
 
                         {(() => {
                           const hasTextDelta = message.parts.some((p: any) => p?.type === 'text' && typeof p?.content === 'string' && p.content.length > 0);
                           const hasCompletedText = message.parts.some((p: any) => p?.type === 'text' && p?.status === 'complete' && typeof p?.content === 'string' && p.content.length > 0);
                           return (
-                            <>
-                              <Message from={message.role} key={message.id} className="flex-col items-start">
+                            <React.Fragment key={`${message.id}-fragment`}>
+                              <Message from={message.role} key={`${message.id}-message`} className="flex-col items-start">
                                 {hasTextDelta && (
-                                  <MessageTitle currentAgent={chat.currentAgent} />
+                                  <MessageTitle currentAgent={undefined} />
                                 )}
                                 <MessageContent className="px-0.5">
                                   {message.parts.map((part: any, index: number) => (
                                     <MessagePart 
-                                      key={index} 
+                                      key={`${message.id}-part-${index}`}
                                       part={part} 
                                       index={index} 
                                       onApprove={handleApprove} 
@@ -415,27 +438,32 @@ export function Chat({ threadId: providedThreadId }: ChatProps = {}) {
                               </Message>
 
                               {/* Show sources for assistant messages - Mock data, only after completion */}
-                              <MockedSources hasCompletedText={hasCompletedText} message={message} />
+                              <div key={`${message.id}-sources`}>
+                                <MockedSources hasCompletedText={hasCompletedText} message={message} />
+                              </div>
 
                               {/* Actions only after completion */}
                               {hasCompletedText && (
-                                <MessageActions
-                                  message={message as any}
-                                  onCopyMessage={copyMessage}
-                                  onRegenerateFrom={handleRegenerateFrom}
-                                  onLikeMessage={likeMessage}
-                                  onDislikeMessage={dislikeMessage}
-                                  onReadAloud={readAloud}
-                                  onShareMessage={shareMessage}
-                                />
+                                <div key={`${message.id}-actions`}>
+                                  <MessageActions
+                                    message={message as any}
+                                    onCopyMessage={copyMessage}
+                                    onRegenerateFrom={handleRegenerateFrom}
+                                    onLikeMessage={likeMessage}
+                                    onDislikeMessage={dislikeMessage}
+                                    onReadAloud={readAloud}
+                                    onShareMessage={shareMessage}
+                                  />
+                                </div>
                               )}
-                            </>
+                            </React.Fragment>
                           );
                         })()}
 
                       </div>
                     ) : (
                       <div 
+                        key={`${message.id}-user-content`}
                         className="relative"
                         onMouseEnter={() => setHoveredMessage(message.id)}
                         onMouseLeave={() => setHoveredMessage(null)}
@@ -449,41 +477,45 @@ export function Chat({ threadId: providedThreadId }: ChatProps = {}) {
                             onCancel={handleCancelEdit}
                           />
                         ) : (
-                          <>
-                            <Branch>
-                              <BranchMessages>
-                                <Message from={message.role} key={message.id} className="flex-col items-end">
-                                  <MessageContent>
-                                    {message.parts.map((part: any, index: number) => (
-                                      <MessagePart 
-                                        key={index} 
-                                        part={part} 
-                                        index={index} 
-                                        onApprove={handleApprove} 
-                                        onDeny={handleDeny} 
-                                      />
-                                    ))}
-                                  </MessageContent>
-                                </Message>
-                                {/* Mock branch - alternative way user could have asked */}
-                                <Message from={message.role} key={`${message.id}-branch`}>
-                                  <MessageContent>
-                                    <div className="relative w-full whitespace-pre-wrap pr-4">
-                                      Testing 123
-                                    </div>
-                                  </MessageContent>
-                                </Message>
-                              </BranchMessages>
-                              
-                              {/* Combined user actions and branch selector in one row */}
-                              <MessageActions
-                                message={message}
-                                isHovered={hoveredMessage === message.id}
-                                onCopyMessage={copyMessage}
-                                onEditMessage={handleEditMessage}
-                              />
-                            </Branch>
-                          </>
+                          <Branch>
+                            <BranchMessages>
+                              <Message from={message.role} key={`${message.id}-main`} className="flex-col items-end">
+                                <MessageContent>
+                                  {message.parts.map((part: any, index: number) => (
+                                    <MessagePart 
+                                      key={`${message.id}-part-${index}`}
+                                      part={part} 
+                                      index={index} 
+                                      onApprove={handleApprove} 
+                                      onDeny={handleDeny} 
+                                    />
+                                  ))}
+                                </MessageContent>
+                                {/* Message Status Indicator */}
+                                {message.status && message.status !== 'sent' && (
+                                  <div className="text-xs text-muted-foreground pr-2 pt-1">
+                                    {message.status === 'sending' ? 'Sending...' : 'Failed'}
+                                  </div>
+                                )}
+                              </Message>
+                              {/* Mock branch - alternative way user could have asked */}
+                              <Message from={message.role} key={`${message.id}-branch`}>
+                                <MessageContent>
+                                  <div className="relative w-full whitespace-pre-wrap pr-4">
+                                    Testing 123
+                                  </div>
+                                </MessageContent>
+                              </Message>
+                            </BranchMessages>
+                            
+                            {/* Combined user actions and branch selector in one row */}
+                            <MessageActions
+                              message={message}
+                              isHovered={hoveredMessage === message.id}
+                              onCopyMessage={copyMessage}
+                              onEditMessage={handleEditMessage}
+                            />
+                          </Branch>
                         )}
                       </div>
                     )}
@@ -510,18 +542,18 @@ export function Chat({ threadId: providedThreadId }: ChatProps = {}) {
             )}
 
             {/* Input field - visible when there are messages or when loading initial thread */}
-            {(displayMessages.length > 0 || chat.isLoadingInitialThread) && (
+            {(displayMessages.length > 0 || isLoadingInitialThread) && (
               <div className="px-3 pb-4">
                 <ResponsivePromptInput
                   value={inputValue}
                   onChange={setInputValue}
                   onSubmit={handleSubmit}
                   placeholder="Ask anything"
-                  disabled={!chat.isConnected || chat.status !== 'idle' || chat.isLoadingInitialThread}
+                  disabled={!isConnected || status !== 'idle' || isLoadingInitialThread}
                   status={
-                    chat.status === 'thinking' ? 'submitted' :
-                    chat.status === 'responding' ? 'streaming' :
-                    chat.status === 'error' ? 'error' :
+                    status === 'thinking' ? 'submitted' :
+                    status === 'responding' ? 'streaming' :
+                    status === 'error' ? 'error' :
                     undefined
                   }
                   className="flex-shrink-0"
