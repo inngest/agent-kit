@@ -4,12 +4,21 @@ import { randomUUID } from "crypto";
 import { z } from "zod";
 import { TEST_USER_ID } from "@/lib/constants";
 
+// Zod schema for UserMessage
+const userMessageSchema = z.object({
+  id: z.string().uuid("Valid message ID is required"),
+  content: z.string().min(1, "Message content is required"),
+  role: z.literal("user"),
+  state: z.record(z.unknown()).optional(),
+  clientTimestamp: z.coerce.date().optional(), // ✅ Coerce string to Date object
+  systemPrompt: z.string().optional(),
+});
+
 // Zod schema for request body validation
 const chatRequestSchema = z.object({
-  message: z.string().min(1, "Message is required"),
+  userMessage: userMessageSchema,
   threadId: z.string().uuid().optional(),
   userId: z.string().optional(),
-  messageId: z.string().uuid("Valid messageId is required"),
   history: z.array(z.any()).optional(), // TODO: define a more specific schema for history items
 });
 
@@ -26,7 +35,7 @@ export async function POST(req: NextRequest) {
       );
     }
     
-    const { message, threadId: providedThreadId, userId, history, messageId } = validationResult.data;
+    const { userMessage, threadId: providedThreadId, userId, history } = validationResult.data;
     
     // Generate thread ID if not provided
     // TODO: doesn't agentkit generate and return one of these internally now? need to check on this...
@@ -38,8 +47,7 @@ export async function POST(req: NextRequest) {
       data: {
         threadId,
         history,
-        messageId,
-        message,
+        userMessage,
         userId: userId || TEST_USER_ID,
       },
     });
