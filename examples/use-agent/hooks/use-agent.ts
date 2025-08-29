@@ -1797,6 +1797,25 @@ export interface UseAgentOptions {
    * Defaults to true in development, false in production.
    */
   debug?: boolean;
+  
+  /**
+   * Optional function to capture client-side state when sending messages.
+   * This state will be included in the UserMessage object and can be persisted
+   * for debugging, regeneration, and enhanced context.
+   * 
+   * @returns Object containing any client-side state to be captured
+   * 
+   * @example
+   * ```typescript
+   * state: () => ({
+   *   formData: currentFormState,
+   *   selectedItems: selectedIds,
+   *   uiMode: currentMode,
+   *   filters: activeFilters
+   * })
+   * ```
+   */
+  state?: () => Record<string, unknown>;
 }
 
 /**
@@ -1839,7 +1858,10 @@ export interface UseAgentReturn {
   /** Send a message to the current thread */
   sendMessage: (message: string, options?: { messageId?: string }) => Promise<void>;
   /** Send a message to a specific thread */
-  sendMessageToThread: (threadId: string, message: string, options?: { messageId?: string }) => Promise<void>;
+  sendMessageToThread: (threadId: string, message: string, options?: { 
+    messageId?: string; 
+    state?: Record<string, unknown> | (() => Record<string, unknown>);
+  }) => Promise<void>;
   /** Regenerate the last response in the current thread */
   regenerate: () => void;
   /** Clear the current error for the active thread */
@@ -1927,7 +1949,7 @@ export interface UseAgentReturn {
  * }
  * ```
  */
-export function useAgent({ threadId, userId = TEST_USER_ID, onError, debug = DEFAULT_DEBUG_MODE }: UseAgentOptions): UseAgentReturn {
+export function useAgent({ threadId, userId = TEST_USER_ID, onError, debug = DEFAULT_DEBUG_MODE, state: getClientState }: UseAgentOptions): UseAgentReturn {
   const emptyWarnedThreadsRef = useRef<Set<string>>(new Set());
 
   // MULTI-THREAD STATE: Initialize with the provided threadId as the current thread
@@ -2029,7 +2051,10 @@ export function useAgent({ threadId, userId = TEST_USER_ID, onError, debug = DEF
   /**
    * Helper function to send a message to a specific thread
    */
-  const sendMessageToThread = useCallback(async (targetThreadId: string, message: string, options?: { messageId?: string }) => {
+  const sendMessageToThread = useCallback(async (targetThreadId: string, message: string, options?: { 
+    messageId?: string; 
+    state?: Record<string, unknown> | (() => Record<string, unknown>);
+  }) => {
     if (!message.trim()) return;
 
     // CRITICAL: Always get the latest state to avoid closure issues
@@ -2067,10 +2092,36 @@ export function useAgent({ threadId, userId = TEST_USER_ID, onError, debug = DEF
         historyLength: simpleHistory.length,
       });
 
+      // Determine which state to use (priority: options.state > configured getClientState > fallback)
+      let messageState: Record<string, unknown>;
+      if (options?.state) {
+        // Use state passed directly to this call
+        messageState = typeof options.state === 'function' ? options.state() : options.state;
+      } else if (getClientState) {
+        // Use configured state function
+        messageState = getClientState();
+      } else {
+        // Fallback state for backwards compatibility / testing
+        messageState = { timestamp: Date.now() };
+      }
+
+      // Construct a UserMessage object with configurable client state
+      const userMessage = {
+        id: messageId,
+        content: message,
+        role: "user" as const,
+        state: messageState,
+        clientTimestamp: new Date(),
+      };
+
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message, threadId: targetThreadId, history: simpleHistory, messageId }),
+        body: JSON.stringify({ 
+          userMessage, 
+          threadId: targetThreadId, 
+          history: simpleHistory 
+        }),
       });
       
       if (!response.ok) {
@@ -2095,7 +2146,7 @@ export function useAgent({ threadId, userId = TEST_USER_ID, onError, debug = DEF
       });
       onError?.(error instanceof Error ? error : new Error(errorMessage));
     }
-  }, [debug, onError]); // Removed state.threads dependency to prevent recreation on every state change
+  }, [debug, onError, getClientState]); // Include getClientState for proper closure
 
   /**
    * Send a message to the currently active thread
