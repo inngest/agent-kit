@@ -344,6 +344,7 @@ export class StreamingContext {
   public readonly parentRunId?: string;
   public readonly messageId: string;
   public readonly threadId?: string;
+  public readonly userId?: string;
   public readonly scope: "network" | "agent";
 
   constructor(config: {
@@ -352,6 +353,7 @@ export class StreamingContext {
     parentRunId?: string;
     messageId: string;
     threadId?: string;
+    userId?: string;
     scope: "network" | "agent";
     sequenceCounter?: SequenceCounter;
     debug?: boolean;
@@ -361,6 +363,7 @@ export class StreamingContext {
     this.parentRunId = config.parentRunId;
     this.messageId = config.messageId;
     this.threadId = config.threadId;
+    this.userId = config.userId;
     this.scope = config.scope;
     this.sequenceCounter = config.sequenceCounter || new SequenceCounter();
     this.debug = config.debug ?? process.env.NODE_ENV === "development";
@@ -385,6 +388,7 @@ export class StreamingContext {
       parentRunId: this.runId,
       messageId: this.messageId,
       threadId: this.threadId,
+      userId: this.userId,
       scope: "agent",
       sequenceCounter: this.sequenceCounter, // Share the same counter
       debug: this.debug, // Inherit debug setting
@@ -405,6 +409,7 @@ export class StreamingContext {
       parentRunId: this.runId,
       messageId: config.messageId,
       threadId: this.threadId,
+      userId: this.userId,
       scope: config.scope,
       sequenceCounter: this.sequenceCounter, // Share the same counter instance
       debug: this.debug, // Inherit debug setting
@@ -431,6 +436,7 @@ export class StreamingContext {
         messageId: config.messageId,
         scope: config.scope,
         threadId: networkState.threadId,
+        userId: networkState.data.userId,
         timestamp: new Date().toISOString(),
       });
     }
@@ -439,6 +445,7 @@ export class StreamingContext {
       runId: config.runId,
       messageId: config.messageId,
       threadId: networkState.threadId,
+      userId: networkState.data.userId,
       scope: config.scope,
       debug,
     });
@@ -457,8 +464,18 @@ export class StreamingContext {
     // Generate step ID with the sequence number
     const stepId = this.generateStreamingStepId(event, sequenceNumber);
 
+    // Automatically enrich event data with threadId and userId if they exist
+    const enrichedData: Record<string, unknown> = { ...event.data };
+    if (this.threadId) {
+      enrichedData["threadId"] = this.threadId;
+    }
+    if (this.userId) {
+      enrichedData["userId"] = this.userId;
+    }
+
     const chunk: AgentMessageChunk = {
       ...event,
+      data: enrichedData,
       timestamp: Date.now(),
       sequenceNumber,
       id: stepId,
