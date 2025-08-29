@@ -42,13 +42,23 @@
               "advanced-patterns/routing",
               "advanced-patterns/mcp",
               "advanced-patterns/human-in-the-loop",
-              "advanced-patterns/ui-streaming",
               "advanced-patterns/multi-steps-tools",
               "advanced-patterns/retries",
               "advanced-patterns/multitenancy",
+              "advanced-patterns/ui-streaming",
               "advanced-patterns/use-agent",
               "advanced-patterns/use-threads",
               "advanced-patterns/use-chat"
+            ]
+          },
+          {
+            "group": "UI Integration",
+            "pages": [
+              "advanced-patterns/ui-streaming",
+              "advanced-patterns/use-agent",
+              "advanced-patterns/use-threads",
+              "advanced-patterns/use-chat",
+              "advanced-patterns/legacy-ui-streaming"
             ]
           },
           {
