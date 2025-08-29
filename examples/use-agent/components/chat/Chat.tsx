@@ -99,7 +99,7 @@ export function Chat({ threadId: providedThreadId }: ChatProps = {}) {
   const [hoveredMessage, setHoveredMessage] = useState<string | null>(null);
   const [shareOpen, setShareOpen] = useState(false);
 
-  // No more error suppression needed - unified streaming eliminates stream cancellation errors!
+  // used for responsive sidebars
   const isMobile = useIsMobile();
 
   const { 
@@ -119,15 +119,13 @@ export function Chat({ threadId: providedThreadId }: ChatProps = {}) {
     threadsLoading,
     threadsHasMore,
     threadsError,
+    createNewThread,
     deleteThread,
     loadMoreThreads,
     
     // Message management
     messages,
     sendMessage,
-    
-    // Thread creation (hybrid pattern)
-    createNewThread,
     
     // Status and state
     status,
@@ -150,45 +148,31 @@ export function Chat({ threadId: providedThreadId }: ChatProps = {}) {
     handleCancelEdit,
   } = useEditMessage({ sendMessage: sendMessage });
 
-  /**
-   * HYBRID THREAD CREATION: Supporting both architectural patterns
-   * 
-   * The useChat hook now provides createNewThread() function to support both:
-   * 1. Function-driven pattern (imperative) - Good for widgets, embedded components
-   * 2. URL-driven pattern (declarative) - Good for SPAs where URL is source of truth
-   */
   const handleNewChat = () => {
-    // OPTION 1: Function-driven approach (recommended for widgets/components)
-    // const newThreadId = createNewThread(); // Handles all state coordination internally
-    // router.push(`/chat/${newThreadId}`);   // Optional: also update URL for SPAs
-    
-    // OPTION 2: URL-driven approach (current SPA pattern - works great for Next.js apps)
-    const newThreadId = uuidv4();
-    router.push(`/chat/${newThreadId}`); // URL change triggers thread switch via useChat
-    
-    // Architecture guidance:
-    // - Function-driven: Better for widgets, multi-chat panels, non-SPA contexts
-    // - URL-driven: Better for traditional SPAs where URL represents application state
-    // Both approaches ensure proper state coordination between agent and threads
+    const newThreadId = createNewThread();
+    router.push(`/chat/${newThreadId}`);
   };
 
   const handleThreadSelect = (threadId: string) => {
-    // Just navigate to the thread URL - the new page will handle loading the thread data
+    // Navigate to the thread URL - the new page will handle loading the thread data
     router.push(`/chat/${threadId}`);
   };
 
-  // Handle invalid thread IDs - redirect to home if thread doesn't exist
+  // More robustly handle invalid thread IDs by checking against the loaded list
   useEffect(() => {
-    if (providedThreadId && currentThreadId && currentThreadId !== providedThreadId) {
-      // If useChat loaded a different thread than requested, the requested thread likely doesn't exist
-      console.warn(`[CHAT] thread-mismatch`, { requested: providedThreadId, loaded: currentThreadId });
-      toast.error('Conversation not found');
-      router.push('/');
+    // Only check after the initial thread list has loaded.
+    if (!threadsLoading && providedThreadId) {
+      // Check if the provided threadId exists in the fetched threads.
+      const threadExists = threads.some(t => t.id === providedThreadId);
+      if (!threadExists) {
+        console.warn(`[CHAT] Thread not found in loaded list:`, { requested: providedThreadId });
+        toast.error('Conversation not found');
+        router.push('/');
+      }
     }
-  }, [providedThreadId, currentThreadId, router]);
+  }, [providedThreadId, threads, threadsLoading, router]);
 
-  // Reasoning component internally tracks duration via isStreaming; no extra timers needed here.
-
+  // Reasoning component internally tracks duration via isStreaming
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!inputValue.trim() || status !== "idle") return;
@@ -199,7 +183,7 @@ export function Chat({ threadId: providedThreadId }: ChatProps = {}) {
     // Create a canonical message ID on the client
     const messageId = uuidv4();
     
-    // Send message - useChat handles optimistic thread creation automatically!
+    // Send message - useChat handles optimistic thread creation automatically
     await sendMessage(inputValue, { messageId });
     setInputValue("");
 
