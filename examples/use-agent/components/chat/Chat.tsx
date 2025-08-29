@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { v4 as uuidv4 } from 'uuid';
 import {
   useChat, // Unified hook combining useAgent and useThreads
+  useAgent, // Direct agent hook for testing client state
   useMessageActions, // handles message actions like copy, edit, regenerate, etc.
   useSidebar, // handles the sidebar state and mobile sidebar open/close
   useEditMessage, // handles the edit message state and edit message functionality
@@ -136,7 +137,17 @@ export function Chat({ threadId: providedThreadId }: ChatProps = {}) {
   } = useChat({
     userId: TEST_USER_ID,
     initialThreadId: providedThreadId,
-    debug: true
+    debug: true,
+    
+    // Test: Pass a state function to capture current UI context
+    state: () => ({
+      chatMode: 'support',
+      currentSuggestions: mockSuggestions,
+      inputValue: inputValue,
+      hoveredMessage: hoveredMessage,
+      sidebarState: { minimized: sidebarMinimized, mobileOpen: mobileSidebarOpen },
+      timestamp: Date.now(),
+    })
   });
 
   const {
