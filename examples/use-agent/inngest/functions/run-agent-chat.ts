@@ -62,24 +62,10 @@ export const runAgentChat = inngest.createFunction(
       await network.run(message, {
         streaming: {
           publish: async (chunk: AgentMessageChunk) => {
-            await step.run(chunk.id, async () => {
-              // TODO: is this enriched chunk really needed? Can we clean this up somehow?
-              const enrichedChunk = {
-                ...chunk,
-                data: {
-                  ...chunk.data,
-                  threadId,
-                  userId,
-                },
-              };
-
-              await publish(userChannel(userId).agent_stream(enrichedChunk));
-
-              return enrichedChunk;
-            });
+            await publish(userChannel(userId).agent_stream(chunk));
           },
         },
-        messageId, // Pass the canonical message ID to the network run
+        messageId,
       });
 
       return {
