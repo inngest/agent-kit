@@ -1,25 +1,35 @@
 import { NextRequest, NextResponse } from "next/server";
 import { inngest } from "@/inngest/client";
 import { randomUUID } from "crypto";
+import { z } from "zod";
 import { TEST_USER_ID } from "@/lib/constants";
 
-// Basic UUID validation regex
-const UUID_REGEX = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+// Zod schema for request body validation
+const chatRequestSchema = z.object({
+  message: z.string().min(1, "Message is required"),
+  threadId: z.string().uuid().optional(),
+  userId: z.string().optional(),
+  messageId: z.string().uuid("Valid messageId is required"),
+  history: z.array(z.any()).optional(), // TODO: define a more specific schema for history items
+});
 
 export async function POST(req: NextRequest) {
   try {
-    const { message, threadId: providedThreadId, userId, history, messageId } = await req.json();
+    const body = await req.json();
     
-    if (!message || typeof message !== "string") {
-      return NextResponse.json({ error: "Message is required" }, { status: 400 });
+    // Validate request body with Zod
+    const validationResult = chatRequestSchema.safeParse(body);
+    if (!validationResult.success) {
+      return NextResponse.json(
+        { error: validationResult.error.errors[0].message },
+        { status: 400 }
+      );
     }
     
-    // Validate the canonical message ID
-    if (!messageId || typeof messageId !== "string" || !UUID_REGEX.test(messageId)) {
-      return NextResponse.json({ error: "Valid messageId is required" }, { status: 400 });
-    }
+    const { message, threadId: providedThreadId, userId, history, messageId } = validationResult.data;
     
     // Generate thread ID if not provided
+    // TODO: doesn't agentkit generate and return one of these internally now? need to check on this...
     const threadId = providedThreadId || randomUUID();
     
     // Send event to Inngest to trigger the agent chat
@@ -27,9 +37,9 @@ export async function POST(req: NextRequest) {
       name: "agent/chat.requested",
       data: {
         threadId,
-        message,
-        messageId, // Pass the canonical ID to the Inngest event
         history,
+        messageId,
+        message,
         userId: userId || TEST_USER_ID,
       },
     });
@@ -39,9 +49,8 @@ export async function POST(req: NextRequest) {
       threadId,
     });
   } catch (error) {
-    console.error("Error triggering agent chat:", error);
     return NextResponse.json(
-      { error: "Failed to start chat" },
+      { error: error instanceof Error ? error.message : "Failed to start chat" },
       { status: 500 }
     );
   }
