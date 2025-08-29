@@ -49,6 +49,7 @@ export async function POST(req: NextRequest) {
     // Generate a new thread ID optimistically
     const threadId = randomUUID();
 
+    // TODO: could we pass in a title from the request?
     return NextResponse.json({
       threadId,
       title: "New conversation", // Optimistic title
