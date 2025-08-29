@@ -59,51 +59,23 @@ export const runAgentChat = inngest.createFunction(
       );
       
       // Run the network with streaming enabled
-      const networkRun = await network.run(message, {
+      await network.run(message, {
         streaming: {
           publish: async (chunk: AgentMessageChunk) => {
             await step.run(chunk.id, async () => {
+              // TODO: is this enriched chunk really needed? Can we clean this up somehow?
               const enrichedChunk = {
                 ...chunk,
                 data: {
                   ...chunk.data,
-                  threadId, // Ensure threadId is in event data for client-side filtering
-                  userId, // Also include userId for additional context
+                  threadId,
+                  userId,
                 },
-            };
+              };
 
-            await publish(userChannel(userId).agent_stream(enrichedChunk));
-            
-            return enrichedChunk;
-              // try {
-              //   // UNIFIED STREAMING: Publish to user channel with threadId in event data
-              //   const enrichedChunk = {
-              //     ...chunk,
-              //     data: {
-              //       ...chunk.data,
-              //       threadId, // Ensure threadId is in event data for client-side filtering
-              //       userId, // Also include userId for additional context
-              //     },
-              //   };
-              //   await publish(userChannel(userId).agent_stream(enrichedChunk));
-              //   return enrichedChunk;
-              // } catch (error) {
-              //   // Gracefully handle connection errors - streaming is best-effort
-              //   if (error && typeof error === "object" && "message" in error) {
-              //     const errorMessage = (error as Error).message.toLowerCase();
-              //     if (
-              //       errorMessage.includes("broken pipe") ||
-              //       errorMessage.includes("connection closed") ||
-              //       errorMessage.includes("websocket")
-              //     ) {
-              //       // These are expected with WebSocket connection churn
-              //       return chunk;
-              //     }
-              //   }
-              //   // Log other errors but don't fail the stream
-              //   console.warn("Streaming publish error:", error);
-              //   return chunk;
-              // }
+              await publish(userChannel(userId).agent_stream(enrichedChunk));
+
+              return enrichedChunk;
             });
           },
         },
