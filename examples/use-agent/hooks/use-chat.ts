@@ -40,6 +40,25 @@ export interface UseChatConfig {
   initialThreadId?: string;
   debug?: boolean;
   
+  /**
+   * Optional function to capture client-side state when sending messages.
+   * This state will be included in the UserMessage object and can be persisted
+   * for debugging, regeneration, and enhanced context.
+   * 
+   * @returns Object containing any client-side state to be captured
+   * 
+   * @example
+   * ```typescript
+   * state: () => ({
+   *   formData: currentFormState,
+   *   selectedItems: selectedIds,
+   *   uiMode: currentMode,
+   *   filters: activeFilters
+   * })
+   * ```
+   */
+  state?: () => Record<string, unknown>;
+  
   // Custom fetch functions for flexibility
   fetchThreads?: (userId: string, pagination: { limit: number; offset: number }) => Promise<{
     threads: Thread[];
@@ -228,7 +247,7 @@ export const useChat = (config?: UseChatConfig): UseChatReturn => {
     }
   }, [config?.initialThreadId, hasLoadedInitialThread, agent.currentThreadId, switchToThread]);
   
-  // 8. Enhanced message sending with optimistic updates
+  // 8. Enhanced message sending with optimistic updates and client state
   const sendMessage = useCallback(
     async (message: string, options?: { messageId?: string }) => {
       // If this is the first message in a new thread, add to sidebar optimistically
@@ -246,8 +265,21 @@ export const useChat = (config?: UseChatConfig): UseChatReturn => {
       console.log("[AK_TELEMETRY] useChat.sendMessage:start", {
         threadId: currentThreadId,
         messageLength: message.length,
+        hasStateFunction: !!config?.state,
       });
-      await agent.sendMessage(message, options);
+
+      // If we have a state function, we need to inject it into the message sending
+      if (config?.state) {
+        // Create a custom sendMessage that includes our state function
+        await agent.sendMessageToThread(currentThreadId, message, {
+          ...options,
+          state: config.state, // Pass the state function
+        });
+      } else {
+        // Use the regular agent sendMessage
+        await agent.sendMessage(message, options);
+      }
+      
       console.log("[AK_TELEMETRY] useChat.sendMessage:sent", {
         threadId: currentThreadId,
       });
@@ -255,8 +287,10 @@ export const useChat = (config?: UseChatConfig): UseChatReturn => {
     [
       agent.messages.length,
       agent.sendMessage,
+      agent.sendMessageToThread,
       currentThreadId,
       threads.addOptimisticThread,
+      config?.state,
     ]
   );
   
