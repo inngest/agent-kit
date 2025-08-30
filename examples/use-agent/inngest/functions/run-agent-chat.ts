@@ -38,12 +38,18 @@ export const runAgentChat = inngest.createFunction(
     // would typically run database migrations as part of a deployment script.
     await step.run("initialize-db-tables", () => historyAdapter.initializeTables());
     
-    const { threadId, message, userId, history, messageId } = event.data as {
+    const { threadId, userMessage, userId, history } = event.data as {
       threadId: string;
-      message: string;
+      userMessage: {
+        id: string;
+        content: string;
+        role: 'user';
+        state?: Record<string, unknown>;
+        clientTimestamp?: string;
+        systemPrompt?: string;
+      };
       userId: string;
       history: Array<{ type: 'text'; role: 'user' | 'assistant'; content: string; }>;
-      messageId: string;
     };
     
     try {
@@ -58,14 +64,19 @@ export const runAgentChat = inngest.createFunction(
         historyAdapter // Use the shared global instance
       );
       
+      // Convert the received userMessage to the proper UserMessage type with Date object
+      const userMessageWithDate = {
+        ...userMessage,
+        clientTimestamp: userMessage.clientTimestamp ? new Date(userMessage.clientTimestamp) : undefined,
+      };
+
       // Run the network with streaming enabled
-      await network.run(message, {
+      await network.run(userMessageWithDate, {
         streaming: {
           publish: async (chunk: AgentMessageChunk) => {
             await publish(userChannel(userId).agent_stream(chunk));
           },
         },
-        messageId,
       });
 
       return {
