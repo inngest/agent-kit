@@ -1,5 +1,5 @@
 import { createNetwork, openai, createRoutingAgent, createTool, type Network } from "@inngest/agent-kit";
-import type { State, AgentResult, ToolResultMessage, ToolCallMessage, TextMessage } from "@inngest/agent-kit";
+import type { State, AgentResult, ToolResultMessage, ToolCallMessage, TextMessage, UserMessage } from "@inngest/agent-kit";
 import { z } from "zod";
 import { billingAgent, technicalSupportAgent } from "../agents";
 import type { CustomerSupportState } from "../types/state";
@@ -200,26 +200,19 @@ Turn handling and completion policy:
 });
 
 // Hybrid router: code-first guard, then delegate to routing agent for selection
-const hybridRouter: Network.Router<CustomerSupportState> = async ({ input, network }) => {
-  console.log("🔧 [ROUTER] Router called, checking conditions...");
+const hybridRouter: Network.Router<CustomerSupportState> = async ({ input, userMessage, network }) => {
   
   // If an agent has already been scheduled/invoked in this run, end the turn
   if (network.state.data.invoked) {
-    console.log("🔧 [ROUTER] Agent already invoked this turn, ending:", network.state.data.invokedAgentName);
+    // console.log("🔧 [ROUTER] Agent already invoked this turn, ending:", network.state.data.invokedAgentName);
     return undefined;
   }
 
   // Check if the last result was a tool call, if so route back to the previous agent  
   const lastAgentResult = lastResult(network.state.results);
-  console.log("🔧 [ROUTER] Last result:", {
-    hasResult: !!lastAgentResult,
-    agentName: lastAgentResult?.agentName,
-    lastMessageType: lastAgentResult?.output?.[lastAgentResult.output.length - 1]?.type,
-    totalResults: network.state.results?.length || 0
-  });
+
   
   if (lastAgentResult && isLastMessageOfType(lastAgentResult, "tool_call")) {
-    console.log("🔧 [ROUTER] Last result was a tool call, routing back to agent:", lastAgentResult.agentName);
     
     const previousAgent = network.agents.get(lastAgentResult.agentName);
     if (previousAgent) {
@@ -233,8 +226,7 @@ const hybridRouter: Network.Router<CustomerSupportState> = async ({ input, netwo
     }
   }
 
-  // Delegate selection to the routing agent
-  console.log("🔧 [ROUTER] No tool call detected, delegating to routing agent...");
+  // Delegate selection to the routing agent (always uses string input for LLM routing)
   const result = await customerSupportRouter.run(input, {
     network,
     model: customerSupportRouter.model || network.defaultModel,
@@ -269,11 +261,6 @@ export function createCustomerSupportNetwork(
   initialState: State<CustomerSupportState>,
   historyAdapter?: any
 ) {
-  console.log("[NETWORK] Creating network for thread:", {
-    threadId,
-    timestamp: new Date().toISOString(),
-  });
-
   return createNetwork<CustomerSupportState>({
     name: "Customer Support Network",
     description: "Handles customer support inquiries with specialized agents",
