@@ -203,12 +203,7 @@ export class PostgresHistoryAdapter<T extends StateData>
         // If a threadId already exists on state, upsert that ID to ensure
         // subsequent message inserts referencing this threadId succeed.
         if (state.threadId) {
-          console.log(`🔄 Upserting thread: ${state.threadId} for user: ${state.data.userId || 'none'}`);
-          console.log(`📊 Thread data:`, {
-            threadId: state.threadId,
-            userId: state.data.userId || null,
-            metadataSize: JSON.stringify(state.data).length
-          });
+
           
           const upsert = await client.query(
             `
@@ -224,13 +219,11 @@ export class PostgresHistoryAdapter<T extends StateData>
               JSON.stringify(state.data),
             ]
           );
-          console.log(`✅ Thread upserted successfully: ${upsert.rows[0].thread_id}`);
-          console.log(`📋 Upsert affected ${upsert.rowCount} rows`);
+
           return upsert.rows[0].thread_id;
         }
 
         // Otherwise create a new thread and return the generated ID.
-        console.log(`🆕 Creating new thread`);
         const insert = await client.query(
           `
           INSERT INTO ${this.tableNames.threads} (user_id, metadata)
@@ -242,7 +235,6 @@ export class PostgresHistoryAdapter<T extends StateData>
             JSON.stringify(state.data), // Persist initial state data
           ]
         );
-        console.log(`✅ New thread created: ${insert.rows[0].thread_id}`);
         return insert.rows[0].thread_id;
       } finally {
         client.release();
@@ -254,7 +246,6 @@ export class PostgresHistoryAdapter<T extends StateData>
         ? await step.run("create-thread", operation)
         : await operation();
 
-      console.log(`🆕 Thread creation completed: ${threadId}`);
       return { threadId };
     } catch (error) {
       console.error("❌ Error in createThread:", error);
@@ -390,8 +381,6 @@ export class PostgresHistoryAdapter<T extends StateData>
             userMessage.timestamp,
           ]
         );
-        console.log(`[DB] User message ${userMessage.id} inserted successfully for thread ${threadId}`);
-        
         return {
           success: true,
           messageId: userMessage.id,
@@ -407,7 +396,6 @@ export class PostgresHistoryAdapter<T extends StateData>
     
     try {
       const result = step ? await step.run("save-user-message", operation) : await operation();
-      console.log("✅ [SAVE-USER-MESSAGE] Step completed successfully:", result);
       return result;
     } catch (error) {
       console.error("❌ appendUserMessage failed:", error);
@@ -442,29 +430,17 @@ export class PostgresHistoryAdapter<T extends StateData>
 
         try {
           // First, verify the thread exists
-          console.log(`🔍 Verifying thread exists: ${threadId}`);
-          console.log(`🔍 Current step context: ${step ? 'HAS_STEP' : 'NO_STEP'}`);
-          
           const threadCheck = await client.query(
             `SELECT thread_id FROM ${this.tableNames.threads} WHERE thread_id = $1`,
             [threadId]
           );
 
           if (threadCheck.rows.length === 0) {
-            // Before failing, let's see what threads DO exist
-            console.log(`❌ Thread ${threadId} not found. Checking what threads exist...`);
-            const allThreads = await client.query(
-              `SELECT thread_id, created_at FROM ${this.tableNames.threads} ORDER BY created_at DESC LIMIT 5`
-            );
-            console.log(`📋 Recent threads in database:`, allThreads.rows);
-            
             throw new Error(`Thread ${threadId} does not exist in the database. This indicates a thread creation issue.`);
           }
-          console.log(`✅ Thread verified: ${threadId}`);
 
           // Update thread's updated_at timestamp
-          console.log("Updating thread timestamp...");
-          const updateResult = await client.query(
+          await client.query(
             `
             UPDATE ${this.tableNames.threads}
             SET updated_at = NOW()
@@ -472,11 +448,10 @@ export class PostgresHistoryAdapter<T extends StateData>
           `,
             [threadId]
           );
-          console.log(`Updated ${updateResult.rowCount} thread record`);
 
           // Insert agent results
           if (newResults?.length > 0) {
-            console.log(`Inserting ${newResults.length} agent messages...`);
+
             for (const result of newResults) {
               const exportedData = result.export();
               
@@ -485,14 +460,7 @@ export class PostgresHistoryAdapter<T extends StateData>
               const { randomUUID } = await import('crypto');
               const messageId = result.id || randomUUID();
               
-              // 🔍 DIAGNOSTIC: Verify UUID usage and persistence
-              console.log('🔍 [DIAG] Persisting agent message:', {
-                agentName: result.agentName,
-                messageId,
-                usedResultId: !!result.id,
-                threadId,
-                timestamp: new Date().toISOString()
-              });
+
 
               await client.query(
                 `
@@ -502,7 +470,7 @@ export class PostgresHistoryAdapter<T extends StateData>
               `,
                 [threadId, messageId, result.agentName, exportedData, result.checksum]
               );
-              console.log(`Agent message from ${result.agentName} inserted successfully`);
+
             }
           }
 
@@ -517,10 +485,6 @@ export class PostgresHistoryAdapter<T extends StateData>
             timestamp: new Date().toISOString()
           };
           
-          console.log(
-            `💾 Saved ${totalSaved} agent results to thread ${threadId}`
-          );
-          
           return saveResult;
         } catch (error) {
           console.error("❌ Error during transaction:", error);
@@ -534,7 +498,6 @@ export class PostgresHistoryAdapter<T extends StateData>
 
     try {
       const result = step ? await step.run("save-results", operation) : await operation();
-      console.log("✅ [SAVE-RESULTS] Step completed successfully:", result);
       return result;
     } catch (error) {
       console.error("❌ appendResults failed:", error);
