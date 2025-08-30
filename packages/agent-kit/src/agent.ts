@@ -21,7 +21,7 @@ import { createAgenticModelFromAiAdapter, type AgenticModel } from "./model";
 import { createNetwork, NetworkRun } from "./network";
 import { State, type StateData } from "./state";
 import { type MCP, type Tool } from "./tool";
-import { AgentResult, type Message, type ToolResultMessage } from "./types";
+import { AgentResult, type Message, type ToolResultMessage, type UserMessage } from "./types";
 import {
   getInngestFnInput,
   getStepTools,
@@ -184,7 +184,7 @@ export class Agent<T extends StateData> {
    * the input is an empty string, only the system prompt will execute.
    */
   async run(
-    input: string,
+    input: UserMessage | string,
     {
       model,
       network,
@@ -237,13 +237,7 @@ export class Agent<T extends StateData> {
         messageId = randomUUID();
       }
 
-      console.log("🔧 [AGENT] Generated IDs for standalone agent run:", {
-        agentName: this.name,
-        agentRunId,
-        messageId,
-        viaStep: !!stepTools,
-        timestamp: new Date().toISOString(),
-      });
+
 
       // Create streaming context for this standalone agent
       standaloneStreamingContext = StreamingContext.fromNetworkState(s, {
@@ -282,11 +276,16 @@ export class Agent<T extends StateData> {
     // Note: Streaming is controlled at the network level when part of a network.
     // For standalone agents, streaming is controlled by the streaming parameter.
 
+    // Extract string content for history functions that expect string input
+    const inputContent = typeof input === 'object' && input !== null && 'content' in input 
+      ? (input as UserMessage).content 
+      : input as string;
+
     // Initialize conversation thread: Creates a new thread or auto-generates if needed
     await initializeThread({
       state: s,
       history: this.history,
-      input,
+      input: inputContent,
       network: run,
     });
 
@@ -294,7 +293,7 @@ export class Agent<T extends StateData> {
     await loadThreadFromStorage({
       state: s,
       history: this.history,
-      input,
+      input: inputContent,
       network: run,
     });
 
@@ -323,7 +322,7 @@ export class Agent<T extends StateData> {
           const modified = await this.lifecycles.onStart({
             agent: this,
             network: run,
-            input,
+            input: inputContent,
             prompt,
             history,
           });
@@ -379,7 +378,7 @@ export class Agent<T extends StateData> {
       await saveThreadToStorage({
         state: s,
         history: this.history,
-        input,
+        input: inputContent,
         initialResultCount,
         network: run,
       });
@@ -725,26 +724,36 @@ export class Agent<T extends StateData> {
   }
 
   private async agentPrompt(
-    input: string,
+    input: UserMessage | string,
     network?: NetworkRun<T>
   ): Promise<Message[]> {
     // Prompt returns the full prompt for the current agent.  This does NOT
     // include the existing network's state as part of the prompt.
     //
     // Note that the agent's system message always comes first.
+    const systemContent = typeof this.system === "string"
+      ? this.system
+      : await this.system({ network });
+    
+    // Extract content and optional system prompt from input
+    const inputContent = typeof input === 'object' && input !== null && 'content' in input
+      ? (input as UserMessage).content
+      : input as string;
+    
+    const userSystemPrompt = typeof input === 'object' && input !== null && 'systemPrompt' in input
+      ? (input as UserMessage).systemPrompt
+      : undefined;
+    
     const messages: Message[] = [
       {
         type: "text",
         role: "system",
-        content:
-          typeof this.system === "string"
-            ? this.system
-            : await this.system({ network }),
+        content: userSystemPrompt ? `${systemContent}\n\n${userSystemPrompt}` : systemContent,
       },
     ];
 
-    if (input.length > 0) {
-      messages.push({ type: "text", role: "user", content: input });
+    if (inputContent.length > 0) {
+      messages.push({ type: "text", role: "user", content: inputContent });
     }
 
     if (this.assistant.length > 0) {
