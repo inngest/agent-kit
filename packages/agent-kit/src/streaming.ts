@@ -436,7 +436,6 @@ export class StreamingContext {
         messageId: config.messageId,
         scope: config.scope,
         threadId: networkState.threadId,
-        userId: networkState.data.userId,
         timestamp: new Date().toISOString(),
       });
     }
@@ -616,14 +615,7 @@ export function createStepWrapper(
             receiver
           ) as unknown) as <R>(id: string, fn: () => Promise<R>) => Promise<R>;
 
-          try {
-            console.log("🔎 [WRAPPED_STEP.RUN] Invoked", {
-              stepId,
-              runId: context.runId,
-              delegatingToTargetRun: true,
-              scope: context.scope,
-            });
-          } catch {}
+
           // Do not publish streaming step events here to avoid nested step.* within Inngest steps
           // Rely on the actual Inngest step.run for step visibility in the console
           return originalRun(stepId, fn);
