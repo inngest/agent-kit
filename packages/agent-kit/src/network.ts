@@ -4,7 +4,7 @@ import { z } from "zod";
 import { createRoutingAgent, type Agent, RoutingAgent } from "./agent";
 import { createState, State, type StateData } from "./state";
 import { createTool } from "./tool";
-import type { AgentResult, Message } from "./types";
+import type { AgentResult, Message, UserMessage } from "./types";
 import { type MaybePromise } from "./util";
 import {
   type HistoryConfig,
@@ -330,14 +330,13 @@ export namespace Network {
   };
 
   export type RunArgs<T extends StateData> = [
-    input: string,
+    input: UserMessage | string,
     overrides?: {
       router?: Router<T>;
       defaultRouter?: Router<T>;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       state?: State<T> | Record<string, any>;
       streaming?: StreamingConfig;
-      messageId?: string; // Allow passing a canonical message ID
     },
   ];
 
@@ -369,9 +368,15 @@ export namespace Network {
 
     export interface Args<T extends StateData> {
       /**
-       * input is the input called to the network
+       * input is the input called to the network (always the string content for backwards compatibility)
        */
       input: string;
+
+      /**
+       * userMessage is the rich UserMessage object if provided (new in Phase 1)
+       * Contains client state, timestamps, and optional system prompts
+       */
+      userMessage?: UserMessage;
 
       /**
        * Network is the network that this router is coordinating.  Network state
@@ -454,27 +459,48 @@ export class NetworkRun<T extends StateData> extends Network<T> {
     // When passing passing in messages from the client, history.get() is disabled - allowing the client to maintain conversation state and send it with each request
     // Enables a client-authoritative pattern where the UI maintains conversation state and sends it with each request. Allows `history.get()` to serve as a fallback for new threads or recovery
 
+    // Extract string content for history functions that expect string input
+    const inputContent = typeof input === 'object' && input !== null && 'content' in input 
+      ? (input as UserMessage).content 
+      : input as string;
+
     // Initialize conversation thread: Creates a new thread or auto-generates if needed
     await initializeThread({
       state: this.state,
       history: this.history,
-      input,
+      input: inputContent,
       network: this,
     });
 
     // Persist the user's message at the beginning of the run for resilience
-    if (this.history?.appendUserMessage && overrides?.messageId) {
+    if (this.history?.appendUserMessage) {
+      let userMessage: { id: string; content: string; role: "user"; timestamp: Date };
+      
+      if (typeof input === 'object' && input !== null && 'id' in input) {
+        // Input is a UserMessage object - extract data from it
+        const userInput = input as UserMessage;
+        userMessage = {
+          id: userInput.id,
+          content: userInput.content,
+          role: "user",
+          timestamp: userInput.clientTimestamp || new Date(),
+        };
+      } else {
+        // Input is a string - generate a new ID
+        userMessage = {
+          id: randomUUID(),
+          content: input as string,
+          role: "user",
+          timestamp: new Date(),
+        };
+      }
+      
       await this.history.appendUserMessage({
         state: this.state,
         network: this,
-        input,
+        input: inputContent,
         threadId: this.state.threadId,
-        userMessage: {
-          id: overrides.messageId,
-          content: input,
-          role: "user",
-          timestamp: new Date(),
-        },
+        userMessage,
         step: stepTools || undefined,
       });
     }
@@ -483,7 +509,7 @@ export class NetworkRun<T extends StateData> extends Network<T> {
     await loadThreadFromStorage({
       state: this.state,
       history: this.history,
-      input,
+      input: inputContent,
       network: this,
     });
 
@@ -527,7 +553,7 @@ export class NetworkRun<T extends StateData> extends Network<T> {
       // routing agent which attempts to figure out the best agent to choose based
       // off of the network.
       const next = await this.getNextAgents(
-        input,
+        input, // Pass full UserMessage object, not extracted content
         overrides?.router || overrides?.defaultRouter || this.router
       );
       if (!next?.length) {
@@ -627,7 +653,7 @@ export class NetworkRun<T extends StateData> extends Network<T> {
           });
         }
 
-        const call = await agent.run(input, {
+        const call = await agent.run(inputContent, {
           network: this,
           maxIter: 0,
           // Provide streaming context so the agent can emit part/text/tool events
@@ -639,14 +665,6 @@ export class NetworkRun<T extends StateData> extends Network<T> {
         // CRITICAL FIX: Set the canonical message ID on the AgentResult
         // This ensures the streaming agentMessageId becomes the persisted message_id
         call.id = agentMessageId;
-        
-        // 🔍 DIAGNOSTIC: Verify UUID generation and assignment
-        console.log('🔍 [DIAG] Network assigned message ID:', {
-          agentName: agent.name,
-          agentMessageId,
-          isValidUUID: /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(agentMessageId),
-          timestamp: new Date().toISOString()
-        });
 
         if (agentStreamingContext) {
           await agentStreamingContext.publishEvent({
@@ -673,7 +691,7 @@ export class NetworkRun<T extends StateData> extends Network<T> {
         // agents, then figures out next steps.  This can, and often should, be
         // custom code.
         const next = await this.getNextAgents(
-          input,
+          input, // Pass full UserMessage object, not extracted content
           overrides?.router || overrides?.defaultRouter || this.router
         );
 
@@ -688,7 +706,7 @@ export class NetworkRun<T extends StateData> extends Network<T> {
       await saveThreadToStorage({
         state: this.state,
         history: this.history,
-        input,
+        input: inputContent,
         initialResultCount,
         network: this,
       });
@@ -746,7 +764,7 @@ export class NetworkRun<T extends StateData> extends Network<T> {
   }
 
   private async getNextAgents(
-    input: string,
+    input: UserMessage | string,
     router?: Network.Router<T>
   ): Promise<Agent<T>[] | undefined> {
     // A router may do one of two things:
@@ -764,7 +782,11 @@ export class NetworkRun<T extends StateData> extends Network<T> {
       router = getDefaultRoutingAgent();
     }
     if (router instanceof RoutingAgent) {
-      return await this.getNextAgentsViaRoutingAgent(router, input);
+      // RoutingAgents expect string input, so extract content from UserMessage
+      const inputContent = typeof input === 'object' && input !== null && 'content' in input 
+        ? (input as UserMessage).content 
+        : input as string;
+      return await this.getNextAgentsViaRoutingAgent(router, inputContent);
     }
 
     // This is a function call which determines the next agent to call.  Note that the result
@@ -777,8 +799,14 @@ export class NetworkRun<T extends StateData> extends Network<T> {
       return agent;
     });
 
+    // Extract string content for router (routers always receive string for backwards compatibility)
+    const routerInputContent = typeof input === 'object' && input !== null && 'content' in input 
+      ? (input as UserMessage).content 
+      : input as string;
+
     const agent = await router({
-      input,
+      input: routerInputContent, // Always pass string content for backwards compatibility
+      userMessage: typeof input === 'object' && input !== null && 'content' in input ? input as UserMessage : undefined,
       network: this,
       stack,
       lastResult: this.state.results[this.state.results.length - 1],
@@ -789,8 +817,11 @@ export class NetworkRun<T extends StateData> extends Network<T> {
       return;
     }
     if (agent instanceof RoutingAgent) {
-      // Functions may also return routing agents.
-      return await this.getNextAgentsViaRoutingAgent(agent, input);
+      // Functions may also return routing agents - extract content for RoutingAgent
+      const inputContent = typeof input === 'object' && input !== null && 'content' in input 
+        ? (input as UserMessage).content 
+        : input as string;
+      return await this.getNextAgentsViaRoutingAgent(agent, inputContent);
     }
 
     for (const a of Array.isArray(agent) ? agent : [agent]) {
