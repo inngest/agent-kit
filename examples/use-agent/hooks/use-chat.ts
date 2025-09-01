@@ -1,9 +1,9 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useThreads, type Thread } from './use-threads';
-import { useGlobalAgent } from '@/contexts/AgentContext';
 import { useAgent, type ConversationMessage, type AgentStatus } from './use-agent';
 import { v4 as uuidv4 } from 'uuid';
 import { TEST_USER_ID } from '@/lib/constants';
+import { useOptionalGlobalAgent, useOptionalGlobalTransport } from './utils/provider-utils';
 
 export interface UseChatReturn {
   // Agent state (real-time conversation)
@@ -131,7 +131,7 @@ export const useChat = (config?: UseChatConfig): UseChatReturn => {
   const [fallbackThreadId] = useState(() => config?.initialThreadId || uuidv4());
   
   // Instance tracking for telemetry
-  const [instanceId] = useState(() => Math.random().toString(36).substr(2, 8));
+  const [instanceId] = useState(() => `chat-${Date.now()}-${Math.random().toString(36).substr(2, 8)}`);
   console.log('[AK_TELEMETRY] useChat.instance', { instanceId, initialThreadId: config?.initialThreadId });
   
   // 1. Thread management hook
@@ -154,21 +154,30 @@ export const useChat = (config?: UseChatConfig): UseChatReturn => {
     }
   }, [config?.initialThreadId, threads.currentThreadId, threads.setCurrentThreadId]);
   
-  // 4. Require global agent from provider - no local fallback
-  const globalAgent = useGlobalAgent();
+  // 4. Smart agent resolution: use provider agent if available, otherwise create local instance
+  const globalAgent = useOptionalGlobalAgent();
+  const globalTransport = useOptionalGlobalTransport();
   
-  if (!globalAgent) {
-    throw new Error(
-      'useChat requires AgentProvider to be mounted in a parent component. ' +
-      'Wrap your app with <AgentProvider> in layout.tsx or use useAgent directly if you need an independent connection.'
-    );
-  }
+  // IMPORTANT: Always create local agent but conditionally disable its subscription
+  // When there's a global agent, disable the local agent's subscription to prevent conflicts
+  const localAgent = useAgent({
+    threadId: currentThreadId,
+    userId: config?.userId || TEST_USER_ID,
+    debug: config?.debug,
+    state: config?.state,
+    __disableSubscription: !!globalAgent, // Disable subscription when provider agent exists
+    // Don't pass transport here - useAgent will resolve it using the same priority logic
+  });
   
-  const agent = globalAgent;
+  // Use provider agent if available, otherwise use local agent
+  const agent = globalAgent || localAgent;
+  const transport = globalTransport || null; // May be null for fallback fetch calls
   
-  // 🔍 DIAGNOSTIC: Verify single agent instance
-  console.log('🔍 [DIAG] useChat using global agent:', {
+  // 🔍 DIAGNOSTIC: Verify agent instance resolution
+  console.log('🔍 [DIAG] useChat agent resolution:', {
     hasGlobalAgent: !!globalAgent,
+    hasGlobalTransport: !!globalTransport,
+    usingProvider: !!globalAgent,
     agentConnected: agent.isConnected,
     currentThread: agent.currentThreadId,
     timestamp: new Date().toISOString()
@@ -185,6 +194,7 @@ export const useChat = (config?: UseChatConfig): UseChatReturn => {
   const switchToThread = useCallback(async (selectedThreadId: string) => {
     try {
       console.log('[AK_TELEMETRY] useChat.switchToThread:start', { selectedThreadId, prevAgentThread: agent.currentThreadId, prevThreadsThread: threads.currentThreadId });
+      
       // Step 1: Switch to the thread immediately in the agent state.
       // This ensures any subsequent actions (like sending a message) are
       // correctly targeted to the new thread.
@@ -196,11 +206,22 @@ export const useChat = (config?: UseChatConfig): UseChatReturn => {
       const existingThread = agent.getThread(selectedThreadId);
       const optimisticMessages = existingThread?.messages || [];
       
-      // Step 3: Load historical messages from database
-      const response = await fetch(`/api/threads/${selectedThreadId}`);
-      if (response.ok) {
-        const data = await response.json();
-        const historicalMessages = convertDatabaseToUIFormat(data.messages);
+      // Step 3: Load historical messages from database using transport or fallback
+      try {
+        let dbMessages: any[];
+        if (transport) {
+          // Use transport method
+          dbMessages = await transport.fetchHistory({ threadId: selectedThreadId });
+        } else {
+          // Fallback to direct fetch when no transport available
+          const response = await fetch(`/api/threads/${selectedThreadId}`);
+          if (!response.ok) {
+            throw new Error('Failed to fetch thread history');
+          }
+          const data = await response.json();
+          dbMessages = data.messages;
+        }
+        const historicalMessages = convertDatabaseToUIFormat(dbMessages);
 
         // --- CANONICAL ID RECONCILIATION LOGIC ---
         // Create a set of historical message IDs for efficient lookup.
@@ -220,12 +241,16 @@ export const useChat = (config?: UseChatConfig): UseChatReturn => {
         // Load the intelligently reconciled messages into the agent state.
         agent.replaceThreadMessages(selectedThreadId, finalMessages);
         console.log('[AK_TELEMETRY] useChat.switchToThread:success', { selectedThreadId, historicalCount: historicalMessages.length, optimisticKept: recentOptimisticMessages.length });
+      } catch (historyError) {
+        console.warn('[useChat] Failed to load thread history, continuing with optimistic messages:', historyError);
+        console.log('[AK_TELEMETRY] useChat.switchToThread:historyError', { selectedThreadId, error: historyError instanceof Error ? historyError.message : String(historyError) });
+        // Continue with just optimistic messages if history load fails
       }
     } catch (err) {
       console.error('[useChat] Error switching thread:', err);
       console.log('[AK_TELEMETRY] useChat.switchToThread:error', { selectedThreadId, error: err instanceof Error ? err.message : String(err) });
     }
-  }, [agent, agent.setCurrentThread, agent.getThread, agent.replaceThreadMessages]);
+  }, [agent, agent.setCurrentThread, agent.getThread, agent.replaceThreadMessages, transport]);
 
   // Auto-load initial thread data when initialThreadId is provided
   const [isLoadingInitialThread, setIsLoadingInitialThread] = useState(!!config?.initialThreadId);
