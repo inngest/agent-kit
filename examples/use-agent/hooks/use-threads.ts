@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { TEST_USER_ID } from '@/lib/constants';
+import { type AgentTransport } from './transport';
+import { useOptionalGlobalTransport } from './utils/provider-utils';
 
 export interface Thread {
   id: string;
@@ -33,7 +35,9 @@ export interface UseThreadsReturn {
 
 export function useThreads(config?: {
   userId?: string;
-  // Custom fetch functions for flexibility
+  // Custom transport instance (overrides global transport)
+  transport?: AgentTransport;
+  // Custom fetch functions for flexibility (overrides transport and global transport)
   fetchThreads?: (userId: string, pagination: { limit: number; offset: number }) => Promise<{
     threads: Thread[];
     hasMore: boolean;
@@ -45,6 +49,23 @@ export function useThreads(config?: {
   renameThreadFn?: (threadId: string, title: string) => Promise<void>;
 }): UseThreadsReturn {
   const userId = config?.userId || TEST_USER_ID;
+  
+  // Transport resolution with provider inheritance (provider is optional)
+  const providerTransport = useOptionalGlobalTransport();
+  const transport = useMemo(() => {
+    // Priority 1: Hook-level transport override
+    if (config?.transport) {
+      return config.transport;
+    }
+    
+    // Priority 2: Inherit from provider (if available)
+    if (providerTransport) {
+      return providerTransport;
+    }
+    
+    // Priority 3: No transport - hooks will use fallback fetch calls
+    return null;
+  }, [config?.transport, providerTransport]);
   
   // Instance tracking for telemetry
   const [instanceId] = useState(() => Math.random().toString(36).substr(2, 8));
@@ -63,8 +84,14 @@ export function useThreads(config?: {
   const [currentThreadId, setCurrentThreadId] = useState<string | null>(null);
   const [offset, setOffset] = useState(0);
 
-  // Stable default fetch functions using useCallback
+  // Stable default fetch functions using useCallback with transport integration
   const fetchThreadsDefault = useCallback(async (userId: string, pagination: { limit: number; offset: number }) => {
+    if (transport) {
+      // Use transport method
+      return transport.fetchThreads({ userId, limit: pagination.limit, offset: pagination.offset });
+    }
+    
+    // Fallback to direct fetch if no transport available
     const response = await fetch(
       `/api/threads?userId=${encodeURIComponent(userId)}&limit=${pagination.limit}&offset=${pagination.offset}`
     );
@@ -73,9 +100,15 @@ export function useThreads(config?: {
       throw new Error('Failed to load threads');
     }
     return response.json();
-  }, []);
+  }, [transport]);
 
   const fetchHistoryDefault = useCallback(async (threadId: string) => {
+    if (transport) {
+      // Use transport method
+      return transport.fetchHistory({ threadId });
+    }
+    
+    // Fallback to direct fetch if no transport available
     const response = await fetch(`/api/threads/${threadId}`);
     if (!response.ok) {
       console.error(`[useThreads] Failed to load thread history:`, { threadId, status: response.status });
@@ -83,9 +116,15 @@ export function useThreads(config?: {
     }
     const data = await response.json();
     return data.messages;
-  }, []);
+  }, [transport]);
 
   const createThreadDefault = useCallback(async (userId: string) => {
+    if (transport) {
+      // Use transport method
+      return transport.createThread({ userId });
+    }
+    
+    // Fallback to direct fetch if no transport available
     const response = await fetch('/api/threads', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -96,15 +135,21 @@ export function useThreads(config?: {
       throw new Error('Failed to create thread');
     }
     return response.json();
-  }, []);
+  }, [transport]);
 
   const deleteThreadDefault = useCallback(async (threadId: string) => {
+    if (transport) {
+      // Use transport method
+      return transport.deleteThread({ threadId });
+    }
+    
+    // Fallback to direct fetch if no transport available
     const response = await fetch(`/api/threads/${threadId}`, { method: 'DELETE' });
     if (!response.ok) {
       console.error(`[useThreads] Failed to delete thread:`, { threadId, status: response.status });
       throw new Error('Failed to delete thread');
     }
-  }, []);
+  }, [transport]);
 
   // Use provided functions or stable defaults
   const fetchThreadsFn = config?.fetchThreads || fetchThreadsDefault;
