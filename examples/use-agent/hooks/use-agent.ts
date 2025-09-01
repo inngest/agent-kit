@@ -1,10 +1,12 @@
 "use client";
 
-import { useEffect, useReducer, useCallback, useRef } from "react";
+import { useEffect, useReducer, useCallback, useRef, useMemo } from "react";
 import { useInngestSubscription, InngestSubscriptionState } from "@inngest/realtime/hooks";
 import type { StreamingEvent } from "../../../packages/agent-kit/src/streaming";
 import { TEST_USER_ID } from "@/lib/constants";
 import { v4 as uuidv4 } from 'uuid';
+import { type AgentTransport, createDefaultAgentTransport } from './transport';
+import { useOptionalGlobalTransport } from './utils/provider-utils';
 
 // ----- DEBUG CONFIGURATION ------------------------------------------
 
@@ -1816,6 +1818,20 @@ export interface UseAgentOptions {
    * ```
    */
   state?: () => Record<string, unknown>;
+  
+  /**
+   * Optional transport instance for making API calls.
+   * If not provided, a default transport with conventional endpoints will be used.
+   * This allows customization of endpoints, headers, and request logic.
+   */
+  transport?: AgentTransport;
+  
+  /**
+   * Internal flag to disable this useAgent instance when used as an unused fallback.
+   * This prevents double subscriptions when both provider and local agents exist.
+   * @internal
+   */
+  __disableSubscription?: boolean;
 }
 
 /**
@@ -1949,8 +1965,25 @@ export interface UseAgentReturn {
  * }
  * ```
  */
-export function useAgent({ threadId, userId = TEST_USER_ID, onError, debug = DEFAULT_DEBUG_MODE, state: getClientState }: UseAgentOptions): UseAgentReturn {
+export function useAgent({ threadId, userId = TEST_USER_ID, onError, debug = DEFAULT_DEBUG_MODE, state: getClientState, transport: providedTransport, __disableSubscription = false }: UseAgentOptions): UseAgentReturn {
   const emptyWarnedThreadsRef = useRef<Set<string>>(new Set());
+
+  // Transport resolution with provider inheritance (provider is optional)
+  const providerTransport = useOptionalGlobalTransport();
+  const transport = useMemo(() => {
+    // Priority 1: Hook-level transport override
+    if (providedTransport) {
+      return providedTransport;
+    }
+    
+    // Priority 2: Inherit from provider (if available)
+    if (providerTransport) {
+      return providerTransport;
+    }
+    
+    // Priority 3: Default transport (always works)
+    return createDefaultAgentTransport();
+  }, [providedTransport, providerTransport]);
 
   // MULTI-THREAD STATE: Initialize with the provided threadId as the current thread
   const [state, dispatch] = useReducer(
@@ -1968,38 +2001,35 @@ export function useAgent({ threadId, userId = TEST_USER_ID, onError, debug = DEF
 
   // UNIFIED STREAMING: Subscribe to user channel (stable connection)
   // This provides a single, stable real-time connection for all user's threads
+
   const { data: realtimeData, error: realtimeError, state: connectionState } = useInngestSubscription({
     // Use userId as key - stable connection, never changes
     key: userId,
+    enabled: !__disableSubscription, // Use the enabled flag to disable subscription
     // This function is called to get a token for the real-time subscription.
     // It should be secured in a production environment with proper authentication.
-    refreshToken: async () => {
+    refreshToken: async (): Promise<any> => {
       if (debug) {
         console.log("[useAgent] 🔄 Creating stable user subscription for userId:", userId);
       }
-      const response = await fetch("/api/realtime/token", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId, threadId }), // Send both for context
-      });
-      if (!response.ok) throw new Error("Failed to get subscription token");
-      const token = await response.json();
-      if (debug) {
-        console.log("[useAgent] ✅ User subscription token created for userId:", userId);
+      try {
+        const token = await transport.getRealtimeToken({ userId, threadId });
+        if (debug) {
+          console.log("[useAgent] ✅ User subscription token created for userId:", userId);
+        }
+        return token;
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : "Failed to get subscription token";
+        debugError(debug, "[useAgent] ❌ Failed to get subscription token:", errorMessage);
+        throw new Error(errorMessage);
       }
-      return token;
     },
   });
-
-  // Removed diagnostic telemetry - no longer needed
 
   // Effect to process new real-time events when they arrive.
   // MULTI-THREAD: Process ALL events and route to correct thread buffers
   useEffect(() => {
-    // 🐛 DEBUG: Log raw realtime data to see what's actually arriving
     if (realtimeData) {
-      // no-op: noisy raw logging removed
-
       debugLog(debug, "[useAgent] Processing all events for multi-thread routing:", {
         totalEvents: realtimeData.length,
         currentThreadId: state.currentThreadId,
@@ -2022,7 +2052,7 @@ export function useAgent({ threadId, userId = TEST_USER_ID, onError, debug = DEF
       state: connectionState
     });
     debugLog(debug, `[useAgent] Connection state changed:`, { state: connectionState, isActive: connectionState === InngestSubscriptionState.Active });
-  }, [connectionState]);
+  }, [connectionState, debug]);
 
   // Effect to handle errors from the real-time subscription.
   // These are connection-level errors, not thread-specific errors.
@@ -2036,7 +2066,7 @@ export function useAgent({ threadId, userId = TEST_USER_ID, onError, debug = DEF
       });
       onError?.(realtimeError);
     }
-  }, [realtimeError, onError]);
+  }, [realtimeError, onError, debug]);
 
   // Effect to handle threadId prop changes - switch to the new thread
   // Use ref to track processed threadIds and avoid circular dependencies
@@ -2114,23 +2144,12 @@ export function useAgent({ threadId, userId = TEST_USER_ID, onError, debug = DEF
         clientTimestamp: new Date(),
       };
 
-      const response = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          userMessage, 
-          threadId: targetThreadId, 
-          history: simpleHistory 
-        }),
+      const response = await transport.sendMessage({
+        userMessage,
+        threadId: targetThreadId,
+        history: simpleHistory,
+        userId,
       });
-      
-      if (!response.ok) {
-        const errorBody = await response.json();
-        debugError(debug, "API Error:", errorBody);
-        const errorMessage = errorBody.error?.message || "Failed to send message";
-        dispatch({ type: 'MESSAGE_SEND_FAILED', threadId: targetThreadId, messageId, error: errorMessage });
-        throw new Error(errorMessage);
-      }
 
       // Mark the message as successfully sent
       dispatch({ type: 'MESSAGE_SEND_SUCCESS', threadId: targetThreadId, messageId });
@@ -2146,7 +2165,7 @@ export function useAgent({ threadId, userId = TEST_USER_ID, onError, debug = DEF
       });
       onError?.(error instanceof Error ? error : new Error(errorMessage));
     }
-  }, [debug, onError, getClientState]); // Include getClientState for proper closure
+  }, [debug, onError, getClientState, transport, userId]); // Include transport and userId dependencies
 
   /**
    * Send a message to the currently active thread
