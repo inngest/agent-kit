@@ -23,6 +23,9 @@ importers:
       '@inngest/realtime':
         specifier: ^0.3.1
         version: 0.3.1(express@5.1.0)(next@15.4.4(@opentelemetry/api@1.9.0)(react-dom@19.1.0(react@19.1.0))(react@19.1.0))(react@19.1.0)(typescript@5.8.3)
+      '@inngest/use-agents':
+        specifier: workspace:*
+        version: link:../../packages/use-agents
       '@radix-ui/react-accordion':
         specifier: ^1.2.12
         version: 1.2.12(@types/react-dom@19.1.7(@types/react@19.1.9))(@types/react@19.1.9)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
