@@ -2,11 +2,37 @@
 
 import { useEffect, useReducer, useCallback, useRef, useMemo } from "react";
 import { useInngestSubscription, InngestSubscriptionState } from "@inngest/realtime/hooks";
-import type { StreamingEvent } from "../../../packages/agent-kit/src/streaming";
-import { TEST_USER_ID } from "@/lib/constants";
 import { v4 as uuidv4 } from 'uuid';
 import { type AgentTransport, createDefaultAgentTransport } from './transport';
-import { useOptionalGlobalTransport } from './utils/provider-utils';
+import { 
+  useOptionalGlobalTransport, 
+  useOptionalGlobalUserId, 
+  useOptionalGlobalChannelKey,
+  useOptionalGlobalResolvedChannelKey 
+} from './utils/provider-utils';
+import {
+  type NetworkEvent,
+  type MessagePart,
+  type TextUIPart,
+  type ToolCallUIPart,
+  type DataUIPart,
+  type FileUIPart,
+  type SourceUIPart,
+  type ReasoningUIPart,
+  type StatusUIPart,
+  type ErrorUIPart,
+  type HitlUIPart,
+  type ConversationMessage,
+  type AgentStatus,
+  type AgentError,
+  type ThreadState,
+  type MultiThreadStreamingState,
+  type StreamingState,
+  type MultiThreadStreamingAction,
+  type StreamingAction,
+  type UseAgentOptions,
+  createDebugLogger,
+} from './types';
 
 // ----- DEBUG CONFIGURATION ------------------------------------------
 
@@ -21,40 +47,40 @@ const DEFAULT_DEBUG_MODE = process.env.NODE_ENV === 'development';
 
 /**
  * Conditional debug logger that only outputs when debug flag is enabled.
- * Provides the same interface as console.log but respects the debug flag.
+ * Uses standardized AgentKit prefixes for consistency.
  * 
  * @param isDebugEnabled - Whether debug logging is enabled
  * @param args - Arguments to pass to console.log
  */
 const debugLog = (isDebugEnabled: boolean, ...args: any[]) => {
   if (isDebugEnabled) {
-    console.log(...args);
+    console.log('[AgentKit:useAgent]', ...args);
   }
 };
 
 /**
  * Conditional debug warn logger that only outputs when debug flag is enabled.
- * Provides the same interface as console.warn but respects the debug flag.
+ * Uses standardized AgentKit prefixes for consistency.
  * 
  * @param isDebugEnabled - Whether debug logging is enabled
  * @param args - Arguments to pass to console.warn
  */
 const debugWarn = (isDebugEnabled: boolean, ...args: any[]) => {
   if (isDebugEnabled) {
-    console.warn(...args);
+    console.warn('[AgentKit:useAgent]', ...args);
   }
 };
 
 /**
  * Conditional debug error logger that only outputs when debug flag is enabled.
- * Provides the same interface as console.error but respects the debug flag.
+ * Uses standardized AgentKit prefixes for consistency.
  * 
  * @param isDebugEnabled - Whether debug logging is enabled
  * @param args - Arguments to pass to console.error
  */
 const debugError = (isDebugEnabled: boolean, ...args: any[]) => {
   if (isDebugEnabled) {
-    console.error(...args);
+    console.error('[AgentKit:useAgent]', ...args);
   }
 };
 
@@ -62,344 +88,13 @@ const debugError = (isDebugEnabled: boolean, ...args: any[]) => {
 
 // ----- DATA & UI MODELS (As per spec) -----------------------------
 
-/**
- * Type alias for streaming events - uses the strongly typed StreamingEvent from AgentKit
- */
-type NetworkEvent = StreamingEvent;
-
-/**
- * Union type representing all possible message parts that can appear in a conversation.
- * Each part type handles a specific kind of content or interaction within a message.
- * @type MessagePart
- */
-export type MessagePart =
-  | TextUIPart
-  | ToolCallUIPart
-  | DataUIPart
-  | FileUIPart
-  | SourceUIPart
-  | ReasoningUIPart
-  | StatusUIPart
-  | ErrorUIPart
-  | HitlUIPart;
-
-// Part Types
-
-/** 
- * Represents a text message part that can be streamed character by character.
- * @interface TextUIPart
- */
-export interface TextUIPart { 
-  type: "text"; 
-  /** Unique identifier for this text part */
-  id: string; 
-  /** The text content, updated incrementally during streaming */
-  content: string; 
-  /** Whether the text is still being streamed or is complete */
-  status: "streaming" | "complete"; 
-}
-
-/** 
- * Represents a tool call that the agent is making, with streaming input and output.
- * @interface ToolCallUIPart
- */
-export interface ToolCallUIPart { 
-  type: "tool-call"; 
-  /** Unique identifier for this tool call */
-  toolCallId: string; 
-  /** Name of the tool being called */
-  toolName: string; 
-  /** Current state of the tool call execution */
-  state: "input-streaming" | "input-available" | "awaiting-approval" | "executing" | "output-available"; 
-  /** Tool input parameters, streamed incrementally */
-  input: any; 
-  /** Tool output result, if available */
-  output?: any; 
-  /** Error information if the tool call failed */
-  error?: any; 
-}
-
-/** 
- * Represents structured data with optional custom UI rendering.
- * @interface DataUIPart
- */
-export interface DataUIPart { 
-  type: "data"; 
-  /** Unique identifier for this data part */
-  id: string; 
-  /** Human-readable name for the data */
-  name: string; 
-  /** The actual data payload */
-  data: any; 
-  /** Optional custom React component for rendering */
-  ui?: React.ReactNode; 
-}
-
-/** 
- * Represents a file attachment or reference.
- * @interface FileUIPart
- */
-export interface FileUIPart { 
-  type: "file"; 
-  /** Unique identifier for this file part */
-  id: string; 
-  /** URL where the file can be accessed */
-  url: string; 
-  /** MIME type of the file */
-  mediaType: string; 
-  /** Optional human-readable title */
-  title?: string; 
-  /** File size in bytes */
-  size?: number; 
-}
-
-/** 
- * Represents a reference to an external source or document.
- * @interface SourceUIPart
- */
-export interface SourceUIPart { 
-  type: "source"; 
-  /** Unique identifier for this source part */
-  id: string; 
-  /** Type of source being referenced */
-  subtype: "url" | "document"; 
-  /** URL of the source, if applicable */
-  url?: string; 
-  /** Human-readable title of the source */
-  title: string; 
-  /** MIME type of the source content */
-  mediaType?: string; 
-  /** Brief excerpt or summary from the source */
-  excerpt?: string; 
-}
-
-/** 
- * Represents the agent's internal reasoning process, streamed to provide transparency.
- * @interface ReasoningUIPart
- */
-export interface ReasoningUIPart { 
-  type: "reasoning"; 
-  /** Unique identifier for this reasoning part */
-  id: string; 
-  /** Name of the agent doing the reasoning */
-  agentName: string; 
-  /** The reasoning content, updated incrementally */
-  content: string; 
-  /** Whether the reasoning is still being streamed */
-  status: "streaming" | "complete"; 
-}
-
-/** 
- * Represents status updates about the agent's current activity.
- * @interface StatusUIPart
- */
-export interface StatusUIPart { 
-  type: "status"; 
-  /** Unique identifier for this status part */
-  id: string; 
-  /** Current activity status of the agent */
-  status: "started" | "thinking" | "calling-tool" | "responding" | "completed" | "error"; 
-  /** ID of the agent reporting this status */
-  agentId?: string; 
-  /** Optional human-readable message */
-  message?: string; 
-}
-
-/** 
- * Represents an error that occurred during agent execution.
- * @interface ErrorUIPart
- */
-export interface ErrorUIPart { 
-  type: "error"; 
-  /** Unique identifier for this error part */
-  id: string; 
-  /** Error message describing what went wrong */
-  error: string; 
-  /** ID of the agent that encountered the error */
-  agentId?: string; 
-  /** Whether the user can retry the action that caused this error */
-  recoverable?: boolean; 
-}
-
-/** 
- * Represents a human-in-the-loop approval request for potentially sensitive operations.
- * @interface HitlUIPart
- */
-export interface HitlUIPart { 
-  type: "hitl"; 
-  /** Unique identifier for this HITL request */
-  id: string; 
-  /** Array of tool calls awaiting approval */
-  toolCalls: Array<{ toolName: string; toolInput: any; }>; 
-  /** Current status of the approval request */
-  status: "pending" | "approved" | "denied" | "expired"; 
-  /** ISO timestamp when this request expires */
-  expiresAt?: string; 
-  /** ID of the user who resolved this request */
-  resolvedBy?: string; 
-  /** ISO timestamp when this request was resolved */
-  resolvedAt?: string; 
-  /** Additional metadata about the request */
-  metadata?: { 
-    /** Reason for requiring human approval */
-    reason?: string; 
-    /** Risk level assessment */
-    riskLevel?: "low" | "medium" | "high"; 
-  }; 
-}
-
-/**
- * Represents a complete message in the conversation, containing one or more parts.
- * Messages can be from either the user or the assistant, with rich content support.
- * @interface ConversationMessage
- */
-export interface ConversationMessage {
-  /** Unique identifier for this message */
-  id: string;
-  /** Whether this message is from the user or the assistant */
-  role: "user" | "assistant";
-  /** Array of message parts that make up the complete message */
-  parts: MessagePart[];
-  /** ID of the agent that created this message (for assistant messages) */
-  agentId?: string;
-  /** When this message was created */
-  timestamp: Date;
-  /** The status of the message, particularly for optimistic user messages */
-  status?: 'sending' | 'sent' | 'failed';
-}
-
-/**
- * Represents the current activity status of the agent.
- * Used to provide real-time feedback to users about what the agent is doing.
- * @type AgentStatus
- */
-export type AgentStatus = "idle" | "thinking" | "calling-tool" | "responding" | "error";
+// All core types are now imported from ./types.ts
+// This provides a single source of truth and prevents type drift
 
 // ----- STREAMING STATE & ACTIONS ---------------------------------
 
-/**
- * Represents the state for a single conversation thread.
- * Each thread maintains its own messages, status, and event processing state.
- */
-interface ThreadState {
-  // Core conversation
-  /** The array of messages in this thread's conversation. */
-  messages: ConversationMessage[];
-  
-  // Event processing (per thread)
-  /** A buffer for events that arrive out of order for this thread. */
-  eventBuffer: Map<number, NetworkEvent>;
-  /** The next sequence number this thread expects to process. */
-  nextExpectedSequence: number | null;
-  /** The highest sequence number this thread has processed (for deduplication). */
-  lastProcessedSequence: number;
-  
-  // UI state (per thread)
-  /** The current status of the agent for this thread. */
-  agentStatus: AgentStatus;
-  /** The name of the agent currently processing requests for this thread. */
-  currentAgent?: string;
-  /** Whether this thread has new messages since last viewed. */
-  hasNewMessages: boolean;
-  /** Timestamp of the last activity in this thread. */
-  lastActivity: Date;
-  
-  // Error handling (per thread)
-  /** Thread-specific error information. */
-  error?: {
-    message: string;
-    timestamp: Date;
-    recoverable: boolean;
-  };
-}
-
-/**
- * Represents the complete multi-thread state of the agent interaction.
- * Manages multiple conversation threads simultaneously with background streaming.
- */
-interface MultiThreadStreamingState {
-  // Multi-thread management
-  /** All active threads indexed by threadId */
-  threads: Record<string, ThreadState>;
-  /** The currently active/displayed thread ID */
-  currentThreadId: string;
-  
-  // Global event processing
-  /** The index of the last message processed from the raw subscription data */
-  lastProcessedIndex: number;
-  
-  // Global connection state
-  /** Represents the connection status to the real-time event stream */
-  isConnected: boolean;
-  
-  // Global error handling (connection-level errors)
-  /** Connection-level error information */
-  connectionError?: {
-    message: string;
-    timestamp: Date;
-    recoverable: boolean;
-  };
-}
-
-/**
- * Legacy interface for backward compatibility - points to current thread state
- * @deprecated Use MultiThreadStreamingState directly for new code
- */
-interface StreamingState {
-  messages: ConversationMessage[];
-  agentStatus: AgentStatus;
-  currentAgent?: string;
-  isConnected: boolean;
-  error?: {
-    message: string;
-    timestamp: Date;
-    recoverable: boolean;
-  };
-}
-
-/**
- * Defines the set of actions that can be dispatched to the multi-thread streaming reducer.
- * Each action represents a specific event that can change the multi-thread state.
- */
-type MultiThreadStreamingAction =
-  /** Dispatched when new real-time messages are received (all threads, no filtering) */
-  | { type: 'REALTIME_MESSAGES_RECEIVED'; messages: any[] }
-  /** Dispatched when the connection state changes */
-  | { type: 'CONNECTION_STATE_CHANGED'; state: InngestSubscriptionState }
-  /** Dispatched when switching the currently displayed thread */
-  | { type: 'SET_CURRENT_THREAD'; threadId: string }
-  /** Dispatched when the user sends a message to a specific thread */
-  | { type: 'MESSAGE_SENT'; threadId: string; message: string; messageId: string }
-  /** Dispatched when the message was successfully sent to the backend */
-  | { type: 'MESSAGE_SEND_SUCCESS'; threadId: string; messageId: string }
-  /** Dispatched when the message failed to send to the backend */
-  | { type: 'MESSAGE_SEND_FAILED'; threadId: string; messageId: string; error: string }
-  /** Dispatched after a user message is sent to prepare the thread for new responses */
-  | { type: 'RESET_FOR_NEW_TURN'; threadId: string }
-  /** Dispatched when a thread-specific error occurs */
-  | { type: 'THREAD_ERROR'; threadId: string; error: string; recoverable?: boolean }
-  /** Dispatched when a connection-level error occurs */
-  | { type: 'CONNECTION_ERROR'; error: string; recoverable?: boolean }
-  /** Dispatched to clear error state for a specific thread */
-  | { type: 'CLEAR_THREAD_ERROR'; threadId: string }
-  /** Dispatched to clear connection-level error */
-  | { type: 'CLEAR_CONNECTION_ERROR' }
-  /** Dispatched to clear all messages from a specific thread */
-  | { type: 'CLEAR_THREAD_MESSAGES'; threadId: string }
-  /** Dispatched to replace all messages in a specific thread (for loading history) */
-  | { type: 'REPLACE_THREAD_MESSAGES'; threadId: string; messages: ConversationMessage[] }
-  /** Dispatched to mark a thread as viewed (clear hasNewMessages flag) */
-  | { type: 'MARK_THREAD_VIEWED'; threadId: string }
-  /** Dispatched to create a new empty thread */
-  | { type: 'CREATE_THREAD'; threadId: string }
-  /** Dispatched to remove a thread completely */
-  | { type: 'REMOVE_THREAD'; threadId: string };
-
-/**
- * Legacy action type for backward compatibility
- * @deprecated Use MultiThreadStreamingAction for new code
- */
-type StreamingAction = MultiThreadStreamingAction;
+// All streaming state and action types are now imported from ./types.ts
+// This provides consistency across all hooks and prevents type drift
 
 // ----- PURE MESSAGE PROCESSING FUNCTIONS -------------------------
 
@@ -633,7 +328,8 @@ const processEvent = (messages: ConversationMessage[], event: NetworkEvent, isDe
       if (event.data.scope === "agent") {
         const { messages: newMessages, message } = getOrCreateAssistantMessage(messages, event.data);
         // Set the agent ID to track which agent is handling this message
-        const updatedMessage = { ...message, agentId: event.data.name };
+        const agentName = typeof event.data.name === 'string' ? event.data.name : undefined;
+        const updatedMessage = { ...message, agentId: agentName };
         return newMessages.map(m => m.id === message.id ? updatedMessage : m);
       }
       return messages;
@@ -673,27 +369,36 @@ const processEvent = (messages: ConversationMessage[], event: NetworkEvent, isDe
       let newPart: MessagePart;
       if (event.data.type === "text") {
         // Create an empty text part, which will be filled by 'text.delta' events.
+        const partId = typeof event.data.partId === 'string' ? event.data.partId : 'unknown';
         newPart = {
           type: "text",
-          id: event.data.partId,
+          id: partId,
           content: "",
           status: "streaming",
         };
       } else if (event.data.type === "tool-call") {
         // Create an empty tool-call part, to be filled later.
+        const partId = typeof event.data.partId === 'string' ? event.data.partId : 'unknown';
+        const toolName = (event.data.metadata && typeof event.data.metadata === 'object' && event.data.metadata !== null && 'toolName' in event.data.metadata && typeof event.data.metadata.toolName === 'string') 
+          ? event.data.metadata.toolName 
+          : "unknown";
         newPart = {
           type: "tool-call",
-          toolCallId: event.data.partId,
-          toolName: event.data.metadata?.toolName || "unknown",
+          toolCallId: partId,
+          toolName,
           input: "",
           state: "input-streaming",
         };
       } else if (event.data.type === "reasoning") {
         // Create an empty reasoning part, which will be filled by 'reasoning.delta' events.
+        const partId = typeof event.data.partId === 'string' ? event.data.partId : 'unknown';
+        const agentName = (event.data.metadata && typeof event.data.metadata === 'object' && event.data.metadata !== null && 'agentName' in event.data.metadata && typeof event.data.metadata.agentName === 'string') 
+          ? event.data.metadata.agentName 
+          : "unknown";
         newPart = {
           type: "reasoning",
-          id: event.data.partId,
-          agentName: event.data.metadata?.agentName || "unknown",
+          id: partId,
+          agentName,
           content: "",
           status: "streaming",
         };
@@ -701,9 +406,12 @@ const processEvent = (messages: ConversationMessage[], event: NetworkEvent, isDe
         // Initialize output streaming on the last tool-call part for this tool
         // We search in reverse to find the most recent tool call of this type
         const updatedParts = [...message.parts];
+        const metadataToolName = (event.data.metadata && typeof event.data.metadata === 'object' && event.data.metadata !== null && 'toolName' in event.data.metadata && typeof event.data.metadata.toolName === 'string') 
+          ? event.data.metadata.toolName 
+          : "unknown";
         const targetIdx = [...updatedParts]
           .reverse()
-          .findIndex((p) => p.type === "tool-call" && (p as ToolCallUIPart).toolName === (event.data.metadata?.toolName || "unknown"));
+          .findIndex((p) => p.type === "tool-call" && (p as ToolCallUIPart).toolName === metadataToolName);
         if (targetIdx !== -1) {
           // Convert reverse index back to normal array index
           const realIdx = updatedParts.length - 1 - targetIdx;
@@ -743,7 +451,9 @@ const processEvent = (messages: ConversationMessage[], event: NetworkEvent, isDe
         messagesCount: messages.length
       });
       
-      const targetPart = findPart(messages, event.data.messageId, event.data.partId) as TextUIPart;
+      const messageId = typeof event.data.messageId === 'string' ? event.data.messageId : '';
+      const partId = typeof event.data.partId === 'string' ? event.data.partId : '';
+      const targetPart = findPart(messages, messageId, partId) as TextUIPart;
       if (!targetPart) {
         debugWarn(isDebugEnabled, "[StreamingReducer] Text part NOT FOUND for delta:", {
           searchedPartId: event.data.partId,
@@ -756,15 +466,16 @@ const processEvent = (messages: ConversationMessage[], event: NetworkEvent, isDe
       
       // Append the delta to the content of the correct text part.
       return messages.map(message => {
-        if (message.id !== event.data.messageId) return message;
+        if (message.id !== messageId) return message;
         
         return {
           ...message,
           parts: message.parts.map(part => {
-            if (part.type === 'text' && part.id === event.data.partId) {
+            if (part.type === 'text' && part.id === partId) {
               const beforeContent = part.content;
-              const newContent = beforeContent + event.data.delta;
-              debugLog(isDebugEnabled, `🔍 [TEXT-DELTA] Applied delta seq:${event.sequenceNumber} "${event.data.delta}" | before:"${beforeContent}" after:"${newContent}"`);
+              const delta = typeof event.data.delta === 'string' ? event.data.delta : '';
+              const newContent = beforeContent + delta;
+              debugLog(isDebugEnabled, `🔍 [TEXT-DELTA] Applied delta seq:${event.sequenceNumber} "${delta}" | before:"${beforeContent}" after:"${newContent}"`);
               return { ...part, content: newContent };
             }
             return part;
@@ -775,16 +486,19 @@ const processEvent = (messages: ConversationMessage[], event: NetworkEvent, isDe
 
     // A chunk of tool call arguments has been streamed.
     case "tool_call.arguments.delta": {
-      const targetPart = findPart(messages, event.data.messageId, event.data.partId) as ToolCallUIPart;
+      const messageId = typeof event.data.messageId === 'string' ? event.data.messageId : '';
+      const partId = typeof event.data.partId === 'string' ? event.data.partId : '';
+      const targetPart = findPart(messages, messageId, partId) as ToolCallUIPart;
       if (!targetPart || targetPart.type !== 'tool-call') return messages;
       return messages.map(message => {
-        if (message.id !== event.data.messageId) return message;
+        if (message.id !== messageId) return message;
+        const delta = typeof event.data.delta === 'string' ? event.data.delta : '';
         return {
           ...message,
           parts: message.parts.map(part => {
-            if (part.type === 'tool-call' && part.toolCallId === event.data.partId) {
+            if (part.type === 'tool-call' && part.toolCallId === partId) {
               const currentInput = typeof part.input === 'string' ? part.input : '';
-              return { ...part, input: currentInput + (event.data.delta || ''), state: 'input-streaming' };
+              return { ...part, input: currentInput + delta, state: 'input-streaming' };
             }
             return part;
           })
@@ -795,7 +509,8 @@ const processEvent = (messages: ConversationMessage[], event: NetworkEvent, isDe
     // A chunk of tool output has been streamed.
     case "tool_call.output.delta": {
       // Find the most recent tool-call part to attach output
-      const msg = findMessage(messages, event.data.messageId);
+      const messageId = typeof event.data.messageId === 'string' ? event.data.messageId : '';
+      const msg = findMessage(messages, messageId);
       if (!msg) return messages;
       // Search in reverse to find the last tool call (most recent)
       const lastToolIdx = [...msg.parts].reverse().findIndex(p => p.type === 'tool-call');
@@ -803,28 +518,32 @@ const processEvent = (messages: ConversationMessage[], event: NetworkEvent, isDe
       // Convert reverse index back to normal array index
       const realIdx = msg.parts.length - 1 - lastToolIdx;
       const part = msg.parts[realIdx] as ToolCallUIPart;
+      const delta = typeof event.data.delta === 'string' ? event.data.delta : '';
       return messages.map(m => {
         if (m.id !== msg.id) return m;
         const newParts = [...m.parts];
         // Ensure output is a string before concatenating
         const currentOutput = typeof part.output === 'string' ? part.output : '';
         // Append the delta and update state if transitioning from input streaming
-        newParts[realIdx] = { ...part, output: currentOutput + (event.data.delta || ''), state: part.state === 'input-streaming' ? 'executing' : part.state };
+        newParts[realIdx] = { ...part, output: currentOutput + delta, state: part.state === 'input-streaming' ? 'executing' : part.state };
         return { ...m, parts: newParts };
       });
     }
     
     // A message part has finished streaming.
     case "part.completed": {
+      const messageId = typeof event.data.messageId === 'string' ? event.data.messageId : '';
+      const partId = typeof event.data.partId === 'string' ? event.data.partId : '';
+      
       return messages.map(message => {
-        if (message.id !== event.data.messageId) return message;
+        if (message.id !== messageId) return message;
         
         return {
           ...message,
           parts: message.parts.map(part => {
-            if ((part.type === 'text' && part.id === event.data.partId) || 
-                (part.type === 'tool-call' && part.toolCallId === event.data.partId) ||
-                (part.type === 'reasoning' && part.id === event.data.partId)) {
+            if ((part.type === 'text' && part.id === partId) || 
+                (part.type === 'tool-call' && part.toolCallId === partId) ||
+                (part.type === 'reasoning' && part.id === partId)) {
               
               // For text, set status to 'complete' and set the final content.
               if (part.type === 'text') {
@@ -873,12 +592,16 @@ const processEvent = (messages: ConversationMessage[], event: NetworkEvent, isDe
       const { messages: newMessages, message } = getOrCreateAssistantMessage(messages, event.data);
       
       // Create a new error part and add it to the message.
+      const errorMessage = typeof event.data.error === 'string' ? event.data.error : "An unknown error occurred";
+      const agentId = typeof event.data.agentId === 'string' ? event.data.agentId : undefined;
+      const recoverable = typeof event.data.recoverable === 'boolean' ? event.data.recoverable : true;
+      
       const errorPart: ErrorUIPart = {
         type: "error",
         id: `error-${Date.now()}`,
-        error: event.data.error || "An unknown error occurred",
-        agentId: event.data.agentId,
-        recoverable: event.data.recoverable !== false,
+        error: errorMessage,
+        agentId,
+        recoverable,
       };
       
       const updatedMessage = {
@@ -894,12 +617,16 @@ const processEvent = (messages: ConversationMessage[], event: NetworkEvent, isDe
       const { messages: newMessages, message } = getOrCreateAssistantMessage(messages, event.data);
       
       // Create a new error part and add it to the message.
+      const errorMessage = typeof event.data.error === 'string' ? event.data.error : "Agent run failed";
+      const agentId = typeof event.data.name === 'string' ? event.data.name : undefined;
+      const recoverable = typeof event.data.recoverable === 'boolean' ? event.data.recoverable : false;
+      
       const errorPart: ErrorUIPart = {
         type: "error",
         id: `error-${Date.now()}`,
-        error: event.data.error || "Agent run failed",
-        agentId: event.data.name,
-        recoverable: event.data.recoverable ?? false,
+        error: errorMessage,
+        agentId,
+        recoverable,
       };
       
       const updatedMessage = {
@@ -912,14 +639,18 @@ const processEvent = (messages: ConversationMessage[], event: NetworkEvent, isDe
 
     // Reasoning content being streamed
     case "reasoning.delta": {
+      const messageId = typeof event.data.messageId === 'string' ? event.data.messageId : '';
+      const partId = typeof event.data.partId === 'string' ? event.data.partId : '';
+      const delta = typeof event.data.delta === 'string' ? event.data.delta : '';
+      
       return messages.map(message => {
-        if (message.id !== event.data.messageId) return message;
+        if (message.id !== messageId) return message;
         
         return {
           ...message,
           parts: message.parts.map(part => {
-            if (part.type === 'reasoning' && part.id === event.data.partId) {
-              return { ...part, content: part.content + event.data.delta };
+            if (part.type === 'reasoning' && part.id === partId) {
+              return { ...part, content: part.content + delta };
             }
             return part;
           })
@@ -954,17 +685,27 @@ const processEvent = (messages: ConversationMessage[], event: NetworkEvent, isDe
     case "hitl.requested": {
       const { messages: newMessages, message } = getOrCreateAssistantMessage(messages, event.data);
       
+      // Safely extract HITL data
+      const requestId = typeof event.data.requestId === 'string' ? event.data.requestId : `hitl-${Date.now()}`;
+      const toolCalls = Array.isArray(event.data.toolCalls) 
+        ? (event.data.toolCalls as Array<{ toolName: string; toolInput: any }>).map(tc => ({
+            toolName: tc.toolName,
+            toolInput: tc.toolInput,
+          }))
+        : [];
+      const expiresAt = typeof event.data.expiresAt === 'string' ? event.data.expiresAt : undefined;
+      const metadata = (event.data.metadata && typeof event.data.metadata === 'object' && event.data.metadata !== null) 
+        ? event.data.metadata as { reason?: string; riskLevel?: "low" | "medium" | "high" }
+        : undefined;
+      
       // Create a HITL part for approval request
       const hitlPart: HitlUIPart = {
         type: "hitl",
-        id: event.data.requestId,
-        toolCalls: (event.data.toolCalls as Array<{ toolName: string; toolInput: any }>).map(tc => ({
-          toolName: tc.toolName,
-          toolInput: tc.toolInput,
-        })),
+        id: requestId,
+        toolCalls,
         status: "pending",
-        expiresAt: event.data.expiresAt,
-        metadata: event.data.metadata,
+        expiresAt,
+        metadata,
       };
       
       const updatedMessage = {
@@ -982,11 +723,15 @@ const processEvent = (messages: ConversationMessage[], event: NetworkEvent, isDe
           ...message,
           parts: message.parts.map(part => {
             if (part.type === 'hitl' && part.id === event.data.requestId) {
+              const resolution = typeof event.data.resolution === 'string' ? event.data.resolution as "approved" | "denied" : "denied";
+              const resolvedBy = typeof event.data.resolvedBy === 'string' ? event.data.resolvedBy : undefined;
+              const resolvedAt = typeof event.data.resolvedAt === 'string' ? event.data.resolvedAt : undefined;
+              
               return { 
                 ...part, 
-                status: event.data.resolution as "approved" | "denied",
-                resolvedBy: event.data.resolvedBy,
-                resolvedAt: event.data.resolvedAt,
+                status: resolution,
+                resolvedBy,
+                resolvedAt,
               };
             }
             return part;
@@ -1713,7 +1458,7 @@ const processThreadEvent = (
     case "run.started":
       if (event.data.scope === 'agent') {
         updatedThread.agentStatus = "thinking";
-        updatedThread.currentAgent = event.data.name;
+        updatedThread.currentAgent = typeof event.data.name === 'string' ? event.data.name : undefined;
       }
       break;
       
@@ -1731,10 +1476,12 @@ const processThreadEvent = (
       
     case "run.failed":
       updatedThread.agentStatus = "error";
+      const errorMessage = typeof event.data.error === 'string' ? event.data.error : "Agent run failed";
+      const recoverable = typeof event.data.recoverable === 'boolean' ? event.data.recoverable : true;
       updatedThread.error = {
-        message: event.data.error || "Agent run failed",
+        message: errorMessage,
         timestamp: new Date(),
-        recoverable: event.data.recoverable ?? true,
+        recoverable,
       };
       break;
   }
@@ -1780,59 +1527,8 @@ const streamingReducer = (state: StreamingState, action: StreamingAction, isDebu
 
 // ----- USE AGENT HOOK -------------------------------------------
 
-/**
- * Configuration options for the `useAgent` hook.
- * These options control the behavior and callbacks of the agent interaction.
- * 
- * @interface UseAgentOptions
- */
-export interface UseAgentOptions {
-  /** The unique identifier for the conversation thread. */
-  threadId: string;
-  /** The user identifier for unified streaming. */
-  userId?: string;
-  /** An optional callback for handling errors. */
-  onError?: (error: Error) => void;
-  /** 
-   * Enable debug logging for this agent instance. 
-   * When true, detailed console logs will be output for debugging purposes.
-   * Defaults to true in development, false in production.
-   */
-  debug?: boolean;
-  
-  /**
-   * Optional function to capture client-side state when sending messages.
-   * This state will be included in the UserMessage object and can be persisted
-   * for debugging, regeneration, and enhanced context.
-   * 
-   * @returns Object containing any client-side state to be captured
-   * 
-   * @example
-   * ```typescript
-   * state: () => ({
-   *   formData: currentFormState,
-   *   selectedItems: selectedIds,
-   *   uiMode: currentMode,
-   *   filters: activeFilters
-   * })
-   * ```
-   */
-  state?: () => Record<string, unknown>;
-  
-  /**
-   * Optional transport instance for making API calls.
-   * If not provided, a default transport with conventional endpoints will be used.
-   * This allows customization of endpoints, headers, and request logic.
-   */
-  transport?: AgentTransport;
-  
-  /**
-   * Internal flag to disable this useAgent instance when used as an unused fallback.
-   * This prevents double subscriptions when both provider and local agents exist.
-   * @internal
-   */
-  __disableSubscription?: boolean;
-}
+// UseAgentOptions interface is now defined in ./types.ts
+// This ensures consistency across hooks and prevents type drift
 
 /**
  * The return value of the `useAgent` hook, providing multi-thread state and functions
@@ -1878,6 +1574,8 @@ export interface UseAgentReturn {
     messageId?: string; 
     state?: Record<string, unknown> | (() => Record<string, unknown>);
   }) => Promise<void>;
+  /** Cancel the current agent run */
+  cancel: () => Promise<void>;
   /** Regenerate the last response in the current thread */
   regenerate: () => void;
   /** Clear the current error for the active thread */
@@ -1965,8 +1663,56 @@ export interface UseAgentReturn {
  * }
  * ```
  */
-export function useAgent({ threadId, userId = TEST_USER_ID, onError, debug = DEFAULT_DEBUG_MODE, state: getClientState, transport: providedTransport, __disableSubscription = false }: UseAgentOptions): UseAgentReturn {
+export function useAgent({ threadId, channelKey, userId, onError, debug = DEFAULT_DEBUG_MODE, state: getClientState, transport: providedTransport, __disableSubscription = false }: UseAgentOptions): UseAgentReturn {
   const emptyWarnedThreadsRef = useRef<Set<string>>(new Set());
+
+  // Create standardized debug logger
+  const logger = useMemo(() => createDebugLogger('useAgent', debug), [debug]);
+
+  // Check if we're inside a provider to enable smart subscription sharing
+  const globalUserId = useOptionalGlobalUserId();
+  const globalChannelKey = useOptionalGlobalChannelKey();
+  const globalResolvedChannelKey = useOptionalGlobalResolvedChannelKey();
+  
+  // Resolve local configuration with provider inheritance
+  const effectiveUserId = userId || globalUserId;
+  const effectiveChannelKey = channelKey || globalChannelKey;
+
+  // Channel key resolution logic
+  const resolvedChannelKey = useMemo(() => {
+    // 1. Explicit channelKey (collaborative/specific scenarios)
+    if (effectiveChannelKey) return effectiveChannelKey;
+
+    // 2. Fallback to userId (private chat - current behavior)
+    if (effectiveUserId) return effectiveUserId;
+
+    // 3. Anonymous fallback (new capability)
+    let anonymousId = '';
+    if (typeof window !== 'undefined') {
+      anonymousId = sessionStorage.getItem("agentkit-anonymous-id") || '';
+      if (!anonymousId) {
+        anonymousId = `anon_${uuidv4()}`;
+        sessionStorage.setItem("agentkit-anonymous-id", anonymousId);
+      }
+    } else {
+      // Server-side fallback
+      anonymousId = `anon_${uuidv4()}`;
+    }
+    return anonymousId;
+  }, [effectiveChannelKey, effectiveUserId]);
+  
+  // Smart subscription logic: Provider + Escape Hatch pattern
+  const smartDisableSubscription = useMemo(() => {
+    // Explicit override takes precedence
+    if (__disableSubscription) return true;
+    
+    // No provider = always enable subscription (standalone mode)
+    if (!globalResolvedChannelKey) return false;
+    
+    // Provider exists = disable subscription ONLY if using same channel (share connection)
+    // Different channel = enable subscription (escape hatch for separate connection)
+    return globalResolvedChannelKey === resolvedChannelKey;
+  }, [__disableSubscription, globalResolvedChannelKey, resolvedChannelKey]);
 
   // Transport resolution with provider inheritance (provider is optional)
   const providerTransport = useOptionalGlobalTransport();
@@ -2003,24 +1749,25 @@ export function useAgent({ threadId, userId = TEST_USER_ID, onError, debug = DEF
   // This provides a single, stable real-time connection for all user's threads
 
   const { data: realtimeData, error: realtimeError, state: connectionState } = useInngestSubscription({
-    // Use userId as key - stable connection, never changes
-    key: userId,
-    enabled: !__disableSubscription, // Use the enabled flag to disable subscription
+    // Use resolvedChannelKey as key - flexible subscription based on channel key architecture
+    key: resolvedChannelKey,
+    enabled: !smartDisableSubscription, // Smart channel-based subscription sharing
     // This function is called to get a token for the real-time subscription.
     // It should be secured in a production environment with proper authentication.
     refreshToken: async (): Promise<any> => {
-      if (debug) {
-        console.log("[useAgent] 🔄 Creating stable user subscription for userId:", userId);
-      }
+      const connectionType = smartDisableSubscription ? 'shared (disabled)' : 'separate';
+      logger.log(`🔄 Creating ${connectionType} channel subscription for channelKey:`, resolvedChannelKey);
       try {
-        const token = await transport.getRealtimeToken({ userId, threadId });
-        if (debug) {
-          console.log("[useAgent] ✅ User subscription token created for userId:", userId);
-        }
+        const token = await transport.getRealtimeToken({ 
+          userId: effectiveUserId || undefined, 
+          threadId, 
+          channelKey: resolvedChannelKey 
+        });
+        logger.log(`✅ ${connectionType} channel subscription token created for channelKey:`, resolvedChannelKey);
         return token;
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : "Failed to get subscription token";
-        debugError(debug, "[useAgent] ❌ Failed to get subscription token:", errorMessage);
+        logger.error("❌ Failed to get subscription token:", errorMessage);
         throw new Error(errorMessage);
       }
     },
@@ -2030,7 +1777,7 @@ export function useAgent({ threadId, userId = TEST_USER_ID, onError, debug = DEF
   // MULTI-THREAD: Process ALL events and route to correct thread buffers
   useEffect(() => {
     if (realtimeData) {
-      debugLog(debug, "[useAgent] Processing all events for multi-thread routing:", {
+      logger.log("Processing all events for multi-thread routing:", {
         totalEvents: realtimeData.length,
         currentThreadId: state.currentThreadId,
         activeThreads: Object.keys(state.threads),
@@ -2042,7 +1789,7 @@ export function useAgent({ threadId, userId = TEST_USER_ID, onError, debug = DEF
         messages: realtimeData
       });
     }
-  }, [realtimeData, debug]); // Note: No threadId dependency!
+  }, [realtimeData, logger]); // Updated dependency
 
   // Effect to update the connection status.
   // This provides UI feedback about the real-time connection state.
@@ -2051,14 +1798,14 @@ export function useAgent({ threadId, userId = TEST_USER_ID, onError, debug = DEF
       type: 'CONNECTION_STATE_CHANGED',
       state: connectionState
     });
-    debugLog(debug, `[useAgent] Connection state changed:`, { state: connectionState, isActive: connectionState === InngestSubscriptionState.Active });
-  }, [connectionState, debug]);
+    logger.log("Connection state changed:", { state: connectionState, isActive: connectionState === InngestSubscriptionState.Active });
+  }, [connectionState, logger]);
 
   // Effect to handle errors from the real-time subscription.
   // These are connection-level errors, not thread-specific errors.
   useEffect(() => {
     if (realtimeError) {
-      debugError(debug, "Realtime subscription error:", realtimeError);
+      logger.error("Realtime subscription error:", realtimeError);
       dispatch({
         type: 'CONNECTION_ERROR',
         error: realtimeError.message || "Realtime connection error",
@@ -2066,17 +1813,17 @@ export function useAgent({ threadId, userId = TEST_USER_ID, onError, debug = DEF
       });
       onError?.(realtimeError);
     }
-  }, [realtimeError, onError, debug]);
+  }, [realtimeError, onError, logger]);
 
   // Effect to handle threadId prop changes - switch to the new thread
   // Use ref to track processed threadIds and avoid circular dependencies
   useEffect(() => {
     if (threadId && threadId !== lastProcessedThreadId.current) {
-      debugLog(debug, "[useAgent] ThreadId prop changed, switching to:", threadId);
+      logger.log("ThreadId prop changed, switching to:", threadId);
       lastProcessedThreadId.current = threadId; // Update ref to prevent re-processing
       dispatch({ type: 'SET_CURRENT_THREAD', threadId });
     }
-  }, [threadId, debug]); // Safe: no circular dependencies
+  }, [threadId, logger]); // Safe: no circular dependencies
 
   /**
    * Helper function to send a message to a specific thread
@@ -2097,7 +1844,7 @@ export function useAgent({ threadId, userId = TEST_USER_ID, onError, debug = DEF
     const targetThread = currentState.threads[targetThreadId];
     const currentMessages = targetThread?.messages || [];
     
-    debugLog(debug, `🔍 [SEND-MSG] Thread ${targetThreadId} before sending:`, {
+    logger.log(`🔍 [SEND-MSG] Thread ${targetThreadId} before sending:`, {
       existingMessages: currentMessages.length,
       messagePreview: currentMessages.map(m => ({ role: m.role, partsCount: m.parts.length })),
       isHistoricalThread: currentMessages.length > 0,
@@ -2115,7 +1862,7 @@ export function useAgent({ threadId, userId = TEST_USER_ID, onError, debug = DEF
 
     // Send to backend
     try {
-      debugLog(debug, "[useAgent] Sending message to thread:", {
+      logger.log("Sending message to thread:", {
         targetThreadId,
         messageId,
         message: message.substring(0, 50) + "...",
@@ -2148,15 +1895,27 @@ export function useAgent({ threadId, userId = TEST_USER_ID, onError, debug = DEF
         userMessage,
         threadId: targetThreadId,
         history: simpleHistory,
-        userId,
+        userId: effectiveUserId || undefined, // Use effective userId with provider inheritance
+        channelKey: resolvedChannelKey, // Pass channelKey for flexible subscriptions
       });
 
       // Mark the message as successfully sent
       dispatch({ type: 'MESSAGE_SEND_SUCCESS', threadId: targetThreadId, messageId });
 
     } catch (error) {
-      debugError(debug, "[useAgent] Error sending message:", error);
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.error("Error sending message:", error);
+      
+      // Enhanced error message extraction for AgentError objects
+      let errorMessage: string;
+      if (error && typeof error === 'object' && 'message' in error && typeof error.message === 'string') {
+        // It's an AgentError or Error object with a message property
+        errorMessage = error.message;
+      } else if (error instanceof Error) {
+        errorMessage = error.message;
+      } else {
+        errorMessage = String(error);
+      }
+      
       dispatch({
         type: 'MESSAGE_SEND_FAILED',
         threadId: targetThreadId,
@@ -2165,7 +1924,7 @@ export function useAgent({ threadId, userId = TEST_USER_ID, onError, debug = DEF
       });
       onError?.(error instanceof Error ? error : new Error(errorMessage));
     }
-  }, [debug, onError, getClientState, transport, userId]); // Include transport and userId dependencies
+  }, [logger, onError, getClientState, transport, effectiveUserId]); // Include transport and effectiveUserId dependencies
 
   /**
    * Send a message to the currently active thread
@@ -2297,6 +2056,41 @@ export function useAgent({ threadId, userId = TEST_USER_ID, onError, debug = DEF
   }, []);
 
   /**
+   * Cancel the current agent run
+   */
+  const cancel = useCallback(async () => {
+    const currentThreadId = stateRef.current.currentThreadId;
+    
+    if (!transport.cancelMessage) {
+      logger.warn("Cancel not supported by current transport");
+      return;
+    }
+
+    try {
+      await transport.cancelMessage({ threadId: currentThreadId });
+      logger.log("Cancellation request sent for thread:", currentThreadId);
+      
+      // Update local state to reflect cancellation
+      dispatch({
+        type: "THREAD_ERROR",
+        threadId: currentThreadId,
+        error: "Cancelled by user",
+        recoverable: true,
+      });
+    } catch (error) {
+      logger.error("Failed to cancel:", error);
+      
+      // Still update state to show that cancellation was attempted
+      dispatch({
+        type: "THREAD_ERROR",
+        threadId: currentThreadId,
+        error: "Failed to cancel agent run",
+        recoverable: true,
+      });
+    }
+  }, [transport, logger]);
+
+  /**
    * Regenerate the last response in the current thread
    */
   const regenerate = useCallback(() => {
@@ -2387,6 +2181,7 @@ export function useAgent({ threadId, userId = TEST_USER_ID, onError, debug = DEF
     // === ACTIONS ===
     sendMessage,
     sendMessageToThread,
+    cancel,
     regenerate,
     clearError,
     clearConnectionError,
