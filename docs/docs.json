@@ -120,10 +120,7 @@
               "reference/react-hooks/overview",
               "reference/react-hooks/use-chat",
               "reference/react-hooks/use-agent", 
-              "reference/react-hooks/use-threads",
-              "reference/react-hooks/agent-provider",
-              "reference/react-hooks/transport",
-              "reference/react-hooks/utility-hooks"
+              "reference/react-hooks/agent-provider"
             ]
           }
         ]

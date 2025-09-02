@@ -3,8 +3,6 @@ title: Managing Conversations with useThreads
 description: "Persist and manage conversation threads with the useThreads hook."
 ---
 
-import { Card, CardGroup } from "nextra/components";
-
 The `useThreads` hook is a client-side utility for managing a list of conversation threads. It handles the data-centric aspects of a chat application, such as fetching, creating, deleting, and paginating conversation histories.
 
 While `useAgent` manages the real-time event stream for individual conversations, `useThreads` manages the list of all conversations, providing the data needed for features like a chat history sidebar. It's designed to be used in conjunction with `useAgent`, often composed together in a higher-level hook like `useChat`.
