@@ -7,26 +7,159 @@ import {
 } from './utils/provider-utils';
 import { type Thread, createDebugLogger } from './types';
 
+/**
+ * Return value interface for the useThreads hook.
+ * 
+ * Provides comprehensive thread management capabilities including persistence,
+ * caching, pagination, and optimistic updates. Handles the complex coordination
+ * between local state and remote storage while maintaining optimal UX.
+ * 
+ * @interface UseThreadsReturn
+ */
 export interface UseThreadsReturn {
+  // === THREAD LIST STATE ===
+  /** Array of conversation threads with metadata (title, message count, dates) */
   threads: Thread[];
+  /** Loading state for threads list operations */
   loading: boolean;
+  /** Whether more threads are available for pagination */
   hasMore: boolean;
+  /** Error state for thread operations */
   error: string | null;
+  
+  // === THREAD LIST ACTIONS ===
+  /** Load more threads for pagination (appends to existing list) */
   loadMore: () => Promise<void>;
+  /** Refresh the entire threads list (replaces existing list) */
   refresh: () => Promise<void>;
+  
+  // === THREAD CRUD OPERATIONS ===
+  /** Create a new thread and return its ID */
   createThread: () => Promise<string>;
+  /** Delete a thread permanently */
   deleteThread: (threadId: string) => Promise<void>;
+  /** Add a thread optimistically to the UI before server confirmation */
   addOptimisticThread: (threadId: string, title: string) => void;
+  
+  // === CURRENT THREAD MANAGEMENT ===
+  /** ID of the currently selected/active thread */
   currentThreadId: string | null;
+  /** Set the current thread ID (for thread switching) */
   setCurrentThreadId: (id: string | null) => void;
   
-  // NEW: Thread content loading
+  // === THREAD CONTENT OPERATIONS ===
+  /** Load message history for a specific thread */
   loadThreadHistory: (threadId: string) => Promise<any[]>;
   
-  // NEW: Cache management
+  // === CACHE MANAGEMENT ===
+  /** Clear the threads cache (useful for logout or data reset) */
   clearCache: () => void;
 }
 
+/**
+ * A React hook for managing conversation threads with persistence, caching, and real-time updates.
+ * 
+ * This hook provides comprehensive thread management capabilities for chat applications,
+ * handling the complex coordination between local UI state and remote storage. It includes
+ * optimistic updates, intelligent caching, background refresh, and seamless provider integration.
+ * 
+ * ## Key Features
+ * 
+ * - **Persistent Storage**: Save/load threads from database or custom storage
+ * - **Intelligent Caching**: SessionStorage caching with background refresh
+ * - **Optimistic Updates**: Instant UI feedback with server reconciliation
+ * - **Provider Integration**: Inherits configuration from AgentProvider
+ * - **Pagination Support**: Load more threads as user scrolls
+ * - **Order Preservation**: Maintains stable thread ordering across refreshes
+ * 
+ * ## Caching Strategy
+ * 
+ * - **Immediate Loading**: Shows cached threads instantly on mount
+ * - **Background Refresh**: Updates data from server without blocking UI
+ * - **Order Preservation**: Keeps user's familiar thread ordering
+ * - **Optimistic Updates**: New threads appear immediately, sync to server later
+ * 
+ * @param config - Configuration options for thread management
+ * @param config.userId - User identifier (required - can inherit from provider)
+ * @param config.channelKey - Channel key for anonymous sessions (optional)
+ * @param config.debug - Enable debug logging (default: false)
+ * @param config.transport - Custom transport for API calls (optional)
+ * @param config.fetchThreads - Custom function to fetch threads list (optional)
+ * @param config.fetchHistory - Custom function to fetch thread history (optional)
+ * @param config.createThread - Custom function to create threads (optional)
+ * @param config.deleteThread - Custom function to delete threads (optional)
+ * @param config.renameThread - Custom function to rename threads (optional)
+ * 
+ * @returns Object containing threads state and management functions
+ * 
+ * @example
+ * ```typescript
+ * // Basic usage with provider inheritance
+ * function ThreadsSidebar() {
+ *   const {
+ *     threads,
+ *     loading,
+ *     hasMore,
+ *     currentThreadId,
+ *     setCurrentThreadId,
+ *     deleteThread,
+ *     loadMore,
+ *     refresh
+ *   } = useThreads();
+ * 
+ *   return (
+ *     <div>
+ *       {threads.map(thread => (
+ *         <div 
+ *           key={thread.id}
+ *           className={currentThreadId === thread.id ? 'active' : ''}
+ *           onClick={() => setCurrentThreadId(thread.id)}
+ *         >
+ *           <h4>{thread.title}</h4>
+ *           <p>{thread.messageCount} messages</p>
+ *           <button onClick={(e) => {
+ *             e.stopPropagation();
+ *             deleteThread(thread.id);
+ *           }}>
+ *             Delete
+ *           </button>
+ *         </div>
+ *       ))}
+ *       
+ *       {hasMore && (
+ *         <button onClick={loadMore} disabled={loading}>
+ *           Load More
+ *         </button>
+ *       )}
+ *       
+ *       <button onClick={refresh}>Refresh</button>
+ *     </div>
+ *   );
+ * }
+ * ```
+ * 
+ * @example
+ * ```typescript
+ * // Custom persistence layer
+ * function useCustomThreads() {
+ *   return useThreads({
+ *     userId: 'custom-user',
+ *     debug: true,
+ *     fetchThreads: async (userId, { limit, offset }) => {
+ *       const response = await fetch(`/custom-api/threads?user=${userId}&limit=${limit}&offset=${offset}`);
+ *       return response.json();
+ *     },
+ *     createThread: async (userId) => {
+ *       const response = await fetch('/custom-api/threads', {
+ *         method: 'POST',
+ *         body: JSON.stringify({ userId })
+ *       });
+ *       return response.json();
+ *     }
+ *   });
+ * }
+ * ```
+ */
 export function useThreads(config?: {
   userId?: string; // Optional: inherits from AgentProvider if not provided
   channelKey?: string; // Optional: inherits from AgentProvider if not provided

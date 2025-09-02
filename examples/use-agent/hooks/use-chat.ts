@@ -11,52 +11,90 @@ import {
 } from './utils/provider-utils';
 import { type Thread, type ConversationMessage, type AgentStatus, createDebugLogger } from './types';
 
+/**
+ * Return value interface for the useChat hook.
+ * 
+ * This interface combines agent streaming capabilities with thread management,
+ * providing a unified API for building complete chat applications. It handles
+ * the coordination between real-time agent interactions and persistent conversation
+ * threads automatically.
+ * 
+ * @interface UseChatReturn
+ */
 export interface UseChatReturn {
-  // Agent state (real-time conversation)
+  // === REAL-TIME AGENT STATE ===
+  /** Current thread's messages with real-time streaming updates */
   messages: ConversationMessage[];
+  /** Agent execution status for the current thread (idle, thinking, responding, error) */
   status: AgentStatus;
+  /** WebSocket connection status to AgentKit */
   isConnected: boolean;
+  /** Name of the currently active agent (if available) */
   currentAgent?: string;
+  /** Current error state with recovery information */
   error?: { message: string; timestamp: Date; recoverable: boolean };
+  /** Clear the current error state */
   clearError: () => void;
   
-  // Thread state (persistence & list)
+  // === THREAD MANAGEMENT STATE ===
+  /** Array of all conversation threads with metadata */
   threads: Thread[];
+  /** Loading state for threads list */
   threadsLoading: boolean;
+  /** Whether more threads are available for pagination */
   threadsHasMore: boolean;
+  /** Error state for threads operations */
   threadsError: string | null;
+  /** ID of the currently active thread */
   currentThreadId: string | null;
   
-  // Loading state for initial thread
+  // === LOADING STATES ===
+  /** Loading state when switching to a URL-provided thread */
   isLoadingInitialThread: boolean;
   
-  // Unified actions (handles coordination automatically)
+  // === UNIFIED ACTIONS ===
+  /** Send a message to the current thread (handles coordination automatically) */
   sendMessage: (message: string, options?: { messageId?: string }) => Promise<void>;
+  /** Send a message to a specific thread (advanced use cases like branching) */
   sendMessageToThread: (threadId: string, message: string, options?: { 
     messageId?: string; 
     state?: Record<string, unknown> | (() => Record<string, unknown>);
-  }) => Promise<void>; // NEW: Expose for advanced use cases like branching
-  cancel: () => Promise<void>; // NEW: Cancel current agent run
-  approveToolCall: (toolCallId: string, reason?: string) => Promise<void>; // NEW: HITL approval
-  denyToolCall: (toolCallId: string, reason?: string) => Promise<void>; // NEW: HITL denial
+  }) => Promise<void>;
+  /** Cancel the current agent run */
+  cancel: () => Promise<void>;
+  /** Approve a tool call in Human-in-the-Loop workflows */
+  approveToolCall: (toolCallId: string, reason?: string) => Promise<void>;
+  /** Deny a tool call in Human-in-the-Loop workflows */
+  denyToolCall: (toolCallId: string, reason?: string) => Promise<void>;
   
-  // Thread switching - two approaches for different needs
-  switchToThread: (threadId: string) => Promise<void>; // High-level: loads history automatically
-  setCurrentThreadId: (threadId: string) => void; // Low-level escape hatch: immediate switch, no loading
+  // === THREAD NAVIGATION ===
+  /** Switch to a thread with automatic history loading */
+  switchToThread: (threadId: string) => Promise<void>;
+  /** Immediate thread switch without history loading (for ephemeral scenarios) */
+  setCurrentThreadId: (threadId: string) => void;
   
-  // Additional escape hatches for power users
+  // === ADVANCED THREAD OPERATIONS ===
+  /** Load thread history without switching to it */
   loadThreadHistory: (threadId: string) => Promise<ConversationMessage[]>;
+  /** Clear all messages from a specific thread */
   clearThreadMessages: (threadId: string) => void;
+  /** Replace all messages in a specific thread */
   replaceThreadMessages: (threadId: string, messages: ConversationMessage[]) => void;
   
+  // === THREAD CRUD OPERATIONS ===
+  /** Delete a thread and all its messages */
   deleteThread: (threadId: string) => Promise<void>;
+  /** Load more threads for pagination */
   loadMoreThreads: () => Promise<void>;
+  /** Refresh the threads list */
   refreshThreads: () => Promise<void>;
   
-  // Thread creation (supports both URL-driven and function-driven patterns)
+  // === THREAD CREATION ===
+  /** Create a new thread and return its ID (supports URL and function patterns) */
   createNewThread: () => string;
   
-  // NEW: State rehydration for editing messages from previous contexts
+  // === MESSAGE EDITING SUPPORT ===
+  /** Rehydrate client state for editing messages from previous contexts */
   rehydrateMessageState: (messageId: string) => void;
 }
 
@@ -126,8 +164,25 @@ export interface UseChatConfig {
 }
 
 /**
- * Database message format converter
- * Converts raw database messages to UI ConversationMessage format
+ * Convert raw database messages to UI ConversationMessage format.
+ * 
+ * This utility function transforms the database storage format (used by AgentKit's
+ * history adapter) into the rich ConversationMessage format expected by the UI.
+ * It handles both user messages and agent responses, extracting content and
+ * preserving client state for message editing workflows.
+ * 
+ * @param dbMessages - Raw database messages from AgentKit history
+ * @returns Array of ConversationMessage objects for UI consumption
+ * 
+ * @example
+ * ```typescript
+ * const dbMessages = [
+ *   { type: 'user', message_id: 'msg-1', content: 'Hello', clientState: { tab: 'chat' } },
+ *   { type: 'agent', message_id: 'msg-2', agentName: 'assistant', data: { output: [...] } }
+ * ];
+ * const uiMessages = convertDatabaseToUIFormat(dbMessages);
+ * // Returns: [{ id: 'msg-1', role: 'user', parts: [...] }, { id: 'msg-2', role: 'assistant', parts: [...] }]
+ * ```
  */
 const convertDatabaseToUIFormat = (dbMessages: any[]): ConversationMessage[] => {
   const result = dbMessages.map(msg => {
@@ -182,13 +237,122 @@ const convertDatabaseToUIFormat = (dbMessages: any[]): ConversationMessage[] => 
   return result;
 };
 
+/**
+ * A unified React hook that combines real-time agent interactions with thread management.
+ * 
+ * This hook provides a complete solution for building chat applications with AgentKit.
+ * It automatically coordinates between useAgent (for real-time streaming) and useThreads
+ * (for persistence and thread management), handling all the complex synchronization
+ * between real-time state and persistent storage.
+ * 
+ * ## Key Features
+ * 
+ * - **Unified API**: Single hook for complete chat functionality
+ * - **Automatic Coordination**: Syncs agent state with thread state seamlessly  
+ * - **Provider Integration**: Inherits configuration from AgentProvider when available
+ * - **Progressive Enhancement**: Works with URLs, standalone, or embedded scenarios
+ * - **Client State Capture**: Records UI context for message editing and regeneration
+ * - **Thread Validation**: Handles missing threads gracefully with customizable fallbacks
+ * 
+ * ## Usage Patterns
+ * 
+ * 1. **URL-driven**: `useChat({ initialThreadId: params.threadId })` for `/chat/[id]` routes
+ * 2. **Standalone**: `useChat()` for homepage or new conversations  
+ * 3. **Embedded**: `useChat({ enableThreadValidation: false })` for custom persistence
+ * 
+ * @param config - Configuration options for the chat hook
+ * @returns Object containing unified chat state and actions
+ * 
+ * @example
+ * ```typescript
+ * // URL-driven chat page (e.g., /chat/[threadId])
+ * function ChatPage({ params }: { params: { threadId: string } }) {
+ *   const {
+ *     messages,
+ *     sendMessage,
+ *     threads,
+ *     switchToThread,
+ *     deleteThread,
+ *     status,
+ *     isConnected
+ *   } = useChat({
+ *     initialThreadId: params.threadId,
+ *     debug: true,
+ *     state: () => ({
+ *       currentPage: 'chat',
+ *       userAgent: navigator.userAgent,
+ *       timestamp: Date.now()
+ *     }),
+ *     onStateRehydrate: (clientState, messageId) => {
+ *       // Restore UI state when editing previous messages
+ *       if (clientState.selectedTab) {
+ *         setActiveTab(clientState.selectedTab);
+ *       }
+ *     }
+ *   });
+ * 
+ *   return (
+ *     <div>
+ *       <Sidebar 
+ *         threads={threads} 
+ *         onThreadSelect={switchToThread}
+ *         onDeleteThread={deleteThread}
+ *       />
+ *       <Chat 
+ *         messages={messages}
+ *         onSendMessage={sendMessage}
+ *         status={status}
+ *         isConnected={isConnected}
+ *       />
+ *     </div>
+ *   );
+ * }
+ * ```
+ * 
+ * @example
+ * ```typescript
+ * // Homepage with new conversation support
+ * function HomePage() {
+ *   const {
+ *     messages,
+ *     sendMessage,
+ *     createNewThread,
+ *     currentThreadId,
+ *     status
+ *   } = useChat();
+ * 
+ *   const handleSendMessage = async (text: string) => {
+ *     if (messages.length === 0) {
+ *       // First message - will trigger navigation to new thread URL
+ *       const newThreadId = createNewThread();
+ *       await sendMessage(text);
+ *       router.push(`/chat/${newThreadId}`);
+ *     } else {
+ *       await sendMessage(text);
+ *     }
+ *   };
+ * 
+ *   return (
+ *     <div>
+ *       {messages.length === 0 ? (
+ *         <EmptyState onSendMessage={handleSendMessage} />
+ *       ) : (
+ *         <Chat messages={messages} status={status} />
+ *       )}
+ *     </div>
+ *   );
+ * }
+ * ```
+ */
 export const useChat = (config?: UseChatConfig): UseChatReturn => {
-  // Inherit from provider if available
+  // === PROVIDER INHERITANCE LOGIC ===
+  // Gracefully inherit from AgentProvider when available, fall back to local config
   const globalUserId = useOptionalGlobalUserId();
   const globalChannelKey = useOptionalGlobalChannelKey();
   const globalResolvedChannelKey = useOptionalGlobalResolvedChannelKey();
   
   // Resolve configuration with provider inheritance
+  // Local config takes precedence over provider values
   const resolvedUserId = config?.userId || globalUserId || undefined;
   const resolvedChannelKey = config?.channelKey || globalChannelKey || undefined;
   
@@ -269,13 +433,18 @@ export const useChat = (config?: UseChatConfig): UseChatReturn => {
   const globalAgent = useOptionalGlobalAgent();
   const globalTransport = useOptionalGlobalTransport();
   
-  // Smart subscription logic: Only disable local subscription if using the SAME channel
+  // === SMART SUBSCRIPTION LOGIC ===
+  // Determines whether to share the provider's WebSocket connection or create a separate one.
+  // This enables both shared connections (for performance) and isolated connections (for flexibility).
   const shouldDisableLocalSubscription = useMemo(() => {
-    // No global agent = always enable local subscription (standalone mode)
+    // Case 1: No global agent = always enable local subscription (standalone mode)
+    // When not inside AgentProvider, this hook needs its own agent instance
     if (!globalAgent) return false;
     
-    // Global agent exists = disable local subscription ONLY if using same channel (share connection)
-    // Different channel = enable local subscription (escape hatch for separate connection)
+    // Case 2: Global agent exists = channel-based sharing decision
+    // If using SAME channel = disable local subscription (share the provider's connection)
+    // If using DIFFERENT channel = enable local subscription (create isolated connection)
+    // This allows escape hatch for separate conversations while optimizing shared ones
     return globalResolvedChannelKey === localResolvedChannelKey;
   }, [globalAgent, globalResolvedChannelKey, localResolvedChannelKey]);
   

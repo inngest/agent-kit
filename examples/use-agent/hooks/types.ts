@@ -1,10 +1,27 @@
 
 /**
- * Centralized type definitions for AgentKit React hooks
+ * Centralized type definitions for AgentKit React hooks.
  * 
  * This module provides a single source of truth for all types used across
- * useAgent, useChat, and useThreads hooks, preventing type drift and ensuring
- * consistency throughout the application.
+ * the AgentKit React hooks ecosystem. It prevents type drift between hooks
+ * and ensures consistency in message formats, streaming events, and state
+ * management across the entire integration.
+ * 
+ * ## Core Type Categories
+ * 
+ * - **Message Types**: UI representation of conversation messages with streaming parts
+ * - **Streaming State**: Multi-thread state management with event buffering
+ * - **Hook Options**: Configuration interfaces for all hooks
+ * - **Error Handling**: Rich error types with recovery guidance
+ * - **Debug Utilities**: Logging and debugging infrastructure
+ * 
+ * ## Package Preparation
+ * 
+ * These types are designed to be the public API when these hooks are extracted
+ * into their own npm package. They provide full TypeScript support for all
+ * AgentKit React integration scenarios.
+ * 
+ * @fileoverview Type definitions for AgentKit React hooks package
  */
 
 import { InngestSubscriptionState } from "@inngest/realtime/hooks";
@@ -223,8 +240,47 @@ export interface HitlUIPart {
 }
 
 /**
- * Represents a complete message in the conversation, containing one or more parts.
- * Messages can be from either the user or the assistant, with rich content support.
+ * Core message interface representing a complete conversation message.
+ * 
+ * This is the primary message format used throughout AgentKit React hooks.
+ * Messages contain one or more "parts" that can include text, tool calls,
+ * reasoning, errors, and other rich content types. This structure supports
+ * real-time streaming where parts are built up incrementally.
+ * 
+ * ## Message Parts
+ * 
+ * Messages are composed of parts to support streaming and rich content:
+ * - **Text Parts**: Streaming text content from agents
+ * - **Tool Call Parts**: Function calls with streaming input/output
+ * - **Reasoning Parts**: Agent thinking process (optional transparency)
+ * - **Error Parts**: Error messages with recovery guidance
+ * - **HITL Parts**: Human-in-the-loop approval requests
+ * 
+ * ## Client State
+ * 
+ * Each message can capture the client's UI state when it was sent,
+ * enabling features like message editing with context restoration.
+ * 
+ * @interface ConversationMessage
+ * @example
+ * ```typescript
+ * const userMessage: ConversationMessage = {
+ *   id: 'msg-123',
+ *   role: 'user',
+ *   parts: [{
+ *     type: 'text',
+ *     id: 'text-123', 
+ *     content: 'Hello, help me with billing',
+ *     status: 'complete'
+ *   }],
+ *   timestamp: new Date(),
+ *   status: 'sent',
+ *   clientState: {
+ *     currentPage: '/billing',
+ *     formData: { accountId: '123' }
+ *   }
+ * };
+ * ```
  */
 export interface ConversationMessage {
   /** Unique identifier for this message */
@@ -239,7 +295,7 @@ export interface ConversationMessage {
   timestamp: Date;
   /** The status of the message, particularly for optimistic user messages */
   status?: 'sending' | 'sent' | 'failed';
-  /** Client state captured when this message was originally sent (NEW) */
+  /** Client state captured when this message was originally sent */
   clientState?: Record<string, unknown>;
 }
 
@@ -536,7 +592,43 @@ export type StreamingAction = MultiThreadStreamingAction;
 
 /**
  * Configuration options for the useAgent hook.
- * These options control the behavior and callbacks of the agent interaction.
+ * 
+ * These options control all aspects of agent interaction including connection
+ * management, state capture, transport configuration, and debugging. The hook
+ * supports both simple usage (minimal config) and advanced scenarios (full customization).
+ * 
+ * ## Configuration Hierarchy
+ * 
+ * 1. **Hook Options**: Direct parameters passed to useAgent (highest priority)
+ * 2. **Provider Options**: Inherited from AgentProvider if available
+ * 3. **Defaults**: Built-in fallbacks for anonymous users and default transports
+ * 
+ * @interface UseAgentOptions
+ * @example
+ * ```typescript
+ * // Minimal configuration
+ * const minimal = useAgent({
+ *   threadId: 'conversation-123'
+ * });
+ * 
+ * // Full configuration
+ * const advanced = useAgent({
+ *   threadId: 'conversation-123',
+ *   userId: 'user-456',
+ *   channelKey: 'project-789', // For collaboration
+ *   debug: true,
+ *   state: () => ({
+ *     currentTab: getCurrentTab(),
+ *     formData: getFormData(),
+ *     userPreferences: getUserPreferences()
+ *   }),
+ *   transport: new CustomAgentTransport(),
+ *   onError: (error) => {
+ *     console.error('Agent error:', error);
+ *     showErrorNotification(error.message);
+ *   }
+ * });
+ * ```
  */
 export interface UseAgentOptions {
   /** The unique identifier for the conversation thread. */

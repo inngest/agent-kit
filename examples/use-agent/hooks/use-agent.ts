@@ -1491,7 +1491,28 @@ const streamingReducer = (state: StreamingState, action: StreamingAction, isDebu
  * The return value of the `useAgent` hook, providing multi-thread state and functions
  * for managing real-time conversations with an AI agent across multiple threads.
  * 
+ * This interface provides both backward-compatible single-thread accessors and
+ * full multi-thread management capabilities. The hook maintains separate conversation
+ * threads while streaming real-time updates from AgentKit networks.
+ * 
  * @interface UseAgentReturn
+ * @example
+ * ```typescript
+ * const {
+ *   // Current thread shortcuts (backward compatible)
+ *   messages, status, sendMessage,
+ *   
+ *   // Multi-thread management
+ *   threads, currentThreadId, setCurrentThread,
+ *   
+ *   // Connection state
+ *   isConnected, connectionError
+ * } = useAgent({
+ *   threadId: 'conversation-123',
+ *   userId: 'user-456',
+ *   debug: true
+ * });
+ * ```
  */
 export interface UseAgentReturn {
   // === CURRENT THREAD SHORTCUTS (Backward Compatible) ===
@@ -1569,54 +1590,91 @@ export interface UseAgentReturn {
 }
 
 /**
- * A React hook for managing a real-time conversation with an AI agent.
- * This hook encapsulates the complete lifecycle of agent interactions, including
- * sending messages, receiving real-time streaming responses, handling out-of-order
- * events, and managing connection state.
+ * A React hook for managing real-time conversations with AI agents across multiple threads.
  * 
- * The hook automatically handles:
- * - Real-time event streaming and buffering
- * - Out-of-order event processing with sequence numbers
- * - Connection state management
- * - Error handling and recovery
- * - Message history formatting for agent context
- * - Optimistic UI updates
+ * This is the core hook of the AgentKit React integration, providing a complete solution
+ * for building real-time AI chat interfaces. It manages WebSocket connections to AgentKit
+ * networks, handles streaming responses, and maintains conversation state across multiple
+ * concurrent threads.
+ * 
+ * ## Core Features
+ * 
+ * - **Multi-thread Management**: Handle multiple concurrent conversations
+ * - **Real-time Streaming**: Receive live updates from AgentKit networks via WebSocket
+ * - **Out-of-order Processing**: Buffer and reorder events using sequence numbers
+ * - **Provider Integration**: Works with AgentProvider for shared connections
+ * - **Client State Capture**: Record UI state with messages for debugging/regeneration
+ * - **Background Updates**: Process events for inactive threads
+ * 
+ * ## Provider Integration
+ * 
+ * The hook works both standalone and with AgentProvider:
+ * - **Standalone**: Creates its own connection and transport
+ * - **Provider Mode**: Shares connection when using same channel key
+ * - **Escape Hatch**: Uses separate connection when different channel key
+ * 
+ * ## Thread Management
+ * 
+ * Each thread maintains its own:
+ * - Message history and streaming state
+ * - Agent status (thinking, responding, error, idle)
+ * - Event buffer for out-of-order processing
+ * - Unread message indicators
  * 
  * @param options - Configuration options for the agent interaction
  * @param options.threadId - Unique identifier for the conversation thread
+ * @param options.channelKey - Channel key for subscription (enables collaboration)
+ * @param options.userId - User identifier for attribution (optional - can be anonymous)
+ * @param options.debug - Enable debug logging (default: true in dev, false in prod)
+ * @param options.state - Function to capture client state with each message
+ * @param options.transport - Custom transport for API calls (optional)
  * @param options.onError - Optional callback for handling errors
+ * @param options.__disableSubscription - Internal: disable subscription for shared connections
+ * 
  * @returns Object containing conversation state and interaction functions
  * 
  * @example
  * ```typescript
+ * // Standalone usage
  * function ChatComponent() {
- *   const {
- *     messages,
- *     status,
- *     sendMessage,
- *     isConnected,
- *     error,
- *     clearError
- *   } = useAgent({
+ *   const agent = useAgent({
  *     threadId: 'conversation-123',
- *     debug: true, // Enable debug logging for this instance
+ *     userId: 'user-456',
+ *     debug: true,
+ *     state: () => ({ currentTab: 'chat', timestamp: Date.now() }),
  *     onError: (error) => console.error('Agent error:', error)
  *   });
  * 
  *   return (
  *     <div>
- *       <div>Status: {status}</div>
- *       <div>Connected: {isConnected ? 'Yes' : 'No'}</div>
- *       {messages.map(msg => <Message key={msg.id} message={msg} />)}
- *       <button onClick={() => sendMessage('Hello!')}>Send</button>
- *       {error && (
- *         <div>
- *           Error: {error.message}
- *           <button onClick={clearError}>Clear</button>
- *         </div>
- *       )}
+ *       <div>Status: {agent.status}</div>
+ *       <div>Connected: {agent.isConnected ? 'Yes' : 'No'}</div>
+ *       <div>Messages: {agent.messages.length}</div>
+ *       <button onClick={() => agent.sendMessage('Hello!')}>Send</button>
  *     </div>
  *   );
+ * }
+ * ```
+ * 
+ * @example
+ * ```typescript
+ * // Provider usage (shared connection)
+ * function App() {
+ *   return (
+ *     <AgentProvider userId="user-123" debug={true}>
+ *       <ChatComponent />
+ *       <AnotherChatComponent />
+ *     </AgentProvider>
+ *   );
+ * }
+ * 
+ * function ChatComponent() {
+ *   // Inherits userId and transport from provider automatically
+ *   const { messages, sendMessage } = useAgent({
+ *     threadId: 'thread-1'
+ *     // No need to pass userId or transport - inherited from provider
+ *   });
+ *   return <div>Chat with {messages.length} messages</div>;
  * }
  * ```
  */
@@ -1626,24 +1684,33 @@ export function useAgent({ threadId, channelKey, userId, onError, debug = DEFAUL
   // Create standardized debug logger
   const logger = useMemo(() => createDebugLogger('useAgent', debug), [debug]);
 
-  // Check if we're inside a provider to enable smart subscription sharing
+  // === PROVIDER INTEGRATION LOGIC ===
+  // Check if we're inside a provider to enable smart subscription sharing.
+  // These hooks gracefully return null if not inside an AgentProvider.
   const globalUserId = useOptionalGlobalUserId();
   const globalChannelKey = useOptionalGlobalChannelKey();
   const globalResolvedChannelKey = useOptionalGlobalResolvedChannelKey();
   
-  // Resolve local configuration with provider inheritance
+  // Resolve local configuration with provider inheritance.
+  // Local options take precedence over provider values.
   const effectiveUserId = userId || globalUserId;
   const effectiveChannelKey = channelKey || globalChannelKey;
 
-  // Channel key resolution logic
+  // === CHANNEL KEY RESOLUTION LOGIC ===
+  // The channel key determines which WebSocket subscription to use.
+  // This enables flexible usage patterns from private chats to collaborative sessions.
   const resolvedChannelKey = useMemo(() => {
-    // 1. Explicit channelKey (collaborative/specific scenarios)
+    // Priority 1: Explicit channelKey (collaborative/multi-user scenarios)
+    // Example: channelKey="project-123" allows multiple users to collaborate on project-123
     if (effectiveChannelKey) return effectiveChannelKey;
 
-    // 2. Fallback to userId (private chat - current behavior)
+    // Priority 2: Fallback to userId (private chat - current behavior)
+    // Example: userId="user-456" creates a private chat for user-456
     if (effectiveUserId) return effectiveUserId;
 
-    // 3. Anonymous fallback (new capability)
+    // Priority 3: Anonymous fallback (new capability for guest users)
+    // Creates a persistent anonymous ID stored in sessionStorage
+    // Example: "anon_abc123def" persists across page reloads but not across devices
     let anonymousId = '';
     if (typeof window !== 'undefined') {
       anonymousId = sessionStorage.getItem("agentkit-anonymous-id") || '';
@@ -1652,39 +1719,50 @@ export function useAgent({ threadId, channelKey, userId, onError, debug = DEFAUL
         sessionStorage.setItem("agentkit-anonymous-id", anonymousId);
       }
     } else {
-      // Server-side fallback
+      // Server-side fallback (SSR scenarios)
       anonymousId = `anon_${uuidv4()}`;
     }
     return anonymousId;
   }, [effectiveChannelKey, effectiveUserId]);
   
-  // Smart subscription logic: Provider + Escape Hatch pattern
+  // === SMART SUBSCRIPTION SHARING LOGIC ===
+  // This implements the "Provider + Escape Hatch" pattern for connection management.
+  // Goal: Share WebSocket connections when possible, but allow separate connections when needed.
   const smartDisableSubscription = useMemo(() => {
-    // Explicit override takes precedence
+    // Priority 1: Explicit override takes precedence (internal use)
+    // Used by useChat to disable local agent when sharing provider connection
     if (__disableSubscription) return true;
     
-    // No provider = always enable subscription (standalone mode)
+    // Priority 2: No provider = always enable subscription (standalone mode)
+    // When not inside AgentProvider, this hook manages its own connection
     if (!globalResolvedChannelKey) return false;
     
-    // Provider exists = disable subscription ONLY if using same channel (share connection)
-    // Different channel = enable subscription (escape hatch for separate connection)
+    // Priority 3: Provider exists = smart channel-based sharing
+    // If provider and local hook use SAME channel = disable local (share connection)
+    // If provider and local hook use DIFFERENT channels = enable local (separate connection)
+    // This allows escape hatch for isolated conversations while sharing when appropriate
     return globalResolvedChannelKey === resolvedChannelKey;
   }, [__disableSubscription, globalResolvedChannelKey, resolvedChannelKey]);
 
-  // Transport resolution with provider inheritance (provider is optional)
+  // === TRANSPORT RESOLUTION LOGIC ===
+  // Transport handles API calls (sendMessage, fetchThreads, etc.).
+  // Uses hierarchical resolution with provider inheritance.
   const providerTransport = useOptionalGlobalTransport();
   const transport = useMemo(() => {
-    // Priority 1: Hook-level transport override
+    // Priority 1: Hook-level transport override (highest precedence)
+    // Allows per-hook customization even when inside a provider
     if (providedTransport) {
       return providedTransport;
     }
     
     // Priority 2: Inherit from provider (if available)
+    // Enables shared transport configuration across multiple hooks
     if (providerTransport) {
       return providerTransport;
     }
     
     // Priority 3: Default transport (always works)
+    // Uses conventional Next.js API routes (/api/chat, /api/threads, etc.)
     return createDefaultAgentTransport();
   }, [providedTransport, providerTransport]);
 
@@ -1783,7 +1861,31 @@ export function useAgent({ threadId, channelKey, userId, onError, debug = DEFAUL
   }, [threadId, logger]); // Safe: no circular dependencies
 
   /**
-   * Helper function to send a message to a specific thread
+   * Send a message to a specific thread with full control over state and targeting.
+   * 
+   * This is the core message sending function that handles:
+   * - Thread creation and validation
+   * - Client state capture and branching support
+   * - Message history formatting for AgentKit context
+   * - Optimistic UI updates with proper error handling
+   * 
+   * @param targetThreadId - ID of the thread to send the message to
+   * @param message - The text content to send
+   * @param options - Additional options for the message
+   * @param options.messageId - Custom message ID (auto-generated if not provided)
+   * @param options.state - Client state to capture with the message (function or object)
+   * 
+   * @example
+   * ```typescript
+   * // Send to specific thread with custom state
+   * await sendMessageToThread('thread-123', 'Hello', {
+   *   messageId: 'msg-456',
+   *   state: () => ({ 
+   *     currentTab: 'billing',
+   *     formData: { amount: 100 }
+   *   })
+   * });
+   * ```
    */
   const sendMessageToThread = useCallback(async (targetThreadId: string, message: string, options?: { 
     messageId?: string; 
@@ -1801,14 +1903,19 @@ export function useAgent({ threadId, channelKey, userId, onError, debug = DEFAUL
     const targetThread = currentState.threads[targetThreadId];
     const currentMessages = targetThread?.messages || [];
     
-    // BRANCHING SUPPORT: Check if state function provides custom branch history
+    // === CONVERSATION BRANCHING SUPPORT ===
+    // This section determines what conversation history to send to AgentKit.
+    // Supports both normal conversations and branched conversations (editing previous messages).
+    
     let historyToSend: AgentKitMessage[] = [];
     let effectiveMessages = currentMessages;
     
     if (options?.state) {
+      // Extract state data from function or object
       const stateData = typeof options.state === 'function' ? options.state() : options.state;
       
       // Check if this is a conversation branching scenario
+      // Branching mode is used when editing a previous message to create an alternate conversation path
       if (stateData.mode === 'conversation_branching' && Array.isArray(stateData.branchHistory)) {
         logger.log(`🌿 [BRANCHING] Using branch history instead of full thread history:`, {
           threadId: targetThreadId,
@@ -1818,15 +1925,19 @@ export function useAgent({ threadId, channelKey, userId, onError, debug = DEFAUL
         });
         
         // Use the pre-formatted branch history directly
+        // This contains only the messages up to the point of the edit,
+        // allowing the agent to respond as if the conversation had taken a different path
         historyToSend = stateData.branchHistory;
         effectiveMessages = []; // For logging purposes, show we're using branch history
       } else {
-        // Normal state function, use thread messages
+        // Normal state function, use full thread messages
+        // Format the UI messages into AgentKit's expected message format
         historyToSend = formatMessagesToAgentKitHistory(currentMessages);
         effectiveMessages = currentMessages;
       }
     } else {
-      // No state function, use thread messages
+      // No state function provided, use thread messages as-is
+      // This is the default case for simple conversations
       historyToSend = formatMessagesToAgentKitHistory(currentMessages);
       effectiveMessages = currentMessages;
     }

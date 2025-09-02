@@ -101,12 +101,59 @@ export interface ApproveToolCallParams {
 
 
 /**
- * The core transport interface that all transports must implement.
- * This defines the contract for all agent-related API operations.
+ * The core transport interface that all AgentKit React hooks use for API communication.
+ * 
+ * This interface abstracts all agent-related API operations, allowing for complete
+ * customization of endpoints, request handling, and response processing while
+ * maintaining a consistent contract across all hooks.
+ * 
+ * ## Purpose
+ * 
+ * - **Abstraction**: Decouples hooks from specific API implementations
+ * - **Customization**: Allows custom endpoints, headers, authentication
+ * - **Testing**: Enables easy mocking for unit tests
+ * - **Flexibility**: Supports different backend architectures (REST, GraphQL, etc.)
+ * 
+ * ## Implementation Options
+ * 
+ * 1. **DefaultAgentTransport**: Built-in implementation for conventional REST APIs
+ * 2. **Custom Implementation**: Implement this interface for custom backends
+ * 3. **Transport Wrapping**: Use `createCustomTransport` to override specific methods
+ * 
+ * @interface AgentTransport
+ * @example
+ * ```typescript
+ * // Custom transport for GraphQL backend
+ * class GraphQLAgentTransport implements AgentTransport {
+ *   async sendMessage(params) {
+ *     const mutation = gql`
+ *       mutation SendMessage($input: MessageInput!) {
+ *         sendMessage(input: $input) { threadId success }
+ *       }
+ *     `;
+ *     return await client.mutate({ mutation, variables: { input: params } });
+ *   }
+ *   
+ *   async fetchThreads(params) {
+ *     const query = gql`query GetThreads($userId: ID!, $limit: Int!) { ... }`;
+ *     return await client.query({ query, variables: params });
+ *   }
+ *   
+ *   // ... implement other methods
+ * }
+ * ```
  */
 export interface AgentTransport {
   /**
-   * Send a message to an agent and trigger processing.
+   * Send a message to an agent and trigger AgentKit network execution.
+   * 
+   * This is the core method that starts a conversation turn. It sends the user's
+   * message along with conversation history to AgentKit, which triggers the
+   * agent network to process and respond via real-time streaming.
+   * 
+   * @param params - Message parameters including content, history, and context
+   * @param options - Optional request customization (headers, body, signal)
+   * @returns Promise resolving to success status and thread ID
    */
   sendMessage(
     params: SendMessageParams,
@@ -114,7 +161,15 @@ export interface AgentTransport {
   ): Promise<{ success: boolean; threadId: string }>;
 
   /**
-   * Get a real-time subscription token for streaming agent responses.
+   * Get a real-time subscription token for WebSocket streaming.
+   * 
+   * This method obtains a token that allows the client to establish a WebSocket
+   * connection to receive real-time events from AgentKit networks. The token
+   * includes channel information and authentication for secure streaming.
+   * 
+   * @param params - Token parameters including user/thread/channel context
+   * @param options - Optional request customization
+   * @returns Promise resolving to a streaming token with channel info
    */
   getRealtimeToken(
     params: GetRealtimeTokenParams,
@@ -122,7 +177,15 @@ export interface AgentTransport {
   ): Promise<RealtimeToken>;
 
   /**
-   * Fetch a paginated list of threads for a user.
+   * Fetch a paginated list of conversation threads.
+   * 
+   * Retrieves threads with metadata including titles, message counts, and timestamps.
+   * Supports both user-based queries (for authenticated users) and channel-based
+   * queries (for anonymous sessions).
+   * 
+   * @param params - Query parameters including user/channel, pagination
+   * @param options - Optional request customization
+   * @returns Promise resolving to threads list with pagination info
    */
   fetchThreads(
     params: FetchThreadsParams,
@@ -130,7 +193,14 @@ export interface AgentTransport {
   ): Promise<{ threads: Thread[]; hasMore: boolean; total: number }>;
 
   /**
-   * Fetch the message history for a specific thread.
+   * Fetch the complete message history for a specific thread.
+   * 
+   * Returns raw database messages that need to be converted to UI format.
+   * Used by thread switching logic to load historical conversation context.
+   * 
+   * @param params - Parameters including the thread ID to fetch
+   * @param options - Optional request customization
+   * @returns Promise resolving to array of raw database messages
    */
   fetchHistory(
     params: FetchHistoryParams,
@@ -139,6 +209,13 @@ export interface AgentTransport {
 
   /**
    * Create a new conversation thread.
+   * 
+   * Initializes a new thread in the backend storage with metadata.
+   * Used by optimistic thread creation and explicit thread creation flows.
+   * 
+   * @param params - Thread creation parameters including user context
+   * @param options - Optional request customization
+   * @returns Promise resolving to new thread ID and initial title
    */
   createThread(
     params: CreateThreadParams,
@@ -146,7 +223,14 @@ export interface AgentTransport {
   ): Promise<{ threadId: string; title: string }>;
 
   /**
-   * Delete a conversation thread and all its messages.
+   * Delete a conversation thread and all its messages permanently.
+   * 
+   * Removes the thread and all associated messages from storage.
+   * This operation is typically irreversible, so UIs should confirm before calling.
+   * 
+   * @param params - Thread deletion parameters including thread ID
+   * @param options - Optional request customization
+   * @returns Promise that resolves when deletion is complete
    */
   deleteThread(
     params: DeleteThreadParams,
@@ -154,7 +238,15 @@ export interface AgentTransport {
   ): Promise<void>;
 
   /**
-   * Approve or deny a tool call (Human-in-the-Loop).
+   * Approve or deny a tool call in Human-in-the-Loop (HITL) workflows.
+   * 
+   * Used when AgentKit agents request human approval before executing
+   * potentially sensitive or destructive operations. The approval/denial
+   * is sent back to the running agent to continue or abort the operation.
+   * 
+   * @param params - Approval parameters including tool call ID and action
+   * @param options - Optional request customization
+   * @returns Promise that resolves when approval is processed
    */
   approveToolCall(
     params: ApproveToolCallParams,
@@ -162,7 +254,14 @@ export interface AgentTransport {
   ): Promise<void>;
 
   /**
-   * Cancel a message/run that's currently in progress.
+   * Cancel a message/run that's currently in progress (optional).
+   * 
+   * Attempts to stop an ongoing AgentKit execution. Not all transports
+   * may support cancellation, so this method is optional.
+   * 
+   * @param params - Cancellation parameters including thread ID
+   * @param options - Optional request customization
+   * @returns Promise that resolves when cancellation is processed
    */
   cancelMessage?(
     params: { threadId: string },
@@ -215,8 +314,50 @@ export interface DefaultAgentTransportConfig {
 }
 
 /**
- * Default transport implementation that uses fetch to make HTTP requests.
- * Provides sensible defaults for Next.js applications but is fully configurable.
+ * Default HTTP-based transport implementation for AgentKit React hooks.
+ * 
+ * This class provides a production-ready transport that works with conventional
+ * REST API endpoints. It includes intelligent defaults for Next.js applications
+ * while remaining fully configurable for custom setups.
+ * 
+ * ## Features
+ * 
+ * - **Conventional Defaults**: Works with standard `/api/chat`, `/api/threads` routes
+ * - **Template URLs**: Supports `{param}` placeholders in endpoint URLs
+ * - **Configurable Headers**: Custom authentication and request headers
+ * - **Error Handling**: Rich error objects with recovery guidance
+ * - **Request Customization**: Per-request header and body overrides
+ * 
+ * ## Default Endpoints
+ * 
+ * - `sendMessage`: `POST /api/chat`
+ * - `getRealtimeToken`: `POST /api/realtime/token`
+ * - `fetchThreads`: `GET /api/threads`
+ * - `fetchHistory`: `GET /api/threads/{threadId}`
+ * - `createThread`: `POST /api/threads`
+ * - `deleteThread`: `DELETE /api/threads/{threadId}`
+ * - `approveToolCall`: `POST /api/approve-tool`
+ * - `cancelMessage`: `POST /api/chat/cancel`
+ * 
+ * @example
+ * ```typescript
+ * // Use with default configuration
+ * const transport = createDefaultAgentTransport();
+ * 
+ * // Custom configuration
+ * const customTransport = createDefaultAgentTransport({
+ *   api: {
+ *     sendMessage: '/api/v2/agent/message',
+ *     fetchThreads: '/api/v2/conversations',
+ *     deleteThread: '/api/v2/conversations/{threadId}/delete'
+ *   },
+ *   headers: {
+ *     'Authorization': `Bearer ${token}`,
+ *     'X-API-Version': '2.0'
+ *   },
+ *   baseURL: 'https://api.myapp.com'
+ * });
+ * ```
  */
 export class DefaultAgentTransport implements AgentTransport {
   private config: DefaultAgentTransportConfig;

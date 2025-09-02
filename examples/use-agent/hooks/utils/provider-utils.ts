@@ -1,9 +1,24 @@
 /**
- * Provider utilities for optional context access
+ * Provider utilities for optional context access without requiring AgentProvider.
  * 
- * These utilities allow hooks to gracefully access provider context when available
- * without requiring the provider to be present. This enables both provider-based
- * and standalone usage patterns.
+ * This module enables AgentKit React hooks to work both with and without AgentProvider,
+ * implementing a "Provider + Escape Hatch" pattern. Hooks can gracefully inherit
+ * configuration from a provider when available, but work independently when needed.
+ * 
+ * ## Design Philosophy
+ * 
+ * - **Optional Provider**: Hooks work without AgentProvider (standalone mode)
+ * - **Graceful Inheritance**: When provider exists, inherit its configuration
+ * - **Override Capability**: Local hook config always takes precedence
+ * - **No Exceptions**: Never throw errors when provider is missing
+ * 
+ * ## Usage Patterns
+ * 
+ * 1. **Standalone**: Hook creates its own connection and config
+ * 2. **Provider Mode**: Hook inherits shared connection and config  
+ * 3. **Hybrid**: Hook inherits some config but overrides others
+ * 
+ * @fileoverview Optional provider integration utilities for AgentKit hooks
  */
 
 import { 

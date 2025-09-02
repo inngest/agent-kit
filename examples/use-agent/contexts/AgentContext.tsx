@@ -9,28 +9,144 @@ import {
 } from '@/hooks/transport';
 import { v4 as uuidv4 } from 'uuid';
 
+/**
+ * Context type for AgentProvider - contains shared agent instance and configuration.
+ * 
+ * This context enables multiple components to share a single AgentKit connection
+ * and transport configuration, improving performance and consistency across the app.
+ * 
+ * @interface AgentContextType
+ */
 interface AgentContextType {
+  /** Shared agent instance with multi-thread capabilities */
   agent: UseAgentReturn;
+  /** Transport instance for API calls */
   transport: AgentTransport;
-  userId?: string; // Expose userId from provider
-  channelKey?: string; // Expose channelKey from provider
-  resolvedChannelKey: string; // The computed channel key for convenience
+  /** User identifier passed to provider (if any) */
+  userId?: string;
+  /** Channel key passed to provider (if any) */
+  channelKey?: string;
+  /** Computed channel key actually used for subscriptions */
+  resolvedChannelKey: string;
 }
 
 export const AgentContext = createContext<AgentContextType | null>(null);
 
+/**
+ * Props for the AgentProvider component.
+ * 
+ * @interface AgentProviderProps
+ */
 interface AgentProviderProps {
+  /** React children to wrap with agent context */
   children: React.ReactNode;
-  userId?: string; // Optional - will fallback to anonymous if not provided
-  channelKey?: string; // Optional - explicit subscription channel
+  /** User identifier for attribution (optional - supports anonymous users) */
+  userId?: string;
+  /** Channel key for subscription targeting (optional - enables collaboration) */
+  channelKey?: string;
+  /** Enable debug logging for provider and child hooks (default: true) */
   debug?: boolean;
   /**
-   * Optional transport configuration or instance.
-   * If not provided, a default transport with conventional endpoints will be used.
+   * Transport configuration or instance for API calls.
+   * 
+   * Can be either:
+   * - A complete AgentTransport instance
+   * - A configuration object to customize the default transport
+   * - Undefined to use default transport with conventional endpoints
+   * 
+   * @example
+   * ```typescript
+   * // Configuration object
+   * transport={{
+   *   api: { sendMessage: '/api/v2/chat' },
+   *   headers: { 'Authorization': `Bearer ${token}` }
+   * }}
+   * 
+   * // Transport instance  
+   * transport={new CustomAgentTransport()}
+   * ```
    */
   transport?: AgentTransport | Partial<DefaultAgentTransportConfig>;
 }
 
+/**
+ * AgentProvider creates a shared AgentKit connection for multiple chat components.
+ * 
+ * This provider establishes a single WebSocket connection and transport configuration
+ * that can be shared across multiple useAgent, useChat, and useThreads hooks within
+ * your application. This improves performance and ensures consistency.
+ * 
+ * ## Benefits of Using AgentProvider
+ * 
+ * - **Performance**: Single WebSocket connection shared across components
+ * - **Consistency**: Shared transport configuration and user context
+ * - **Flexibility**: Child hooks can still override configuration when needed
+ * - **Anonymous Support**: Automatically handles anonymous users with persistent IDs
+ * - **Channel-based Sharing**: Smart connection sharing based on channel keys
+ * 
+ * ## Usage Patterns
+ * 
+ * 1. **Authenticated Users**: `<AgentProvider userId="user-123">`
+ * 2. **Anonymous Users**: `<AgentProvider>` (auto-generates persistent anonymous ID)
+ * 3. **Collaborative Sessions**: `<AgentProvider channelKey="project-456">`
+ * 
+ * @param props - Provider configuration
+ * @param props.children - React components to provide context to
+ * @param props.userId - User identifier (optional - supports anonymous users)
+ * @param props.channelKey - Channel key for collaboration (optional)
+ * @param props.debug - Enable debug logging (default: true)
+ * @param props.transport - Transport configuration or instance (optional)
+ * 
+ * @example
+ * ```typescript
+ * // Basic authenticated setup
+ * function App() {
+ *   return (
+ *     <AgentProvider userId="user-123" debug={true}>
+ *       <ChatPage />
+ *       <ThreadsSidebar />
+ *     </AgentProvider>
+ *   );
+ * }
+ * ```
+ * 
+ * @example
+ * ```typescript
+ * // Anonymous user support
+ * function App() {
+ *   return (
+ *     <AgentProvider debug={false}>
+ *       {/* Anonymous ID generated automatically */}
+ *       <GuestChatInterface />
+ *     </AgentProvider>
+ *   );
+ * }
+ * ```
+ * 
+ * @example
+ * ```typescript
+ * // Custom transport configuration
+ * function App() {
+ *   return (
+ *     <AgentProvider 
+ *       userId="user-123"
+ *       transport={{
+ *         api: {
+ *           sendMessage: '/api/v2/chat',
+ *           fetchThreads: '/api/v2/threads'
+ *         },
+ *         headers: () => ({
+ *           'Authorization': `Bearer ${getAuthToken()}`,
+ *           'X-User-Role': getUserRole()
+ *         })
+ *       }}
+ *     >
+ *       <ChatApp />
+ *     </AgentProvider>
+ *   );
+ * }
+ * ```
+ */
 export function AgentProvider({ children, userId, channelKey, debug = true, transport: transportConfig }: AgentProviderProps) {
   // Create a stable fallback threadId that only gets generated once
   const fallbackThreadIdRef = useRef<string | null>(null);
@@ -38,15 +154,20 @@ export function AgentProvider({ children, userId, channelKey, debug = true, tran
     fallbackThreadIdRef.current = `thread-${Date.now()}`;
   }
 
-  // Channel key resolution logic for the provider
+  // === CHANNEL KEY RESOLUTION ===
+  // The channel key determines which WebSocket channel to subscribe to.
+  // This enables different usage patterns from private chats to collaborative sessions.
   const resolvedChannelKey = useMemo(() => {
-    // 1. Explicit channelKey (collaborative/specific scenarios)
+    // Priority 1: Explicit channelKey (collaborative/multi-user scenarios)
+    // Example: channelKey="project-123" allows multiple users on project-123
     if (channelKey) return channelKey;
     
-    // 2. Fallback to userId (private chat - current behavior)
+    // Priority 2: Fallback to userId (private chat - current behavior)
+    // Example: userId="user-456" creates private chat for user-456
     if (userId) return userId;
     
-    // 3. Anonymous fallback (new capability)
+    // Priority 3: Anonymous fallback (guest user support)
+    // Creates a persistent anonymous ID that survives page reloads
     if (typeof window !== 'undefined') {
       let anonymousId = sessionStorage.getItem("agentkit-anonymous-id");
       if (!anonymousId) {
@@ -56,7 +177,7 @@ export function AgentProvider({ children, userId, channelKey, debug = true, tran
       return anonymousId;
     }
     
-    // Server-side/fallback anonymous ID
+    // Server-side/SSR fallback anonymous ID
     return `anon_${uuidv4()}`;
   }, [channelKey, userId]);
 

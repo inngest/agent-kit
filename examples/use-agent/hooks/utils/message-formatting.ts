@@ -1,11 +1,32 @@
 /**
- * Utility functions for formatting messages between UI and AgentKit formats
+ * Utility functions for formatting messages between UI and AgentKit formats.
+ * 
+ * This module provides critical message transformation logic that enables
+ * AgentKit React hooks to communicate with AgentKit networks. It handles the
+ * conversion between the rich UI message format (with streaming parts) and
+ * AgentKit's structured message format (with tool calls and results).
+ * 
+ * @fileoverview Message format conversion utilities for AgentKit React integration
  */
 
 import { type ConversationMessage, type TextUIPart, type ToolCallUIPart } from '../types';
 
 /**
- * AgentKit Message format (mirrors AgentKit's Message union type)
+ * AgentKit Message format union type.
+ * 
+ * This mirrors the Message union type from AgentKit core, ensuring compatibility
+ * with AgentKit networks. The hooks use this format when sending conversation
+ * history to agents for context.
+ * 
+ * @example
+ * ```typescript
+ * const agentMessages: AgentKitMessage[] = [
+ *   { role: 'user', type: 'text', content: 'Hello' },
+ *   { role: 'assistant', type: 'text', content: 'Hi there!' },
+ *   { role: 'assistant', type: 'tool_call', tools: [...], stop_reason: 'tool' },
+ *   { role: 'tool_result', type: 'tool_result', tool: {...}, content: 'Result' }
+ * ];
+ * ```
  */
 export type AgentKitMessage = 
   | { role: 'user' | 'assistant'; type: 'text'; content: string; stop_reason?: 'tool' | 'stop' }

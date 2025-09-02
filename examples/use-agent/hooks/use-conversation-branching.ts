@@ -19,12 +19,117 @@ interface BranchedThread {
   branchHistory: string[];  // Navigation history for back/forward
 }
 
+/**
+ * Configuration options for the useConversationBranching hook.
+ * 
+ * @interface UseConversationBranchingOptions
+ */
 interface UseConversationBranchingOptions {
+  /** User identifier for branch data isolation */
   userId: string;
+  /** Browser storage type for persistence ('session' or 'local') */
   storageType?: 'session' | 'local';
+  /** Enable debug logging (default: false) */
   debug?: boolean;
 }
 
+/**
+ * A React hook for managing conversation branching and message editing workflows.
+ * 
+ * This hook enables users to edit previous messages and create alternate conversation
+ * paths, similar to ChatGPT's edit functionality. When a user edits a message, it
+ * creates a new "branch" containing the conversation history up to that point,
+ * allowing the agent to respond as if the conversation had taken a different path.
+ * 
+ * ## Key Concepts
+ * 
+ * - **Branch**: An alternate conversation path starting from a specific message
+ * - **Branch Point**: The message being edited (excluded from the new branch)
+ * - **Branch History**: Messages before the branch point (sent to agent as context)
+ * - **State Rehydration**: Restoring UI state from when original message was sent
+ * 
+ * ## Workflow
+ * 
+ * 1. User clicks "edit" on a previous message
+ * 2. Hook creates new branch with history up to (but not including) that message
+ * 3. UI is updated to show conversation state from when original message was sent
+ * 4. User enters new message content
+ * 5. Hook sends new message with branch history as context to agent
+ * 6. Agent responds as if conversation had taken the alternate path
+ * 
+ * ## Integration
+ * 
+ * This hook works as an adapter between useChat and the message editing UI,
+ * providing drop-in replacements for sendMessage and replaceMessages that
+ * handle branching logic transparently.
+ * 
+ * @param options - Configuration for conversation branching
+ * @param options.userId - User identifier for branch data isolation
+ * @param options.storageType - Browser storage type for persistence
+ * @param options.debug - Enable debug logging
+ * 
+ * @returns Object with branching functions and navigation controls
+ * 
+ * @example
+ * ```typescript
+ * // Basic conversation branching setup
+ * function ChatWithBranching({ threadId }: { threadId: string }) {
+ *   const branching = useConversationBranching({
+ *     userId: 'user-123',
+ *     storageType: 'session',
+ *     debug: true
+ *   });
+ *   
+ *   const {
+ *     messages,
+ *     sendMessage: originalSendMessage,
+ *     sendMessageToThread,
+ *     replaceThreadMessages
+ *   } = useChat({
+ *     initialThreadId: threadId,
+ *     enableThreadValidation: false
+ *   });
+ *   
+ *   // Wrap sendMessage to support branching
+ *   const sendMessage = useCallback(async (message: string, options?: {
+ *     editFromMessageId?: string;
+ *   }) => {
+ *     await branching.sendMessage(
+ *       originalSendMessage,
+ *       sendMessageToThread, 
+ *       replaceThreadMessages,
+ *       threadId,
+ *       message,
+ *       messages,
+ *       options
+ *     );
+ *   }, [branching, originalSendMessage, sendMessageToThread, replaceThreadMessages, threadId, messages]);
+ *   
+ *   const handleEditMessage = (messageId: string) => {
+ *     // Start editing - this creates a branch and switches to it
+ *     const newContent = prompt('Enter new message:');
+ *     if (newContent) {
+ *       sendMessage(newContent, { editFromMessageId: messageId });
+ *     }
+ *   };
+ *   
+ *   return (
+ *     <div>
+ *       {messages.map(msg => (
+ *         <div key={msg.id}>
+ *           <MessageContent message={msg} />
+ *           {msg.role === 'user' && (
+ *             <button onClick={() => handleEditMessage(msg.id)}>
+ *               Edit
+ *             </button>
+ *           )}
+ *         </div>
+ *       ))}
+ *     </div>
+ *   );
+ * }
+ * ```
+ */
 export function useConversationBranching({
   userId,
   storageType = 'session',
