@@ -2,23 +2,27 @@
 
 import React, { createContext, useContext, useRef, useMemo, useEffect } from 'react';
 import { useAgent, type UseAgentReturn } from '@/hooks/use-agent';
-import { TEST_USER_ID } from '@/lib/constants';
 import { 
   type AgentTransport, 
   type DefaultAgentTransportConfig,
   createDefaultAgentTransport 
 } from '@/hooks/transport';
+import { v4 as uuidv4 } from 'uuid';
 
 interface AgentContextType {
   agent: UseAgentReturn;
   transport: AgentTransport;
+  userId?: string; // Expose userId from provider
+  channelKey?: string; // Expose channelKey from provider
+  resolvedChannelKey: string; // The computed channel key for convenience
 }
 
 export const AgentContext = createContext<AgentContextType | null>(null);
 
 interface AgentProviderProps {
   children: React.ReactNode;
-  userId?: string;
+  userId?: string; // Optional - will fallback to anonymous if not provided
+  channelKey?: string; // Optional - explicit subscription channel
   debug?: boolean;
   /**
    * Optional transport configuration or instance.
@@ -27,12 +31,34 @@ interface AgentProviderProps {
   transport?: AgentTransport | Partial<DefaultAgentTransportConfig>;
 }
 
-export function AgentProvider({ children, userId = TEST_USER_ID, debug = true, transport: transportConfig }: AgentProviderProps) {
+export function AgentProvider({ children, userId, channelKey, debug = true, transport: transportConfig }: AgentProviderProps) {
   // Create a stable fallback threadId that only gets generated once
   const fallbackThreadIdRef = useRef<string | null>(null);
   if (fallbackThreadIdRef.current === null) {
     fallbackThreadIdRef.current = `thread-${Date.now()}`;
   }
+
+  // Channel key resolution logic for the provider
+  const resolvedChannelKey = useMemo(() => {
+    // 1. Explicit channelKey (collaborative/specific scenarios)
+    if (channelKey) return channelKey;
+    
+    // 2. Fallback to userId (private chat - current behavior)
+    if (userId) return userId;
+    
+    // 3. Anonymous fallback (new capability)
+    if (typeof window !== 'undefined') {
+      let anonymousId = sessionStorage.getItem("agentkit-anonymous-id");
+      if (!anonymousId) {
+        anonymousId = `anon_${uuidv4()}`;
+        sessionStorage.setItem("agentkit-anonymous-id", anonymousId);
+      }
+      return anonymousId;
+    }
+    
+    // Server-side/fallback anonymous ID
+    return `anon_${uuidv4()}`;
+  }, [channelKey, userId]);
 
   // 🔍 TELEMETRY: Track global agent provider lifecycle
   const providerInstanceId = useRef<string | null>(null);
@@ -61,7 +87,8 @@ export function AgentProvider({ children, userId = TEST_USER_ID, debug = true, t
   // Create a single stable useAgent instance that persists across navigation
   const agent = useAgent({
     threadId: fallbackThreadIdRef.current, // Start with fallback, will be updated via setCurrentThread
-    userId,
+    userId, // Pass userId for attribution (may be undefined for anonymous sessions)
+    channelKey: resolvedChannelKey, // Pass resolved channel key for subscription
     debug,
     transport, // Pass transport to useAgent
   });
@@ -72,6 +99,8 @@ export function AgentProvider({ children, userId = TEST_USER_ID, debug = true, t
   console.log('🔍 [DIAG] AgentProvider created agent:', {
     providerId: providerInstanceId.current,
     userId,
+    channelKey,
+    resolvedChannelKey,
     fallbackThreadId: fallbackThreadIdRef.current,
     agentConnected: agent?.isConnected || false,
     hasCustomTransport: !!transportConfig,
@@ -79,7 +108,13 @@ export function AgentProvider({ children, userId = TEST_USER_ID, debug = true, t
   });
 
   return (
-    <AgentContext.Provider value={{ agent, transport }}>
+    <AgentContext.Provider value={{ 
+      agent, 
+      transport, 
+      userId,
+      channelKey, 
+      resolvedChannelKey 
+    }}>
       {children}
     </AgentContext.Provider>
   );
@@ -118,4 +153,32 @@ export function useGlobalTransportStrict(): AgentTransport {
     throw new Error('useGlobalTransport must be used within an AgentProvider');
   }
   return context.transport;
+}
+
+/**
+ * Get the userId from the AgentProvider.
+ * Returns null if used outside of an AgentProvider.
+ */
+export function useGlobalUserId(): string | null {
+  const context = useContext(AgentContext);
+  return context?.userId || null;
+}
+
+/**
+ * Get the channelKey from the AgentProvider.
+ * Returns null if used outside of an AgentProvider.
+ */
+export function useGlobalChannelKey(): string | null {
+  const context = useContext(AgentContext);
+  return context?.channelKey || null;
+}
+
+/**
+ * Get the resolved channel key from the AgentProvider.
+ * This is the computed value that's actually used for subscriptions.
+ * Returns null if used outside of an AgentProvider.
+ */
+export function useGlobalResolvedChannelKey(): string | null {
+  const context = useContext(AgentContext);
+  return context?.resolvedChannelKey || null;
 }
