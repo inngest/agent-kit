@@ -96,16 +96,18 @@ export function AgentProvider({ children, userId, channelKey, debug = true, tran
 
   
   // 🔍 DIAGNOSTIC: Verify provider creates single agent instance
-  console.log('🔍 [DIAG] AgentProvider created agent:', {
-    providerId: providerInstanceId.current,
-    userId,
-    channelKey,
-    resolvedChannelKey,
-    fallbackThreadId: fallbackThreadIdRef.current,
-    agentConnected: agent?.isConnected || false,
-    hasCustomTransport: !!transportConfig,
-    timestamp: new Date().toISOString()
-  });
+  if (debug) {
+    console.log('🔍 [DIAG] AgentProvider created agent:', {
+      providerId: providerInstanceId.current,
+      userId,
+      channelKey,
+      resolvedChannelKey,
+      fallbackThreadId: fallbackThreadIdRef.current,
+      agentConnected: agent?.isConnected || false,
+      hasCustomTransport: !!transportConfig,
+      timestamp: new Date().toISOString()
+    });
+  }
 
   return (
     <AgentContext.Provider value={{ 
