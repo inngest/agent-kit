@@ -3,7 +3,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { X, Edit2, Check, MessageSquare, Wifi, WifiOff } from 'lucide-react';
 import { useAgent } from '@/hooks/use-agent';
-import { TEST_USER_ID } from '@/lib/constants';
 import { ResponsivePromptInput } from '@/components/ai-elements/prompt-input';
 import { Conversation, ConversationContent, ConversationScrollButton } from '@/components/ai-elements/conversation';
 import { Message, MessageContent } from '@/components/ai-elements/message';
@@ -45,7 +44,7 @@ export function SubChat({ subchat, onClose, onRename, showCloseButton }: SubChat
   // TO TEST: Create 2+ subchats and try sending messages - watch console for errors
   const agent = useAgent({
     threadId: subchat.threadId,   // ✅ Now proper UUID format
-    userId: TEST_USER_ID,         // ⚠️ Same userId across all subchats - this should cause conflicts!
+    // No need to pass userId - it inherits from AgentProvider automatically!
     debug: true,
   });
 
@@ -109,7 +108,6 @@ export function SubChat({ subchat, onClose, onRename, showCloseButton }: SubChat
   useEffect(() => {
     console.log(`🔧 [SUBCHAT-${subchat.id.substring(0, 8)}] Agent initialized:`, {
       threadId: subchat.threadId,
-      userId: TEST_USER_ID,
       agentStatus: agent.status,
       isConnected: agent.isConnected,
       messageCount: agent.messages.length,
@@ -258,7 +256,6 @@ export function SubChat({ subchat, onClose, onRename, showCloseButton }: SubChat
               agent.status === 'error' ? 'error' :
               undefined
             }
-            size="sm"
           />
         </div>
       </div>
