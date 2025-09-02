@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { PostgresHistoryAdapter } from "@/inngest/db";
-import { TEST_USER_ID } from "@/lib/constants";
 import { randomUUID } from "crypto";
 import type { CustomerSupportState } from "@/inngest/types/state";
 
@@ -12,7 +11,19 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const limit = parseInt(searchParams.get("limit") || "20");
     const offset = parseInt(searchParams.get("offset") || "0");
-    const userId = searchParams.get("userId") || TEST_USER_ID;
+    const userId = searchParams.get("userId");
+    const channelKey = searchParams.get("channelKey");
+
+    // Channel-first validation: require either userId OR channelKey
+    if (!userId && !channelKey) {
+      return NextResponse.json(
+        { error: "Either userId or channelKey is required" },
+        { status: 400 }
+      );
+    }
+    
+    // For anonymous sessions, use channelKey as userId for data queries
+    const effectiveUserId = userId || channelKey!; // Non-null assertion safe due to validation above
 
     // Validate pagination parameters
     if (limit < 1 || limit > 100) {
@@ -29,7 +40,7 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    const result = await historyAdapter.listThreadsWithPagination(userId, limit, offset);
+    const result = await historyAdapter.listThreadsWithPagination(effectiveUserId, limit, offset);
 
     return NextResponse.json(result);
   } catch (error) {
@@ -43,8 +54,18 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const { userId } = await req.json();
-    const effectiveUserId = userId || TEST_USER_ID;
+    const { userId, channelKey } = await req.json();
+
+    // Channel-first validation: require either userId OR channelKey
+    if (!userId && !channelKey) {
+      return NextResponse.json(
+        { error: "Either userId or channelKey is required" },
+        { status: 400 }
+      );
+    }
+    
+    // For anonymous sessions, use channelKey as userId for data ownership
+    const effectiveUserId = userId || channelKey!; // Non-null assertion safe due to validation above
 
     // Generate a new thread ID optimistically
     const threadId = randomUUID();
@@ -53,7 +74,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       threadId,
       title: "New conversation", // Optimistic title
-      userId: effectiveUserId,
+      userId: effectiveUserId, // Return the effective userId (supports anonymous)
       createdAt: new Date().toISOString(),
     });
   } catch (error) {
