@@ -1,4 +1,5 @@
 import { Chat } from "@/components/chat/Chat";
+import { AgentProvider } from "@/contexts/AgentContext";
 
 interface ThreadPageProps {
   params: Promise<{
@@ -8,6 +9,11 @@ interface ThreadPageProps {
 
 export default async function ThreadPage({ params }: ThreadPageProps) {
   const { threadId } = await params;
-  return <Chat threadId={threadId} />;
+  
+  return (
+    <AgentProvider userId="dev-user-123" debug={true}>
+      <Chat threadId={threadId} />
+    </AgentProvider>
+  );
 }
 
