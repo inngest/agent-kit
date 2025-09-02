@@ -5,6 +5,7 @@ export * from "./use-edit-message";
 export * from "./use-mobile";
 export * from "./use-threads";
 export * from "./use-ephemeral-threads";
+export * from "./use-conversation-branching";
 export * from "./use-chat";
 export * from "./transport";
 export * from "./utils/provider-utils";
