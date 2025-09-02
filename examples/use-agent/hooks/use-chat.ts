@@ -176,6 +176,7 @@ const convertDatabaseToUIFormat = (dbMessages: any[]): ConversationMessage[] => 
   const ids = result.map(m => m.id);
   const dupes = ids.filter((id, idx) => ids.indexOf(id) !== idx);
   if (dupes.length > 0) {
+    // Note: This warning should remain as it indicates a serious database issue
     console.warn(`[useChat] Duplicate message IDs from database:`, { duplicateIds: dupes });
   }
   return result;
@@ -237,6 +238,7 @@ export const useChat = (config?: UseChatConfig): UseChatReturn => {
   const threads = useThreads({
     userId: resolvedUserId!, // Non-null assertion safe due to validation above
     channelKey: resolvedChannelKey, // Use resolved value
+    debug: config?.debug, // Pass debug flag to threads hook
     fetchThreads: config?.fetchThreads,
     fetchHistory: config?.fetchHistory,
     createThread: config?.createThread,
@@ -253,7 +255,7 @@ export const useChat = (config?: UseChatConfig): UseChatReturn => {
     if (config?.initialThreadId && !hasInitialized) {
       threads.setCurrentThreadId(config.initialThreadId);
       setHasInitialized(true); // Prevent re-running this effect
-      console.log('[AK_TELEMETRY] useChat.initialized:setInitialThread', {
+      logger.log('initialized:setInitialThread', {
         initialThreadId: config.initialThreadId,
         willNotRunAgain: true
       });
@@ -295,7 +297,7 @@ export const useChat = (config?: UseChatConfig): UseChatReturn => {
   const transport = globalTransport || null; // May be null for fallback fetch calls
   
   // 🔍 DIAGNOSTIC: Verify agent instance resolution and channel logic
-  console.log('🔍 [DIAG] useChat agent resolution:', {
+  logger.log('agent resolution:', {
     hasGlobalAgent: !!globalAgent,
     hasGlobalTransport: !!globalTransport,
     usingProvider: !!globalAgent,
@@ -324,7 +326,7 @@ export const useChat = (config?: UseChatConfig): UseChatReturn => {
   // 6. Sophisticated thread switching with smart deduplication
   const switchToThread = useCallback(async (selectedThreadId: string) => {
     try {
-      console.log('[AK_TELEMETRY] useChat.switchToThread:start', { selectedThreadId, prevAgentThread: agent.currentThreadId, prevThreadsThread: threads.currentThreadId });
+      logger.log('switchToThread:start', { selectedThreadId, prevAgentThread: agent.currentThreadId, prevThreadsThread: threads.currentThreadId });
       
       // Step 1: Switch to the thread immediately in the agent state.
       // This ensures any subsequent actions (like sending a message) are
@@ -371,15 +373,15 @@ export const useChat = (config?: UseChatConfig): UseChatReturn => {
 
         // Load the intelligently reconciled messages into the agent state.
         agent.replaceThreadMessages(selectedThreadId, finalMessages);
-        console.log('[AK_TELEMETRY] useChat.switchToThread:success', { selectedThreadId, historicalCount: historicalMessages.length, optimisticKept: recentOptimisticMessages.length });
+        logger.log('switchToThread:success', { selectedThreadId, historicalCount: historicalMessages.length, optimisticKept: recentOptimisticMessages.length });
       } catch (historyError) {
-        console.warn('[useChat] Failed to load thread history, continuing with optimistic messages:', historyError);
-        console.log('[AK_TELEMETRY] useChat.switchToThread:historyError', { selectedThreadId, error: historyError instanceof Error ? historyError.message : String(historyError) });
+        logger.warn('Failed to load thread history, continuing with optimistic messages:', historyError);
+        logger.log('switchToThread:historyError', { selectedThreadId, error: historyError instanceof Error ? historyError.message : String(historyError) });
         // Continue with just optimistic messages if history load fails
       }
     } catch (err) {
-      console.error('[useChat] Error switching thread:', err);
-      console.log('[AK_TELEMETRY] useChat.switchToThread:error', { selectedThreadId, error: err instanceof Error ? err.message : String(err) });
+      logger.error('Error switching thread:', err);
+      logger.log('switchToThread:error', { selectedThreadId, error: err instanceof Error ? err.message : String(err) });
     }
   }, [agent, agent.setCurrentThread, agent.getThread, agent.replaceThreadMessages, transport]);
 
@@ -395,7 +397,7 @@ export const useChat = (config?: UseChatConfig): UseChatReturn => {
       // Load thread data immediately
       switchToThread(config.initialThreadId)
         .catch(err => {
-          console.error('Failed to load initial thread:', err);
+          logger.error('Failed to load initial thread:', err);
         })
         .finally(() => {
           setIsLoadingInitialThread(false);
@@ -418,7 +420,7 @@ export const useChat = (config?: UseChatConfig): UseChatReturn => {
         const isLikelyFreshThread = agent.messages.length === 0 && !isLoadingInitialThread;
         
         if (!isLikelyFreshThread) {
-          console.warn(`[useChat] Thread not found:`, { requested: config.initialThreadId });
+          logger.warn(`Thread not found:`, { requested: config.initialThreadId });
           
           // NEW: Use custom handler if provided, otherwise fallback to default behavior
           if (config.onThreadNotFound) {
@@ -431,7 +433,7 @@ export const useChat = (config?: UseChatConfig): UseChatReturn => {
             }
           }
         } else {
-          console.log(`[useChat] Allowing fresh thread:`, { 
+          logger.log(`Allowing fresh thread:`, { 
             threadId: config.initialThreadId,
             messageCount: agent.messages.length,
             isLoadingInitial: isLoadingInitialThread 
@@ -449,14 +451,14 @@ export const useChat = (config?: UseChatConfig): UseChatReturn => {
       if (agent.messages.length === 0 && currentThreadId) {
         const title =
           message.length > 50 ? message.substring(0, 47) + "..." : message;
-        console.log(
-          "[AK_TELEMETRY] useChat.sendMessage:optimisticAdd",
+        logger.log(
+          "sendMessage:optimisticAdd",
           { threadId: currentThreadId, title }
         );
         threads.addOptimisticThread(currentThreadId, title);
       }
 
-      console.log("[AK_TELEMETRY] useChat.sendMessage:start", {
+      logger.log("sendMessage:start", {
         threadId: currentThreadId,
         messageLength: message.length,
         hasStateFunction: !!config?.state,
@@ -474,7 +476,7 @@ export const useChat = (config?: UseChatConfig): UseChatReturn => {
         await agent.sendMessage(message, options);
       }
       
-      console.log("[AK_TELEMETRY] useChat.sendMessage:sent", {
+      logger.log("sendMessage:sent", {
         threadId: currentThreadId,
       });
     },
@@ -536,7 +538,7 @@ export const useChat = (config?: UseChatConfig): UseChatReturn => {
     agent.setCurrentThread(threadId);
     threads.setCurrentThreadId(threadId);
     
-    console.log('[AK_TELEMETRY] useChat.setCurrentThreadId:immediate', {
+    logger.log('setCurrentThreadId:immediate', {
       threadId,
       skipHistoryLoading: true,
       timestamp: new Date().toISOString()
@@ -559,7 +561,7 @@ export const useChat = (config?: UseChatConfig): UseChatReturn => {
       }
       return convertDatabaseToUIFormat(dbMessages);
     } catch (error) {
-      console.error('[useChat] Failed to load thread history:', error);
+      logger.error('Failed to load thread history:', error);
       return [];
     }
   }, [transport]);
@@ -582,7 +584,7 @@ export const useChat = (config?: UseChatConfig): UseChatReturn => {
     agent.setCurrentThread(newThreadId);
     threads.setCurrentThreadId(newThreadId);
     
-    console.log('[AK_TELEMETRY] useChat.createNewThread', {
+    logger.log('createNewThread', {
       newThreadId,
       usage: 'hybrid-pattern',
       timestamp: new Date().toISOString()
@@ -619,7 +621,7 @@ export const useChat = (config?: UseChatConfig): UseChatReturn => {
   // 🔍 DIAGNOSTIC: Verify unread state merging
   const unreadCount = threadsWithUnreadState.filter(t => t.hasNewMessages).length;
   if (unreadCount > 0) {
-    console.log('🔍 [DIAG] Unread threads detected:', {
+    logger.log('Unread threads detected:', {
       totalThreads: threadsWithUnreadState.length,
       unreadCount,
       unreadThreads: threadsWithUnreadState.filter(t => t.hasNewMessages).map(t => t.id),
