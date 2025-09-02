@@ -39,9 +39,9 @@ export function useThreads(config?: {
     total: number;
   }>;
   fetchHistory?: (threadId: string) => Promise<any[]>;
-  createThreadFn?: (userId: string) => Promise<{ threadId: string; title: string }>;
-  deleteThreadFn?: (threadId: string) => Promise<void>;
-  renameThreadFn?: (threadId: string, title: string) => Promise<void>;
+  createThread?: (userId: string) => Promise<{ threadId: string; title: string }>;
+  deleteThread?: (threadId: string) => Promise<void>;
+  renameThread?: (threadId: string, title: string) => Promise<void>;
 }): UseThreadsReturn {
   // Inherit from provider if available
   const globalUserId = useOptionalGlobalUserId();
@@ -182,8 +182,8 @@ export function useThreads(config?: {
   // Use provided functions or stable defaults
   const fetchThreadsFn = config?.fetchThreads || fetchThreadsDefault;
   const fetchHistoryFn = config?.fetchHistory || fetchHistoryDefault;
-  const createThreadFn = config?.createThreadFn || createThreadDefault;
-  const deleteThreadFn = config?.deleteThreadFn || deleteThreadDefault;
+  const createThreadFn = config?.createThread || createThreadDefault;
+  const deleteThreadFn = config?.deleteThread || deleteThreadDefault;
 
   const loadThreads = useCallback(async (isLoadMore = false) => {
     try {
