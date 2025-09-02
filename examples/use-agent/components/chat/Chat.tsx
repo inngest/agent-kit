@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useRouter } from 'next/navigation';
 import {
   useChat, // Unified hook combining useAgent and useThreads
@@ -10,6 +10,7 @@ import {
   useEditMessage, // handles the edit message state and edit message functionality
   useIsMobile, // handles the mobile state and mobile sidebar open/close
 } from "@/hooks";
+import { createDebugLogger } from "@/hooks/types";
 import { ResponsivePromptInput } from '@/components/ai-elements/prompt-input';
 import {
   Conversation,
@@ -41,6 +42,7 @@ import { EmptyState } from './EmptyState';
 
 interface ChatProps {
   threadId?: string;
+  debug?: boolean;
 }
 
 const mockSuggestions = [
@@ -92,11 +94,14 @@ function MockedSources({ hasCompletedText, message }: MockedSourcesProps) {
   );
 }
 
-export function Chat({ threadId: providedThreadId }: ChatProps = {}) {
+export function Chat({ threadId: providedThreadId, debug = false }: ChatProps = {}) {
   const router = useRouter();
   const [inputValue, setInputValue] = useState("");
   const [hoveredMessage, setHoveredMessage] = useState<string | null>(null);
   const [shareOpen, setShareOpen] = useState(false);
+  
+  // Create debug logger
+  const logger = useMemo(() => createDebugLogger('Chat', debug), [debug]);
 
   // used for responsive sidebars
   const isMobile = useIsMobile();
@@ -162,13 +167,13 @@ export function Chat({ threadId: providedThreadId }: ChatProps = {}) {
   } = useEditMessage({ sendMessage: sendMessage });
 
   const handleNewChat = () => {
-    console.log('[DEBUG] New Chat clicked - current thread:', currentThreadId);
+    logger.log('New Chat clicked - current thread:', currentThreadId);
     
     // Create new thread internally without URL navigation
     // URL navigation will happen automatically when user sends first message
     const newThreadId = createNewThread();
     
-    console.log('[DEBUG] New Chat created:', { 
+    logger.log('New Chat created:', { 
       oldThreadId: currentThreadId, 
       newThreadId,
       messagesCleared: messages.length === 0 
@@ -209,7 +214,7 @@ export function Chat({ threadId: providedThreadId }: ChatProps = {}) {
     try {
       await approveToolCall(toolCallId, "Approved by user");
     } catch (error) {
-      console.error("[Chat] Failed to approve tool call:", error);
+      logger.error("Failed to approve tool call:", error);
       // Could show a toast notification here
     }
   };
@@ -218,7 +223,7 @@ export function Chat({ threadId: providedThreadId }: ChatProps = {}) {
     try {
       await denyToolCall(toolCallId, reason || "Denied by user");
     } catch (error) {
-      console.error("[Chat] Failed to deny tool call:", error);
+      logger.error("Failed to deny tool call:", error);
       // Could show a toast notification here
     }
   };
@@ -255,7 +260,7 @@ export function Chat({ threadId: providedThreadId }: ChatProps = {}) {
       handleNewChat();
       toast.success('Conversation deleted');
     } catch (err) {
-      console.error('Error deleting conversation:', err);
+      logger.error('Error deleting conversation:', err);
       toast.error('Could not delete this conversation');
     }
   };
@@ -273,13 +278,13 @@ export function Chat({ threadId: providedThreadId }: ChatProps = {}) {
         toast.success('Conversation deleted');
       }
     } catch (err) {
-      console.error('Error deleting thread:', err);
+      logger.error('Error deleting thread:', err);
       toast.error('Could not delete this conversation');
     }
   };
 
   const handleSearchChat = () => {
-    console.log('Search chat');
+    logger.log('Search chat');
     // TODO: Implement chat search functionality
   };
 
