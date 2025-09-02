@@ -294,7 +294,7 @@ const processEvent = (messages: ConversationMessage[], event: NetworkEvent, isDe
       });
       
       // 🐛 DEBUG: Let's see what's happening with part.created events
-      console.log(`🔍 [PART-CREATED-DEBUG] Event details:`, {
+      debugLog(isDebugEnabled, `🔍 [PART-CREATED-DEBUG] Event details:`, {
         event: event.event,
         sequenceNumber: event.sequenceNumber,
         partId: event.data.partId,
@@ -307,7 +307,7 @@ const processEvent = (messages: ConversationMessage[], event: NetworkEvent, isDe
       
       const { messages: newMessages, message } = getOrCreateAssistantMessage(messages, event.data);
       
-      console.log(`🔍 [PART-CREATED-DEBUG] Message creation result:`, {
+      debugLog(isDebugEnabled, `🔍 [PART-CREATED-DEBUG] Message creation result:`, {
         messageId: message.id,
         messageRole: message.role,
         wasNewMessage: newMessages.length > messages.length,
@@ -390,7 +390,7 @@ const processEvent = (messages: ConversationMessage[], event: NetworkEvent, isDe
       debugLog(isDebugEnabled, `🔍 [TEXT-DELTA] Processing seq:${event.sequenceNumber} delta:"${event.data.delta}" partId:${event.data.partId}`);
       
       // 🐛 DEBUG: Let's see what's happening with text.delta events
-      console.log(`🔍 [TEXT-DELTA-DEBUG] Event details:`, {
+      debugLog(isDebugEnabled, `🔍 [TEXT-DELTA-DEBUG] Event details:`, {
         event: event.event,
         sequenceNumber: event.sequenceNumber,
         partId: event.data.partId,
@@ -811,7 +811,8 @@ const ensureThread = (state: MultiThreadStreamingState, threadId: string): Multi
 const updateThread = (
   state: MultiThreadStreamingState, 
   threadId: string, 
-  updates: Partial<ThreadState>
+  updates: Partial<ThreadState>,
+  isDebugEnabled: boolean = false
 ): MultiThreadStreamingState => {
   const ensuredState = ensureThread(state, threadId);
   const currentThread = ensuredState.threads[threadId];
@@ -824,9 +825,9 @@ const updateThread = (
     // Log message count changes for debugging
     // Note: Removed auto-fix deduplication - duplicates should be prevented at source
     
-    console.log(`🔍 [UPDATE-THREAD] Messages changing in thread ${threadId}: ${beforeCount} → ${afterCount}`);
+    debugLog(isDebugEnabled, `🔍 [UPDATE-THREAD] Messages changing in thread ${threadId}: ${beforeCount} → ${afterCount}`);
     if (beforeCount > 0 && afterCount === 0) {
-      console.warn(`🚨 [UPDATE-THREAD] WARNING: Messages were cleared in thread ${threadId}!`);
+      debugWarn(isDebugEnabled, `🚨 [UPDATE-THREAD] WARNING: Messages were cleared in thread ${threadId}!`);
     }
   }
   
@@ -868,12 +869,12 @@ const multiThreadStreamingReducer = (
   switch (action.type) {
     // MULTI-THREAD: Process all events and route to correct thread buffers
     case 'REALTIME_MESSAGES_RECEIVED': {
-      console.log(`🔍 [REDUCER] REALTIME_MESSAGES_RECEIVED action received with ${action.messages.length} messages`);
+      debugLog(isDebugEnabled, `🔍 [REDUCER] REALTIME_MESSAGES_RECEIVED action received with ${action.messages.length} messages`);
       
       debugLog(isDebugEnabled, `🔍 [SUBSCRIPTION] Received ${action.messages.length} total messages, lastProcessed: ${state.lastProcessedIndex}`);
       
       if (action.messages.length <= state.lastProcessedIndex) {
-        console.log(`🚫 [REDUCER] No new messages to process (${action.messages.length} <= ${state.lastProcessedIndex}), returning early`);
+        debugLog(isDebugEnabled, `🚫 [REDUCER] No new messages to process (${action.messages.length} <= ${state.lastProcessedIndex}), returning early`);
         debugLog(isDebugEnabled, `[SUBSCRIPTION] No new messages to process (${action.messages.length} <= ${state.lastProcessedIndex})`);
         return state;
       }
@@ -885,7 +886,7 @@ const multiThreadStreamingReducer = (
 
       // 🐛 DEBUG: Let's see what events are coming through
       if (newEvents.length > 0) {
-        console.log(`🔍 [STREAM-EVENTS-DEBUG] Received ${newEvents.length} new events:`, 
+        debugLog(isDebugEnabled, `🔍 [STREAM-EVENTS-DEBUG] Received ${newEvents.length} new events:`, 
           newEvents.map(e => ({
             event: e.event,
             seq: e.sequenceNumber,
@@ -928,7 +929,7 @@ const multiThreadStreamingReducer = (
       
       // Group events by thread
       const eventsByThread: Record<string, NetworkEvent[]> = {};
-      console.log(`🔍 [REDUCER] Processing ${newEvents.length} new events:`, 
+      debugLog(isDebugEnabled, `🔍 [REDUCER] Processing ${newEvents.length} new events:`, 
         newEvents.map(e => ({
           event: e.event,
           hasData: !!e.data,
@@ -951,7 +952,7 @@ const multiThreadStreamingReducer = (
         }
       });
       
-      console.log(`🔍 [REDUCER] Events grouped by thread:`, {
+      debugLog(isDebugEnabled, `🔍 [REDUCER] Events grouped by thread:`, {
         threadIds: Object.keys(eventsByThread),
         eventCounts: Object.entries(eventsByThread).map(([tid, events]) => ({
           threadId: tid,
@@ -965,11 +966,11 @@ const multiThreadStreamingReducer = (
   Object.entries(eventsByThread).forEach(([threadId, threadEvents]) => {
           // Only log if processing events for a thread with issues
   if (threadEvents.length > 0) {
-    console.log(`🎯 [EVENT-ROUTING] Processing ${threadEvents.length} events for thread ${threadId} (${threadId === state.currentThreadId ? 'current' : 'background'})`);
+    debugLog(isDebugEnabled, `🎯 [EVENT-ROUTING] Processing ${threadEvents.length} events for thread ${threadId} (${threadId === state.currentThreadId ? 'current' : 'background'})`);
     
     // 🐛 DEBUG: Log events being processed for the current thread
     if (threadId === state.currentThreadId) {
-      console.log(`🔍 [CURRENT-THREAD-DEBUG] Processing events for current thread ${threadId}:`,
+      debugLog(isDebugEnabled, `🔍 [CURRENT-THREAD-DEBUG] Processing events for current thread ${threadId}:`,
         threadEvents.map(e => ({
           event: e.event,
           seq: e.sequenceNumber,
@@ -1002,7 +1003,7 @@ const multiThreadStreamingReducer = (
       const targetThread = ensuredState.threads[action.threadId];
       
       // Only log thread switches with message counts for debugging
-      console.log(`🔄 [THREAD-SWITCH] ${state.currentThreadId} → ${action.threadId} (${state.threads[state.currentThreadId]?.messages.length || 0} → ${targetThread?.messages.length || 0} messages)`);
+      debugLog(isDebugEnabled, `🔄 [THREAD-SWITCH] ${state.currentThreadId} → ${action.threadId} (${state.threads[state.currentThreadId]?.messages.length || 0} → ${targetThread?.messages.length || 0} messages`);
       
       return {
         ...ensuredState,
@@ -1057,7 +1058,7 @@ const multiThreadStreamingReducer = (
         messages: [...existingMessages, userMessage],
         agentStatus: "thinking",
         error: undefined,
-      });
+      }, isDebugEnabled);
     }
 
     // Mark a message as successfully sent
@@ -1066,7 +1067,7 @@ const multiThreadStreamingReducer = (
         messages: state.threads[action.threadId].messages.map(msg =>
           msg.id === action.messageId ? { ...msg, status: 'sent' } : msg
         ),
-      });
+      }, isDebugEnabled);
     }
 
     // Mark a message as failed to send and add error info
@@ -1081,7 +1082,7 @@ const multiThreadStreamingReducer = (
           timestamp: new Date(),
           recoverable: true,
         },
-      });
+      }, isDebugEnabled);
     }
 
     // Reset thread for new conversation turn
@@ -1102,7 +1103,7 @@ const multiThreadStreamingReducer = (
           timestamp: new Date(),
           recoverable: action.recoverable ?? true,
         },
-      });
+      }, isDebugEnabled);
     }
 
     // Set connection-level error
@@ -1121,7 +1122,7 @@ const multiThreadStreamingReducer = (
     case 'CLEAR_THREAD_ERROR': {
       return updateThread(state, action.threadId, {
         error: undefined,
-      });
+      }, isDebugEnabled);
     }
 
     // Clear connection error
@@ -1141,7 +1142,7 @@ const multiThreadStreamingReducer = (
         lastProcessedSequence: -1, // Reset sequence tracking for fresh thread
         agentStatus: "idle",
         error: undefined,
-      });
+      }, isDebugEnabled);
     }
 
     // Replace messages in a specific thread (for loading history)
@@ -1153,14 +1154,14 @@ const multiThreadStreamingReducer = (
         messages: action.messages,
         agentStatus: "idle",
         error: undefined,
-      });
+      }, isDebugEnabled);
     }
 
     // Mark thread as viewed
     case 'MARK_THREAD_VIEWED': {
       return updateThread(state, action.threadId, {
         hasNewMessages: false,
-      });
+      }, isDebugEnabled);
     }
 
     // Create a new thread (only if it doesn't exist - preserves historical messages)
@@ -1222,14 +1223,14 @@ const processThreadEvents = (
       lastProcessedSequence: -1, // Reset to -1 so seq 0 is processed
       nextExpectedSequence: 0,
       eventBuffer: new Map(),
-    });
+    }, isDebugEnabled);
     
     // Use the updated thread state for the rest of this function
     thread = currentState.threads[threadId];
   }
 
   // CRITICAL: Filter out events we've already processed to prevent duplicates
-  console.log(`🔍 [SEQUENCE-DEBUG] Thread ${threadId} filtering events:`, {
+  debugLog(isDebugEnabled, `🔍 [SEQUENCE-DEBUG] Thread ${threadId} filtering events:`, {
     totalEvents: events.length,
     lastProcessedSequence: thread.lastProcessedSequence,
     eventDetails: events.map(e => ({
@@ -1246,7 +1247,7 @@ const processThreadEvents = (
     event.sequenceNumber > thread.lastProcessedSequence
   );
   
-  console.log(`🔍 [SEQUENCE-DEBUG] Thread ${threadId} after filtering:`, {
+  debugLog(isDebugEnabled, `🔍 [SEQUENCE-DEBUG] Thread ${threadId} after filtering:`, {
     unprocessedCount: unprocessedEvents.length,
     filteredOut: events.length - unprocessedEvents.length,
     unprocessedEvents: unprocessedEvents.map(e => ({
@@ -1285,7 +1286,7 @@ const processThreadEvents = (
   currentState = updateThread(currentState, threadId, {
     eventBuffer: newBuffer,
     nextExpectedSequence: nextExpected,
-  });
+  }, isDebugEnabled);
   
   // Process buffered events in sequence
   return processThreadBufferedEvents(currentState, threadId, isDebugEnabled);
@@ -1394,7 +1395,7 @@ const processThreadBufferedEvents = (
     nextExpectedSequence: nextSeq,
     lastProcessedSequence: nextSeq - 1, // Track the highest sequence we've fully processed
     hasNewMessages: shouldMarkAsUnread || workingThread.hasNewMessages, // Preserve existing unread state
-  });
+  }, isDebugEnabled);
   
   return currentState;
 };
@@ -1464,7 +1465,7 @@ const processEventForMessage = (
   const afterCount = updatedMessages.length;
   
   if (beforeCount > 0 && afterCount === 0) {
-    console.warn(`🚨 [PROCESS-EVENT] WARNING: Messages cleared during ${event.event} processing! Before: ${beforeCount}, After: ${afterCount}`);
+    debugWarn(isDebugEnabled, `🚨 [PROCESS-EVENT] WARNING: Messages cleared during ${event.event} processing! Before: ${beforeCount}, After: ${afterCount}`);
   }
   
   debugLog(isDebugEnabled, `🔍 [PROCESS-EVENT] Message count after ${event.event}: ${beforeCount} → ${afterCount}`);
@@ -1917,7 +1918,7 @@ export function useAgent({ threadId, channelKey, userId, onError, debug = DEFAUL
    */
   const sendMessage = useCallback(async (message: string, options?: { messageId?: string }) => {
     const currentThreadId = state.currentThreadId;
-    console.log(`📤 [SEND-MESSAGE] Sending to current thread: ${currentThreadId}`);
+    debugLog(debug, `📤 [SEND-MESSAGE] Sending to current thread: ${currentThreadId}`);
     await sendMessageToThread(currentThreadId, message, options);
   }, [sendMessageToThread, state.currentThreadId]);
 
@@ -1928,7 +1929,7 @@ export function useAgent({ threadId, channelKey, userId, onError, debug = DEFAUL
    */
   const setCurrentThread = useCallback((targetThreadId: string) => {
     // 🔍 DIAGNOSTIC: Verify thread switching without duplication
-    console.log('🔍 [DIAG] Thread switch requested:', {
+    debugLog(debug, '🔍 [DIAG] Thread switch requested:', {
       from: stateRef.current.currentThreadId,
       to: targetThreadId,
       threadsInMemory: Object.keys(stateRef.current.threads).length,
@@ -2009,7 +2010,7 @@ export function useAgent({ threadId, channelKey, userId, onError, debug = DEFAUL
       }
       
       // 🔍 DIAGNOSTIC: Verify thread message replacement
-      console.log('🔍 [DIAG] Replacing thread messages:', {
+      debugLog(debug, '🔍 [DIAG] Replacing thread messages:', {
         targetThreadId,
         messageCount: messages.length,
         hasValidIds: messages.every(m => m.id && typeof m.id === 'string'),
