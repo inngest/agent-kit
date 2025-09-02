@@ -1,5 +1,5 @@
 ---
-"@inngest/use-agents": major
+"@inngest/use-agents": minor
 ---
 
 # New Package: @inngest/use-agents
@@ -49,8 +49,9 @@ function ChatComponent() {
 ### Why This Package
 
 This package enables developers to:
+
 - Build AI chat applications without reinventing the wheel
-- Leverage pre-built, battle-tested React hooks for AgentKit integration  
+- Leverage pre-built, battle-tested React hooks for AgentKit integration
 - Maintain consistent patterns across different projects
 - Focus on UI/UX instead of low-level streaming and state management
 
@@ -60,11 +61,11 @@ If you were previously using local hooks from AgentKit examples, replace local i
 
 ```typescript
 // Before
-import { useChat } from '@/hooks';
-import { AgentProvider } from '@/contexts/AgentContext';
+import { useChat } from "@/hooks";
+import { AgentProvider } from "@/contexts/AgentContext";
 
-// After  
-import { useChat, AgentProvider } from '@inngest/use-agents';
+// After
+import { useChat, AgentProvider } from "@inngest/use-agents";
 ```
 
 No functional changes are required - the API is identical to the previous local implementation.

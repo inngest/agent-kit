@@ -24,6 +24,7 @@ Major improvements to AgentKit with enhanced documentation, new API routes, comp
 ## ⚡ Revolutionary Automatic Event Streaming System
 
 **Comprehensive Streaming Architecture:**
+
 - **StreamingContext**: Hierarchical context management for network/agent runs with shared sequence counters
 - **Event Schema**: 15+ event types covering complete agent lifecycle (run.started, part.created, text.delta, tool calls, HITL, etc.)
 - **Automatic Enrichment**: Events auto-enriched with threadId, userId, and context metadata
@@ -34,6 +35,7 @@ Major improvements to AgentKit with enhanced documentation, new API routes, comp
 - **OpenAI-Compatible IDs**: Automatic generation of tool call IDs within OpenAI's 40-character limit
 
 **Event Types Supported:**
+
 - **Lifecycle Events**: `run.started`, `run.completed`, `run.failed`, `run.interrupted`
 - **Content Streaming**: `text.delta`, `reasoning.delta`, `data.delta`
 - **Tool Integration**: `tool_call.arguments.delta`, `tool_call.output.delta`
@@ -42,6 +44,7 @@ Major improvements to AgentKit with enhanced documentation, new API routes, comp
 - **Metadata & Control**: `usage.updated`, `metadata.updated`, `stream.ended`
 
 **Developer Experience:**
+
 - **Zero Configuration**: Automatic context extraction from network state
 - **Debug Logging**: Comprehensive debug output for development
 - **Shared Sequence Counters**: Perfect event ordering across multiple contexts
