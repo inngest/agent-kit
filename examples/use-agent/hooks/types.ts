@@ -1,3 +1,4 @@
+
 /**
  * Centralized type definitions for AgentKit React hooks
  * 
@@ -238,6 +239,8 @@ export interface ConversationMessage {
   timestamp: Date;
   /** The status of the message, particularly for optimistic user messages */
   status?: 'sending' | 'sent' | 'failed';
+  /** Client state captured when this message was originally sent (NEW) */
+  clientState?: Record<string, unknown>;
 }
 
 /**
@@ -495,7 +498,7 @@ export type MultiThreadStreamingAction =
   /** Dispatched when switching the currently displayed thread */
   | { type: 'SET_CURRENT_THREAD'; threadId: string }
   /** Dispatched when the user sends a message to a specific thread */
-  | { type: 'MESSAGE_SENT'; threadId: string; message: string; messageId: string }
+  | { type: 'MESSAGE_SENT'; threadId: string; message: string; messageId: string; clientState?: Record<string, unknown> }
   /** Dispatched when the message was successfully sent to the backend */
   | { type: 'MESSAGE_SEND_SUCCESS'; threadId: string; messageId: string }
   /** Dispatched when the message failed to send to the backend */
