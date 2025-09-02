@@ -6,7 +6,7 @@
  * maintaining a consistent interface across all hooks.
  */
 
-import { ConversationMessage } from './use-agent';
+import { ConversationMessage, Thread, RealtimeToken, createAgentError, AgentError } from './types';
 
 // =============================================================================
 // TRANSPORT INTERFACES
@@ -41,13 +41,15 @@ export interface SendMessageParams {
   threadId: string;
   history: Array<{ role: 'user' | 'assistant'; type: 'text'; content: string }>;
   userId?: string;
+  channelKey?: string; // NEW: Support channelKey for anonymous sessions
 }
 
 /**
  * Parameters for fetching threads list.
  */
 export interface FetchThreadsParams {
-  userId: string;
+  userId?: string;
+  channelKey?: string; // NEW: Support channelKey for anonymous sessions
   limit?: number;
   offset?: number;
 }
@@ -63,7 +65,8 @@ export interface FetchHistoryParams {
  * Parameters for creating a new thread.
  */
 export interface CreateThreadParams {
-  userId: string;
+  userId?: string;
+  channelKey?: string; // NEW: Support channelKey for anonymous sessions
   title?: string;
   metadata?: Record<string, unknown>;
 }
@@ -79,8 +82,9 @@ export interface DeleteThreadParams {
  * Parameters for getting a real-time token.
  */
 export interface GetRealtimeTokenParams {
-  userId: string;
+  userId?: string;
   threadId?: string;
+  channelKey?: string; // NEW: Flexible subscription channel
 }
 
 /**
@@ -93,19 +97,7 @@ export interface ApproveToolCallParams {
   reason?: string;
 }
 
-/**
- * Thread data structure returned by the transport.
- * Note: This is also exported from use-threads.ts
- */
-interface TransportThread {
-  id: string;
-  title: string;
-  messageCount: number;
-  lastMessageAt: Date;
-  createdAt: Date;
-  updatedAt: Date;
-  hasNewMessages?: boolean;
-}
+
 
 /**
  * The core transport interface that all transports must implement.
@@ -126,7 +118,7 @@ export interface AgentTransport {
   getRealtimeToken(
     params: GetRealtimeTokenParams,
     options?: RequestOptions
-  ): Promise<any>;
+  ): Promise<RealtimeToken>;
 
   /**
    * Fetch a paginated list of threads for a user.
@@ -134,7 +126,7 @@ export interface AgentTransport {
   fetchThreads(
     params: FetchThreadsParams,
     options?: RequestOptions
-  ): Promise<{ threads: TransportThread[]; hasMore: boolean; total: number }>;
+  ): Promise<{ threads: Thread[]; hasMore: boolean; total: number }>;
 
   /**
    * Fetch the message history for a specific thread.
@@ -339,7 +331,15 @@ export class DefaultAgentTransport implements AgentTransport {
       } catch {
         // Ignore JSON parse errors, use default message
       }
-      throw new Error(errorMessage);
+      
+      // Create enhanced error with recovery guidance
+      const agentError = createAgentError(response, `Request to ${endpoint}`);
+      // Override message with more detailed info if available
+      if (errorMessage !== `HTTP ${response.status}: ${response.statusText}`) {
+        agentError.message = errorMessage;
+      }
+      
+      throw agentError;
     }
 
     // Handle empty responses (like DELETE operations)
@@ -367,6 +367,7 @@ export class DefaultAgentTransport implements AgentTransport {
         threadId: params.threadId,
         history: params.history,
         userId: params.userId,
+        channelKey: params.channelKey, // NEW: Pass channelKey for anonymous sessions
         ...options?.body,
       },
       headers: options?.headers,
@@ -377,14 +378,15 @@ export class DefaultAgentTransport implements AgentTransport {
   async getRealtimeToken(
     params: GetRealtimeTokenParams,
     options?: RequestOptions
-  ): Promise<any> {
+  ): Promise<RealtimeToken> {
     const endpoint = await this.resolveOption(this.config.api.getRealtimeToken);
     
-    const response = await this.makeRequest<any>(endpoint, {}, {
+    const response = await this.makeRequest<RealtimeToken>(endpoint, {}, {
       method: 'POST',
       body: {
         userId: params.userId,
         threadId: params.threadId,
+        channelKey: params.channelKey, // NEW: Pass channelKey to backend
         ...options?.body,
       },
       headers: options?.headers,
@@ -397,15 +399,21 @@ export class DefaultAgentTransport implements AgentTransport {
   async fetchThreads(
     params: FetchThreadsParams,
     options?: RequestOptions
-  ): Promise<{ threads: TransportThread[]; hasMore: boolean; total: number }> {
+  ): Promise<{ threads: Thread[]; hasMore: boolean; total: number }> {
     const endpoint = await this.resolveOption(this.config.api.fetchThreads);
     
-    // Build query parameters
+    // Build query parameters - support both userId and channelKey
     const queryParams = new URLSearchParams({
-      userId: params.userId,
       limit: (params.limit || 20).toString(),
       offset: (params.offset || 0).toString(),
     });
+    
+    // Add userId or channelKey to query params
+    if (params.userId) {
+      queryParams.set('userId', params.userId);
+    } else if (params.channelKey) {
+      queryParams.set('channelKey', params.channelKey);
+    }
 
     const url = `${endpoint}?${queryParams}`;
     
@@ -445,6 +453,7 @@ export class DefaultAgentTransport implements AgentTransport {
       method: 'POST',
       body: {
         userId: params.userId,
+        channelKey: params.channelKey, // NEW: Pass channelKey for anonymous sessions
         title: params.title,
         metadata: params.metadata,
         ...options?.body,
