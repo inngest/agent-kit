@@ -1,9 +1,12 @@
 "use client";
 
-import { useChat } from '@/hooks';
-import { useEphemeralThreads } from '@/hooks/use-ephemeral-threads';
-import { useConversationBranching } from '@/hooks/use-conversation-branching';
-import { type ConversationMessage, createDebugLogger } from '@/hooks/types';
+import { 
+  useChat, 
+  useEphemeralThreads, 
+  useConversationBranching,
+  type ConversationMessage, 
+  createDebugLogger 
+} from '@inngest/use-agents';
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { 
   Conversation, 
@@ -16,8 +19,7 @@ import { MessageTitle, MessageEditor } from '@/components/chat/message';
 import { Actions, Action } from '@/components/ai-elements/actions';
 import { ResponsivePromptInput } from '@/components/ai-elements/prompt-input';
 import { SqlToolPart } from './SqlToolPart';
-import { useEditMessage } from '@/hooks/use-edit-message';
-import { useMessageActions } from '@/hooks/use-message-actions';
+import { useEditMessage, useMessageActions } from '@inngest/use-agents';
 import { CopyIcon, EditIcon } from 'lucide-react';
 
 interface EphemeralChatProps {

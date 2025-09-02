@@ -1,5 +1,5 @@
 
-import type { HitlUIPart } from "@/hooks/use-agent";
+import type { HitlUIPart } from "@inngest/use-agents";
 import {
   Clock,
   CheckCircle,

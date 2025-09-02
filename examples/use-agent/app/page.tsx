@@ -1,5 +1,5 @@
 import { Chat } from "@/components/chat/Chat";
-import { AgentProvider } from "@/contexts/AgentContext";
+import { AgentProvider } from "@inngest/use-agents";
 
 export default function Home() {
   return (

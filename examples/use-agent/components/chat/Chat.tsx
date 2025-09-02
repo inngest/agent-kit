@@ -9,8 +9,8 @@ import {
   useSidebar, // handles the sidebar state and mobile sidebar open/close
   useEditMessage, // handles the edit message state and edit message functionality
   useIsMobile, // handles the mobile state and mobile sidebar open/close
-} from "@/hooks";
-import { createDebugLogger } from "@/hooks/types";
+  createDebugLogger, // debug logging utility
+} from "@inngest/use-agents";
 import { ResponsivePromptInput } from '@/components/ai-elements/prompt-input';
 import {
   Conversation,
@@ -113,7 +113,15 @@ export function Chat({ threadId: providedThreadId, debug = false }: ChatProps = 
     toggleSidebar 
   } = useSidebar();
 
-  const { copyMessage, likeMessage, dislikeMessage, readAloud, shareMessage } = useMessageActions();
+  const { copyMessage, likeMessage, dislikeMessage, readAloud, shareMessage } = useMessageActions({
+    showToast: (message, type) => {
+      if (type === 'success') {
+        toast.success(message);
+      } else {
+        toast.error(message);
+      }
+    }
+  });
 
   // Use the unified useChat hook with URL-provided threadId
   const {

@@ -1,5 +1,5 @@
 
-import type { ToolCallUIPart } from "@/hooks/use-agent";
+import type { ToolCallUIPart } from "@inngest/use-agents";
 import type { ToolUIPart } from 'ai';
 import { useState } from 'react';
 import {

@@ -1,5 +1,5 @@
 
-import { MessagePart } from "@/hooks/use-agent";
+import { MessagePart } from "@inngest/use-agents";
 
 interface UnsupportedMessagePartProps {
   part: MessagePart;

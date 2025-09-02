@@ -1,5 +1,5 @@
 
-import type { DataUIPart } from "@/hooks/use-agent";
+import type { DataUIPart } from "@inngest/use-agents";
 import { Zap } from "lucide-react";
 
 interface DataMessagePartProps {

@@ -1,5 +1,5 @@
 
-import type { ErrorUIPart } from "@/hooks/use-agent";
+import type { ErrorUIPart } from "@inngest/use-agents";
 import { XCircle } from "lucide-react";
 
 interface ErrorMessagePartProps {

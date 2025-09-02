@@ -1,5 +1,5 @@
 
-import type { ReasoningUIPart } from "@/hooks/use-agent";
+import type { ReasoningUIPart } from "@inngest/use-agents";
 import { Brain, Loader2 } from "lucide-react";
 
 interface ReasoningMessagePartProps {

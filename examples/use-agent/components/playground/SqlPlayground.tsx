@@ -5,7 +5,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { Tabs } from './Tabs';
 import { SqlEditor } from './SqlEditor';
 import { EphemeralChat } from './EphemeralChat';
-import { useEphemeralThreads } from '@/hooks/use-ephemeral-threads';
+import { useEphemeralThreads } from '@inngest/use-agents';
 import { Toaster } from '@/components/ui/sonner';
 
 type Tab = {

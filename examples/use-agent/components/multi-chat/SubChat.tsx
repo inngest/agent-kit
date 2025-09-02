@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { X, Edit2, Check, MessageSquare, Wifi, WifiOff } from 'lucide-react';
-import { useAgent } from '@/hooks/use-agent';
+import { useAgent } from '@inngest/use-agents';
 import { ResponsivePromptInput } from '@/components/ai-elements/prompt-input';
 import { Conversation, ConversationContent, ConversationScrollButton } from '@/components/ai-elements/conversation';
 import { Message, MessageContent } from '@/components/ai-elements/message';

@@ -1,5 +1,5 @@
 
-import type { FileUIPart } from "@/hooks/use-agent";
+import type { FileUIPart } from "@inngest/use-agents";
 import {
   Image,
   FileText,

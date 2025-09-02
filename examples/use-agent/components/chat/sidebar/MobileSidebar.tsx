@@ -2,7 +2,7 @@
 
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { DesktopSidebar } from './DesktopSidebar';
-import type { Thread } from '@/hooks';
+import type { Thread } from '@inngest/use-agents';
 
 interface MobileSidebarProps {
   isOpen: boolean;
