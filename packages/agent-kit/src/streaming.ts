@@ -508,19 +508,27 @@ export class StreamingContext {
 
   /**
    * Generate a unique part ID for this streaming context
+   * OpenAI requires tool call IDs to be ≤ 40 characters
    */
   generatePartId(): string {
-    const partId = `part_${this.messageId}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    // Create shorter, OpenAI-compatible ID (≤ 40 chars)
+    // Format: "tool_" + shortened messageId + timestamp suffix + random
+    const shortMessageId = this.messageId.replace(/-/g, '').substring(0, 8); // 8 chars
+    const shortTimestamp = Date.now().toString().slice(-8); // Last 8 digits
+    const randomSuffix = Math.random().toString(36).substr(2, 6); // 6 chars
+    
+    // Format: "tool_" (5) + shortMessageId (8) + "_" (1) + shortTimestamp (8) + "_" (1) + randomSuffix (6) = 29 chars
+    const partId = `tool_${shortMessageId}_${shortTimestamp}_${randomSuffix}`;
+    
     if (this.debug) {
       console.log(
-        "🔧 [PART-ID] Generated partId:",
+        "🔧 [PART-ID] Generated OpenAI-compatible partId:",
         partId,
-        "for messageId:",
+        "(length:", partId.length, ") for messageId:",
         this.messageId,
         "at",
         new Date().toISOString()
       );
-      console.trace("🔧 [PART-ID] Call stack for partId generation");
     }
     return partId;
   }
