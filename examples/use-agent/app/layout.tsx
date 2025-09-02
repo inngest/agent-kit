@@ -28,12 +28,7 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <AgentProvider 
-          userId="dev-user-1234" 
-          debug={true}
-        >
           {children}
-        </AgentProvider>
       </body>
     </html>
   );
