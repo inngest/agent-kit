@@ -1,16 +1,21 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { v4 as uuidv4 } from 'uuid';
-import { type Thread } from './types';
+import { type Thread, createDebugLogger } from './types';
 
 interface UseEphemeralThreadsOptions {
   storageType?: 'session' | 'local';
   userId: string; // Used as part of the storage key
+  debug?: boolean;
 }
 
 export function useEphemeralThreads({ 
   storageType = 'session', 
-  userId 
+  userId,
+  debug = false
 }: UseEphemeralThreadsOptions) {
+  // Create debug logger
+  const logger = useMemo(() => createDebugLogger('useEphemeralThreads', debug), [debug]);
+  
   const cacheKey = `ephemeral_threads_${userId}`;
   
   // Safely access storage only on the client-side
@@ -39,7 +44,7 @@ export function useEphemeralThreads({
         setThreads(parsedThreads);
       }
     } catch (e) {
-      console.error(`Failed to load threads from ${storageType}Storage`, e);
+      logger.error(`Failed to load threads from ${storageType}Storage`, e);
     }
   }, [cacheKey, storage, storageType]);
 
@@ -49,7 +54,7 @@ export function useEphemeralThreads({
     try {
       storage.setItem(cacheKey, JSON.stringify(updatedThreads));
     } catch (e) {
-      console.error(`Failed to save threads to ${storageType}Storage`, e);
+      logger.error(`Failed to save threads to ${storageType}Storage`, e);
     }
   };
 
@@ -115,7 +120,7 @@ export function useEphemeralThreads({
         storage.removeItem(cacheKey);
         setThreads([]);
       } catch (e) {
-        console.error(`Failed to clear cache from ${storageType}Storage`, e);
+        logger.error(`Failed to clear cache from ${storageType}Storage`, e);
       }
     },
   };
