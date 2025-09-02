@@ -5,7 +5,7 @@ import {
   useOptionalGlobalUserId, 
   useOptionalGlobalChannelKey 
 } from './utils/provider-utils';
-import { type Thread } from './types';
+import { type Thread, createDebugLogger } from './types';
 
 export interface UseThreadsReturn {
   threads: Thread[];
@@ -30,6 +30,7 @@ export interface UseThreadsReturn {
 export function useThreads(config?: {
   userId?: string; // Optional: inherits from AgentProvider if not provided
   channelKey?: string; // Optional: inherits from AgentProvider if not provided
+  debug?: boolean; // Optional: enable debug logging
   // Custom transport instance (overrides global transport)
   transport?: AgentTransport;
   // Custom fetch functions for flexibility (overrides transport and global transport)
@@ -76,9 +77,12 @@ export function useThreads(config?: {
     return null;
   }, [config?.transport, providerTransport]);
   
+  // Create debug logger
+  const logger = useMemo(() => createDebugLogger('useThreads', config?.debug ?? false), [config?.debug]);
+  
   // Instance tracking for telemetry
   const [instanceId] = useState(() => Math.random().toString(36).substr(2, 8));
-  console.log('[AK_TELEMETRY] useThreads.instance', { instanceId, userId });
+  logger.log('useThreads.instance', { instanceId, userId });
   
   // Cache key for sessionStorage
   const cacheKey = `threads_${userId}`;
@@ -118,10 +122,10 @@ export function useThreads(config?: {
     }
     
     const response = await fetch(`/api/threads?${queryParams}`);
-    if (!response.ok) {
-      console.error(`[useThreads] Failed to load threads:`, { status: response.status });
-      throw new Error('Failed to load threads');
-    }
+          if (!response.ok) {
+        logger.error(`Failed to load threads:`, { status: response.status });
+        throw new Error('Failed to load threads');
+      }
     return response.json();
   }, [transport, channelKey]);
 
@@ -133,10 +137,10 @@ export function useThreads(config?: {
     
     // Fallback to direct fetch if no transport available
     const response = await fetch(`/api/threads/${threadId}`);
-    if (!response.ok) {
-      console.error(`[useThreads] Failed to load thread history:`, { threadId, status: response.status });
-      throw new Error('Failed to load thread history');
-    }
+          if (!response.ok) {
+        logger.error(`Failed to load thread history:`, { threadId, status: response.status });
+        throw new Error('Failed to load thread history');
+      }
     const data = await response.json();
     return data.messages;
   }, [transport]);
@@ -158,10 +162,10 @@ export function useThreads(config?: {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     });
-    if (!response.ok) {
-      console.error(`[useThreads] Failed to create thread:`, { status: response.status });
-      throw new Error('Failed to create thread');
-    }
+          if (!response.ok) {
+        logger.error(`Failed to create thread:`, { status: response.status });
+        throw new Error('Failed to create thread');
+      }
     return response.json();
   }, [transport, channelKey]);
 
@@ -173,10 +177,10 @@ export function useThreads(config?: {
     
     // Fallback to direct fetch if no transport available
     const response = await fetch(`/api/threads/${threadId}`, { method: 'DELETE' });
-    if (!response.ok) {
-      console.error(`[useThreads] Failed to delete thread:`, { threadId, status: response.status });
-      throw new Error('Failed to delete thread');
-    }
+          if (!response.ok) {
+        logger.error(`Failed to delete thread:`, { threadId, status: response.status });
+        throw new Error('Failed to delete thread');
+      }
   }, [transport]);
 
   // Use provided functions or stable defaults
@@ -191,7 +195,7 @@ export function useThreads(config?: {
       setError(null);
       
       const currentOffset = isLoadMore ? offset : 0;
-      console.log('[AK_TELEMETRY] useThreads.loadThreads:start', {
+      logger.log('loadThreads:start', {
         userId,
         isLoadMore,
         offset: currentOffset,
@@ -255,11 +259,11 @@ export function useThreads(config?: {
               try {
                 sessionStorage.setItem(cacheKey, JSON.stringify(finalThreads));
               } catch (err) {
-                console.warn("[useThreads] Failed to cache threads:", err);
+                logger.warn("Failed to cache threads:", err);
               }
             }
 
-            console.log('[AK_TELEMETRY] useThreads.loadThreads:orderPreserved', {
+            logger.log('loadThreads:orderPreserved', {
               isFirstLoad: currentThreads.length === 0,
               originalOrder: currentThreads.map(t => t.id).slice(0, 3),
               finalOrder: finalThreads.map(t => t.id).slice(0, 3),
@@ -278,7 +282,7 @@ export function useThreads(config?: {
       }
       
       setHasMore(data.hasMore);
-      console.log('[AK_TELEMETRY] useThreads.loadThreads:success', {
+      logger.log('loadThreads:success', {
         userId,
         isLoadMore,
         fetched: data.threads.length,
@@ -288,15 +292,15 @@ export function useThreads(config?: {
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to load threads';
       setError(errorMessage);
-      console.error('[useThreads] Error loading threads:', err);
-      console.log('[AK_TELEMETRY] useThreads.loadThreads:error', {
+      logger.error('Error loading threads:', err);
+      logger.log('loadThreads:error', {
         userId,
         isLoadMore,
         error: err instanceof Error ? err.message : String(err),
       });
     } finally {
       setLoading(false);
-      console.log('[AK_TELEMETRY] useThreads.loadThreads:complete', {
+      logger.log('loadThreads:complete', {
         userId,
         isLoadMore,
         finalCount: threads.length,
@@ -305,13 +309,13 @@ export function useThreads(config?: {
   }, [userId, offset, fetchThreadsFn, cacheKey]);
 
   const loadMore = useCallback(async () => {
-    console.log('[AK_TELEMETRY] useThreads.loadMore:trigger', { hasMore, loading });
+    logger.log('loadMore:trigger', { hasMore, loading });
     if (!hasMore || loading) return;
     await loadThreads(true);
   }, [hasMore, loading, loadThreads]);
 
   const refresh = useCallback(async () => {
-    console.log('[AK_TELEMETRY] useThreads.refresh:start');
+    logger.log('refresh:start');
     setOffset(0);
     await loadThreads(false);
   }, [loadThreads]);
@@ -323,13 +327,13 @@ export function useThreads(config?: {
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to create thread';
       setError(errorMessage);
-      console.error('Error creating thread:', err);
+      logger.error('Error creating thread:', err);
       throw err;
     }
   }, [userId, createThreadFn]);
 
   const addOptimisticThread = useCallback((threadId: string, title: string) => {
-    console.log('[AK_TELEMETRY] useThreads.addOptimisticThread:start', { threadId, title });
+    logger.log('addOptimisticThread:start', { threadId, title });
     const newThread: Thread = {
       id: threadId,
       title,
@@ -342,7 +346,7 @@ export function useThreads(config?: {
     setThreads(prev => {
       // Don't add if it already exists
       if (prev.find(t => t.id === threadId)) {
-        console.log('[AK_TELEMETRY] useThreads.addOptimisticThread:duplicate', { threadId });
+        logger.log('addOptimisticThread:duplicate', { threadId });
         return prev;
       }
       const updatedThreads = [newThread, ...prev];
@@ -352,18 +356,18 @@ export function useThreads(config?: {
         try {
           sessionStorage.setItem(cacheKey, JSON.stringify(updatedThreads));
         } catch (err) {
-          console.warn('[useThreads] Failed to update cache after adding optimistic thread:', err);
+          logger.warn('Failed to update cache after adding optimistic thread:', err);
         }
       }
       
-      console.log('[AK_TELEMETRY] useThreads.addOptimisticThread:applied', { threadId, newCount: updatedThreads.length });
+      logger.log('addOptimisticThread:applied', { threadId, newCount: updatedThreads.length });
       return updatedThreads;
     });
   }, [cacheKey]);
 
   const deleteThread = useCallback(async (threadId: string) => {
     try {
-      console.log('[AK_TELEMETRY] useThreads.deleteThread:start', { threadId, currentThreadId });
+      logger.log('deleteThread:start', { threadId, currentThreadId });
       // Optimistically remove from UI
       const updatedThreads = threads.filter(t => t.id !== threadId);
       setThreads(updatedThreads);
@@ -373,26 +377,26 @@ export function useThreads(config?: {
         try {
           sessionStorage.setItem(cacheKey, JSON.stringify(updatedThreads));
         } catch (err) {
-          console.warn('[useThreads] Failed to update cache after delete:', err);
+          logger.warn('Failed to update cache after delete:', err);
         }
       }
       
       // If we're deleting the current thread, clear current thread
       if (currentThreadId === threadId) {
         setCurrentThreadId(null);
-        console.log('[AK_TELEMETRY] useThreads.deleteThread:clearedCurrent', { threadId });
+        logger.log('deleteThread:clearedCurrent', { threadId });
       }
 
       await deleteThreadFn(threadId);
-      console.log('[AK_TELEMETRY] useThreads.deleteThread:success', { threadId, newCount: updatedThreads.length });
+      logger.log('deleteThread:success', { threadId, newCount: updatedThreads.length });
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to delete thread';
       setError(errorMessage);
-      console.error('Error deleting thread:', err);
+      logger.error('Error deleting thread:', err);
       
       // Restore thread on error by refreshing
       await refresh();
-      console.log('[AK_TELEMETRY] useThreads.deleteThread:error', { threadId, error: err instanceof Error ? err.message : String(err) });
+      logger.log('deleteThread:error', { threadId, error: err instanceof Error ? err.message : String(err) });
       throw err;
     }
   }, [currentThreadId, refresh, deleteThreadFn, threads, cacheKey]);
@@ -406,7 +410,7 @@ export function useThreads(config?: {
   // Preserves any optimistic threads that aren't yet on the server
   const backgroundRefresh = useCallback(async () => {
     try {
-      console.log('[AK_TELEMETRY] useThreads.backgroundRefresh:start', {
+      logger.log('backgroundRefresh:start', {
         userId,
       });
       const data = await fetchThreadsFn(userId, { limit: 20, offset: 0 });
@@ -459,14 +463,14 @@ export function useThreads(config?: {
           try {
             sessionStorage.setItem(cacheKey, JSON.stringify(finalThreads));
           } catch (err) {
-            console.warn(
-              '[useThreads] Failed to cache threads during background refresh:',
+            logger.warn(
+              'Failed to cache threads during background refresh:',
               err
             );
           }
         }
 
-        console.log('[AK_TELEMETRY] useThreads.backgroundRefresh:orderPreserved', {
+        logger.log('backgroundRefresh:orderPreserved', {
           originalOrder: currentThreads.map(t => t.id).slice(0, 3),
           finalOrder: finalThreads.map(t => t.id).slice(0, 3),
           newThreadsAdded: newServerThreads.length,
@@ -478,15 +482,15 @@ export function useThreads(config?: {
       setOffset(data.threads.length);
       setHasMore(data.hasMore);
 
-      console.log('[AK_TELEMETRY] useThreads.backgroundRefresh:success', {
+      logger.log('backgroundRefresh:success', {
         userId,
         fetched: data.threads.length,
         hasMore: data.hasMore,
       });
     } catch (err) {
       // Silently fail background refreshes - don't show error to user
-      console.warn('[useThreads] Background refresh failed:', err);
-      console.log('[AK_TELEMETRY] useThreads.backgroundRefresh:error', { userId, error: err instanceof Error ? err.message : String(err) });
+      logger.warn('Background refresh failed:', err);
+      logger.log('backgroundRefresh:error', { userId, error: err instanceof Error ? err.message : String(err) });
     }
   }, [userId, fetchThreadsFn, cacheKey]);
 
@@ -494,7 +498,7 @@ export function useThreads(config?: {
   useEffect(() => {
     if (typeof window !== 'undefined' && !isHydrated) {
       setIsHydrated(true);
-      console.log('[AK_TELEMETRY] useThreads.hydrate:start', { userId });
+      logger.log('hydrate:start', { userId });
       
       try {
         const cached = sessionStorage.getItem(cacheKey);
@@ -516,17 +520,17 @@ export function useThreads(config?: {
             backgroundRefresh();
           }, 2000);
 
-          console.log('[AK_TELEMETRY] useThreads.hydrate:fromCache', {
+          logger.log('hydrate:fromCache', {
             count: cachedThreads.length,
           });
           return; // Exit early if we loaded from cache
         }
       } catch (err) {
-        console.warn('[useThreads] Failed to parse cached threads:', err);
+        logger.warn('Failed to parse cached threads:', err);
       }
       
       // No cache found, proceed with normal loading
-      console.log('[AK_TELEMETRY] useThreads.hydrate:noCache');
+      logger.log('hydrate:noCache');
       loadThreads(false);
     }
   }, [isHydrated, cacheKey, backgroundRefresh, loadThreads]);
@@ -545,10 +549,10 @@ export function useThreads(config?: {
     if (typeof window !== 'undefined') {
       try {
         sessionStorage.removeItem(cacheKey);
-        console.log('[AK_TELEMETRY] useThreads.clearCache:success', { userId });
+        logger.log('clearCache:success', { userId });
       } catch (err) {
-        console.warn('[useThreads] Failed to clear cache:', err);
-        console.log('[AK_TELEMETRY] useThreads.clearCache:error', { userId, error: err instanceof Error ? err.message : String(err) });
+        logger.warn('Failed to clear cache:', err);
+        logger.log('clearCache:error', { userId, error: err instanceof Error ? err.message : String(err) });
       }
     }
   }, [cacheKey]);
