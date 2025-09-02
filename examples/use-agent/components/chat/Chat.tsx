@@ -10,7 +10,6 @@ import {
   useEditMessage, // handles the edit message state and edit message functionality
   useIsMobile, // handles the mobile state and mobile sidebar open/close
 } from "@/hooks";
-import { TEST_USER_ID } from "@/lib/constants";
 import { ResponsivePromptInput } from '@/components/ai-elements/prompt-input';
 import {
   Conversation,
@@ -132,9 +131,13 @@ export function Chat({ threadId: providedThreadId }: ChatProps = {}) {
     isLoadingInitialThread,
     isConnected,
     error,
-    clearError
+    clearError,
+    
+    // HITL actions
+    approveToolCall,
+    denyToolCall,
   } = useChat({
-    userId: TEST_USER_ID,
+    // No need to pass userId - it inherits from AgentProvider automatically!
     initialThreadId: providedThreadId,
     debug: true,
     
@@ -159,8 +162,20 @@ export function Chat({ threadId: providedThreadId }: ChatProps = {}) {
   } = useEditMessage({ sendMessage: sendMessage });
 
   const handleNewChat = () => {
+    console.log('[DEBUG] New Chat clicked - current thread:', currentThreadId);
+    
+    // Create new thread internally without URL navigation
+    // URL navigation will happen automatically when user sends first message
     const newThreadId = createNewThread();
-    router.push(`/chat/${newThreadId}`);
+    
+    console.log('[DEBUG] New Chat created:', { 
+      oldThreadId: currentThreadId, 
+      newThreadId,
+      messagesCleared: messages.length === 0 
+    });
+    
+    // Clear input to give visual feedback that we're in a fresh state
+    setInputValue("");
   };
 
   const handleThreadSelect = (threadId: string) => {
@@ -168,19 +183,8 @@ export function Chat({ threadId: providedThreadId }: ChatProps = {}) {
     router.push(`/chat/${threadId}`);
   };
 
-  // More robustly handle invalid thread IDs by checking against the loaded list
-  useEffect(() => {
-    // Only check after the initial thread list has loaded.
-    if (!threadsLoading && providedThreadId) {
-      // Check if the provided threadId exists in the fetched threads.
-      const threadExists = threads.some(t => t.id === providedThreadId);
-      if (!threadExists) {
-        console.warn(`[CHAT] Thread not found in loaded list:`, { requested: providedThreadId });
-        toast.error('Conversation not found');
-        router.push('/');
-      }
-    }
-  }, [providedThreadId, threads, threadsLoading, router]);
+  // Thread validation is now handled internally by useChat hook
+  // This component should not need to know about thread management complexity
 
   // Reasoning component internally tracks duration via isStreaming
   const handleSubmit = async (e: React.FormEvent) => {
@@ -202,26 +206,21 @@ export function Chat({ threadId: providedThreadId }: ChatProps = {}) {
   };
 
   const handleApprove = async (toolCallId: string) => {
-    // TODO: Integrate HITL approval into AgentKit backend and useChat hook
-    // For now, just log the approval action
-    console.log(`[Chat] Tool ${toolCallId} approved (HITL backend integration pending)`, {
-      toolCallId,
-      threadId: currentThreadId,
-      action: "approve",
-      timestamp: new Date().toISOString()
-    });
+    try {
+      await approveToolCall(toolCallId, "Approved by user");
+    } catch (error) {
+      console.error("[Chat] Failed to approve tool call:", error);
+      // Could show a toast notification here
+    }
   };
 
   const handleDeny = async (toolCallId: string, reason?: string) => {
-    // TODO: Integrate HITL approval into AgentKit backend and useChat hook
-    // For now, just log the denial action
-    console.log(`[Chat] Tool ${toolCallId} denied (HITL backend integration pending)`, {
-      toolCallId,
-      threadId: currentThreadId,
-      action: "deny",
-      reason: reason || 'No reason provided',
-      timestamp: new Date().toISOString()
-    });
+    try {
+      await denyToolCall(toolCallId, reason || "Denied by user");
+    } catch (error) {
+      console.error("[Chat] Failed to deny tool call:", error);
+      // Could show a toast notification here
+    }
   };
 
   const handleSuggestionClick = (suggestion: string) => {
