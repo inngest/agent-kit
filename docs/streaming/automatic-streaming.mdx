@@ -28,17 +28,17 @@ At the heart of automatic streaming is the **StreamingContext** - a hierarchical
 sequenceDiagram
     participant Network as AgentKit Network
     participant StreamingContext as StreamingContext
-    participant AgentContext as Agent StreamingContext  
+    participant AgentContext as Agent StreamingContext
     participant Publisher as Event Publisher
     participant WebSocket as WebSocket Channel
     participant ReactHook as useAgent Hook
 
     Network->>StreamingContext: Create from network state
     Note over StreamingContext: Extract threadId, userId, messageId
-    
+
     StreamingContext->>AgentContext: createChildContext(agentRunId)
     Note over AgentContext: Inherits publish function & sequence counter
-    
+
     loop Agent Execution
         AgentContext->>AgentContext: generatePartId() - OpenAI compatible
         AgentContext->>Publisher: publishEvent(event, auto sequence)
@@ -83,7 +83,7 @@ Track the complete execution flow:
   event: "run.started",
   data: {
     runId: "run_123",
-    scope: "agent", 
+    scope: "agent",
     name: "CustomerSupportAgent",
     messageId: "msg_456",
     threadId: "thread_789", // Auto-enriched
@@ -95,14 +95,14 @@ Track the complete execution flow:
 
 // Agent completes with usage stats
 {
-  event: "run.completed", 
+  event: "run.completed",
   data: {
     runId: "run_123",
     scope: "agent",
     result: { success: true },
     usage: {
       promptTokens: 150,
-      completionTokens: 75, 
+      completionTokens: 75,
       totalTokens: 225
     }
   },
@@ -133,7 +133,7 @@ Stream text and reasoning content incrementally:
   event: "text.delta",
   data: {
     partId: "text_msg456_12345_abc123",
-    messageId: "msg_456", 
+    messageId: "msg_456",
     delta: "I'll help you with your refund request. Let me"
   },
   sequenceNumber: 4
@@ -160,7 +160,7 @@ Stream tool calls with input and output:
 {
   event: "part.created",
   data: {
-    partId: "tool_msg456_11111_xyz789", 
+    partId: "tool_msg456_11111_xyz789",
     messageId: "msg_456",
     type: "tool-call",
     metadata: { toolName: "lookup_customer_orders" }
@@ -179,12 +179,12 @@ Stream tool calls with input and output:
   sequenceNumber: 7
 }
 
-// Tool output streamed back  
+// Tool output streamed back
 {
   event: "tool_call.output.delta",
   data: {
     partId: "tool_msg456_11111_xyz789",
-    messageId: "msg_456", 
+    messageId: "msg_456",
     delta: "Found 3 recent orders for customer..."
   },
   sequenceNumber: 9
@@ -201,8 +201,8 @@ Handle approval workflows seamlessly:
   event: "hitl.requested",
   data: {
     requestId: "hitl_123",
-    toolCalls: [{ 
-      toolName: "process_refund", 
+    toolCalls: [{
+      toolName: "process_refund",
       toolInput: { amount: 99.99, orderId: "ord_456" }
     }],
     expiresAt: "2024-01-01T12:00:00Z",
@@ -213,7 +213,7 @@ Handle approval workflows seamlessly:
 
 // User approval decision
 {
-  event: "hitl.resolved", 
+  event: "hitl.resolved",
   data: {
     requestId: "hitl_123",
     resolution: "approved",
@@ -234,15 +234,17 @@ The StreamingContext automatically enriches all events with essential context:
 ```typescript
 // StreamingContext extracts context from network state
 const context = StreamingContext.fromNetworkState(networkState, {
-  publish: async (chunk) => { /* ... */ },
+  publish: async (chunk) => {
+    /* ... */
+  },
   runId: generateId(),
   messageId: userMessage.id,
-  scope: "network"
+  scope: "network",
 });
 
 // Context contains:
 // - threadId: from network state
-// - userId: from network state  
+// - userId: from network state
 // - messageId: from user message
 // - runId: unique run identifier
 ```
@@ -253,22 +255,22 @@ const context = StreamingContext.fromNetworkState(networkState, {
 // Before enrichment (internal)
 const rawEvent = {
   event: "text.delta",
-  data: { partId: "text_123", delta: "Hello" }
+  data: { partId: "text_123", delta: "Hello" },
 };
 
 // After enrichment (published)
 const enrichedEvent = {
-  event: "text.delta", 
-  data: { 
-    partId: "text_123", 
+  event: "text.delta",
+  data: {
+    partId: "text_123",
     delta: "Hello",
-    threadId: "thread_789",  // Auto-added
-    userId: "user_123",      // Auto-added
-    messageId: "msg_456"     // Auto-added
+    threadId: "thread_789", // Auto-added
+    userId: "user_123", // Auto-added
+    messageId: "msg_456", // Auto-added
   },
-  sequenceNumber: 4,         // Auto-generated
-  timestamp: 1703123456789,  // Auto-generated
-  id: "publish-4:text.delta" // Auto-generated
+  sequenceNumber: 4, // Auto-generated
+  timestamp: 1703123456789, // Auto-generated
+  id: "publish-4:text.delta", // Auto-generated
 };
 ```
 
@@ -280,7 +282,7 @@ When a network calls agents, contexts inherit seamlessly:
 // Network creates main context
 const networkContext = new StreamingContext({
   scope: "network",
-  runId: "network_run_123", 
+  runId: "network_run_123",
   messageId: "msg_456",
   // ... other config
 });
@@ -310,7 +312,7 @@ export const runAgentChat = inngest.createFunction(
   async ({ event, step, publish }) => {
     // StreamingContext wraps your step tools transparently
     const wrappedStep = createStepWrapper(step, streamingContext);
-    
+
     // Your network code works unchanged
     const result = await network.run(message, {
       streaming: {
@@ -360,6 +362,7 @@ async publishEvent(event) {
 ### Connection Recovery
 
 The React hooks handle connection failures gracefully:
+
 - **Automatic Reconnection**: WebSocket reconnects on network issues
 - **Event Buffering**: Out-of-order events are buffered and reordered
 - **State Recovery**: UI state preserved across connection interruptions
@@ -379,7 +382,7 @@ agentCounter:   0,1,2,3...  // Same numbers!
 // ✅ Shared counter - perfect ordering
 sharedCounter: 0,1,2,3,4,5,6,7,8,9...
 //             │ │ │ │ │ │ │ │ │ └─ agent
-//             │ │ │ │ │ │ │ │ └─── network  
+//             │ │ │ │ │ │ │ │ └─── network
 //             │ │ │ │ │ │ │ └───── agent
 //             └─┴─┴─┴─┴─┴─┴─────── network
 ```
@@ -392,7 +395,7 @@ The AgentProvider enables efficient connection sharing:
 // ✅ Single WebSocket connection shared across components
 <AgentProvider userId="user-123">
   <ChatSidebar />      {/* Shares connection */}
-  <ChatMessages />     {/* Shares connection */}  
+  <ChatMessages />     {/* Shares connection */}
   <ChatInput />        {/* Shares connection */}
 </AgentProvider>
 ```
@@ -418,25 +421,25 @@ Comprehensive logging for development:
 
 ```typescript
 // StreamingContext creation
-console.log('🔧 [STREAMING-CTX] Creating StreamingContext:', {
-  runId: 'network_run_123',
-  messageId: 'msg_456', 
-  scope: 'network',
-  threadId: 'thread_789'
+console.log("🔧 [STREAMING-CTX] Creating StreamingContext:", {
+  runId: "network_run_123",
+  messageId: "msg_456",
+  scope: "network",
+  threadId: "thread_789",
 });
 
 // Event publishing
-console.log('🔧 [PUBLISH] Publishing event:', {
-  event: 'text.delta',
+console.log("🔧 [PUBLISH] Publishing event:", {
+  event: "text.delta",
   sequenceNumber: 4,
-  partId: 'text_msg456_12345_abc123'
+  partId: "text_msg456_12345_abc123",
 });
 
-// Child context creation  
-console.log('🔧 [CHILD-CTX] Creating child context:', {
-  parentRunId: 'network_run_123',
-  childRunId: 'agent_run_456',
-  inheritedSequenceCounter: true
+// Child context creation
+console.log("🔧 [CHILD-CTX] Creating child context:", {
+  parentRunId: "network_run_123",
+  childRunId: "agent_run_456",
+  inheritedSequenceCounter: true,
 });
 ```
 
@@ -474,7 +477,7 @@ const customContext = new StreamingContext({
   threadId: conversation.id,
   userId: user.id,
   scope: "network",
-  debug: true // Enable detailed logging
+  debug: true, // Enable detailed logging
 });
 
 // Use with network
@@ -495,7 +498,7 @@ Here's how a typical agent interaction generates streaming events:
 // 1. Network starts
 { event: "run.started", data: { scope: "network", name: "CustomerSupport" }, seq: 0 }
 
-// 2. Agent starts  
+// 2. Agent starts
 { event: "run.started", data: { scope: "agent", name: "RefundAgent" }, seq: 1 }
 
 // 3. Text part created
@@ -511,7 +514,7 @@ Here's how a typical agent interaction generates streaming events:
 // 6. Tool call created
 { event: "part.created", data: { type: "tool-call", toolName: "lookup_order" }, seq: 6 }
 
-// 7. Tool arguments streamed  
+// 7. Tool arguments streamed
 { event: "tool_call.arguments.delta", data: { delta: '{"orderId":"123"}' }, seq: 7 }
 
 // 8. Tool execution
@@ -544,9 +547,9 @@ await context.publishEvent({
       toolName: "process_refund",
       estimatedDuration: "30s",
       riskLevel: "high",
-      requiresApproval: true
-    }
-  }
+      requiresApproval: true,
+    },
+  },
 });
 ```
 
@@ -557,12 +560,12 @@ Extend the system with application-specific events:
 ```typescript
 // Custom business logic events
 await context.publishEvent({
-  event: "business.escalation_triggered", 
+  event: "business.escalation_triggered",
   data: {
     escalationReason: "refund_amount_exceeds_limit",
     escalatedTo: "senior_support_agent",
-    escalationId: generateId()
-  }
+    escalationId: generateId(),
+  },
 });
 ```
 
@@ -586,16 +589,10 @@ const escalationContext = networkContext.createChildContext("escalation_run");
 ## Next Steps
 
 <CardGroup>
-  <Card
-    title="React Hooks Quickstart"
-    href="/streaming/react-hooks-quickstart"
-  >
+  <Card title="React Hooks Quickstart" href="/streaming/react-hooks-quickstart">
     Learn how to consume these events with our React hooks
   </Card>
-  <Card
-    title="useAgent API Reference" 
-    href="/reference/react-hooks/use-agent"
-  >
+  <Card title="useAgent API Reference" href="/reference/react-hooks/use-agent">
     Complete API documentation for the useAgent hook
   </Card>
   <Card

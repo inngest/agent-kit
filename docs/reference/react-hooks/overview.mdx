@@ -42,14 +42,12 @@ These hooks provide the primary functionality for building AI chat applications:
     href="/reference/react-hooks/use-chat"
     icon="message-circle"
   >
-    **Recommended**: Unified hook for complete chat applications with streaming, threads, and persistence
+    **Recommended**: Unified hook for complete chat applications with streaming,
+    threads, and persistence
   </Card>
-  <Card
-    title="useAgent"
-    href="/reference/react-hooks/use-agent"
-    icon="zap"
-  >
-    **Advanced**: Low-level hook for real-time streaming and multi-thread management
+  <Card title="useAgent" href="/reference/react-hooks/use-agent" icon="zap">
+    **Advanced**: Low-level hook for real-time streaming and multi-thread
+    management
   </Card>
   <Card
     title="useThreads"
@@ -70,14 +68,16 @@ Essential components for connection management and configuration:
     href="/reference/react-hooks/agent-provider"
     icon="share-2"
   >
-    Context provider for shared connections, configuration, and performance optimization
+    Context provider for shared connections, configuration, and performance
+    optimization
   </Card>
   <Card
     title="AgentTransport"
     href="/reference/react-hooks/transport"
     icon="globe"
   >
-    Configurable API layer for customizing endpoints, authentication, and request handling
+    Configurable API layer for customizing endpoints, authentication, and
+    request handling
   </Card>
 </CardGroup>
 
@@ -91,7 +91,8 @@ Specialized hooks for specific features and UI patterns:
     href="/reference/react-hooks/utility-hooks"
     icon="tool"
   >
-    useMessageActions, useEditMessage, useEphemeralThreads, useSidebar, useIsMobile, and more
+    useMessageActions, useEditMessage, useEphemeralThreads, useSidebar,
+    useIsMobile, and more
   </Card>
 </CardGroup>
 
@@ -100,21 +101,25 @@ Specialized hooks for specific features and UI patterns:
 ### Hook Categories
 
 **Core Streaming Hooks**:
+
 - `useAgent`: Multi-thread real-time streaming
-- `useChat`: Complete chat application functionality  
+- `useChat`: Complete chat application functionality
 - `useThreads`: Thread persistence and management
 
 **Specialized Storage**:
+
 - `useEphemeralThreads`: Client-side storage for demos
 - `useConversationBranching`: Message editing workflows
 
 **UI Utilities**:
+
 - `useMessageActions`: Copy, like, share, read aloud
 - `useEditMessage`: Message editing state management
 - `useSidebar`: Responsive sidebar state
 - `useIsMobile`: Mobile device detection
 
 **Infrastructure**:
+
 - `AgentProvider`: Shared context and connections
 - Transport layer: Configurable API communication
 
@@ -123,7 +128,7 @@ Specialized hooks for specific features and UI patterns:
 **🎯 Progressive Enhancement**:
 Start simple with `useChat`, add advanced hooks as needed
 
-**🔧 Composable Architecture**: 
+**🔧 Composable Architecture**:
 Hooks work independently or together based on your needs
 
 **⚡ Performance First**:
@@ -149,24 +154,24 @@ import type {
   TextUIPart,
   ToolCallUIPart,
   HitlUIPart,
-  
+
   // State and status types
   AgentStatus,
   Thread,
   ThreadState,
-  
+
   // Event and streaming types
   NetworkEvent,
   AgentMessageChunk,
-  
+
   // Transport and configuration
   AgentTransport,
   UseAgentOptions,
   UseChatConfig,
-  
+
   // Error handling
   AgentError,
-  ErrorClassification
+  ErrorClassification,
 } from "@inngest/use-agents";
 ```
 
@@ -178,12 +183,12 @@ Each hook has a comprehensive return type interface:
 import type {
   UseAgentReturn,
   UseChatReturn,
-  UseThreadsReturn
+  UseThreadsReturn,
 } from "@inngest/use-agents";
 
 // Example: Complete typing for useChat
 const chat: UseChatReturn = useChat({
-  initialThreadId: 'thread-123'
+  initialThreadId: "thread-123",
 });
 ```
 
@@ -212,7 +217,7 @@ function ChatInterface() {
     switchToThread,   // (threadId: string) => Promise<void>
     createNewThread   // () => string
   } = useChat();
-  
+
   return <div>/* Your chat UI */</div>;
 }
 ```
@@ -220,10 +225,10 @@ function ChatInterface() {
 ### Custom Transport Configuration
 
 ```typescript
-import { 
-  AgentProvider, 
+import {
+  AgentProvider,
   createDefaultAgentTransport,
-  type DefaultAgentTransportConfig 
+  type DefaultAgentTransportConfig
 } from "@inngest/use-agents";
 
 const transport: DefaultAgentTransportConfig = {
@@ -255,11 +260,11 @@ function AdvancedChat() {
     getThread,           // (threadId: string) => ThreadState | undefined
     createThread,        // (threadId: string) => void
     removeThread         // (threadId: string) => void
-  } = useAgent({ 
+  } = useAgent({
     threadId: 'initial-thread',
-    userId: 'user-123' 
+    userId: 'user-123'
   });
-  
+
   return <div>/* Custom multi-thread UI */</div>;
 }
 ```
@@ -269,36 +274,43 @@ function AdvancedChat() {
 ### Memory Management
 
 **✅ Efficient Patterns**:
+
 ```typescript
 // Stable configuration objects
-const transportConfig = useMemo(() => ({
-  headers: { 'Authorization': `Bearer ${token}` }
-}), [token]);
+const transportConfig = useMemo(
+  () => ({
+    headers: { Authorization: `Bearer ${token}` },
+  }),
+  [token]
+);
 
 // Reasonable state capture
 state: () => ({
   currentTab: activeTab,
-  formData: getCurrentForm()
-})
+  formData: getCurrentForm(),
+});
 ```
 
 **❌ Memory Leaks**:
+
 ```typescript
 // Don't capture massive objects
 state: () => ({
-  entireAppState: store.getState(),  // Too large!
-  allUserHistory: history           // Too large!
-})
+  entireAppState: store.getState(), // Too large!
+  allUserHistory: history, // Too large!
+});
 
 // Don't recreate config on every render
-transport: createDefaultAgentTransport({ // New instance!
-  headers: { 'Authorization': `Bearer ${token}` }
-})
+transport: createDefaultAgentTransport({
+  // New instance!
+  headers: { Authorization: `Bearer ${token}` },
+});
 ```
 
 ### Connection Optimization
 
 **✅ Efficient**:
+
 ```typescript
 // Single provider, shared connections
 <AgentProvider userId="user-123">
@@ -308,6 +320,7 @@ transport: createDefaultAgentTransport({ // New instance!
 ```
 
 **❌ Inefficient**:
+
 ```typescript
 // Multiple separate connections
 <ChatSidebar />     {/* useThreads creates connection */}
@@ -325,10 +338,10 @@ const { error, connectionError, clearError } = useChat();
 
 if (error) {
   console.log({
-    message: error.message,        // Human-readable error
+    message: error.message, // Human-readable error
     recoverable: error.recoverable, // Can user retry?
-    timestamp: error.timestamp,     // When it occurred
-    suggestion: error.suggestion    // How to fix
+    timestamp: error.timestamp, // When it occurred
+    suggestion: error.suggestion, // How to fix
   });
 }
 ```
@@ -357,16 +370,16 @@ Enable comprehensive debug output:
 ```typescript
 import { createDebugLogger } from "@inngest/use-agents";
 
-const logger = createDebugLogger('MyComponent', true);
-logger.log('Component initialized');
-logger.warn('Non-critical issue');  
-logger.error('Critical error');
+const logger = createDebugLogger("MyComponent", true);
+logger.log("Component initialized");
+logger.warn("Non-critical issue");
+logger.error("Critical error");
 ```
 
 ### Development vs Production
 
 ```typescript
-<AgentProvider 
+<AgentProvider
   debug={process.env.NODE_ENV === 'development'}
   transport={isDev ? devTransport : prodTransport}
 >
@@ -380,21 +393,21 @@ logger.error('Critical error');
 
 ```typescript
 // Before: Local imports from examples
-import { useChat } from '@/hooks/use-chat';
-import { AgentProvider } from '@/contexts/AgentContext';
+import { useChat } from "@/hooks/use-chat";
+import { AgentProvider } from "@/contexts/AgentContext";
 
 // After: Package imports
-import { useChat, AgentProvider } from '@inngest/use-agents';
+import { useChat, AgentProvider } from "@inngest/use-agents";
 ```
 
 **No API changes required** - the package maintains full backward compatibility with local implementations.
 
 ### Version Compatibility
 
-| Package Version | AgentKit Version | React Version | Features |
-|-----------------|------------------|---------------|----------|
-| 1.0.0+ | 0.3.0+ | 18.0.0+ | Full feature set |
-| 0.9.0+ | 0.2.0+ | 18.0.0+ | Beta features |
+| Package Version | AgentKit Version | React Version | Features         |
+| --------------- | ---------------- | ------------- | ---------------- |
+| 1.0.0+          | 0.3.0+           | 18.0.0+       | Full feature set |
+| 0.9.0+          | 0.2.0+           | 18.0.0+       | Beta features    |
 
 ## Next Steps
 
@@ -417,10 +430,7 @@ import { useChat, AgentProvider } from '@inngest/use-agents';
   >
     Customize API communication and authentication
   </Card>
-  <Card
-    title="Streaming Quickstart"
-    href="/streaming/react-hooks-quickstart"
-  >
+  <Card title="Streaming Quickstart" href="/streaming/react-hooks-quickstart">
     Get started building with the hooks in 5 minutes
   </Card>
 </CardGroup>

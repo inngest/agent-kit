@@ -8,7 +8,8 @@ import { Card, CardGroup } from "nextra/components";
 The `useChat` hook is the **recommended entry point** for building AI chat applications with AgentKit. It provides a unified API that combines real-time streaming capabilities with thread management, making it perfect for building complete chat applications.
 
 <Card title="Recommendation" icon="star">
-Use `useChat` for 90% of AgentKit React applications. It handles the complex coordination between real-time events and persistent state automatically.
+  Use `useChat` for 90% of AgentKit React applications. It handles the complex
+  coordination between real-time events and persistent state automatically.
 </Card>
 
 ## Import
@@ -34,11 +35,11 @@ function ChatComponent() {
 
   return (
     <div>
-      <ThreadSidebar 
-        threads={threads} 
-        onNewThread={createNewThread} 
+      <ThreadSidebar
+        threads={threads}
+        onNewThread={createNewThread}
       />
-      <ChatArea 
+      <ChatArea
         messages={messages}
         onSendMessage={sendMessage}
         status={status}
@@ -56,8 +57,9 @@ function ChatComponent() {
 User identifier for attribution and data ownership. **Required** unless provided by AgentProvider.
 
 ```typescript
-useChat({ userId: "user-123" })
+useChat({ userId: "user-123" });
 ```
+
 </ParamField>
 
 <ParamField path="channelKey" type="string">
@@ -65,11 +67,12 @@ Channel key for subscription targeting. Enables collaborative features when mult
 
 ```typescript
 // Private chat (default)
-useChat({ userId: "user-123" })
+useChat({ userId: "user-123" });
 
 // Collaborative chat
-useChat({ channelKey: "project-456", userId: "user-123" })
+useChat({ channelKey: "project-456", userId: "user-123" });
 ```
+
 </ParamField>
 
 <ParamField path="initialThreadId" type="string">
@@ -77,16 +80,18 @@ Thread ID to load on initialization. Perfect for URL-driven chat pages.
 
 ```typescript
 // URL: /chat/[threadId]
-useChat({ initialThreadId: params.threadId })
+useChat({ initialThreadId: params.threadId });
 ```
+
 </ParamField>
 
 <ParamField path="debug" type="boolean" default="false">
 Enable comprehensive debug logging for development.
 
 ```typescript
-useChat({ debug: process.env.NODE_ENV === 'development' })
+useChat({ debug: process.env.NODE_ENV === "development" });
 ```
+
 </ParamField>
 
 <ParamField path="enableThreadValidation" type="boolean" default="true">
@@ -94,11 +99,12 @@ Validate that initialThreadId exists in the database. Set to `false` for custom 
 
 ```typescript
 // Disable for ephemeral/custom storage
-useChat({ 
+useChat({
   initialThreadId: threadId,
-  enableThreadValidation: false 
-})
+  enableThreadValidation: false,
+});
 ```
+
 </ParamField>
 
 <ParamField path="onThreadNotFound" type="(threadId: string) => void">
@@ -109,10 +115,11 @@ useChat({
   initialThreadId: threadId,
   onThreadNotFound: (missingThreadId) => {
     showError(`Thread ${missingThreadId} not found`);
-    router.push('/chat');
-  }
-})
+    router.push("/chat");
+  },
+});
 ```
+
 </ParamField>
 
 ### Advanced Configuration
@@ -126,10 +133,11 @@ useChat({
     currentPage: window.location.pathname,
     formData: getActiveFormData(),
     userPreferences: getUserSettings(),
-    timestamp: Date.now()
-  })
-})
+    timestamp: Date.now(),
+  }),
+});
 ```
+
 </ParamField>
 
 <ParamField path="onStateRehydrate" type="(messageState: Record<string, unknown>, messageId: string) => void">
@@ -142,38 +150,48 @@ useChat({
     if (messageState.formData) {
       restoreFormData(messageState.formData);
     }
-    
+
     // Navigate to original page
     if (messageState.currentPage) {
       router.push(messageState.currentPage);
     }
-  }
-})
+  },
+});
 ```
+
 </ParamField>
 
 ### Custom Functions
 
 Override default API behavior for custom backends:
 
-<ParamField path="fetchThreads" type="(userId: string, pagination: { limit: number; offset: number }) => Promise<{threads: Thread[]; hasMore: boolean; total: number}>">
-Custom function for fetching threads list.
+<ParamField
+  path="fetchThreads"
+  type="(userId: string, pagination: { limit: number; offset: number }) => Promise<{threads: Thread[]; hasMore: boolean; total: number}>"
+>
+  Custom function for fetching threads list.
 </ParamField>
 
 <ParamField path="fetchHistory" type="(threadId: string) => Promise<any[]>">
-Custom function for loading thread message history.
+  Custom function for loading thread message history.
 </ParamField>
 
-<ParamField path="createThread" type="(userId: string) => Promise<{threadId: string; title: string}>">
-Custom function for creating new threads.
+<ParamField
+  path="createThread"
+  type="(userId: string) => Promise<{threadId: string; title: string}>"
+>
+  Custom function for creating new threads.
 </ParamField>
 
 <ParamField path="deleteThread" type="(threadId: string) => Promise<void>">
-Custom function for deleting threads.
+  Custom function for deleting threads.
 </ParamField>
 
-<ParamField path="renameThread" type="(threadId: string, title: string) => Promise<void>">
-Custom function for renaming threads.
+<ParamField
+  path="renameThread"
+  type="(threadId: string, title: string) => Promise<void>"
+>
+  Custom function for renaming threads.
 </ParamField>
 
 ## Return Value: `UseChatReturn`
@@ -184,15 +202,16 @@ Custom function for renaming threads.
 Current thread's messages with real-time streaming updates. Each message contains `parts` that stream incrementally.
 
 ```typescript
-messages.forEach(msg => {
+messages.forEach((msg) => {
   console.log(`${msg.role}: ${msg.parts.length} parts`);
-  msg.parts.forEach(part => {
-    if (part.type === 'text') {
+  msg.parts.forEach((part) => {
+    if (part.type === "text") {
       console.log(`Text: ${part.content}`);
     }
   });
 });
 ```
+
 </ParamField>
 
 <ParamField path="status" type="AgentStatus">
@@ -204,6 +223,7 @@ Current agent execution status: `"idle"`, `"thinking"`, `"calling-tool"`, `"resp
 {status === 'responding' && <StreamingIndicator />}
 {status === 'error' && <ErrorMessage />}
 ```
+
 </ParamField>
 
 <ParamField path="isConnected" type="boolean">
@@ -213,6 +233,7 @@ WebSocket connection status to AgentKit networks.
 // Show connection status
 <div>Status: {isConnected ? '🟢 Connected' : '🔴 Disconnected'}</div>
 ```
+
 </ParamField>
 
 <ParamField path="currentAgent" type="string | undefined">
@@ -221,6 +242,7 @@ Name of the currently active agent (if available).
 ```typescript
 <div>Agent: {currentAgent || 'Assistant'}</div>
 ```
+
 </ParamField>
 
 <ParamField path="error" type="{ message: string; timestamp: Date; recoverable: boolean } | undefined">
@@ -228,13 +250,14 @@ Current error state with recovery information.
 
 ```typescript
 {error && (
-  <ErrorBanner 
+  <ErrorBanner
     message={error.message}
     canRetry={error.recoverable}
     onDismiss={clearError}
   />
 )}
 ```
+
 </ParamField>
 
 ### Thread Management State
@@ -243,32 +266,33 @@ Current error state with recovery information.
 Array of all conversation threads with metadata and unread indicators.
 
 ```typescript
-threads.forEach(thread => {
+threads.forEach((thread) => {
   console.log({
     id: thread.id,
     title: thread.title,
     messageCount: thread.messageCount,
     hasNewMessages: thread.hasNewMessages,
-    lastActivity: thread.lastMessageAt
+    lastActivity: thread.lastMessageAt,
   });
 });
 ```
+
 </ParamField>
 
 <ParamField path="threadsLoading" type="boolean">
-Loading state for the threads list.
+  Loading state for the threads list.
 </ParamField>
 
 <ParamField path="threadsHasMore" type="boolean">
-Whether more threads are available for pagination.
+  Whether more threads are available for pagination.
 </ParamField>
 
 <ParamField path="threadsError" type="string | null">
-Error state for thread operations.
+  Error state for thread operations.
 </ParamField>
 
 <ParamField path="currentThreadId" type="string | null">
-ID of the currently active thread.
+  ID of the currently active thread.
 </ParamField>
 
 ### Loading States
@@ -284,6 +308,7 @@ ID of the currently active thread.
   <ChatMessages messages={messages} />
 )}
 ```
+
 </ParamField>
 
 ## Actions
@@ -302,6 +327,7 @@ await sendMessage("Hello!", { messageId: "custom-id" });
 
 // Handles thread creation, optimistic updates, and streaming automatically
 ```
+
 </ParamField>
 
 <ParamField path="sendMessageToThread" type="(threadId: string, message: string, options?: { messageId?: string; state?: Record<string, unknown> | (() => Record<string, unknown>) }) => Promise<void>">
@@ -314,12 +340,13 @@ await sendMessageToThread("thread-789", "Hello from another thread!");
 // With custom client state
 await sendMessageToThread("thread-789", "Edit message", {
   state: () => ({
-    mode: 'conversation_branching',
-    editFromMessageId: 'msg-456',
-    branchHistory: formatBranchHistory(messages.slice(0, editIndex))
-  })
+    mode: "conversation_branching",
+    editFromMessageId: "msg-456",
+    branchHistory: formatBranchHistory(messages.slice(0, editIndex)),
+  }),
 });
 ```
+
 </ParamField>
 
 ### Agent Control
@@ -332,6 +359,7 @@ Cancel the current agent run.
   Cancel Agent
 </button>
 ```
+
 </ParamField>
 
 <ParamField path="approveToolCall" type="(toolCallId: string, reason?: string) => Promise<void>">
@@ -347,6 +375,7 @@ Approve a tool call in Human-in-the-Loop workflows.
   </div>
 )}
 ```
+
 </ParamField>
 
 <ParamField path="denyToolCall" type="(toolCallId: string, reason?: string) => Promise<void>">
@@ -357,6 +386,7 @@ Deny a tool call in Human-in-the-Loop workflows.
   ❌ Deny
 </button>
 ```
+
 </ParamField>
 
 ### Thread Navigation
@@ -371,6 +401,7 @@ const handleThreadClick = async (threadId: string) => {
   // History automatically loaded and merged with any optimistic messages
 };
 ```
+
 </ParamField>
 
 <ParamField path="setCurrentThreadId" type="(threadId: string) => void">
@@ -380,6 +411,7 @@ Immediate thread switch without history loading (escape hatch for ephemeral scen
 // Low-level escape hatch for immediate switching
 setCurrentThreadId(threadId); // No history loading, immediate switch
 ```
+
 </ParamField>
 
 ### Advanced Thread Operations
@@ -391,6 +423,7 @@ Load thread history without switching to it.
 const messages = await loadThreadHistory("thread-789");
 console.log(`Thread has ${messages.length} historical messages`);
 ```
+
 </ParamField>
 
 <ParamField path="clearThreadMessages" type="(threadId: string) => void">
@@ -399,6 +432,7 @@ Clear all messages from a specific thread.
 ```typescript
 clearThreadMessages(currentThreadId); // Clear current thread
 ```
+
 </ParamField>
 
 <ParamField path="replaceThreadMessages" type="(threadId: string, messages: ConversationMessage[]) => void">
@@ -409,6 +443,7 @@ Replace all messages in a specific thread (used for conversation branching).
 const messagesBeforeEdit = conversation.slice(0, editIndex);
 replaceThreadMessages(threadId, messagesBeforeEdit);
 ```
+
 </ParamField>
 
 ### Thread CRUD Operations
@@ -422,6 +457,7 @@ const handleNewChat = () => {
   router.push(`/chat/${newThreadId}`);
 };
 ```
+
 </ParamField>
 
 <ParamField path="deleteThread" type="(threadId: string) => Promise<void>">
@@ -429,12 +465,13 @@ Delete a thread and all its messages permanently.
 
 ```typescript
 const handleDeleteThread = async (threadId: string) => {
-  if (confirm('Delete this conversation?')) {
+  if (confirm("Delete this conversation?")) {
     await deleteThread(threadId);
     // Thread removed from sidebar automatically
   }
 };
 ```
+
 </ParamField>
 
 <ParamField path="loadMoreThreads" type="() => Promise<void>">
@@ -445,12 +482,13 @@ Load the next page of threads for pagination.
 const handleScroll = (e) => {
   const { scrollTop, scrollHeight, clientHeight } = e.target;
   const isNearBottom = scrollHeight - scrollTop <= clientHeight + 100;
-  
+
   if (isNearBottom && threadsHasMore && !threadsLoading) {
     loadMoreThreads();
   }
 };
 ```
+
 </ParamField>
 
 <ParamField path="refreshThreads" type="() => Promise<void>">
@@ -461,6 +499,7 @@ Refresh the threads list from the server.
   🔄 Refresh Threads
 </button>
 ```
+
 </ParamField>
 
 ### State Management
@@ -476,6 +515,7 @@ const handleEditMessage = (messageId: string) => {
   startEditing(messageId);
 };
 ```
+
 </ParamField>
 
 <ParamField path="clearError" type="() => void">
@@ -483,12 +523,13 @@ Clear the current error state.
 
 ```typescript
 {error && (
-  <ErrorBanner 
+  <ErrorBanner
     message={error.message}
     onDismiss={clearError}
   />
 )}
 ```
+
 </ParamField>
 
 ## Usage Examples
@@ -511,11 +552,11 @@ export default function ChatPage({ params }) {
 
   return (
     <div className="flex h-screen">
-      <ThreadSidebar 
+      <ThreadSidebar
         threads={threads}
         onThreadSelect={switchToThread}
       />
-      <ChatArea 
+      <ChatArea
         messages={messages}
         onSendMessage={sendMessage}
         status={status}
@@ -566,33 +607,29 @@ function SqlPlaygroundChat() {
   const [currentSql, setCurrentSql] = useState("SELECT * FROM users;");
   const [activeTab, setActiveTab] = useState("query");
 
-  const {
-    messages,
-    sendMessage,
-    rehydrateMessageState
-  } = useChat({
+  const { messages, sendMessage, rehydrateMessageState } = useChat({
     // 📸 CAPTURE: Record UI context when messages are sent
     state: () => ({
       sqlQuery: currentSql,
       activeTab: activeTab,
       editorConfig: getEditorSettings(),
-      timestamp: Date.now()
+      timestamp: Date.now(),
     }),
-    
+
     // 🔄 REHYDRATE: Restore UI context when editing old messages
     onStateRehydrate: (messageState, messageId) => {
       // Restore SQL query
       if (messageState.sqlQuery) {
         setCurrentSql(messageState.sqlQuery);
       }
-      
+
       // Restore active tab
       if (messageState.activeTab) {
         setActiveTab(messageState.activeTab);
       }
-      
+
       console.log(`Restored context for message ${messageId}:`, messageState);
-    }
+    },
   });
 
   const handleEditMessage = (messageId: string) => {
@@ -610,27 +647,29 @@ Use custom API functions for non-standard backends:
 
 ```typescript
 const customFetchThreads = async (userId, { limit, offset }) => {
-  const response = await fetch(`/api/v2/conversations?user=${userId}&limit=${limit}&offset=${offset}`);
+  const response = await fetch(
+    `/api/v2/conversations?user=${userId}&limit=${limit}&offset=${offset}`
+  );
   const data = await response.json();
-  
+
   return {
-    threads: data.conversations.map(conv => ({
+    threads: data.conversations.map((conv) => ({
       id: conv.id,
       title: conv.name,
       messageCount: conv.messageCount,
       lastMessageAt: new Date(conv.updatedAt),
       createdAt: new Date(conv.createdAt),
-      updatedAt: new Date(conv.updatedAt)
+      updatedAt: new Date(conv.updatedAt),
     })),
     hasMore: data.hasNextPage,
-    total: data.totalCount
+    total: data.totalCount,
   };
 };
 
 const chat = useChat({
   fetchThreads: customFetchThreads,
   createThread: customCreateThread,
-  deleteThread: customDeleteThread
+  deleteThread: customDeleteThread,
 });
 ```
 
@@ -644,7 +683,7 @@ function MultiChatApp() {
     { id: 'tab-1', threadId: 'thread-1', title: 'Chat 1' },
     { id: 'tab-2', threadId: 'thread-2', title: 'Chat 2' }
   ]);
-  
+
   const [activeTabId, setActiveTabId] = useState('tab-1');
   const activeTab = tabs.find(t => t.id === activeTabId);
 
@@ -683,16 +722,16 @@ const { error, threadsError, clearError } = useChat();
 
 // Thread-specific error (agent execution, message sending)
 if (error) {
-  console.log('Agent error:', {
+  console.log("Agent error:", {
     message: error.message,
     recoverable: error.recoverable,
-    timestamp: error.timestamp
+    timestamp: error.timestamp,
   });
 }
 
 // Threads operation error (loading, creating, deleting threads)
 if (threadsError) {
-  console.log('Threads error:', threadsError);
+  console.log("Threads error:", threadsError);
 }
 ```
 
@@ -701,7 +740,7 @@ if (threadsError) {
 ```typescript
 function ChatWithErrorHandling() {
   const { error, clearError, sendMessage } = useChat();
-  
+
   const handleRetry = () => {
     clearError();
     // Optionally resend the last message
@@ -711,7 +750,7 @@ function ChatWithErrorHandling() {
   return (
     <div>
       {error && (
-        <ErrorBanner 
+        <ErrorBanner
           message={error.message}
           canRetry={error.recoverable}
           onRetry={error.recoverable ? handleRetry : undefined}
@@ -785,7 +824,7 @@ Smart merging prevents duplicate messages when loading thread history:
 ```typescript
 // When switching threads, useChat automatically:
 // 1. Loads historical messages from database
-// 2. Identifies optimistic messages not yet in database  
+// 2. Identifies optimistic messages not yet in database
 // 3. Merges them intelligently to prevent duplicates
 // 4. Updates UI with combined timeline
 
@@ -804,7 +843,7 @@ Receive updates for inactive threads without UI disruption:
 // 3. Shows unread indicator in sidebar
 // 4. Doesn't disrupt Thread A's current conversation
 
-const unreadThreads = threads.filter(t => t.hasNewMessages);
+const unreadThreads = threads.filter((t) => t.hasNewMessages);
 console.log(`${unreadThreads.length} threads have new messages`);
 ```
 
@@ -817,7 +856,7 @@ import { useChat, useMessageActions } from "@inngest/use-agents";
 
 function ChatWithActions() {
   const { messages, sendMessage } = useChat();
-  
+
   const { copyMessage, likeMessage, shareMessage } = useMessageActions({
     showToast: (message, type) => toast[type](message)
   });
@@ -827,7 +866,7 @@ function ChatWithActions() {
       {messages.map(msg => (
         <div key={msg.id}>
           <MessageContent message={msg} />
-          <MessageActions 
+          <MessageActions
             onCopy={() => copyMessage(msg)}
             onLike={() => likeMessage(msg.id)}
             onShare={() => shareMessage(msg)}
@@ -850,31 +889,39 @@ function ChatWithBranching() {
     sendMessage: originalSendMessage,
     sendMessageToThread,
     replaceThreadMessages,
-    currentThreadId
+    currentThreadId,
   } = useChat();
 
   const branching = useConversationBranching({
     userId: "user-123",
-    storageType: "session"
+    storageType: "session",
   });
 
   // Wrap sendMessage to support branching
-  const sendMessage = useCallback(async (message: string, options?: {
-    editFromMessageId?: string;
-  }) => {
-    await branching.sendMessage(
-      originalSendMessage,
-      sendMessageToThread,
-      replaceThreadMessages,
-      currentThreadId!,
-      message,
-      messages,
-      options
-    );
-  }, [/* dependencies */]);
+  const sendMessage = useCallback(
+    async (
+      message: string,
+      options?: {
+        editFromMessageId?: string;
+      }
+    ) => {
+      await branching.sendMessage(
+        originalSendMessage,
+        sendMessageToThread,
+        replaceThreadMessages,
+        currentThreadId!,
+        message,
+        messages,
+        options
+      );
+    },
+    [
+      /* dependencies */
+    ]
+  );
 
   const handleEditMessage = (messageId: string) => {
-    const newContent = prompt('Enter new message:');
+    const newContent = prompt("Enter new message:");
     if (newContent) {
       sendMessage(newContent, { editFromMessageId: messageId });
     }
@@ -907,13 +954,13 @@ function ResponsiveChat({ threadId }) {
 
   return (
     <div className="flex h-screen">
-      <ThreadSidebar 
+      <ThreadSidebar
         threads={threads}
         onThreadSelect={switchToThread}
         onNewThread={createNewThread}
         onDeleteThread={deleteThread}
       />
-      <ChatArea 
+      <ChatArea
         messages={messages}
         onSendMessage={sendMessage}
         status={status}
@@ -947,10 +994,7 @@ function DemoChat() {
 ## Next Steps
 
 <CardGroup>
-  <Card
-    title="useAgent Reference"
-    href="/reference/react-hooks/use-agent"
-  >
+  <Card title="useAgent Reference" href="/reference/react-hooks/use-agent">
     Advanced hook for custom streaming implementations
   </Card>
   <Card
@@ -965,10 +1009,7 @@ function DemoChat() {
   >
     ConversationMessage, MessagePart, and all content types
   </Card>
-  <Card
-    title="Streaming Guide"
-    href="/streaming/react-hooks-quickstart"
-  >
+  <Card title="Streaming Guide" href="/streaming/react-hooks-quickstart">
     Step-by-step guide to building your first chat app
   </Card>
 </CardGroup>

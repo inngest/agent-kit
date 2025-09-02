@@ -8,7 +8,9 @@ import { Card, CardGroup } from "nextra/components";
 The `AgentProvider` is a React context provider that enables **shared WebSocket connections** and **centralized configuration** across your entire AgentKit application. It significantly improves performance and simplifies setup.
 
 <Card title="Performance Impact" icon="zap">
-Using AgentProvider can reduce WebSocket connections from N (one per hook) to 1 (shared across all components), improving performance by 3-5x and reducing server load substantially.
+  Using AgentProvider can reduce WebSocket connections from N (one per hook) to
+  1 (shared across all components), improving performance by 3-5x and reducing
+  server load substantially.
 </Card>
 
 ## Import
@@ -49,8 +51,9 @@ User identifier for attribution and data ownership. If not provided, automatical
 <AgentProvider userId="user-123">
 
 // Anonymous user (auto-generates persistent ID)
-<AgentProvider>  
+<AgentProvider>
 ```
+
 </ParamField>
 
 <ParamField path="channelKey" type="string">
@@ -63,17 +66,19 @@ Channel key for subscription targeting. Enables collaborative features when mult
 // Collaborative chat (multiple users share channelKey)
 <AgentProvider userId="user-123" channelKey="project-456">
 ```
+
 </ParamField>
 
 <ParamField path="debug" type="boolean" default="true in development">
 Enable comprehensive debug logging for all child hooks and connections.
 
 ```typescript
-<AgentProvider 
+<AgentProvider
   userId="user-123"
   debug={process.env.NODE_ENV === 'development'}
 >
 ```
+
 </ParamField>
 
 ### Transport Configuration
@@ -82,6 +87,7 @@ Enable comprehensive debug logging for all child hooks and connections.
 Transport configuration for API calls. Can be either a complete transport instance or configuration object to customize the default transport.
 
 **Configuration Object** (most common):
+
 ```typescript
 <AgentProvider
   transport={{
@@ -100,6 +106,7 @@ Transport configuration for API calls. Can be either a complete transport instan
 ```
 
 **Transport Instance** (advanced):
+
 ```typescript
 import { DefaultAgentTransport } from "@inngest/use-agents";
 
@@ -109,6 +116,7 @@ const customTransport = new DefaultAgentTransport({
 
 <AgentProvider transport={customTransport}>
 ```
+
 </ParamField>
 
 ## Channel Resolution Logic
@@ -122,14 +130,14 @@ flowchart TD
     B -->|No| D{userId provided?}
     D -->|Yes| E["Use userId as channelKey"]
     D -->|No| F["Generate anonymous ID"]
-    
+
     F --> G["Store in sessionStorage"]
     G --> H["Use anonymous ID as channelKey"]
-    
+
     C --> I[Subscribe to WebSocket channel]
     E --> I
     H --> I
-    
+
     style C fill:#e8f5e8,color:#000
     style E fill:#fff3cd,color:#000
     style H fill:#ffe6e6,color:#000
@@ -145,7 +153,7 @@ flowchart TD
 
 // 2. UserId fallback (private chat)
 <AgentProvider userId="user-789">
-// → Subscribes to channel "user-789" 
+// → Subscribes to channel "user-789"
 // → Private chat for this user
 
 // 3. Anonymous fallback (guest users)
@@ -162,19 +170,19 @@ flowchart TD
 Child hooks inherit configuration with override capability:
 
 1. **Hook-level options** (highest priority)
-2. **Provider options** (inherited when available)  
+2. **Provider options** (inherited when available)
 3. **Default values** (fallback)
 
 ```typescript
-<AgentProvider 
-  userId="user-123" 
-  debug={true} 
+<AgentProvider
+  userId="user-123"
+  debug={true}
   transport={globalTransport}
 >
   <ComponentA /> {/* Inherits all config */}
-  
+
   <ComponentB userId="user-456" /> {/* Override userId, inherit debug + transport */}
-  
+
   <ComponentC transport={customTransport} /> {/* Override transport, inherit userId + debug */}
 </AgentProvider>
 ```
@@ -189,18 +197,18 @@ Child hooks inherit configuration with override capability:
 
 function ChatComponents() {
   // Full inheritance
-  const chat1 = useChat(); 
+  const chat1 = useChat();
   // → userId: "user-123", debug: true, channelKey: "team-chat"
-  
+
   // Partial override
   const chat2 = useChat({ userId: "different-user" });
   // → userId: "different-user", debug: true, channelKey: "team-chat"
-  
+
   // Full override
-  const chat3 = useChat({ 
-    userId: "user-789", 
+  const chat3 = useChat({
+    userId: "user-789",
     channelKey: "private-chat",
-    debug: false 
+    debug: false
   });
   // → userId: "user-789", debug: false, channelKey: "private-chat"
 }
@@ -221,6 +229,7 @@ The provider determines when to share connections based on resolved channel keys
 ```
 
 **Result**:
+
 - Components A & B share a single WebSocket connection
 - Component C gets its own isolated connection for "admin" channel
 
@@ -260,7 +269,7 @@ function App() {
 
 ```typescript
 function TenantApp({ tenantId, userId }) {
-  const tenantTransport = useMemo(() => 
+  const tenantTransport = useMemo(() =>
     createDefaultAgentTransport({
       headers: {
         'X-Tenant-ID': tenantId,
@@ -271,7 +280,7 @@ function TenantApp({ tenantId, userId }) {
   );
 
   return (
-    <AgentProvider 
+    <AgentProvider
       userId={userId}
       channelKey={`tenant-${tenantId}-user-${userId}`}
       transport={tenantTransport}
@@ -297,7 +306,7 @@ function EnvironmentAwareProvider({ children }) {
         }
       };
     }
-    
+
     if (process.env.NODE_ENV === 'staging') {
       return {
         debug: true,
@@ -307,7 +316,7 @@ function EnvironmentAwareProvider({ children }) {
         }
       };
     }
-    
+
     return {
       debug: false,
       transport: {
@@ -333,8 +342,8 @@ function EnvironmentAwareProvider({ children }) {
 ```typescript
 function AuthenticatedProvider({ children }) {
   const { user, token, isLoading } = useAuth();
-  
-  const transport = useMemo(() => 
+
+  const transport = useMemo(() =>
     createDefaultAgentTransport({
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -344,9 +353,9 @@ function AuthenticatedProvider({ children }) {
   );
 
   if (isLoading) return <LoadingSpinner />;
-  
+
   return user ? (
-    <AgentProvider 
+    <AgentProvider
       userId={user.id}
       transport={transport}
       debug={false}
@@ -368,7 +377,7 @@ function AuthenticatedProvider({ children }) {
 Access provider values safely, even outside the provider context:
 
 ```typescript
-import { 
+import {
   useOptionalGlobalUserId,
   useOptionalGlobalTransport,
   useOptionalGlobalAgent,
@@ -386,7 +395,7 @@ function FlexibleComponent() {
   // Handle both provider and non-provider scenarios
   const effectiveUserId = globalUserId || "fallback-user";
   const effectiveTransport = globalTransport || createDefaultAgentTransport();
-  
+
   return <div>Works with or without provider!</div>;
 }
 ```
@@ -396,17 +405,17 @@ function FlexibleComponent() {
 For components that require provider context:
 
 ```typescript
-import { 
+import {
   useGlobalAgentStrict,
   useGlobalTransportStrict,
   useGlobalUserId,
-  useGlobalChannelKey
+  useGlobalChannelKey,
 } from "@inngest/use-agents";
 
 function ProviderRequiredComponent() {
-  const agent = useGlobalAgentStrict();     // Throws if no provider
+  const agent = useGlobalAgentStrict(); // Throws if no provider
   const transport = useGlobalTransportStrict(); // Throws if no provider
-  const userId = useGlobalUserId();         // Returns null if no provider
+  const userId = useGlobalUserId(); // Returns null if no provider
   const channelKey = useGlobalChannelKey(); // Returns null if no provider
 
   // These components fail fast if used outside AgentProvider
@@ -428,6 +437,7 @@ Enable debug mode to see provider activity:
 // 🔧 [useChat] Inheriting userId from provider: user-123
 // 🔄 [useAgent] Using shared connection for channel: user-123
 ```
+
 </ParamField>
 
 ### Connection Diagnostics
@@ -436,7 +446,7 @@ Enable debug mode to see provider activity:
 function ConnectionDiagnostics() {
   const globalAgent = useOptionalGlobalAgent();
   const resolvedChannelKey = useOptionalGlobalResolvedChannelKey();
-  
+
   useEffect(() => {
     console.log('Provider Diagnostics:', {
       hasProvider: !!globalAgent,
@@ -445,7 +455,7 @@ function ConnectionDiagnostics() {
       activeThreads: globalAgent ? Object.keys(globalAgent.threads).length : 0
     });
   }, [globalAgent, resolvedChannelKey]);
-  
+
   return (
     <div>
       {globalAgent ? (
@@ -461,6 +471,7 @@ function ConnectionDiagnostics() {
 ### Common Issues
 
 **"Multiple connections created"**
+
 - Check for channelKey mismatches between provider and hooks
 - Ensure transport configuration is stable (use `useMemo`)
 - Verify provider is properly wrapping all components
@@ -478,11 +489,13 @@ function ConnectionDiagnostics() {
 ```
 
 **"Configuration not inherited"**
+
 - Verify hooks are called within provider children
 - Check for TypeScript errors in configuration
 - Enable debug mode to trace inheritance
 
 **"Transport not working"**
+
 - Ensure transport configuration is stable across renders
 - Check for authentication/network issues
 - Verify API endpoints are correct
@@ -493,7 +506,7 @@ function ConnectionDiagnostics() {
 
 ```typescript
 function CustomerSupportApp({ customerId }) {
-  const supportTransport = useMemo(() => 
+  const supportTransport = useMemo(() =>
     createDefaultAgentTransport({
       api: {
         sendMessage: '/api/support/chat',
@@ -509,7 +522,7 @@ function CustomerSupportApp({ customerId }) {
   );
 
   return (
-    <AgentProvider 
+    <AgentProvider
       userId={customerId}
       transport={supportTransport}
       debug={false} // Production mode
@@ -527,7 +540,7 @@ function CustomerSupportApp({ customerId }) {
 ```typescript
 function TeamWorkspace({ teamId, currentUserId }) {
   return (
-    <AgentProvider 
+    <AgentProvider
       channelKey={`team-${teamId}`}  // All team members share this channel
       userId={currentUserId}         // Individual user attribution
       transport={{
@@ -553,14 +566,14 @@ function TeamWorkspace({ teamId, currentUserId }) {
 ```typescript
 function EnvironmentProvider({ children }) {
   const isDev = process.env.NODE_ENV === 'development';
-  
+
   const config = useMemo(() => ({
     debug: isDev,
     transport: {
-      baseURL: isDev 
-        ? 'http://localhost:3000' 
+      baseURL: isDev
+        ? 'http://localhost:3000'
         : 'https://api.myapp.com',
-      headers: isDev 
+      headers: isDev
         ? { 'X-Environment': 'development' }
         : () => ({
             'Authorization': `Bearer ${getProductionToken()}`,
@@ -584,7 +597,7 @@ function EnvironmentProvider({ children }) {
 ```typescript
 function OptimizedApp() {
   // ✅ Stable transport configuration
-  const transport = useMemo(() => 
+  const transport = useMemo(() =>
     createDefaultAgentTransport({
       headers: { 'Authorization': `Bearer ${token}` }
     }), [token] // Only recreate when token changes
@@ -600,7 +613,7 @@ function OptimizedApp() {
 // ❌ Recreated on every render
 function UnoptimizedApp() {
   return (
-    <AgentProvider 
+    <AgentProvider
       transport={createDefaultAgentTransport({  // New instance every render!
         headers: { 'Authorization': `Bearer ${token}` }
       })}
@@ -619,7 +632,7 @@ The provider manages connection lifecycle efficiently:
 // Provider creates connection on mount
 useEffect(() => {
   const connection = establishConnection(resolvedChannelKey);
-  
+
   return () => {
     connection.cleanup(); // Automatic cleanup on unmount
   };
@@ -665,12 +678,12 @@ function MultiContextApp() {
     <AgentProvider userId="user-123">
       {/* Main user context */}
       <UserDashboard />
-      
+
       {/* Nested admin context */}
       <AgentProvider userId="admin-456" channelKey="admin-panel">
         <AdminInterface />     {/* Uses admin context */}
       </AgentProvider>
-      
+
       {/* Guest support context */}
       <AgentProvider>  {/* Anonymous user */}
         <GuestSupport />       {/* Uses anonymous context */}
@@ -692,16 +705,16 @@ function IsolatedFeatures() {
       <AgentProvider userId="user-123">
         <MainChatApp />
       </AgentProvider>
-      
+
       {/* Isolated admin panel */}
-      <AgentProvider 
-        userId="user-123" 
+      <AgentProvider
+        userId="user-123"
         channelKey="admin-secure"  // Separate channel for security
         transport={adminSecureTransport}
       >
         <AdminPanel />
       </AgentProvider>
-      
+
       {/* Isolated demo area */}
       <AgentProvider>  {/* Anonymous session */}
         <DemoPlayground />
@@ -775,7 +788,7 @@ describe('Chat Integration', () => {
         <ChatComponent />
       </TestWrapper>
     );
-    
+
     // Test interactions...
   });
 });
@@ -788,10 +801,10 @@ describe('Chat Integration', () => {
 ```typescript
 function SecureProvider({ children }) {
   const [token, setToken] = useState<string | null>(null);
-  
+
   const transport = useMemo(() => {
     if (!token) return undefined;
-    
+
     return createDefaultAgentTransport({
       headers: () => ({
         'Authorization': `Bearer ${token}`,
@@ -837,9 +850,9 @@ function SecureProvider({ children }) {
 function SecureChannelProvider({ userId, tenantId, children }) {
   // Include tenant context in channel key to prevent cross-tenant access
   const secureChannelKey = `tenant-${tenantId}-user-${userId}`;
-  
+
   return (
-    <AgentProvider 
+    <AgentProvider
       userId={userId}
       channelKey={secureChannelKey}
       transport={{
@@ -859,7 +872,7 @@ function SecureChannelProvider({ userId, tenantId, children }) {
 
 ### ✅ Do
 
-- **Wrap early in component tree** (layout.tsx or _app.tsx)
+- **Wrap early in component tree** (layout.tsx or \_app.tsx)
 - **Use stable configuration** objects with `useMemo`
 - **Enable debug mode** during development
 - **Leverage inheritance** to reduce configuration duplication
@@ -885,8 +898,8 @@ const stableConfig = useMemo(() => ({
 <AgentProvider {...stableConfig}>
 
 // ✅ Proper dependency management
-const transport = useMemo(() => 
-  createDefaultAgentTransport({ headers: { token } }), 
+const transport = useMemo(() =>
+  createDefaultAgentTransport({ headers: { token } }),
   [token] // Only recreate when token changes
 );
 
@@ -903,22 +916,13 @@ const transport = useMemo(() =>
 ## Next Steps
 
 <CardGroup>
-  <Card
-    title="useChat Reference"
-    href="/reference/react-hooks/use-chat"
-  >
+  <Card title="useChat Reference" href="/reference/react-hooks/use-chat">
     Recommended hook that builds on AgentProvider for complete chat apps
   </Card>
-  <Card
-    title="Transport Reference"
-    href="/reference/react-hooks/transport"
-  >
+  <Card title="Transport Reference" href="/reference/react-hooks/transport">
     Complete transport configuration and customization guide
   </Card>
-  <Card
-    title="Provider Pattern Guide"
-    href="/streaming/provider-pattern"
-  >
+  <Card title="Provider Pattern Guide" href="/streaming/provider-pattern">
     Best practices and optimization strategies for AgentProvider
   </Card>
   <Card

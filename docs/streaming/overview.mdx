@@ -24,11 +24,7 @@ Traditional AI interfaces require users to wait for complete responses before se
   >
     Complete Next.js application demonstrating all streaming features
   </Card>
-  <Card 
-    title="SQL Playground"
-    href="/examples/sql-playground"
-    icon="database"
-  >
+  <Card title="SQL Playground" href="/examples/sql-playground" icon="database">
     Interactive playground showing streaming with ephemeral threads
   </Card>
 </CardGroup>
@@ -54,6 +50,7 @@ const result = await network.run(message, {
 ```
 
 **15+ Event Types** cover the complete agent lifecycle:
+
 - Lifecycle: `run.started`, `run.completed`, `run.failed`
 - Content: `text.delta`, `reasoning.delta`, `tool_call.arguments.delta`
 - Parts: `part.created`, `part.completed`
@@ -63,6 +60,7 @@ const result = await network.run(message, {
 ### 🌐 Real-time Transport
 
 **WebSocket Connection** delivers events to your React app instantly:
+
 - Powered by Inngest Realtime for guaranteed delivery
 - Automatic reconnection and error recovery
 - Channel-based isolation for multi-user scenarios
@@ -77,7 +75,7 @@ import { useChat, AgentProvider } from '@inngest/use-agents';
 
 function ChatApp() {
   const { messages, sendMessage, status, isConnected } = useChat();
-  
+
   return (
     <div>
       <div>Status: {status}</div> {/* Updates in real-time */}
@@ -104,7 +102,7 @@ graph TD
     H --> I[useAgent Hook]
     I --> J[React State Updates]
     J --> K[UI Re-renders]
-    
+
     style E fill:#e1f5fe
     style F fill:#f3e5f5
     style I fill:#e8f5e8
@@ -113,24 +111,28 @@ graph TD
 ## Key Features
 
 ### 🔥 Zero Configuration Streaming
+
 - **Automatic**: StreamingContext captures events without code changes
 - **Enriched**: Events auto-include threadId, userId, sequence numbers
 - **Ordered**: Monotonic sequence numbering prevents UI glitches
 - **Resilient**: Best-effort publishing never breaks agent execution
 
 ### 🎯 Multi-thread Support
+
 - **Background Streaming**: Receive updates for inactive conversations
 - **Thread Isolation**: Perfect event routing to correct conversations
 - **Unread Indicators**: Automatic new message tracking
 - **Thread Switching**: Instant navigation with history preservation
 
 ### 🛡️ Production-Ready Reliability
+
 - **Error Recovery**: Graceful handling of connection failures
 - **Out-of-order Events**: Intelligent buffering and reordering
 - **Memory Management**: Efficient state management for long conversations
 - **Type Safety**: Full TypeScript support throughout
 
 ### 🔧 Developer Experience
+
 - **Provider Pattern**: Share connections across components efficiently
 - **Transport Abstraction**: Customize API endpoints and authentication
 - **Debug Logging**: Comprehensive development-time visibility
@@ -145,22 +147,13 @@ graph TD
   >
     Learn how the StreamingContext system works under the hood
   </Card>
-  <Card
-    title="React Hooks Quickstart" 
-    href="/streaming/react-hooks-quickstart"
-  >
+  <Card title="React Hooks Quickstart" href="/streaming/react-hooks-quickstart">
     Build your first streaming chat app in 5 minutes
   </Card>
-  <Card
-    title="Hook Selection Guide"
-    href="/streaming/hook-selection-guide"
-  >
+  <Card title="Hook Selection Guide" href="/streaming/hook-selection-guide">
     Choose the right hook for your use case
   </Card>
-  <Card
-    title="Provider Pattern Guide"
-    href="/streaming/provider-pattern"
-  >
+  <Card title="Provider Pattern Guide" href="/streaming/provider-pattern">
     Optimize performance with shared connections
   </Card>
 </CardGroup>
@@ -171,11 +164,11 @@ If you're using legacy streaming patterns or local hooks from examples:
 
 ```typescript
 // Before: Local imports
-import { useChat } from '@/hooks';
-import { AgentProvider } from '@/contexts/AgentContext';
+import { useChat } from "@/hooks";
+import { AgentProvider } from "@/contexts/AgentContext";
 
-// After: Package imports  
-import { useChat, AgentProvider } from '@inngest/use-agents';
+// After: Package imports
+import { useChat, AgentProvider } from "@inngest/use-agents";
 ```
 
 The API is identical - no functional changes required! The new package provides the same functionality with enhanced reliability, performance, and documentation.

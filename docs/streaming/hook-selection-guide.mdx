@@ -9,27 +9,29 @@ The `@inngest/use-agents` package provides multiple React hooks for different us
 
 ## Hook Overview
 
-| Hook | Purpose | Best For | Complexity |
-|------|---------|----------|------------|
-| `useChat` | **Complete chat apps** | Full-featured chat interfaces | **Recommended** |
-| `useAgent` | **Low-level streaming** | Custom implementations, fine control | Advanced |
-| `useThreads` | **Thread management** | Custom sidebar, thread lists | Intermediate |
-| `useEphemeralThreads` | **Demo/offline storage** | Prototypes, guest users | Simple |
-| `useConversationBranching` | **Message editing** | Advanced editing workflows | Advanced |
+| Hook                       | Purpose                  | Best For                             | Complexity      |
+| -------------------------- | ------------------------ | ------------------------------------ | --------------- |
+| `useChat`                  | **Complete chat apps**   | Full-featured chat interfaces        | **Recommended** |
+| `useAgent`                 | **Low-level streaming**  | Custom implementations, fine control | Advanced        |
+| `useThreads`               | **Thread management**    | Custom sidebar, thread lists         | Intermediate    |
+| `useEphemeralThreads`      | **Demo/offline storage** | Prototypes, guest users              | Simple          |
+| `useConversationBranching` | **Message editing**      | Advanced editing workflows           | Advanced        |
 
 ## 🎯 useChat (Recommended for Most Apps)
 
 **Perfect for**: Complete chat applications with threads, real-time streaming, and persistence.
 
 **What you get**:
+
 - ✅ Real-time message streaming
-- ✅ Thread management and persistence  
+- ✅ Thread management and persistence
 - ✅ History loading and caching
 - ✅ Optimistic updates
 - ✅ Error handling and recovery
 - ✅ HITL (Human-in-the-Loop) support
 
 **Use when**:
+
 - Building a chat application from scratch
 - Need both real-time streaming AND thread management
 - Want maximum functionality with minimal setup
@@ -38,16 +40,21 @@ The `@inngest/use-agents` package provides multiple React hooks for different us
 ```typescript
 // Perfect for: Complete chat applications
 const {
-  messages, sendMessage, status,     // Real-time streaming
-  threads, switchToThread,           // Thread management
-  createNewThread, deleteThread     // Thread operations
+  messages,
+  sendMessage,
+  status, // Real-time streaming
+  threads,
+  switchToThread, // Thread management
+  createNewThread,
+  deleteThread, // Thread operations
 } = useChat({
-  initialThreadId: params.threadId,  // URL-driven
-  state: () => ({ currentPage: '/chat' }) // Client state capture
+  initialThreadId: params.threadId, // URL-driven
+  state: () => ({ currentPage: "/chat" }), // Client state capture
 });
 ```
 
 **Examples**:
+
 - Customer support chat apps
 - Documentation Q&A interfaces
 - AI assistants with conversation history
@@ -60,6 +67,7 @@ const {
 **Perfect for**: When you need direct control over the streaming events and multi-thread state.
 
 **What you get**:
+
 - ✅ Raw streaming event access
 - ✅ Multi-thread management
 - ✅ Out-of-order event handling
@@ -68,6 +76,7 @@ const {
 - ❌ No automatic history loading
 
 **Use when**:
+
 - Building custom chat UIs with specific requirements
 - Need access to raw streaming events for advanced processing
 - Implementing non-standard message flows
@@ -76,20 +85,25 @@ const {
 ```typescript
 // Perfect for: Custom implementations with fine control
 const {
-  messages, sendMessage, status,
-  threads, setCurrentThread,        // Manual thread switching
-  isConnected, connectionError,     // Connection management
-  sendMessageToThread,              // Multi-thread messaging
-  replaceMessages                   // Custom history loading
+  messages,
+  sendMessage,
+  status,
+  threads,
+  setCurrentThread, // Manual thread switching
+  isConnected,
+  connectionError, // Connection management
+  sendMessageToThread, // Multi-thread messaging
+  replaceMessages, // Custom history loading
 } = useAgent({
-  threadId: 'conversation-123',
-  userId: 'user-456', 
+  threadId: "conversation-123",
+  userId: "user-456",
   debug: true,
-  state: () => ({ customContext: true })
+  state: () => ({ customContext: true }),
 });
 ```
 
 **Examples**:
+
 - Custom chat widgets with unique UI requirements
 - Embedded chat in larger applications
 - Multi-agent systems with complex routing
@@ -102,6 +116,7 @@ const {
 **Perfect for**: Building custom thread management without real-time streaming.
 
 **What you get**:
+
 - ✅ Thread listing and pagination
 - ✅ CRUD operations (create, delete, rename)
 - ✅ Caching and optimistic updates
@@ -110,6 +125,7 @@ const {
 - ❌ No connection management
 
 **Use when**:
+
 - Building custom sidebar components
 - Need thread management without streaming
 - Implementing non-chat thread interfaces
@@ -118,16 +134,22 @@ const {
 ```typescript
 // Perfect for: Custom thread management interfaces
 const {
-  threads, loading, hasMore,
-  createThread, deleteThread,
-  loadMore, refresh,
-  currentThreadId, setCurrentThreadId
-} = useThreads({ 
-  userId: 'user-123' 
+  threads,
+  loading,
+  hasMore,
+  createThread,
+  deleteThread,
+  loadMore,
+  refresh,
+  currentThreadId,
+  setCurrentThreadId,
+} = useThreads({
+  userId: "user-123",
 });
 ```
 
 **Examples**:
+
 - Custom sidebar components
 - Thread management dashboards
 - Conversation analytics interfaces
@@ -140,6 +162,7 @@ const {
 **Perfect for**: Demos, prototypes, and offline scenarios without backend persistence.
 
 **What you get**:
+
 - ✅ Client-side thread storage (localStorage/sessionStorage)
 - ✅ Compatible with useChat/useAgent
 - ✅ Zero backend requirements
@@ -148,6 +171,7 @@ const {
 - ❌ Data lost on storage clear
 
 **Use when**:
+
 - Building demos or proof-of-concepts
 - Guest user scenarios without account creation
 - Offline-capable applications
@@ -156,18 +180,19 @@ const {
 ```typescript
 // Perfect for: Demos and prototypes
 const ephemeralThreads = useEphemeralThreads({
-  userId: 'guest-user',
-  storageType: 'session' // or 'local'
+  userId: "guest-user",
+  storageType: "session", // or 'local'
 });
 
 const chat = useChat({
-  userId: 'guest-user',
+  userId: "guest-user",
   enableThreadValidation: false, // No backend validation
-  ...ephemeralThreads // Drop-in replacement
+  ...ephemeralThreads, // Drop-in replacement
 });
 ```
 
 **Examples**:
+
 - Product demos and showcases
 - Guest chat experiences
 - Educational tutorials
@@ -180,6 +205,7 @@ const chat = useChat({
 **Perfect for**: Implementing message editing with alternate conversation paths.
 
 **What you get**:
+
 - ✅ Message editing workflows
 - ✅ Conversation branching (like ChatGPT edit feature)
 - ✅ History preservation and navigation
@@ -188,6 +214,7 @@ const chat = useChat({
 - ❌ Additional storage needs
 
 **Use when**:
+
 - Building ChatGPT-like edit functionality
 - Need conversation exploration features
 - Implementing A/B testing for agent responses
@@ -196,25 +223,31 @@ const chat = useChat({
 ```typescript
 // Perfect for: Advanced message editing workflows
 const branching = useConversationBranching({
-  userId: 'user-123',
-  storageType: 'session'
+  userId: "user-123",
+  storageType: "session",
 });
 
 // Wrap sendMessage to support branching
-const sendMessage = useCallback(async (message, options) => {
-  await branching.sendMessage(
-    originalSendMessage,
-    sendMessageToThread, 
-    replaceMessages,
-    threadId,
-    message,
-    messages,
-    options
-  );
-}, [/* deps */]);
+const sendMessage = useCallback(
+  async (message, options) => {
+    await branching.sendMessage(
+      originalSendMessage,
+      sendMessageToThread,
+      replaceMessages,
+      threadId,
+      message,
+      messages,
+      options
+    );
+  },
+  [
+    /* deps */
+  ]
+);
 ```
 
 **Examples**:
+
 - Research interfaces for conversation exploration
 - A/B testing different agent responses
 - Educational tools for learning conversation patterns
@@ -225,30 +258,38 @@ const sendMessage = useCallback(async (message, options) => {
 ### useMessageActions
 
 ```typescript
-const { copyMessage, likeMessage, shareMessage, readAloud } = useMessageActions({
-  showToast: (message, type) => toast[type](message),
-  onCopy: (text) => analytics.track('message_copied'),
-});
+const { copyMessage, likeMessage, shareMessage, readAloud } = useMessageActions(
+  {
+    showToast: (message, type) => toast[type](message),
+    onCopy: (text) => analytics.track("message_copied"),
+  }
+);
 ```
 
 ### useEditMessage
 
 ```typescript
-const { 
-  editingMessage, editValue, setEditValue,
-  handleEditMessage, handleSaveEdit, handleCancelEdit 
-} = useEditMessage({ 
-  sendMessage: (content) => sendMessage(content) 
+const {
+  editingMessage,
+  editValue,
+  setEditValue,
+  handleEditMessage,
+  handleSaveEdit,
+  handleCancelEdit,
+} = useEditMessage({
+  sendMessage: (content) => sendMessage(content),
 });
 ```
 
 ### useSidebar
 
 ```typescript
-const { 
-  sidebarMinimized, setSidebarMinimized,
-  mobileSidebarOpen, setMobileSidebarOpen,
-  toggleSidebar 
+const {
+  sidebarMinimized,
+  setSidebarMinimized,
+  mobileSidebarOpen,
+  setMobileSidebarOpen,
+  toggleSidebar,
 } = useSidebar();
 ```
 
@@ -265,10 +306,10 @@ const isMobile = useIsMobile(); // boolean - updates on resize
 ```typescript
 // Single hook for everything
 function ChatApp() {
-  const chat = useChat({ 
-    initialThreadId: params.threadId 
+  const chat = useChat({
+    initialThreadId: params.threadId
   });
-  
+
   return <ChatInterface {...chat} />;
 }
 ```
@@ -282,16 +323,16 @@ function ChatApp() {
 // Separate hooks for custom control
 function ChatApp() {
   const agent = useAgent({ threadId });
-  const threads = useThreads({ userId }); 
+  const threads = useThreads({ userId });
   const messageActions = useMessageActions();
-  
+
   // Custom coordination logic
   useEffect(() => {
     if (threads.currentThreadId !== agent.currentThreadId) {
       agent.setCurrentThread(threads.currentThreadId);
     }
   }, [threads.currentThreadId, agent.currentThreadId]);
-  
+
   return <CustomChatInterface {...agent} {...threads} {...messageActions} />;
 }
 ```
@@ -325,18 +366,18 @@ flowchart TD
     B -->|Yes| C{Need custom persistence?}
     C -->|No| D[useChat 🎯]
     C -->|Yes| E[useChat + custom transport]
-    
+
     B -->|No| F{Just thread management?}
     F -->|Yes| G{Real backend?}
     G -->|Yes| H[useThreads]
     G -->|No| I[useEphemeralThreads]
-    
+
     F -->|No| J{Custom streaming control?}
     J -->|Yes| K[useAgent]
     J -->|No| L{Message editing?}
     L -->|Yes| M[useConversationBranching]
     L -->|No| N[Utility hooks]
-    
+
     style D fill:#e8f5e8
     style E fill:#e8f5e8
     style H fill:#fff3cd
@@ -380,9 +421,9 @@ const ephemeralThreads = useEphemeralThreads({ userId });
 const chat = useChat({ ...ephemeralThreads });
 
 // Production with server persistence
-const chat = useChat({ 
-  userId, 
-  fetchThreads: customFetchFunction // Custom backend
+const chat = useChat({
+  userId,
+  fetchThreads: customFetchFunction, // Custom backend
 });
 ```
 
@@ -407,11 +448,11 @@ const chat = useChat({
 ```typescript
 // ✅ Efficient: Bounded message history
 const chat = useChat({
-  state: () => ({ 
+  state: () => ({
     // Only capture essential context
     currentTab: activeTab,
-    formState: getFormData()
-  })
+    formState: getFormData(),
+  }),
 });
 
 // ❌ Memory leak: Unbounded state capture
@@ -419,8 +460,8 @@ const chat = useChat({
   state: () => ({
     // Don't capture large objects
     entireAppState: store.getState(), // Too much!
-    allUserHistory: userHistory,      // Too much!
-  })
+    allUserHistory: userHistory, // Too much!
+  }),
 });
 ```
 
@@ -439,16 +480,10 @@ The hooks are designed to work together and can be mixed as your application gro
 ## Next Steps
 
 <CardGroup>
-  <Card
-    title="Provider Pattern Guide"
-    href="/streaming/provider-pattern"
-  >
+  <Card title="Provider Pattern Guide" href="/streaming/provider-pattern">
     Learn how to optimize performance with AgentProvider
   </Card>
-  <Card
-    title="useChat API Reference"
-    href="/reference/react-hooks/use-chat"
-  >
+  <Card title="useChat API Reference" href="/reference/react-hooks/use-chat">
     Complete API documentation for useChat
   </Card>
   <Card

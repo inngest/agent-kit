@@ -15,11 +15,7 @@ Build a production-ready AI chat interface in just a few minutes using AgentKit'
   >
     See the full source code for a production-ready chat application
   </Card>
-  <Card
-    title="Live Demo"
-    href="https://agent-kit-demo.vercel.app"
-    icon="globe"
-  >
+  <Card title="Live Demo" href="https://agent-kit-demo.vercel.app" icon="globe">
     Try the live demo to see streaming in action
   </Card>
 </CardGroup>
@@ -59,10 +55,12 @@ export const runAgentChat = inngest.createFunction(
       streaming: {
         publish: async (chunk) => {
           // Events automatically enriched with context
-          await publish(userChannel(userId).agent_stream({
-            ...chunk,
-            data: { ...chunk.data, threadId, userId }
-          }));
+          await publish(
+            userChannel(userId).agent_stream({
+              ...chunk,
+              data: { ...chunk.data, threadId, userId },
+            })
+          );
         },
       },
     });
@@ -83,18 +81,18 @@ import { randomUUID } from "crypto";
 
 export async function POST(req: NextRequest) {
   const { message, threadId, userId } = await req.json();
-  
+
   await inngest.send({
     name: "agent/chat.requested",
-    data: { 
-      threadId: threadId || randomUUID(), 
-      message, 
+    data: {
+      threadId: threadId || randomUUID(),
+      message,
       userId,
       messageId: randomUUID(),
-      history: [] // Add conversation history here
+      history: [], // Add conversation history here
     },
   });
-  
+
   return NextResponse.json({ success: true, threadId });
 }
 ```
@@ -106,12 +104,12 @@ import { userChannel } from "@/lib/realtime";
 
 export async function POST(req: NextRequest) {
   const { userId } = await req.json();
-  
+
   const token = await getSubscriptionToken(inngest, {
     channel: userChannel(userId),
     topics: ["agent_stream"],
   });
-  
+
   return NextResponse.json(token);
 }
 ```
@@ -152,7 +150,7 @@ export function Chat() {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
     const message = formData.get("message") as string;
-    
+
     if (message.trim()) {
       await sendMessage(message);
       e.currentTarget.reset();
@@ -176,7 +174,7 @@ export function Chat() {
         <div className="flex-1 overflow-y-auto p-4">
           <div>Status: {status}</div>
           <div>Connected: {isConnected ? "Yes" : "No"}</div>
-          
+
           {messages.map(msg => (
             <div key={msg.id} className={`mb-4 ${msg.role}`}>
               <strong>{msg.role}:</strong>
@@ -196,14 +194,14 @@ export function Chat() {
         </div>
 
         <form onSubmit={handleSubmit} className="border-t p-4">
-          <input 
+          <input
             name="message"
             placeholder="Ask anything..."
             disabled={status !== "idle"}
             className="w-full p-2 border rounded"
           />
-          <button 
-            type="submit" 
+          <button
+            type="submit"
             disabled={status !== "idle"}
             className="mt-2 px-4 py-2 bg-blue-500 text-white rounded"
           >
@@ -217,9 +215,10 @@ export function Chat() {
 ```
 
 🎉 **That's it!** You now have a fully functional streaming chat app with:
+
 - Real-time message streaming
 - Thread management with sidebar
-- Tool call visualization  
+- Tool call visualization
 - Connection status indicators
 - Error handling and recovery
 
@@ -237,7 +236,7 @@ export function Chat() {
 ### Key Benefits You Get
 
 - **Immediate Feedback**: Users see typing indicators, tool calls, reasoning
-- **Multi-thread Support**: Background updates for inactive conversations  
+- **Multi-thread Support**: Background updates for inactive conversations
 - **Optimistic Updates**: Threads appear in sidebar before backend confirms
 - **Error Recovery**: Graceful handling of network issues and failures
 - **State Management**: Perfect synchronization between real-time and persistent data
@@ -270,7 +269,7 @@ const { editingMessage, handleEditMessage, handleSaveEdit } = useEditMessage({
   sendMessage: async (newContent) => {
     // Handle conversation branching automatically
     await sendMessage(newContent, { editFromMessageId: editingMessage });
-  }
+  },
 });
 ```
 
@@ -286,7 +285,7 @@ const { approveToolCall, denyToolCall } = useChat();
       ✅ Approve
     </button>
     <button onClick={() => denyToolCall(part.toolCallId, reason)}>
-      ❌ Deny  
+      ❌ Deny
     </button>
   </div>
 )}
@@ -301,9 +300,9 @@ const chat = useChat({
     currentPage: window.location.pathname,
     formData: getCurrentFormData(),
     userPreferences: getUserSettings(),
-    timestamp: Date.now()
+    timestamp: Date.now(),
   }),
-  
+
   // Restore UI state when editing messages
   onStateRehydrate: (messageState, messageId) => {
     if (messageState.currentPage) {
@@ -312,7 +311,7 @@ const chat = useChat({
     if (messageState.formData) {
       restoreFormData(messageState.formData);
     }
-  }
+  },
 });
 ```
 
@@ -326,7 +325,7 @@ import { Chat } from "@/components/Chat";
 
 export default async function ThreadPage({ params }) {
   const { threadId } = await params;
-  
+
   return (
     <AgentProvider userId="user-123" debug={false}>
       <Chat threadId={threadId} />
@@ -363,13 +362,13 @@ import { useEphemeralThreads } from "@inngest/use-agents";
 
 const ephemeralThreads = useEphemeralThreads({
   userId: "demo-user",
-  storageType: "session" // Clears on tab close
+  storageType: "session", // Clears on tab close
 });
 
 const chat = useChat({
-  userId: "demo-user", 
+  userId: "demo-user",
   enableThreadValidation: false, // No backend database
-  ...ephemeralThreads
+  ...ephemeralThreads,
 });
 ```
 
@@ -381,7 +380,7 @@ const chat = useChat({
 // Multiple concurrent chats (like our SQL Playground)
 function MultiChatApp() {
   const [tabs, setTabs] = useState([{ id: uuid(), threadId: uuid() }]);
-  
+
   return (
     <AgentProvider userId="user-123">
       {tabs.map(tab => (
@@ -415,20 +414,24 @@ function MultiChatApp() {
 ### Common Issues
 
 **"No messages appearing"**
+
 - Verify your Inngest function is running and published correctly
 - Check that `userChannel` is configured properly
 - Ensure your agent is actually generating streaming events
 
 **"Events arriving out of order"**
+
 - This is normal! useAgent automatically buffers and reorders events
 - Check console for sequence number debugging info
 
 **"Connection keeps dropping"**
+
 - Verify your `/api/realtime/token` endpoint is working
 - Check for authentication/authorization issues
 - Review network connectivity and proxy configurations
 
 **"Hook not updating"**
+
 - Ensure components are wrapped with `AgentProvider`
 - Verify `userId` is provided either to provider or hook
 - Check that streaming events include the correct `threadId`
@@ -444,30 +447,22 @@ Enable comprehensive logging:
 ```
 
 This provides detailed console output for:
+
 - Connection establishment and status
-- Event processing and sequence numbers  
+- Event processing and sequence numbers
 - Thread switching and message reconciliation
 - Transport requests and responses
 
 ## Next Steps
 
 <CardGroup>
-  <Card
-    title="Hook Selection Guide"
-    href="/streaming/hook-selection-guide"
-  >
+  <Card title="Hook Selection Guide" href="/streaming/hook-selection-guide">
     Choose the right hook for your specific use case
   </Card>
-  <Card
-    title="Provider Pattern Deep Dive"
-    href="/streaming/provider-pattern"  
-  >
+  <Card title="Provider Pattern Deep Dive" href="/streaming/provider-pattern">
     Optimize performance with shared connections
   </Card>
-  <Card
-    title="Complete API Reference"
-    href="/reference/react-hooks/use-chat"
-  >
+  <Card title="Complete API Reference" href="/reference/react-hooks/use-chat">
     Comprehensive documentation for all hook options
   </Card>
   <Card
