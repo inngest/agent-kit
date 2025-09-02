@@ -1,17 +1,11 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { TEST_USER_ID } from '@/lib/constants';
 import { type AgentTransport } from './transport';
-import { useOptionalGlobalTransport } from './utils/provider-utils';
-
-export interface Thread {
-  id: string;
-  title: string;
-  messageCount: number;
-  lastMessageAt: Date;
-  createdAt: Date;
-  updatedAt: Date;
-  hasNewMessages?: boolean; // NEW: Unread indicator from agent state
-}
+import { 
+  useOptionalGlobalTransport, 
+  useOptionalGlobalUserId, 
+  useOptionalGlobalChannelKey 
+} from './utils/provider-utils';
+import { type Thread } from './types';
 
 export interface UseThreadsReturn {
   threads: Thread[];
@@ -34,7 +28,8 @@ export interface UseThreadsReturn {
 }
 
 export function useThreads(config?: {
-  userId?: string;
+  userId?: string; // Optional: inherits from AgentProvider if not provided
+  channelKey?: string; // Optional: inherits from AgentProvider if not provided
   // Custom transport instance (overrides global transport)
   transport?: AgentTransport;
   // Custom fetch functions for flexibility (overrides transport and global transport)
@@ -48,7 +43,21 @@ export function useThreads(config?: {
   deleteThreadFn?: (threadId: string) => Promise<void>;
   renameThreadFn?: (threadId: string, title: string) => Promise<void>;
 }): UseThreadsReturn {
-  const userId = config?.userId || TEST_USER_ID;
+  // Inherit from provider if available
+  const globalUserId = useOptionalGlobalUserId();
+  const globalChannelKey = useOptionalGlobalChannelKey();
+  
+  // Resolve configuration with provider inheritance
+  const userId = config?.userId || globalUserId;
+  const channelKey = config?.channelKey || globalChannelKey || undefined;
+  
+  // Validate that we have a userId for thread management
+  if (!userId) {
+    throw new Error(
+      'useThreads requires a userId either via config prop or AgentProvider. ' +
+      'Pass userId to useThreads() or wrap your component with <AgentProvider userId="...">'
+    );
+  }
   
   // Transport resolution with provider inheritance (provider is optional)
   const providerTransport = useOptionalGlobalTransport();
@@ -87,20 +96,34 @@ export function useThreads(config?: {
   // Stable default fetch functions using useCallback with transport integration
   const fetchThreadsDefault = useCallback(async (userId: string, pagination: { limit: number; offset: number }) => {
     if (transport) {
-      // Use transport method
-      return transport.fetchThreads({ userId, limit: pagination.limit, offset: pagination.offset });
+      // Use transport method with channelKey support
+      return transport.fetchThreads({ 
+        userId, 
+        channelKey: channelKey || undefined, // Convert null to undefined
+        limit: pagination.limit, 
+        offset: pagination.offset 
+      });
     }
     
     // Fallback to direct fetch if no transport available
-    const response = await fetch(
-      `/api/threads?userId=${encodeURIComponent(userId)}&limit=${pagination.limit}&offset=${pagination.offset}`
-    );
+    const queryParams = new URLSearchParams({
+      userId,
+      limit: pagination.limit.toString(),
+      offset: pagination.offset.toString(),
+    });
+    
+    // Add channelKey if available
+    if (channelKey) {
+      queryParams.set('channelKey', channelKey);
+    }
+    
+    const response = await fetch(`/api/threads?${queryParams}`);
     if (!response.ok) {
       console.error(`[useThreads] Failed to load threads:`, { status: response.status });
       throw new Error('Failed to load threads');
     }
     return response.json();
-  }, [transport]);
+  }, [transport, channelKey]);
 
   const fetchHistoryDefault = useCallback(async (threadId: string) => {
     if (transport) {
@@ -120,22 +143,27 @@ export function useThreads(config?: {
 
   const createThreadDefault = useCallback(async (userId: string) => {
     if (transport) {
-      // Use transport method
-      return transport.createThread({ userId });
+      // Use transport method with channelKey support
+      return transport.createThread({ userId, channelKey: channelKey || undefined });
     }
     
     // Fallback to direct fetch if no transport available
+    const body: any = { userId };
+    if (channelKey) {
+      body.channelKey = channelKey;
+    }
+    
     const response = await fetch('/api/threads', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId }),
+      body: JSON.stringify(body),
     });
     if (!response.ok) {
       console.error(`[useThreads] Failed to create thread:`, { status: response.status });
       throw new Error('Failed to create thread');
     }
     return response.json();
-  }, [transport]);
+  }, [transport, channelKey]);
 
   const deleteThreadDefault = useCallback(async (threadId: string) => {
     if (transport) {
