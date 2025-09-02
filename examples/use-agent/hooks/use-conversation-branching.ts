@@ -1,6 +1,6 @@
 import { useState, useCallback, useMemo } from 'react';
 import { v4 as uuidv4 } from 'uuid';
-import { type ConversationMessage } from './types';
+import { type ConversationMessage, createDebugLogger } from './types';
 import { formatMessagesToAgentKitHistory } from './utils/message-formatting';
 
 interface ConversationBranch {
@@ -22,12 +22,17 @@ interface BranchedThread {
 interface UseConversationBranchingOptions {
   userId: string;
   storageType?: 'session' | 'local';
+  debug?: boolean;
 }
 
 export function useConversationBranching({
   userId,
-  storageType = 'session'
+  storageType = 'session',
+  debug = false
 }: UseConversationBranchingOptions) {
+  // Create debug logger
+  const logger = useMemo(() => createDebugLogger('useConversationBranching', debug), [debug]);
+  
   const cacheKey = `conversation_branches_${userId}`;
   const storage = typeof window !== 'undefined' 
     ? (storageType === 'local' ? localStorage : sessionStorage)
@@ -67,7 +72,7 @@ export function useConversationBranching({
         setBranchedThreads(map);
       }
     } catch (e) {
-      console.error(`Failed to load branches from ${storageType}Storage`, e);
+      logger.error(`Failed to load branches from ${storageType}Storage`, e);
     }
   }, [storage, cacheKey, storageType]);
 
@@ -78,7 +83,7 @@ export function useConversationBranching({
       const serializable = Object.fromEntries(threads.entries());
       storage.setItem(cacheKey, JSON.stringify(serializable));
     } catch (e) {
-      console.error(`Failed to save branches to ${storageType}Storage`, e);
+      logger.error(`Failed to save branches to ${storageType}Storage`, e);
     }
   }, [storage, cacheKey, storageType]);
 
@@ -135,7 +140,7 @@ export function useConversationBranching({
     setBranchedThreads(updatedThreads);
     saveToStorage(updatedThreads);
 
-    console.log('[AK_TELEMETRY] ConversationBranching.createBranch', {
+    logger.log('createBranch', {
       threadId,
       newBranchId,
       branchPointMessageId: messageId,
@@ -291,7 +296,7 @@ export function useConversationBranching({
       // Use the branch messages directly (no async state dependency)
       const branchHistory = branchMessages;
       
-      console.log('[AK_TELEMETRY] ConversationBranching.editAndSend', {
+      logger.log('editAndSend', {
         threadId,
         editFromMessageId: options.editFromMessageId,
         newBranchId,
@@ -311,7 +316,7 @@ export function useConversationBranching({
         const messagesBeforeEdit = currentMessages.slice(0, editIndex);
         replaceMessages(threadId, messagesBeforeEdit);
         
-        console.log('[AK_TELEMETRY] ConversationBranching.truncateBeforeEdit', {
+        logger.log('truncateBeforeEdit', {
           editIndex,
           messagesBeforeEdit: messagesBeforeEdit.length,
           messagesRemoved: currentMessages.length - editIndex,
