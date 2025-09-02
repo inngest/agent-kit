@@ -35,7 +35,16 @@ export interface UseChatReturn {
   cancel: () => Promise<void>; // NEW: Cancel current agent run
   approveToolCall: (toolCallId: string, reason?: string) => Promise<void>; // NEW: HITL approval
   denyToolCall: (toolCallId: string, reason?: string) => Promise<void>; // NEW: HITL denial
-  switchToThread: (threadId: string) => Promise<void>;
+  
+  // Thread switching - two approaches for different needs
+  switchToThread: (threadId: string) => Promise<void>; // High-level: loads history automatically
+  setCurrentThreadId: (threadId: string) => void; // Low-level escape hatch: immediate switch, no loading
+  
+  // Additional escape hatches for power users
+  loadThreadHistory: (threadId: string) => Promise<ConversationMessage[]>;
+  clearThreadMessages: (threadId: string) => void;
+  replaceThreadMessages: (threadId: string, messages: ConversationMessage[]) => void;
+  
   deleteThread: (threadId: string) => Promise<void>;
   loadMoreThreads: () => Promise<void>;
   refreshThreads: () => Promise<void>;
@@ -49,6 +58,10 @@ export interface UseChatConfig {
   channelKey?: string; // Optional: inherits from AgentProvider if not provided
   initialThreadId?: string;
   debug?: boolean;
+  
+  // NEW: Configurable thread validation
+  enableThreadValidation?: boolean; // Default: true for backward compatibility
+  onThreadNotFound?: (threadId: string) => void; // Custom handler for missing threads
   
   /**
    * Optional function to capture client-side state when sending messages.
@@ -76,9 +89,9 @@ export interface UseChatConfig {
     total: number;
   }>;
   fetchHistory?: (threadId: string) => Promise<any[]>;
-  createThreadFn?: (userId: string) => Promise<{ threadId: string; title: string }>;
-  deleteThreadFn?: (threadId: string) => Promise<void>;
-  renameThreadFn?: (threadId: string, title: string) => Promise<void>;
+  createThread?: (userId: string) => Promise<{ threadId: string; title: string }>;
+  deleteThread?: (threadId: string) => Promise<void>;
+  renameThread?: (threadId: string, title: string) => Promise<void>;
 }
 
 /**
@@ -194,9 +207,9 @@ export const useChat = (config?: UseChatConfig): UseChatReturn => {
     channelKey: resolvedChannelKey, // Use resolved value
     fetchThreads: config?.fetchThreads,
     fetchHistory: config?.fetchHistory,
-    createThreadFn: config?.createThreadFn,
-    deleteThreadFn: config?.deleteThreadFn,
-    renameThreadFn: config?.renameThreadFn,
+    createThreadFn: config?.createThread,
+    deleteThreadFn: config?.deleteThread,
+    renameThreadFn: config?.renameThread,
   });
   
   // 2. Stable threadId - prevents constant regeneration  
@@ -358,8 +371,12 @@ export const useChat = (config?: UseChatConfig): UseChatReturn => {
     }
   }, [config?.initialThreadId, hasLoadedInitialThread, agent.currentThreadId, switchToThread]);
   
-  // 7.5. Internal thread validation (placed here to ensure all variables are initialized)
+  // 7.5. Configurable thread validation (escape hatch for custom persistence layers)
   useEffect(() => {
+    // Only validate if validation is enabled (default: true for backward compatibility)
+    const validationEnabled = config?.enableThreadValidation ?? true;
+    if (!validationEnabled) return;
+    
     // Only validate if we have an initialThreadId (URL-provided) and threads have loaded
     if (config?.initialThreadId && !threads.loading && hasInitialized) {
       const threadExists = threads.threads.some(t => t.id === config.initialThreadId);
@@ -370,10 +387,16 @@ export const useChat = (config?: UseChatConfig): UseChatReturn => {
         
         if (!isLikelyFreshThread) {
           console.warn(`[useChat] Thread not found:`, { requested: config.initialThreadId });
-          // For a production package, this should probably throw an error or call an onError callback
-          // rather than using Next.js router directly
-          if (typeof window !== 'undefined' && window.location) {
-            window.location.href = '/'; // Framework-agnostic navigation fallback
+          
+          // NEW: Use custom handler if provided, otherwise fallback to default behavior
+          if (config.onThreadNotFound) {
+            config.onThreadNotFound(config.initialThreadId);
+          } else {
+            // Default behavior: redirect to homepage (backward compatibility)
+            // For a production package, users should provide onThreadNotFound handler
+            if (typeof window !== 'undefined' && window.location) {
+              window.location.href = '/';
+            }
           }
         } else {
           console.log(`[useChat] Allowing fresh thread:`, { 
@@ -384,7 +407,7 @@ export const useChat = (config?: UseChatConfig): UseChatReturn => {
         }
       }
     }
-  }, [config?.initialThreadId, threads.loading, threads.threads, hasInitialized, agent.messages.length, isLoadingInitialThread]);
+  }, [config?.initialThreadId, config?.enableThreadValidation, config?.onThreadNotFound, threads.loading, threads.threads, hasInitialized, agent.messages.length, isLoadingInitialThread]);
   
   // 8. Enhanced message sending with optimistic updates and client state
   const sendMessage = useCallback(
@@ -474,6 +497,51 @@ export const useChat = (config?: UseChatConfig): UseChatReturn => {
     }
   }, [transport, currentThreadId, logger]);
   
+  // 7.8. Additional escape hatches for power users
+  const setCurrentThreadId = useCallback((threadId: string) => {
+    // Low-level escape hatch: immediate thread switch without loading history
+    // Perfect for ephemeral scenarios where history loading isn't needed
+    agent.setCurrentThread(threadId);
+    threads.setCurrentThreadId(threadId);
+    
+    console.log('[AK_TELEMETRY] useChat.setCurrentThreadId:immediate', {
+      threadId,
+      skipHistoryLoading: true,
+      timestamp: new Date().toISOString()
+    });
+  }, [agent.setCurrentThread, threads.setCurrentThreadId]);
+
+  const loadThreadHistory = useCallback(async (threadId: string): Promise<ConversationMessage[]> => {
+    // Load and convert thread history without switching to it
+    try {
+      let dbMessages: any[];
+      if (transport) {
+        dbMessages = await transport.fetchHistory({ threadId });
+      } else {
+        const response = await fetch(`/api/threads/${threadId}`);
+        if (!response.ok) {
+          throw new Error('Failed to fetch thread history');
+        }
+        const data = await response.json();
+        dbMessages = data.messages;
+      }
+      return convertDatabaseToUIFormat(dbMessages);
+    } catch (error) {
+      console.error('[useChat] Failed to load thread history:', error);
+      return [];
+    }
+  }, [transport]);
+
+  const clearThreadMessages = useCallback((threadId: string) => {
+    // Clear all messages from a specific thread
+    agent.clearThreadMessages(threadId);
+  }, [agent.clearThreadMessages]);
+
+  const replaceThreadMessages = useCallback((threadId: string, messages: ConversationMessage[]) => {
+    // Replace all messages in a specific thread with provided messages
+    agent.replaceThreadMessages(threadId, messages);
+  }, [agent.replaceThreadMessages]);
+  
   // 8. Hybrid thread creation function (supports both patterns)
   const createNewThread = useCallback(() => {
     const newThreadId = uuidv4();
@@ -532,7 +600,16 @@ export const useChat = (config?: UseChatConfig): UseChatReturn => {
     cancel: agent.cancel, // NEW: Expose cancel functionality
     approveToolCall, // NEW: HITL approval
     denyToolCall, // NEW: HITL denial
-    switchToThread,
+    
+    // Thread switching - progressive enhancement pattern
+    switchToThread, // High-level: automatic history loading
+    setCurrentThreadId, // Low-level escape hatch: immediate switch
+    
+    // Additional escape hatches for power users
+    loadThreadHistory, // Load history without switching
+    clearThreadMessages, // Clear specific thread messages  
+    replaceThreadMessages, // Replace specific thread messages
+    
     deleteThread: threads.deleteThread,
     loadMoreThreads: threads.loadMore,
     refreshThreads: threads.refresh,
