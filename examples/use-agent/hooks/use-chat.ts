@@ -32,6 +32,10 @@ export interface UseChatReturn {
   
   // Unified actions (handles coordination automatically)
   sendMessage: (message: string, options?: { messageId?: string }) => Promise<void>;
+  sendMessageToThread: (threadId: string, message: string, options?: { 
+    messageId?: string; 
+    state?: Record<string, unknown> | (() => Record<string, unknown>);
+  }) => Promise<void>; // NEW: Expose for advanced use cases like branching
   cancel: () => Promise<void>; // NEW: Cancel current agent run
   approveToolCall: (toolCallId: string, reason?: string) => Promise<void>; // NEW: HITL approval
   denyToolCall: (toolCallId: string, reason?: string) => Promise<void>; // NEW: HITL denial
@@ -51,6 +55,9 @@ export interface UseChatReturn {
   
   // Thread creation (supports both URL-driven and function-driven patterns)
   createNewThread: () => string;
+  
+  // NEW: State rehydration for editing messages from previous contexts
+  rehydrateMessageState: (messageId: string) => void;
 }
 
 export interface UseChatConfig {
@@ -82,6 +89,30 @@ export interface UseChatConfig {
    */
   state?: () => Record<string, unknown>;
   
+  /**
+   * Optional callback to restore UI state when editing messages from previous contexts.
+   * This enables rehydrating the UI to match the state from when a message was originally sent.
+   * 
+   * @param messageState - The client state that was captured when the message was sent
+   * @param messageId - The ID of the message being edited
+   * 
+   * @example
+   * ```typescript
+   * onStateRehydrate: (messageState, messageId) => {
+   *   // Restore SQL query in editor
+   *   if (messageState.sqlQuery) {
+   *     setSqlQuery(messageState.sqlQuery);
+   *   }
+   *   
+   *   // Restore tab context
+   *   if (messageState.tabTitle) {
+   *     setActiveTab(messageState.tabTitle);
+   *   }
+   * }
+   * ```
+   */
+  onStateRehydrate?: (messageState: Record<string, unknown>, messageId: string) => void;
+  
   // Custom fetch functions for flexibility
   fetchThreads?: (userId: string, pagination: { limit: number; offset: number }) => Promise<{
     threads: Thread[];
@@ -112,6 +143,7 @@ const convertDatabaseToUIFormat = (dbMessages: any[]): ConversationMessage[] => 
         }],
         timestamp: new Date(msg.createdAt),
         status: 'sent' as const, // Historical messages are always 'sent'
+        clientState: msg.clientState, // NEW: Restore original client state
       };
     } else {
       // For agent messages, extract content from the data.output array
@@ -207,9 +239,9 @@ export const useChat = (config?: UseChatConfig): UseChatReturn => {
     channelKey: resolvedChannelKey, // Use resolved value
     fetchThreads: config?.fetchThreads,
     fetchHistory: config?.fetchHistory,
-    createThreadFn: config?.createThread,
-    deleteThreadFn: config?.deleteThread,
-    renameThreadFn: config?.renameThread,
+    createThread: config?.createThread,
+    deleteThread: config?.deleteThread,
+    renameThread: config?.renameThread,
   });
   
   // 2. Stable threadId - prevents constant regeneration  
@@ -559,6 +591,25 @@ export const useChat = (config?: UseChatConfig): UseChatReturn => {
     return newThreadId;
   }, [agent.setCurrentThread, threads.setCurrentThreadId]);
   
+  // 8.5. State rehydration function for editing messages from previous contexts
+  const rehydrateMessageState = useCallback((messageId: string) => {
+    // Find the message in the current thread
+    const message = agent.messages.find(m => m.id === messageId);
+    if (!message?.clientState) {
+      logger.log('No client state found for message:', messageId);
+      return;
+    }
+    
+    logger.log('Rehydrating client state for message:', {
+      messageId,
+      clientState: message.clientState,
+      timestamp: new Date().toISOString()
+    });
+    
+    // Call the rehydration callback if provided
+    config?.onStateRehydrate?.(message.clientState, messageId);
+  }, [agent.messages, config?.onStateRehydrate, logger]);
+  
   // 9. Merge thread list with agent unread state
   const threadsWithUnreadState = threads.threads.map(thread => ({
     ...thread,
@@ -597,6 +648,7 @@ export const useChat = (config?: UseChatConfig): UseChatReturn => {
     
     // Unified actions (all coordination handled internally)
     sendMessage,
+    sendMessageToThread: agent.sendMessageToThread, // NEW: Expose for advanced use cases
     cancel: agent.cancel, // NEW: Expose cancel functionality
     approveToolCall, // NEW: HITL approval
     denyToolCall, // NEW: HITL denial
@@ -616,5 +668,8 @@ export const useChat = (config?: UseChatConfig): UseChatReturn => {
     
     // Thread creation (hybrid pattern support)
     createNewThread,
+    
+    // NEW: State rehydration for editing messages from previous contexts
+    rehydrateMessageState,
   };
 };
