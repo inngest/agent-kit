@@ -334,7 +334,7 @@ export class DefaultAgentTransport implements AgentTransport {
       }
       
       // Create enhanced error with recovery guidance
-      const agentError = createAgentError(errorMessage, 'network', true, { endpoint, status: response.status });
+      const agentError = createAgentError(response, `Request to ${endpoint}`);
       // Override message with more detailed info if available
       if (errorMessage !== `HTTP ${response.status}: ${response.statusText}`) {
         agentError.message = errorMessage;
