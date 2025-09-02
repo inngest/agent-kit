@@ -6,7 +6,13 @@
  * and standalone usage patterns.
  */
 
-import { useGlobalTransport, useGlobalAgent } from '@/contexts/AgentContext';
+import { 
+  useGlobalTransport, 
+  useGlobalAgent, 
+  useGlobalUserId, 
+  useGlobalChannelKey, 
+  useGlobalResolvedChannelKey 
+} from '@/contexts/AgentContext';
 import { type AgentTransport } from '../transport';
 import type { UseAgentReturn } from '../use-agent';
 
@@ -36,6 +42,46 @@ export function useOptionalGlobalTransport(): AgentTransport | null {
 export function useOptionalGlobalAgent(): UseAgentReturn | null {
   try {
     return useGlobalAgent();
+  } catch {
+    // Not inside an AgentProvider - return null for standalone mode
+    return null;
+  }
+}
+
+/**
+ * Hook to safely access global userId from provider.
+ * Returns null if no provider is available or if used outside a provider.
+ */
+export function useOptionalGlobalUserId(): string | null {
+  try {
+    return useGlobalUserId();
+  } catch {
+    // Not inside an AgentProvider - return null for standalone mode
+    return null;
+  }
+}
+
+/**
+ * Hook to safely access global channelKey from provider.
+ * Returns null if no provider is available or if used outside a provider.
+ */
+export function useOptionalGlobalChannelKey(): string | null {
+  try {
+    return useGlobalChannelKey();
+  } catch {
+    // Not inside an AgentProvider - return null for standalone mode
+    return null;
+  }
+}
+
+/**
+ * Hook to safely access resolved channel key from provider.
+ * This returns the computed channel key that's actually used for subscriptions.
+ * Returns null if no provider is available or if used outside a provider.
+ */
+export function useOptionalGlobalResolvedChannelKey(): string | null {
+  try {
+    return useGlobalResolvedChannelKey();
   } catch {
     // Not inside an AgentProvider - return null for standalone mode
     return null;
