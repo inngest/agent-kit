@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { inngest } from "@/inngest/client";
 import { randomUUID } from "crypto";
 import { z } from "zod";
-import { TEST_USER_ID } from "@/lib/constants";
 
 // Zod schema for UserMessage
 const userMessageSchema = z.object({
@@ -19,6 +18,7 @@ const chatRequestSchema = z.object({
   userMessage: userMessageSchema,
   threadId: z.string().uuid().optional(),
   userId: z.string().optional(),
+  channelKey: z.string().optional(), // NEW: Support channelKey for flexible subscriptions
   history: z.array(z.any()).optional(), // TODO: define a more specific schema for history items
 });
 
@@ -35,7 +35,18 @@ export async function POST(req: NextRequest) {
       );
     }
     
-    const { userMessage, threadId: providedThreadId, userId, history } = validationResult.data;
+    const { userMessage, threadId: providedThreadId, userId, channelKey, history } = validationResult.data;
+    
+    // Channel-first validation: require either userId OR channelKey
+    if (!userId && !channelKey) {
+      return NextResponse.json(
+        { error: "Either userId or channelKey is required" },
+        { status: 400 }
+      );
+    }
+    
+    // For anonymous sessions, use channelKey as userId for data ownership
+    const effectiveUserId = userId || channelKey!; // Non-null assertion safe due to validation above
     
     // Generate thread ID if not provided
     // TODO: doesn't agentkit generate and return one of these internally now? need to check on this...
@@ -48,7 +59,8 @@ export async function POST(req: NextRequest) {
         threadId,
         history,
         userMessage,
-        userId: userId || TEST_USER_ID,
+        userId: effectiveUserId, // For data ownership (userId or channelKey for anonymous)
+        channelKey, // For flexible subscriptions (optional)
       },
     });
     
