@@ -10,6 +10,7 @@ import {
   useOptionalGlobalChannelKey,
   useOptionalGlobalResolvedChannelKey 
 } from './utils/provider-utils';
+import { formatMessagesToAgentKitHistory, type AgentKitMessage } from './utils/message-formatting';
 import {
   type NetworkEvent,
   type MessagePart,
@@ -98,59 +99,7 @@ const debugError = (isDebugEnabled: boolean, ...args: any[]) => {
 
 // ----- PURE MESSAGE PROCESSING FUNCTIONS -------------------------
 
-/**
- * A pure function that transforms the UI's rich `ConversationMessage` array
- * into the simplified history format expected by the AgentKit backend.
- * This is crucial for maintaining context between conversation turns.
- * 
- * The function extracts only the essential text content from each message,
- * filtering out streaming states, tool calls, and other UI-specific parts
- * that the agent doesn't need for context.
- * 
- * @param messages - The array of `ConversationMessage` from the UI state
- * @returns A simplified array of messages containing only role and text content
- * @example
- * ```typescript
- * const uiMessages = [
- *   { role: 'user', parts: [{ type: 'text', content: 'Hello' }] },
- *   { role: 'assistant', parts: [{ type: 'text', content: 'Hi there!' }] }
- * ];
- * const history = formatMessagesToAgentKitHistory(uiMessages);
- * // Returns: [{ role: 'user', type: 'text', content: 'Hello' }, ...]
- * ```
- */
-const formatMessagesToAgentKitHistory = (messages: ConversationMessage[]): { role: 'user' | 'assistant'; type: 'text'; content: string }[] => {
-  return messages
-    .map(msg => {
-      // For user messages, find the first text part and use its content.
-      if (msg.role === 'user') {
-        const textPart = msg.parts.find(p => p.type === 'text') as TextUIPart;
-        const content = textPart?.content || '';
-        if (!content.trim()) return null;
-        return { 
-          type: 'text' as const, 
-          role: 'user' as const, 
-          content 
-        };
-      }
-      // For assistant messages, concatenate all text parts.
-      if (msg.role === 'assistant') {
-        const content = msg.parts
-          .filter(p => p.type === 'text')
-          .map(p => (p as TextUIPart).content)
-          .join('\n');
-        if (!content.trim()) return null;
-        return { 
-          type: 'text' as const, 
-          role: 'assistant' as const, 
-          content 
-        };
-      }
-      return null;
-    })
-    // Filter out any empty or unhandled messages.
-    .filter((msg): msg is NonNullable<typeof msg> => msg !== null);
-};
+// Function moved to shared utility file
 
 /**
  * A pure utility function to find a specific message by its ID within an array of messages.
@@ -557,10 +506,16 @@ const processEvent = (messages: ConversationMessage[], event: NetworkEvent, isDe
                 };
               // For tool-calls, set state to 'input-available' and set the final input.
               } else if (part.type === 'tool-call') {
+                // Ensure finalContent is compatible with ToolCallUIPart.input type
+                const finalInput = typeof event.data.finalContent === 'string' || 
+                  (typeof event.data.finalContent === 'object' && event.data.finalContent !== null)
+                  ? event.data.finalContent as string | Record<string, unknown>
+                  : String(event.data.finalContent ?? '');
+                
                 return { 
                   ...part, 
                   state: "input-available" as const, 
-                  input: event.data.finalContent 
+                  input: finalInput 
                 };
               // For reasoning, set status to 'complete' and set the final content.
               } else if (part.type === 'reasoning') {
@@ -1078,6 +1033,7 @@ const multiThreadStreamingReducer = (
         }],
         timestamp: now,
         status: 'sending', // Initial status for optimistic message
+        clientState: action.clientState, // NEW: Store client state with message
       };
       
       // Simple ID-based duplicate checking only
@@ -1844,20 +1800,63 @@ export function useAgent({ threadId, channelKey, userId, onError, debug = DEFAUL
     const targetThread = currentState.threads[targetThreadId];
     const currentMessages = targetThread?.messages || [];
     
+    // BRANCHING SUPPORT: Check if state function provides custom branch history
+    let historyToSend: AgentKitMessage[] = [];
+    let effectiveMessages = currentMessages;
+    
+    if (options?.state) {
+      const stateData = typeof options.state === 'function' ? options.state() : options.state;
+      
+      // Check if this is a conversation branching scenario
+      if (stateData.mode === 'conversation_branching' && Array.isArray(stateData.branchHistory)) {
+        logger.log(`🌿 [BRANCHING] Using branch history instead of full thread history:`, {
+          threadId: targetThreadId,
+          branchHistoryLength: stateData.branchHistory.length,
+          fullThreadLength: currentMessages.length,
+          editFromMessageId: stateData.editFromMessageId,
+        });
+        
+        // Use the pre-formatted branch history directly
+        historyToSend = stateData.branchHistory;
+        effectiveMessages = []; // For logging purposes, show we're using branch history
+      } else {
+        // Normal state function, use thread messages
+        historyToSend = formatMessagesToAgentKitHistory(currentMessages);
+        effectiveMessages = currentMessages;
+      }
+    } else {
+      // No state function, use thread messages
+      historyToSend = formatMessagesToAgentKitHistory(currentMessages);
+      effectiveMessages = currentMessages;
+    }
+    
     logger.log(`🔍 [SEND-MSG] Thread ${targetThreadId} before sending:`, {
-      existingMessages: currentMessages.length,
-      messagePreview: currentMessages.map(m => ({ role: m.role, partsCount: m.parts.length })),
-      isHistoricalThread: currentMessages.length > 0,
+      existingMessages: effectiveMessages.length,
+      historyLength: historyToSend.length,
+      messagePreview: effectiveMessages.map(m => ({ role: m.role, partsCount: m.parts.length })),
+      isHistoricalThread: effectiveMessages.length > 0,
+      isBranchingMode: options?.state && (typeof options.state === 'function' ? options.state() : options.state)?.mode === 'conversation_branching',
       threadExists: !!targetThread,
       currentThreadId: currentState.currentThreadId,
       stateThreadsCount: Object.keys(currentState.threads).length,
     });
-    
-    const simpleHistory = formatMessagesToAgentKitHistory(currentMessages);
     const messageId = options?.messageId || uuidv4();
 
-    // Optimistically update the target thread
-    dispatch({ type: 'MESSAGE_SENT', threadId: targetThreadId, message, messageId });
+    // Determine client state for this message (before sending to backend)
+    let messageState: Record<string, unknown>;
+    if (options?.state) {
+      // Use state passed directly to this call
+      messageState = typeof options.state === 'function' ? options.state() : options.state;
+    } else if (getClientState) {
+      // Use configured state function
+      messageState = getClientState();
+    } else {
+      // Fallback state for backwards compatibility / testing
+      messageState = { timestamp: Date.now() };
+    }
+
+    // Optimistically update the target thread with client state
+    dispatch({ type: 'MESSAGE_SENT', threadId: targetThreadId, message, messageId, clientState: messageState });
     dispatch({ type: 'RESET_FOR_NEW_TURN', threadId: targetThreadId });
 
     // Send to backend
@@ -1866,23 +1865,10 @@ export function useAgent({ threadId, channelKey, userId, onError, debug = DEFAUL
         targetThreadId,
         messageId,
         message: message.substring(0, 50) + "...",
-        historyLength: simpleHistory.length,
+        historyLength: historyToSend.length,
       });
 
-      // Determine which state to use (priority: options.state > configured getClientState > fallback)
-      let messageState: Record<string, unknown>;
-      if (options?.state) {
-        // Use state passed directly to this call
-        messageState = typeof options.state === 'function' ? options.state() : options.state;
-      } else if (getClientState) {
-        // Use configured state function
-        messageState = getClientState();
-      } else {
-        // Fallback state for backwards compatibility / testing
-        messageState = { timestamp: Date.now() };
-      }
-
-      // Construct a UserMessage object with configurable client state
+      // Construct a UserMessage object with the determined client state
       const userMessage = {
         id: messageId,
         content: message,
@@ -1894,7 +1880,7 @@ export function useAgent({ threadId, channelKey, userId, onError, debug = DEFAUL
       const response = await transport.sendMessage({
         userMessage,
         threadId: targetThreadId,
-        history: simpleHistory,
+        history: historyToSend, // Use the determined history (branch-aware)
         userId: effectiveUserId || undefined, // Use effective userId with provider inheritance
         channelKey: resolvedChannelKey, // Pass channelKey for flexible subscriptions
       });
