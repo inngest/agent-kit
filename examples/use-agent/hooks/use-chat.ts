@@ -1,9 +1,15 @@
 import { useState, useCallback, useEffect, useMemo } from 'react';
-import { useThreads, type Thread } from './use-threads';
-import { useAgent, type ConversationMessage, type AgentStatus } from './use-agent';
+import { useThreads } from './use-threads';
+import { useAgent } from './use-agent';
 import { v4 as uuidv4 } from 'uuid';
-import { TEST_USER_ID } from '@/lib/constants';
-import { useOptionalGlobalAgent, useOptionalGlobalTransport } from './utils/provider-utils';
+import { 
+  useOptionalGlobalAgent, 
+  useOptionalGlobalTransport, 
+  useOptionalGlobalUserId, 
+  useOptionalGlobalChannelKey,
+  useOptionalGlobalResolvedChannelKey
+} from './utils/provider-utils';
+import { type Thread, type ConversationMessage, type AgentStatus, createDebugLogger } from './types';
 
 export interface UseChatReturn {
   // Agent state (real-time conversation)
@@ -26,6 +32,9 @@ export interface UseChatReturn {
   
   // Unified actions (handles coordination automatically)
   sendMessage: (message: string, options?: { messageId?: string }) => Promise<void>;
+  cancel: () => Promise<void>; // NEW: Cancel current agent run
+  approveToolCall: (toolCallId: string, reason?: string) => Promise<void>; // NEW: HITL approval
+  denyToolCall: (toolCallId: string, reason?: string) => Promise<void>; // NEW: HITL denial
   switchToThread: (threadId: string) => Promise<void>;
   deleteThread: (threadId: string) => Promise<void>;
   loadMoreThreads: () => Promise<void>;
@@ -36,7 +45,8 @@ export interface UseChatReturn {
 }
 
 export interface UseChatConfig {
-  userId?: string;
+  userId?: string; // Optional: inherits from AgentProvider if not provided
+  channelKey?: string; // Optional: inherits from AgentProvider if not provided
   initialThreadId?: string;
   debug?: boolean;
   
@@ -127,16 +137,61 @@ const convertDatabaseToUIFormat = (dbMessages: any[]): ConversationMessage[] => 
 };
 
 export const useChat = (config?: UseChatConfig): UseChatReturn => {
+  // Inherit from provider if available
+  const globalUserId = useOptionalGlobalUserId();
+  const globalChannelKey = useOptionalGlobalChannelKey();
+  const globalResolvedChannelKey = useOptionalGlobalResolvedChannelKey();
+  
+  // Resolve configuration with provider inheritance
+  const resolvedUserId = config?.userId || globalUserId || undefined;
+  const resolvedChannelKey = config?.channelKey || globalChannelKey || undefined;
+  
+  // Calculate what our local channel key would be (using same logic as useAgent)
+  const localResolvedChannelKey = useMemo(() => {
+    // Same resolution logic as useAgent
+    if (resolvedChannelKey) return resolvedChannelKey;
+    if (resolvedUserId) return resolvedUserId;
+    
+    // Anonymous fallback (but this should match provider logic)
+    if (typeof window !== 'undefined') {
+      let anonymousId = sessionStorage.getItem("agentkit-anonymous-id");
+      if (!anonymousId) {
+        anonymousId = `anon_${uuidv4()}`;
+        sessionStorage.setItem("agentkit-anonymous-id", anonymousId);
+      }
+      return anonymousId;
+    }
+    return `anon_${uuidv4()}`;
+  }, [resolvedChannelKey, resolvedUserId]);
+  
+  // Validate that we have at least a userId for thread management
+  if (!resolvedUserId) {
+    throw new Error(
+      'useChat requires a userId either via config prop or AgentProvider. ' +
+      'Pass userId to useChat() or wrap your component with <AgentProvider userId="...">'
+    );
+  }
+
   // Stable thread ID generation - only create once
   const [fallbackThreadId] = useState(() => config?.initialThreadId || uuidv4());
   
+  // Create standardized debug logger
+  const logger = useMemo(() => createDebugLogger('useChat', config?.debug ?? false), [config?.debug]);
+  
   // Instance tracking for telemetry
   const [instanceId] = useState(() => `chat-${Date.now()}-${Math.random().toString(36).substr(2, 8)}`);
-  console.log('[AK_TELEMETRY] useChat.instance', { instanceId, initialThreadId: config?.initialThreadId });
+  logger.log('useChat.instance', { 
+    instanceId, 
+    initialThreadId: config?.initialThreadId,
+    resolvedUserId,
+    resolvedChannelKey,
+    inheritedFromProvider: !!globalUserId 
+  });
   
   // 1. Thread management hook
   const threads = useThreads({
-    userId: config?.userId || TEST_USER_ID,
+    userId: resolvedUserId!, // Non-null assertion safe due to validation above
+    channelKey: resolvedChannelKey, // Use resolved value
     fetchThreads: config?.fetchThreads,
     fetchHistory: config?.fetchHistory,
     createThreadFn: config?.createThreadFn,
@@ -147,25 +202,46 @@ export const useChat = (config?: UseChatConfig): UseChatReturn => {
   // 2. Stable threadId - prevents constant regeneration  
   const currentThreadId = threads.currentThreadId || fallbackThreadId;
   
-  // 3. Initialize thread if provided via config
+  // 3. Initialize thread if provided via config (ONLY ONCE, not continuously enforced)
+  const [hasInitialized, setHasInitialized] = useState(false);
   useEffect(() => {
-    if (config?.initialThreadId && threads.currentThreadId !== config.initialThreadId) {
+    if (config?.initialThreadId && !hasInitialized) {
       threads.setCurrentThreadId(config.initialThreadId);
+      setHasInitialized(true); // Prevent re-running this effect
+      console.log('[AK_TELEMETRY] useChat.initialized:setInitialThread', {
+        initialThreadId: config.initialThreadId,
+        willNotRunAgain: true
+      });
     }
-  }, [config?.initialThreadId, threads.currentThreadId, threads.setCurrentThreadId]);
+  }, [config?.initialThreadId, hasInitialized, threads.setCurrentThreadId]);
+  
+  // 3.5. Internal thread validation (moved from Chat.tsx for better DX)
+  // Note: Validation moved to after agent creation to avoid variable hoisting issues
   
   // 4. Smart agent resolution: use provider agent if available, otherwise create local instance
   const globalAgent = useOptionalGlobalAgent();
   const globalTransport = useOptionalGlobalTransport();
   
+  // Smart subscription logic: Only disable local subscription if using the SAME channel
+  const shouldDisableLocalSubscription = useMemo(() => {
+    // No global agent = always enable local subscription (standalone mode)
+    if (!globalAgent) return false;
+    
+    // Global agent exists = disable local subscription ONLY if using same channel (share connection)
+    // Different channel = enable local subscription (escape hatch for separate connection)
+    return globalResolvedChannelKey === localResolvedChannelKey;
+  }, [globalAgent, globalResolvedChannelKey, localResolvedChannelKey]);
+  
   // IMPORTANT: Always create local agent but conditionally disable its subscription
-  // When there's a global agent, disable the local agent's subscription to prevent conflicts
+  // When there's a global agent with the SAME channel, disable local subscription to share connection
+  // When there's a global agent with DIFFERENT channel, enable local subscription for isolation
   const localAgent = useAgent({
     threadId: currentThreadId,
-    userId: config?.userId || TEST_USER_ID,
+    userId: resolvedUserId!, // Non-null assertion safe due to validation above
+    channelKey: resolvedChannelKey, // Use resolved value
     debug: config?.debug,
     state: config?.state,
-    __disableSubscription: !!globalAgent, // Disable subscription when provider agent exists
+    __disableSubscription: shouldDisableLocalSubscription, // Smart channel-based sharing
     // Don't pass transport here - useAgent will resolve it using the same priority logic
   });
   
@@ -173,13 +249,21 @@ export const useChat = (config?: UseChatConfig): UseChatReturn => {
   const agent = globalAgent || localAgent;
   const transport = globalTransport || null; // May be null for fallback fetch calls
   
-  // 🔍 DIAGNOSTIC: Verify agent instance resolution
+  // 🔍 DIAGNOSTIC: Verify agent instance resolution and channel logic
   console.log('🔍 [DIAG] useChat agent resolution:', {
     hasGlobalAgent: !!globalAgent,
     hasGlobalTransport: !!globalTransport,
     usingProvider: !!globalAgent,
     agentConnected: agent.isConnected,
     currentThread: agent.currentThreadId,
+    // NEW: Channel-based subscription sharing logic
+    channelSharing: {
+      globalChannel: globalResolvedChannelKey,
+      localChannel: localResolvedChannelKey,
+      sameChannel: globalResolvedChannelKey === localResolvedChannelKey,
+      shouldDisableLocal: shouldDisableLocalSubscription,
+      connectionStrategy: shouldDisableLocalSubscription ? 'shared' : 'separate',
+    },
     timestamp: new Date().toISOString()
   });
   
@@ -189,6 +273,8 @@ export const useChat = (config?: UseChatConfig): UseChatReturn => {
       agent.setCurrentThread(currentThreadId);
     }
   }, [currentThreadId, agent.currentThreadId, agent.setCurrentThread]);
+  
+  // Thread validation moved to after all variables are declared to avoid hoisting issues
   
   // 6. Sophisticated thread switching with smart deduplication
   const switchToThread = useCallback(async (selectedThreadId: string) => {
@@ -272,6 +358,34 @@ export const useChat = (config?: UseChatConfig): UseChatReturn => {
     }
   }, [config?.initialThreadId, hasLoadedInitialThread, agent.currentThreadId, switchToThread]);
   
+  // 7.5. Internal thread validation (placed here to ensure all variables are initialized)
+  useEffect(() => {
+    // Only validate if we have an initialThreadId (URL-provided) and threads have loaded
+    if (config?.initialThreadId && !threads.loading && hasInitialized) {
+      const threadExists = threads.threads.some(t => t.id === config.initialThreadId);
+      
+      if (!threadExists) {
+        // Check if this is likely a fresh thread (no messages, not loading history)
+        const isLikelyFreshThread = agent.messages.length === 0 && !isLoadingInitialThread;
+        
+        if (!isLikelyFreshThread) {
+          console.warn(`[useChat] Thread not found:`, { requested: config.initialThreadId });
+          // For a production package, this should probably throw an error or call an onError callback
+          // rather than using Next.js router directly
+          if (typeof window !== 'undefined' && window.location) {
+            window.location.href = '/'; // Framework-agnostic navigation fallback
+          }
+        } else {
+          console.log(`[useChat] Allowing fresh thread:`, { 
+            threadId: config.initialThreadId,
+            messageCount: agent.messages.length,
+            isLoadingInitial: isLoadingInitialThread 
+          });
+        }
+      }
+    }
+  }, [config?.initialThreadId, threads.loading, threads.threads, hasInitialized, agent.messages.length, isLoadingInitialThread]);
+  
   // 8. Enhanced message sending with optimistic updates and client state
   const sendMessage = useCallback(
     async (message: string, options?: { messageId?: string }) => {
@@ -318,6 +432,47 @@ export const useChat = (config?: UseChatConfig): UseChatReturn => {
       config?.state,
     ]
   );
+  
+  // 7. HITL (Human-in-the-Loop) action handlers
+  const approveToolCall = useCallback(async (toolCallId: string, reason?: string) => {
+    if (!transport) {
+      logger.error("No transport available for HITL approval");
+      return;
+    }
+
+    try {
+      await transport.approveToolCall({
+        toolCallId,
+        threadId: currentThreadId,
+        action: "approve",
+        reason,
+      });
+      logger.log("Tool call approved:", { toolCallId, threadId: currentThreadId });
+    } catch (error) {
+      logger.error("Failed to approve tool call:", error);
+      // Could dispatch an error state here if needed
+    }
+  }, [transport, currentThreadId, logger]);
+
+  const denyToolCall = useCallback(async (toolCallId: string, reason?: string) => {
+    if (!transport) {
+      logger.error("No transport available for HITL denial");
+      return;
+    }
+
+    try {
+      await transport.approveToolCall({
+        toolCallId,
+        threadId: currentThreadId,
+        action: "deny",
+        reason,
+      });
+      logger.log("Tool call denied:", { toolCallId, threadId: currentThreadId, reason });
+    } catch (error) {
+      logger.error("Failed to deny tool call:", error);
+      // Could dispatch an error state here if needed
+    }
+  }, [transport, currentThreadId, logger]);
   
   // 8. Hybrid thread creation function (supports both patterns)
   const createNewThread = useCallback(() => {
@@ -374,6 +529,9 @@ export const useChat = (config?: UseChatConfig): UseChatReturn => {
     
     // Unified actions (all coordination handled internally)
     sendMessage,
+    cancel: agent.cancel, // NEW: Expose cancel functionality
+    approveToolCall, // NEW: HITL approval
+    denyToolCall, // NEW: HITL denial
     switchToThread,
     deleteThread: threads.deleteThread,
     loadMoreThreads: threads.loadMore,
