@@ -1,0 +1,976 @@
+---
+title: "useChat API Reference"
+description: "Complete API documentation for the useChat hook - the recommended way to build chat interfaces"
+---
+
+import { Card, CardGroup } from "nextra/components";
+
+The `useChat` hook is the **recommended entry point** for building AI chat applications with AgentKit. It provides a unified API that combines real-time streaming capabilities with thread management, making it perfect for building complete chat applications.
+
+<Card title="Recommendation" icon="star">
+Use `useChat` for 90% of AgentKit React applications. It handles the complex coordination between real-time events and persistent state automatically.
+</Card>
+
+## Import
+
+```typescript
+import { useChat } from "@inngest/use-agents";
+```
+
+## Basic Usage
+
+```typescript
+function ChatComponent() {
+  const {
+    messages,
+    sendMessage,
+    status,
+    threads,
+    createNewThread
+  } = useChat({
+    initialThreadId: 'thread-123',
+    userId: 'user-456'
+  });
+
+  return (
+    <div>
+      <ThreadSidebar 
+        threads={threads} 
+        onNewThread={createNewThread} 
+      />
+      <ChatArea 
+        messages={messages}
+        onSendMessage={sendMessage}
+        status={status}
+      />
+    </div>
+  );
+}
+```
+
+## Configuration
+
+### Interface: `UseChatConfig`
+
+<ParamField path="userId" type="string" required="conditionally">
+User identifier for attribution and data ownership. **Required** unless provided by AgentProvider.
+
+```typescript
+useChat({ userId: "user-123" })
+```
+</ParamField>
+
+<ParamField path="channelKey" type="string">
+Channel key for subscription targeting. Enables collaborative features when multiple users share the same key.
+
+```typescript
+// Private chat (default)
+useChat({ userId: "user-123" })
+
+// Collaborative chat
+useChat({ channelKey: "project-456", userId: "user-123" })
+```
+</ParamField>
+
+<ParamField path="initialThreadId" type="string">
+Thread ID to load on initialization. Perfect for URL-driven chat pages.
+
+```typescript
+// URL: /chat/[threadId]
+useChat({ initialThreadId: params.threadId })
+```
+</ParamField>
+
+<ParamField path="debug" type="boolean" default="false">
+Enable comprehensive debug logging for development.
+
+```typescript
+useChat({ debug: process.env.NODE_ENV === 'development' })
+```
+</ParamField>
+
+<ParamField path="enableThreadValidation" type="boolean" default="true">
+Validate that initialThreadId exists in the database. Set to `false` for custom persistence layers.
+
+```typescript
+// Disable for ephemeral/custom storage
+useChat({ 
+  initialThreadId: threadId,
+  enableThreadValidation: false 
+})
+```
+</ParamField>
+
+<ParamField path="onThreadNotFound" type="(threadId: string) => void">
+Custom handler for missing threads. Default behavior redirects to homepage.
+
+```typescript
+useChat({
+  initialThreadId: threadId,
+  onThreadNotFound: (missingThreadId) => {
+    showError(`Thread ${missingThreadId} not found`);
+    router.push('/chat');
+  }
+})
+```
+</ParamField>
+
+### Advanced Configuration
+
+<ParamField path="state" type="() => Record<string, unknown>">
+Function to capture client-side state with each message. Essential for message editing and debugging.
+
+```typescript
+useChat({
+  state: () => ({
+    currentPage: window.location.pathname,
+    formData: getActiveFormData(),
+    userPreferences: getUserSettings(),
+    timestamp: Date.now()
+  })
+})
+```
+</ParamField>
+
+<ParamField path="onStateRehydrate" type="(messageState: Record<string, unknown>, messageId: string) => void">
+Callback to restore UI state when editing messages from previous contexts.
+
+```typescript
+useChat({
+  onStateRehydrate: (messageState, messageId) => {
+    // Restore form state
+    if (messageState.formData) {
+      restoreFormData(messageState.formData);
+    }
+    
+    // Navigate to original page
+    if (messageState.currentPage) {
+      router.push(messageState.currentPage);
+    }
+  }
+})
+```
+</ParamField>
+
+### Custom Functions
+
+Override default API behavior for custom backends:
+
+<ParamField path="fetchThreads" type="(userId: string, pagination: { limit: number; offset: number }) => Promise<{threads: Thread[]; hasMore: boolean; total: number}>">
+Custom function for fetching threads list.
+</ParamField>
+
+<ParamField path="fetchHistory" type="(threadId: string) => Promise<any[]>">
+Custom function for loading thread message history.
+</ParamField>
+
+<ParamField path="createThread" type="(userId: string) => Promise<{threadId: string; title: string}>">
+Custom function for creating new threads.
+</ParamField>
+
+<ParamField path="deleteThread" type="(threadId: string) => Promise<void>">
+Custom function for deleting threads.
+</ParamField>
+
+<ParamField path="renameThread" type="(threadId: string, title: string) => Promise<void>">
+Custom function for renaming threads.
+</ParamField>
+
+## Return Value: `UseChatReturn`
+
+### Real-time Agent State
+
+<ParamField path="messages" type="ConversationMessage[]">
+Current thread's messages with real-time streaming updates. Each message contains `parts` that stream incrementally.
+
+```typescript
+messages.forEach(msg => {
+  console.log(`${msg.role}: ${msg.parts.length} parts`);
+  msg.parts.forEach(part => {
+    if (part.type === 'text') {
+      console.log(`Text: ${part.content}`);
+    }
+  });
+});
+```
+</ParamField>
+
+<ParamField path="status" type="AgentStatus">
+Current agent execution status: `"idle"`, `"thinking"`, `"calling-tool"`, `"responding"`, or `"error"`.
+
+```typescript
+// Show appropriate UI based on status
+{status === 'thinking' && <ThinkingIndicator />}
+{status === 'responding' && <StreamingIndicator />}
+{status === 'error' && <ErrorMessage />}
+```
+</ParamField>
+
+<ParamField path="isConnected" type="boolean">
+WebSocket connection status to AgentKit networks.
+
+```typescript
+// Show connection status
+<div>Status: {isConnected ? '🟢 Connected' : '🔴 Disconnected'}</div>
+```
+</ParamField>
+
+<ParamField path="currentAgent" type="string | undefined">
+Name of the currently active agent (if available).
+
+```typescript
+<div>Agent: {currentAgent || 'Assistant'}</div>
+```
+</ParamField>
+
+<ParamField path="error" type="{ message: string; timestamp: Date; recoverable: boolean } | undefined">
+Current error state with recovery information.
+
+```typescript
+{error && (
+  <ErrorBanner 
+    message={error.message}
+    canRetry={error.recoverable}
+    onDismiss={clearError}
+  />
+)}
+```
+</ParamField>
+
+### Thread Management State
+
+<ParamField path="threads" type="Thread[]">
+Array of all conversation threads with metadata and unread indicators.
+
+```typescript
+threads.forEach(thread => {
+  console.log({
+    id: thread.id,
+    title: thread.title,
+    messageCount: thread.messageCount,
+    hasNewMessages: thread.hasNewMessages,
+    lastActivity: thread.lastMessageAt
+  });
+});
+```
+</ParamField>
+
+<ParamField path="threadsLoading" type="boolean">
+Loading state for the threads list.
+</ParamField>
+
+<ParamField path="threadsHasMore" type="boolean">
+Whether more threads are available for pagination.
+</ParamField>
+
+<ParamField path="threadsError" type="string | null">
+Error state for thread operations.
+</ParamField>
+
+<ParamField path="currentThreadId" type="string | null">
+ID of the currently active thread.
+</ParamField>
+
+### Loading States
+
+<ParamField path="isLoadingInitialThread" type="boolean">
+`true` when loading history for a URL-provided `initialThreadId`.
+
+```typescript
+// Show loading state while fetching initial thread
+{isLoadingInitialThread ? (
+  <ThreadLoadingSpinner />
+) : (
+  <ChatMessages messages={messages} />
+)}
+```
+</ParamField>
+
+## Actions
+
+### Message Sending
+
+<ParamField path="sendMessage" type="(message: string, options?: { messageId?: string }) => Promise<void>">
+Send a message to the current thread with automatic coordination.
+
+```typescript
+// Basic usage
+await sendMessage("Hello!");
+
+// With custom message ID
+await sendMessage("Hello!", { messageId: "custom-id" });
+
+// Handles thread creation, optimistic updates, and streaming automatically
+```
+</ParamField>
+
+<ParamField path="sendMessageToThread" type="(threadId: string, message: string, options?: { messageId?: string; state?: Record<string, unknown> | (() => Record<string, unknown>) }) => Promise<void>">
+Send a message to a specific thread (advanced use cases like conversation branching).
+
+```typescript
+// Send to specific thread
+await sendMessageToThread("thread-789", "Hello from another thread!");
+
+// With custom client state
+await sendMessageToThread("thread-789", "Edit message", {
+  state: () => ({
+    mode: 'conversation_branching',
+    editFromMessageId: 'msg-456',
+    branchHistory: formatBranchHistory(messages.slice(0, editIndex))
+  })
+});
+```
+</ParamField>
+
+### Agent Control
+
+<ParamField path="cancel" type="() => Promise<void>">
+Cancel the current agent run.
+
+```typescript
+<button onClick={cancel} disabled={status === 'idle'}>
+  Cancel Agent
+</button>
+```
+</ParamField>
+
+<ParamField path="approveToolCall" type="(toolCallId: string, reason?: string) => Promise<void>">
+Approve a tool call in Human-in-the-Loop workflows.
+
+```typescript
+// In your tool call rendering
+{part.type === 'tool-call' && part.state === 'awaiting-approval' && (
+  <div>
+    <button onClick={() => approveToolCall(part.toolCallId, "Approved by user")}>
+      ✅ Approve
+    </button>
+  </div>
+)}
+```
+</ParamField>
+
+<ParamField path="denyToolCall" type="(toolCallId: string, reason?: string) => Promise<void>">
+Deny a tool call in Human-in-the-Loop workflows.
+
+```typescript
+<button onClick={() => denyToolCall(part.toolCallId, "Security concern")}>
+  ❌ Deny
+</button>
+```
+</ParamField>
+
+### Thread Navigation
+
+<ParamField path="switchToThread" type="(threadId: string) => Promise<void>">
+Switch to a thread with automatic history loading and state reconciliation.
+
+```typescript
+// High-level navigation with history loading
+const handleThreadClick = async (threadId: string) => {
+  await switchToThread(threadId);
+  // History automatically loaded and merged with any optimistic messages
+};
+```
+</ParamField>
+
+<ParamField path="setCurrentThreadId" type="(threadId: string) => void">
+Immediate thread switch without history loading (escape hatch for ephemeral scenarios).
+
+```typescript
+// Low-level escape hatch for immediate switching
+setCurrentThreadId(threadId); // No history loading, immediate switch
+```
+</ParamField>
+
+### Advanced Thread Operations
+
+<ParamField path="loadThreadHistory" type="(threadId: string) => Promise<ConversationMessage[]>">
+Load thread history without switching to it.
+
+```typescript
+const messages = await loadThreadHistory("thread-789");
+console.log(`Thread has ${messages.length} historical messages`);
+```
+</ParamField>
+
+<ParamField path="clearThreadMessages" type="(threadId: string) => void">
+Clear all messages from a specific thread.
+
+```typescript
+clearThreadMessages(currentThreadId); // Clear current thread
+```
+</ParamField>
+
+<ParamField path="replaceThreadMessages" type="(threadId: string, messages: ConversationMessage[]) => void">
+Replace all messages in a specific thread (used for conversation branching).
+
+```typescript
+// Restore conversation to a previous state
+const messagesBeforeEdit = conversation.slice(0, editIndex);
+replaceThreadMessages(threadId, messagesBeforeEdit);
+```
+</ParamField>
+
+### Thread CRUD Operations
+
+<ParamField path="createNewThread" type="() => string">
+Create a new thread and return its ID. Perfect for "New Chat" buttons.
+
+```typescript
+const handleNewChat = () => {
+  const newThreadId = createNewThread();
+  router.push(`/chat/${newThreadId}`);
+};
+```
+</ParamField>
+
+<ParamField path="deleteThread" type="(threadId: string) => Promise<void>">
+Delete a thread and all its messages permanently.
+
+```typescript
+const handleDeleteThread = async (threadId: string) => {
+  if (confirm('Delete this conversation?')) {
+    await deleteThread(threadId);
+    // Thread removed from sidebar automatically
+  }
+};
+```
+</ParamField>
+
+<ParamField path="loadMoreThreads" type="() => Promise<void>">
+Load the next page of threads for pagination.
+
+```typescript
+// Infinite scroll implementation
+const handleScroll = (e) => {
+  const { scrollTop, scrollHeight, clientHeight } = e.target;
+  const isNearBottom = scrollHeight - scrollTop <= clientHeight + 100;
+  
+  if (isNearBottom && threadsHasMore && !threadsLoading) {
+    loadMoreThreads();
+  }
+};
+```
+</ParamField>
+
+<ParamField path="refreshThreads" type="() => Promise<void>">
+Refresh the threads list from the server.
+
+```typescript
+<button onClick={refreshThreads}>
+  🔄 Refresh Threads
+</button>
+```
+</ParamField>
+
+### State Management
+
+<ParamField path="rehydrateMessageState" type="(messageId: string) => void">
+Restore client state for editing messages from previous contexts.
+
+```typescript
+const handleEditMessage = (messageId: string) => {
+  // Restore UI state from when this message was originally sent
+  rehydrateMessageState(messageId);
+  // Now start editing with proper context restored
+  startEditing(messageId);
+};
+```
+</ParamField>
+
+<ParamField path="clearError" type="() => void">
+Clear the current error state.
+
+```typescript
+{error && (
+  <ErrorBanner 
+    message={error.message}
+    onDismiss={clearError}
+  />
+)}
+```
+</ParamField>
+
+## Usage Examples
+
+### URL-driven Chat Pages
+
+Perfect for `/chat/[threadId]` routes:
+
+```typescript title="app/chat/[threadId]/page.tsx"
+import { useChat } from "@inngest/use-agents";
+
+export default function ChatPage({ params }) {
+  const { messages, sendMessage, status, threads, switchToThread } = useChat({
+    initialThreadId: params.threadId, // Auto-loads this thread
+    state: () => ({
+      currentPage: `/chat/${params.threadId}`,
+      timestamp: Date.now()
+    })
+  });
+
+  return (
+    <div className="flex h-screen">
+      <ThreadSidebar 
+        threads={threads}
+        onThreadSelect={switchToThread}
+      />
+      <ChatArea 
+        messages={messages}
+        onSendMessage={sendMessage}
+        status={status}
+      />
+    </div>
+  );
+}
+```
+
+### Homepage with New Conversations
+
+Handle new conversations from homepage:
+
+```typescript title="app/page.tsx"
+export default function HomePage() {
+  const {
+    messages,
+    sendMessage,
+    createNewThread,
+    currentThreadId
+  } = useChat(); // No initialThreadId = fresh conversation
+
+  const handleSendMessage = async (text: string) => {
+    if (messages.length === 0) {
+      // First message - create thread and navigate
+      const newThreadId = createNewThread();
+      await sendMessage(text);
+      router.push(`/chat/${newThreadId}`);
+    } else {
+      await sendMessage(text);
+    }
+  };
+
+  return messages.length === 0 ? (
+    <EmptyState onSendMessage={handleSendMessage} />
+  ) : (
+    <ChatInterface messages={messages} onSendMessage={handleSendMessage} />
+  );
+}
+```
+
+### Client State Capture & Rehydration
+
+Capture UI context for advanced debugging and message editing:
+
+```typescript
+function SqlPlaygroundChat() {
+  const [currentSql, setCurrentSql] = useState("SELECT * FROM users;");
+  const [activeTab, setActiveTab] = useState("query");
+
+  const {
+    messages,
+    sendMessage,
+    rehydrateMessageState
+  } = useChat({
+    // 📸 CAPTURE: Record UI context when messages are sent
+    state: () => ({
+      sqlQuery: currentSql,
+      activeTab: activeTab,
+      editorConfig: getEditorSettings(),
+      timestamp: Date.now()
+    }),
+    
+    // 🔄 REHYDRATE: Restore UI context when editing old messages
+    onStateRehydrate: (messageState, messageId) => {
+      // Restore SQL query
+      if (messageState.sqlQuery) {
+        setCurrentSql(messageState.sqlQuery);
+      }
+      
+      // Restore active tab
+      if (messageState.activeTab) {
+        setActiveTab(messageState.activeTab);
+      }
+      
+      console.log(`Restored context for message ${messageId}:`, messageState);
+    }
+  });
+
+  const handleEditMessage = (messageId: string) => {
+    // Restore UI to match when this message was originally sent
+    rehydrateMessageState(messageId);
+    // Now start editing with proper context
+    startMessageEdit(messageId);
+  };
+}
+```
+
+### Custom Backend Integration
+
+Use custom API functions for non-standard backends:
+
+```typescript
+const customFetchThreads = async (userId, { limit, offset }) => {
+  const response = await fetch(`/api/v2/conversations?user=${userId}&limit=${limit}&offset=${offset}`);
+  const data = await response.json();
+  
+  return {
+    threads: data.conversations.map(conv => ({
+      id: conv.id,
+      title: conv.name,
+      messageCount: conv.messageCount,
+      lastMessageAt: new Date(conv.updatedAt),
+      createdAt: new Date(conv.createdAt),
+      updatedAt: new Date(conv.updatedAt)
+    })),
+    hasMore: data.hasNextPage,
+    total: data.totalCount
+  };
+};
+
+const chat = useChat({
+  fetchThreads: customFetchThreads,
+  createThread: customCreateThread,
+  deleteThread: customDeleteThread
+});
+```
+
+### Multi-Chat Application
+
+Handle multiple concurrent conversations:
+
+```typescript
+function MultiChatApp() {
+  const [tabs, setTabs] = useState([
+    { id: 'tab-1', threadId: 'thread-1', title: 'Chat 1' },
+    { id: 'tab-2', threadId: 'thread-2', title: 'Chat 2' }
+  ]);
+  
+  const [activeTabId, setActiveTabId] = useState('tab-1');
+  const activeTab = tabs.find(t => t.id === activeTabId);
+
+  const chat = useChat({
+    initialThreadId: activeTab?.threadId,
+    enableThreadValidation: false, // Tabs might not exist in DB yet
+    state: () => ({
+      activeTabId,
+      tabConfiguration: tabs,
+      multiChatMode: true
+    })
+  });
+
+  // Switch threads when tabs change
+  useEffect(() => {
+    if (activeTab?.threadId && activeTab.threadId !== chat.currentThreadId) {
+      chat.setCurrentThreadId(activeTab.threadId);
+    }
+  }, [activeTab?.threadId, chat.currentThreadId]);
+
+  return (
+    <div>
+      <TabBar tabs={tabs} activeTabId={activeTabId} onTabChange={setActiveTabId} />
+      <ChatArea {...chat} />
+    </div>
+  );
+}
+```
+
+## Error Handling
+
+### Error Types
+
+```typescript
+const { error, threadsError, clearError } = useChat();
+
+// Thread-specific error (agent execution, message sending)
+if (error) {
+  console.log('Agent error:', {
+    message: error.message,
+    recoverable: error.recoverable,
+    timestamp: error.timestamp
+  });
+}
+
+// Threads operation error (loading, creating, deleting threads)
+if (threadsError) {
+  console.log('Threads error:', threadsError);
+}
+```
+
+### Error Recovery
+
+```typescript
+function ChatWithErrorHandling() {
+  const { error, clearError, sendMessage } = useChat();
+  
+  const handleRetry = () => {
+    clearError();
+    // Optionally resend the last message
+    sendMessage(lastMessage);
+  };
+
+  return (
+    <div>
+      {error && (
+        <ErrorBanner 
+          message={error.message}
+          canRetry={error.recoverable}
+          onRetry={error.recoverable ? handleRetry : undefined}
+          onDismiss={clearError}
+        />
+      )}
+      <ChatInterface />
+    </div>
+  );
+}
+```
+
+## Provider Integration
+
+### Inheriting Configuration
+
+When used within AgentProvider, useChat inherits configuration automatically:
+
+```typescript
+<AgentProvider userId="user-123" debug={true}>
+  <ChatComponent />
+</AgentProvider>
+
+function ChatComponent() {
+  // Automatically inherits userId="user-123" and debug=true
+  const chat = useChat({
+    initialThreadId: 'thread-456'
+    // No need to specify userId or debug - inherited from provider
+  });
+}
+```
+
+### Overriding Provider Configuration
+
+Hook-level options take precedence over provider values:
+
+```typescript
+<AgentProvider userId="user-123">
+  <ChatComponent />
+</AgentProvider>
+
+function ChatComponent() {
+  // Override userId while inheriting other provider config
+  const chat = useChat({
+    userId: "different-user", // Override
+    initialThreadId: 'thread-456'
+    // Other options inherited from provider
+  });
+}
+```
+
+## Performance Considerations
+
+### Optimistic Updates
+
+useChat automatically handles optimistic UI updates:
+
+```typescript
+const handleSendMessage = async (message: string) => {
+  // Message appears in UI immediately (optimistic)
+  await sendMessage(message);
+  // If successful, message marked as 'sent'
+  // If failed, message marked as 'failed' with retry option
+};
+```
+
+### History Reconciliation
+
+Smart merging prevents duplicate messages when loading thread history:
+
+```typescript
+// When switching threads, useChat automatically:
+// 1. Loads historical messages from database
+// 2. Identifies optimistic messages not yet in database  
+// 3. Merges them intelligently to prevent duplicates
+// 4. Updates UI with combined timeline
+
+// This prevents flashing UIs and lost messages during navigation
+```
+
+### Background Thread Updates
+
+Receive updates for inactive threads without UI disruption:
+
+```typescript
+// Thread A is active, Thread B gets new message
+// useChat automatically:
+// 1. Processes Thread B events in background
+// 2. Updates Thread B's hasNewMessages flag
+// 3. Shows unread indicator in sidebar
+// 4. Doesn't disrupt Thread A's current conversation
+
+const unreadThreads = threads.filter(t => t.hasNewMessages);
+console.log(`${unreadThreads.length} threads have new messages`);
+```
+
+## Integration with Other Hooks
+
+### With Message Actions
+
+```typescript
+import { useChat, useMessageActions } from "@inngest/use-agents";
+
+function ChatWithActions() {
+  const { messages, sendMessage } = useChat();
+  
+  const { copyMessage, likeMessage, shareMessage } = useMessageActions({
+    showToast: (message, type) => toast[type](message)
+  });
+
+  return (
+    <div>
+      {messages.map(msg => (
+        <div key={msg.id}>
+          <MessageContent message={msg} />
+          <MessageActions 
+            onCopy={() => copyMessage(msg)}
+            onLike={() => likeMessage(msg.id)}
+            onShare={() => shareMessage(msg)}
+          />
+        </div>
+      ))}
+    </div>
+  );
+}
+```
+
+### With Conversation Branching
+
+```typescript
+import { useChat, useConversationBranching } from "@inngest/use-agents";
+
+function ChatWithBranching() {
+  const {
+    messages,
+    sendMessage: originalSendMessage,
+    sendMessageToThread,
+    replaceThreadMessages,
+    currentThreadId
+  } = useChat();
+
+  const branching = useConversationBranching({
+    userId: "user-123",
+    storageType: "session"
+  });
+
+  // Wrap sendMessage to support branching
+  const sendMessage = useCallback(async (message: string, options?: {
+    editFromMessageId?: string;
+  }) => {
+    await branching.sendMessage(
+      originalSendMessage,
+      sendMessageToThread,
+      replaceThreadMessages,
+      currentThreadId!,
+      message,
+      messages,
+      options
+    );
+  }, [/* dependencies */]);
+
+  const handleEditMessage = (messageId: string) => {
+    const newContent = prompt('Enter new message:');
+    if (newContent) {
+      sendMessage(newContent, { editFromMessageId: messageId });
+    }
+  };
+}
+```
+
+## Common Patterns
+
+### Responsive Chat Interface
+
+```typescript
+function ResponsiveChat({ threadId }) {
+  const {
+    messages,
+    sendMessage,
+    status,
+    threads,
+    switchToThread,
+    createNewThread,
+    deleteThread
+  } = useChat({
+    initialThreadId: threadId,
+    state: () => ({
+      viewport: getViewportSize(),
+      deviceType: getDeviceType(),
+      timestamp: Date.now()
+    })
+  });
+
+  return (
+    <div className="flex h-screen">
+      <ThreadSidebar 
+        threads={threads}
+        onThreadSelect={switchToThread}
+        onNewThread={createNewThread}
+        onDeleteThread={deleteThread}
+      />
+      <ChatArea 
+        messages={messages}
+        onSendMessage={sendMessage}
+        status={status}
+      />
+    </div>
+  );
+}
+```
+
+### Demo/Prototype Mode
+
+```typescript
+import { useChat, useEphemeralThreads } from "@inngest/use-agents";
+
+function DemoChat() {
+  const ephemeralThreads = useEphemeralThreads({
+    userId: "demo-user",
+    storageType: "session" // Clears when tab closes
+  });
+
+  const chat = useChat({
+    userId: "demo-user",
+    enableThreadValidation: false, // No backend validation
+    ...ephemeralThreads // Provide ephemeral implementations
+  });
+
+  return <ChatInterface {...chat} />;
+}
+```
+
+## Next Steps
+
+<CardGroup>
+  <Card
+    title="useAgent Reference"
+    href="/reference/react-hooks/use-agent"
+  >
+    Advanced hook for custom streaming implementations
+  </Card>
+  <Card
+    title="AgentProvider Reference"
+    href="/reference/react-hooks/agent-provider"
+  >
+    Provider configuration and optimization guide
+  </Card>
+  <Card
+    title="Message Types Reference"
+    href="/reference/react-hooks/message-types"
+  >
+    ConversationMessage, MessagePart, and all content types
+  </Card>
+  <Card
+    title="Streaming Guide"
+    href="/streaming/react-hooks-quickstart"
+  >
+    Step-by-step guide to building your first chat app
+  </Card>
+</CardGroup>
+
+The `useChat` hook is designed to handle the 90% use case of building AI chat applications while providing escape hatches for advanced customization. It combines the power of real-time streaming with the convenience of automatic thread management, making it the perfect foundation for sophisticated AI chat interfaces.

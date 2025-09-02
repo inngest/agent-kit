@@ -37,27 +37,24 @@
             ]
           },
           {
+            "group": "Streaming",
+            "pages": [
+              "streaming/overview",
+              "streaming/automatic-streaming",
+              "streaming/react-hooks-quickstart",
+              "streaming/hook-selection-guide",
+              "streaming/provider-pattern"
+            ]
+          },
+          {
             "group": "Advanced Patterns",
             "pages": [
               "advanced-patterns/routing",
-              "advanced-patterns/mcp",
+              "advanced-patterns/mcp", 
               "advanced-patterns/human-in-the-loop",
               "advanced-patterns/multi-steps-tools",
               "advanced-patterns/retries",
               "advanced-patterns/multitenancy",
-              "advanced-patterns/ui-streaming",
-              "advanced-patterns/use-agent",
-              "advanced-patterns/use-threads",
-              "advanced-patterns/use-chat"
-            ]
-          },
-          {
-            "group": "UI Integration",
-            "pages": [
-              "advanced-patterns/ui-streaming",
-              "advanced-patterns/use-agent",
-              "advanced-patterns/use-threads",
-              "advanced-patterns/use-chat",
               "advanced-patterns/legacy-ui-streaming"
             ]
           },
@@ -115,6 +112,18 @@
               "reference/model-anthropic",
               "reference/model-gemini",
               "reference/model-grok"
+            ]
+          },
+          {
+            "group": "React Hooks",
+            "pages": [
+              "reference/react-hooks/overview",
+              "reference/react-hooks/use-chat",
+              "reference/react-hooks/use-agent", 
+              "reference/react-hooks/use-threads",
+              "reference/react-hooks/agent-provider",
+              "reference/react-hooks/transport",
+              "reference/react-hooks/utility-hooks"
             ]
           }
         ]
