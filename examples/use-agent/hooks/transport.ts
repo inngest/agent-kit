@@ -7,6 +7,7 @@
  */
 
 import { ConversationMessage, Thread, RealtimeToken, createAgentError, AgentError } from './types';
+import { type AgentKitMessage } from './utils/message-formatting';
 
 // =============================================================================
 // TRANSPORT INTERFACES
@@ -39,7 +40,7 @@ export interface SendMessageParams {
     systemPrompt?: string;
   };
   threadId: string;
-  history: Array<{ role: 'user' | 'assistant'; type: 'text'; content: string }>;
+  history: AgentKitMessage[]; // Support full AgentKit message format including tool calls/results
   userId?: string;
   channelKey?: string; // NEW: Support channelKey for anonymous sessions
 }
@@ -333,7 +334,7 @@ export class DefaultAgentTransport implements AgentTransport {
       }
       
       // Create enhanced error with recovery guidance
-      const agentError = createAgentError(response, `Request to ${endpoint}`);
+      const agentError = createAgentError(errorMessage, 'network', true, { endpoint, status: response.status });
       // Override message with more detailed info if available
       if (errorMessage !== `HTTP ${response.status}: ${response.statusText}`) {
         agentError.message = errorMessage;
