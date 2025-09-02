@@ -4,7 +4,6 @@ import { userChannel } from "../../lib/realtime";
 import { createState } from "@inngest/agent-kit";
 import type { CustomerSupportState } from "../types/state";
 import { PostgresHistoryAdapter } from "../db";
-import { TEST_USER_ID } from "../../lib/constants";
 
 // Inline type to avoid depending on private dist paths
 type AgentMessageChunk = {
@@ -38,7 +37,7 @@ export const runAgentChat = inngest.createFunction(
     // would typically run database migrations as part of a deployment script.
     await step.run("initialize-db-tables", () => historyAdapter.initializeTables());
     
-    const { threadId, userMessage, userId, history } = event.data as {
+    const { threadId, userMessage, userId, channelKey, history } = event.data as {
       threadId: string;
       userMessage: {
         id: string;
@@ -49,14 +48,20 @@ export const runAgentChat = inngest.createFunction(
         systemPrompt?: string;
       };
       userId: string;
+      channelKey?: string; // NEW: Optional channel key for flexible subscriptions
       history: Array<{ type: 'text'; role: 'user' | 'assistant'; content: string; }>;
     };
+    
+    // Validate required userId
+    if (!userId) {
+      throw new Error("userId is required for agent chat execution");
+    }
     
     try {
       const network = createCustomerSupportNetwork(
         threadId,
         createState<CustomerSupportState>({
-          userId: userId || TEST_USER_ID,
+          userId,
         }, { 
           messages: history,
           threadId 
@@ -70,11 +75,14 @@ export const runAgentChat = inngest.createFunction(
         clientTimestamp: userMessage.clientTimestamp ? new Date(userMessage.clientTimestamp) : undefined,
       };
 
+      // Determine the target channel for publishing (channelKey takes priority)
+      const targetChannel = channelKey || userId;
+      
       // Run the network with streaming enabled
       await network.run(userMessageWithDate, {
         streaming: {
           publish: async (chunk: AgentMessageChunk) => {
-            await publish(userChannel(userId).agent_stream(chunk));
+            await publish(userChannel(targetChannel).agent_stream(chunk));
           },
         },
       });
@@ -101,7 +109,9 @@ export const runAgentChat = inngest.createFunction(
         id: "publish-0:network:error",
       };
       try {
-        await publish(userChannel(userId).agent_stream(errorChunk));
+        // Use the same target channel as the main flow
+        const targetChannel = channelKey || userId;
+        await publish(userChannel(targetChannel).agent_stream(errorChunk));
       } catch {}
       
       throw error;
