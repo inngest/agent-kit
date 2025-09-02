@@ -100,6 +100,7 @@ export class PostgresHistoryAdapter<T extends StateData>
             agent_name TEXT, -- NULL for user messages, agent name for agent results
             content TEXT, -- User message content (for user messages)
             data JSONB, -- Full AgentResult data (for agent results)
+            client_state JSONB, -- Client state captured when message was sent (NEW)
             checksum TEXT NOT NULL,
             created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
             UNIQUE(thread_id, checksum),
@@ -149,6 +150,30 @@ export class PostgresHistoryAdapter<T extends StateData>
           console.log("✅ Successfully migrated messages table to include message_id column");
         } else {
           console.log("✅ Messages table already has message_id column");
+        }
+        
+        // Check if client_state column exists and add it if missing
+        const checkClientStateColumn = await client.query(`
+          SELECT EXISTS (
+            SELECT FROM information_schema.columns 
+            WHERE table_schema = $1 AND table_name = $2 AND column_name = 'client_state'
+          )
+        `, [this.schema, messagesTableName]);
+        
+        const clientStateColumnExists = checkClientStateColumn.rows[0].exists;
+        
+        if (!clientStateColumnExists) {
+          console.log("🔄 Adding client_state column to existing messages table...");
+          
+          // Add the client_state column
+          await client.query(`
+            ALTER TABLE ${this.tableNames.messages} 
+            ADD COLUMN client_state JSONB
+          `);
+          
+          console.log("✅ Successfully migrated messages table to include client_state column");
+        } else {
+          console.log("✅ Messages table already has client_state column");
         }
       }
 
@@ -277,6 +302,7 @@ export class PostgresHistoryAdapter<T extends StateData>
             message_type,
             content,
             data,
+            client_state,
             created_at
           FROM ${this.tableNames.messages}
           WHERE thread_id = $1 
@@ -354,6 +380,7 @@ export class PostgresHistoryAdapter<T extends StateData>
       content: string;
       role: "user";
       timestamp: Date;
+      state?: Record<string, unknown>; // NEW: Client state support
     };
   }): Promise<any> => {
     if (!threadId) {
@@ -369,14 +396,15 @@ export class PostgresHistoryAdapter<T extends StateData>
 
         await client.query(
           `
-          INSERT INTO ${this.tableNames.messages} (thread_id, message_id, message_type, content, checksum, created_at)
-          VALUES ($1, $2, 'user', $3, $4, $5)
+          INSERT INTO ${this.tableNames.messages} (thread_id, message_id, message_type, content, client_state, checksum, created_at)
+          VALUES ($1, $2, 'user', $3, $4, $5, $6)
           ON CONFLICT (thread_id, message_id) DO NOTHING
         `,
           [
             threadId,
             userMessage.id, // Use the canonical, client-generated message ID
             userMessage.content,
+            userMessage.state ? JSON.stringify(userMessage.state) : null, // NEW: Store client state
             userChecksum,
             userMessage.timestamp,
           ]
@@ -577,6 +605,7 @@ export class PostgresHistoryAdapter<T extends StateData>
           agent_name,
           content,
           data,
+          client_state,
           created_at
         FROM ${this.tableNames.messages}
         WHERE thread_id = $1 
@@ -591,6 +620,7 @@ export class PostgresHistoryAdapter<T extends StateData>
         agentName: row.agent_name,
         content: row.content, // For user messages
         data: row.data, // For agent results
+        clientState: row.client_state, // NEW: Client state from when message was sent
         createdAt: row.created_at,
       }));
     } finally {
