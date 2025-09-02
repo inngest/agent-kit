@@ -3,7 +3,7 @@
 import { useChat } from '@/hooks';
 import { useEphemeralThreads } from '@/hooks/use-ephemeral-threads';
 import { useConversationBranching } from '@/hooks/use-conversation-branching';
-import { type ConversationMessage } from '@/hooks/types';
+import { type ConversationMessage, createDebugLogger } from '@/hooks/types';
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { 
   Conversation, 
@@ -27,14 +27,17 @@ interface EphemeralChatProps {
   currentSql: string; // Current SQL query for context
   tabTitle: string; // Tab title for context
   onSqlChange: (sql: string) => void; // NEW: Callback to update SQL in editor
+  debug?: boolean; // Optional: enable debug logging
 }
 
-export function EphemeralChat({ threadId, storageType, userId, currentSql, tabTitle, onSqlChange }: EphemeralChatProps) {
+export function EphemeralChat({ threadId, storageType, userId, currentSql, tabTitle, onSqlChange, debug = false }: EphemeralChatProps) {
+  // Import debug logger
+  const logger = useMemo(() => createDebugLogger('EphemeralChat', debug), [debug]);
 
   const { fetchThreads, createThread, deleteThread, fetchHistory } = useEphemeralThreads({ userId, storageType });
   
   // NEW: Conversation branching adapter
-  const branching = useConversationBranching({ userId, storageType });
+  const branching = useConversationBranching({ userId, storageType, debug });
   
   // Message actions (copy, edit, etc.) - same as main Chat
   const { copyMessage, likeMessage, dislikeMessage, readAloud, shareMessage } = useMessageActions();
@@ -67,7 +70,7 @@ export function EphemeralChat({ threadId, storageType, userId, currentSql, tabTi
     
     // ✅ REHYDRATE: Restore UI state when editing messages from previous contexts
     onStateRehydrate: (messageState, messageId) => {
-      console.log('[AK_TELEMETRY] EphemeralChat.stateRehydration', {
+      logger.log('stateRehydration', {
         messageId,
         messageState,
         currentSql,
@@ -77,7 +80,7 @@ export function EphemeralChat({ threadId, storageType, userId, currentSql, tabTi
       
       // Restore SQL query in editor if it was different
       if (messageState.sqlQuery && messageState.sqlQuery !== currentSql) {
-        console.log('Rehydrating SQL query:', { from: currentSql, to: messageState.sqlQuery });
+        logger.log('Rehydrating SQL query:', { from: currentSql, to: messageState.sqlQuery });
         onSqlChange(messageState.sqlQuery as string);
       }
       
@@ -129,7 +132,7 @@ export function EphemeralChat({ threadId, storageType, userId, currentSql, tabTi
     sendMessage: async (content: string) => {
       // Use ONLY the branching-aware sendMessage - let it handle UI updates
       if (editingMessage) {
-        console.log('[AK_TELEMETRY] EphemeralChat.messageEditStart', {
+        logger.log('messageEditStart', {
           editedMessageId: editingMessage,
           editedContent: content.substring(0, 50) + '...',
           timestamp: new Date().toISOString()
@@ -154,7 +157,7 @@ export function EphemeralChat({ threadId, storageType, userId, currentSql, tabTi
     // Find the message object by ID
     const message = messages.find(m => m.id === messageId);
     if (!message) {
-      console.error('Message not found for editing:', messageId);
+      logger.error('Message not found for editing:', messageId);
       return;
     }
     
