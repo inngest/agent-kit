@@ -69,7 +69,7 @@ export function useEphemeralThreads({
       return newThreads;
     });
 
-    return { threadId: newThread.id, title: newThread.title };
+    return { threadId: newThread.id, title: newThread.title || 'New conversation' };
   }, [persistThreads]);
 
   const deleteThread = useCallback(async (threadId: string): Promise<void> => {
