@@ -16,10 +16,6 @@
  * 
  * - `useEphemeralThreads`: Client-side thread storage for demos/prototypes
  * - `useConversationBranching`: Message editing and alternate conversation paths
- * - `useEditMessage`: Simple message editing state management
- * - `useMessageActions`: Copy, like, share, and other message actions
- * - `useSidebar`: Sidebar state management for responsive layouts
- * - `useIsMobile`: Mobile device detection hook
  * 
  * ## Core Infrastructure
  * 
@@ -65,11 +61,6 @@ export type { UseThreadsReturn } from "./hooks/use-threads.js";
 // === UTILITY HOOKS ===
 export { useEphemeralThreads } from "./hooks/use-ephemeral-threads.js";
 export { useConversationBranching } from "./hooks/use-conversation-branching.js";
-export { useEditMessage } from "./hooks/use-edit-message.js";
-export { useMessageActions } from "./hooks/use-message-actions.js";
-export type { UseMessageActionsOptions } from "./hooks/use-message-actions.js";
-export { useSidebar } from "./hooks/use-sidebar.js";
-export { useIsMobile } from "./hooks/use-mobile.js";
 
 // === PROVIDER ===
 export { 
