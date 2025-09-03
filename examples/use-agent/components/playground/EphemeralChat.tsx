@@ -19,7 +19,7 @@ import { MessageTitle, MessageEditor } from '@/components/chat/message';
 import { Actions, Action } from '@/components/ai-elements/actions';
 import { ResponsivePromptInput } from '@/components/ai-elements/prompt-input';
 import { SqlToolPart } from './SqlToolPart';
-import { useEditMessage, useMessageActions } from '@inngest/use-agents';
+import { useEditMessage, useMessageActions } from '@/hooks';
 import { CopyIcon, EditIcon } from 'lucide-react';
 
 interface EphemeralChatProps {

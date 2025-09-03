@@ -5,12 +5,14 @@ import { useRouter } from 'next/navigation';
 import {
   useChat, // Unified hook combining useAgent and useThreads
   useAgent, // Direct agent hook for testing client state
+  createDebugLogger, // debug logging utility
+} from "@inngest/use-agents";
+import {
   useMessageActions, // handles message actions like copy, edit, regenerate, etc.
   useSidebar, // handles the sidebar state and mobile sidebar open/close
   useEditMessage, // handles the edit message state and edit message functionality
   useIsMobile, // handles the mobile state and mobile sidebar open/close
-  createDebugLogger, // debug logging utility
-} from "@inngest/use-agents";
+} from "@/hooks";
 import { ResponsivePromptInput } from '@/components/ai-elements/prompt-input';
 import {
   Conversation,
