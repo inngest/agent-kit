@@ -73,10 +73,10 @@ function ChatComponent() {
 import {
   AgentProvider,
   useChat,
-  createDefaultAgentTransport
+  createDefaultHttpTransport
 } from '@inngest/use-agents';
 
-const customTransport = createDefaultAgentTransport({
+const customTransport = createDefaultHttpTransport({
   api: {
     sendMessage: '/api/v2/chat',
     fetchThreads: '/api/v2/threads'
@@ -252,7 +252,7 @@ import type {
   ConversationMessage,
   Thread,
   AgentStatus,
-  AgentTransport,
+  IClientTransport,
   UseAgentReturn,
   UseChatReturn,
 } from "@inngest/use-agents";
@@ -274,4 +274,3 @@ Apache-2.0
 ## Contributing
 
 See the main [AgentKit repository](https://github.com/inngest/agent-kit) for contribution guidelines.
-
