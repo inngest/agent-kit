@@ -116,7 +116,7 @@ export interface ApproveToolCallParams {
  * 
  * ## Implementation Options
  * 
- * 1. **DefaultAgentTransport**: Built-in implementation for conventional REST APIs
+ * 1. **DefaultHttpTransport**: Built-in implementation for conventional REST APIs
  * 2. **Custom Implementation**: Implement this interface for custom backends
  * 3. **Transport Wrapping**: Use `createCustomTransport` to override specific methods
  * 
@@ -143,7 +143,7 @@ export interface ApproveToolCallParams {
  * }
  * ```
  */
-export interface AgentTransport {
+export interface IClientTransport {
   /**
    * Send a message to an agent and trigger AgentKit network execution.
    * 
@@ -276,7 +276,7 @@ export interface AgentTransport {
 /**
  * Configuration for the default transport implementation.
  */
-export interface DefaultAgentTransportConfig {
+export interface DefaultHttpTransportConfig {
   /**
    * API endpoint configurations. Can be strings or functions that return strings.
    * String templates support {param} replacement (e.g., '/api/threads/{threadId}').
@@ -342,10 +342,10 @@ export interface DefaultAgentTransportConfig {
  * @example
  * ```typescript
  * // Use with default configuration
- * const transport = createDefaultAgentTransport();
+ * const transport = createDefaultHttpTransport();
  * 
  * // Custom configuration
- * const customTransport = createDefaultAgentTransport({
+ * const customTransport = createDefaultHttpTransport({
  *   api: {
  *     sendMessage: '/api/v2/agent/message',
  *     fetchThreads: '/api/v2/conversations',
@@ -359,11 +359,11 @@ export interface DefaultAgentTransportConfig {
  * });
  * ```
  */
-export class DefaultAgentTransport implements AgentTransport {
-  private config: DefaultAgentTransportConfig;
+export class DefaultHttpTransport implements IClientTransport {
+  private config: DefaultHttpTransportConfig;
   private fetchFn: typeof fetch;
 
-  constructor(config?: Partial<DefaultAgentTransportConfig>) {
+  constructor(config?: Partial<DefaultHttpTransportConfig>) {
     // Set up default configuration
     this.config = {
       api: {
@@ -672,19 +672,19 @@ export class DefaultAgentTransport implements AgentTransport {
 /**
  * Create a default agent transport with optional configuration overrides.
  */
-export function createDefaultAgentTransport(
-  config?: Partial<DefaultAgentTransportConfig>
-): DefaultAgentTransport {
-  return new DefaultAgentTransport(config);
+export function createDefaultHttpTransport(
+  config?: Partial<DefaultHttpTransportConfig>
+): DefaultHttpTransport {
+  return new DefaultHttpTransport(config);
 }
 
 /**
  * Create a custom transport that overrides specific methods of an existing transport.
  */
 export function createCustomTransport(
-  baseTransport: AgentTransport,
-  overrides: Partial<AgentTransport>
-): AgentTransport {
+  baseTransport: IClientTransport,
+  overrides: Partial<IClientTransport>
+): IClientTransport {
   return {
     ...baseTransport,
     ...overrides,
