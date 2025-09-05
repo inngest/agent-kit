@@ -3,7 +3,7 @@
 import { useEffect, useReducer, useCallback, useRef, useMemo } from "react";
 import { useInngestSubscription, InngestSubscriptionState } from "@inngest/realtime/hooks";
 import { v4 as uuidv4 } from 'uuid';
-import { type AgentTransport, createDefaultAgentTransport } from '../transport/transport.js';
+import { type IClientTransport, createDefaultHttpTransport } from '../transport/transport.js';
 import { 
   useOptionalGlobalTransport, 
   useOptionalGlobalUserId, 
@@ -1763,7 +1763,7 @@ export function useAgent({ threadId, channelKey, userId, onError, debug = DEFAUL
     
     // Priority 3: Default transport (always works)
     // Uses conventional Next.js API routes (/api/chat, /api/threads, etc.)
-    return createDefaultAgentTransport();
+    return createDefaultHttpTransport();
   }, [providedTransport, providerTransport]);
 
   // MULTI-THREAD STATE: Initialize with the provided threadId as the current thread

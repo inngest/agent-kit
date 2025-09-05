@@ -20,7 +20,7 @@
  * ## Core Infrastructure
  * 
  * - `AgentProvider`: Global context provider for shared connections
- * - `AgentTransport`: Configurable API layer for all backend communication
+ * - `IClientTransport`: Configurable API layer for all backend communication
  * - Type definitions and utilities for full TypeScript support
  * 
  * @example
@@ -28,7 +28,7 @@
  * import { 
  *   useChat, 
  *   AgentProvider, 
- *   createDefaultAgentTransport 
+ *   createDefaultHttpTransport 
  * } from '@inngest/use-agents';
  * 
  * function App() {
@@ -81,13 +81,13 @@ export {
 
 // === TRANSPORT ===
 export { 
-  createDefaultAgentTransport,
+  createDefaultHttpTransport,
   createCustomTransport,
-  DefaultAgentTransport
+  DefaultHttpTransport
 } from "./transport/transport.js";
 export type { 
-  AgentTransport,
-  DefaultAgentTransportConfig,
+  IClientTransport,
+  DefaultHttpTransportConfig,
   SendMessageParams,
   FetchThreadsParams,
   FetchHistoryParams,

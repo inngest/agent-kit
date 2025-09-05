@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { type AgentTransport } from '../transport/transport.js';
+import { type IClientTransport } from '../transport/transport.js';
 import { 
   useOptionalGlobalTransport, 
   useOptionalGlobalUserId, 
@@ -34,7 +34,7 @@ export function useThreads(config?: {
   channelKey?: string; // Optional: inherits from AgentProvider if not provided
   debug?: boolean; // Optional: enable debug logging
   // Custom transport instance (overrides global transport)
-  transport?: AgentTransport;
+  transport?: IClientTransport;
   // Custom fetch functions for flexibility (overrides transport and global transport)
   fetchThreads?: (userId: string, pagination: { limit: number; offset: number }) => Promise<{
     threads: Thread[];

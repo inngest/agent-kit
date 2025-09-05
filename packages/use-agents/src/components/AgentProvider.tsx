@@ -3,9 +3,9 @@
 import React, { createContext, useContext, useRef, useMemo } from 'react';
 import { useAgent, type UseAgentReturn } from '../hooks/use-agent.js';
 import { 
-  type AgentTransport, 
-  type DefaultAgentTransportConfig,
-  createDefaultAgentTransport 
+  type IClientTransport, 
+  type DefaultHttpTransportConfig,
+  createDefaultHttpTransport 
 } from '../transport/transport.js';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -21,7 +21,7 @@ interface AgentContextType {
   /** Shared agent instance with multi-thread capabilities */
   agent: UseAgentReturn;
   /** Transport instance for API calls */
-  transport: AgentTransport;
+  transport: IClientTransport;
   /** User identifier passed to provider (if any) */
   userId?: string;
   /** Channel key passed to provider (if any) */
@@ -50,7 +50,7 @@ interface AgentProviderProps {
    * Transport configuration or instance for API calls.
    * 
    * Can be either:
-   * - A complete AgentTransport instance
+   * - A complete IClientTransport instance
    * - A configuration object to customize the default transport
    * - Undefined to use default transport with conventional endpoints
    * 
@@ -63,10 +63,10 @@ interface AgentProviderProps {
    * }}
    * 
    * // Transport instance  
-   * transport={new CustomAgentTransport()}
+   * transport={new CustomClientTransport()}
    * ```
    */
-  transport?: AgentTransport | Partial<DefaultAgentTransportConfig>;
+  transport?: IClientTransport | Partial<DefaultHttpTransportConfig>;
 }
 
 /**
@@ -190,16 +190,16 @@ export function AgentProvider({ children, userId, channelKey, debug = true, tran
   const transport = useMemo(() => {
     if (!transportConfig) {
       // No transport provided - use default with conventional endpoints
-      return createDefaultAgentTransport();
+      return createDefaultHttpTransport();
     }
 
     if ('sendMessage' in transportConfig && typeof transportConfig.sendMessage === 'function') {
       // It's already a transport instance
-      return transportConfig as AgentTransport;
+      return transportConfig as IClientTransport;
     }
 
     // It's a configuration object - create default transport with config
-    return createDefaultAgentTransport(transportConfig as Partial<DefaultAgentTransportConfig>);
+    return createDefaultHttpTransport(transportConfig as Partial<DefaultHttpTransportConfig>);
   }, [transportConfig]);
   
   // Create a single stable useAgent instance that persists across navigation
@@ -265,7 +265,7 @@ export function useOptionalGlobalAgent(): UseAgentReturn | null {
  * Note: This hook gracefully handles being used outside of an AgentProvider
  * by catching the context error and returning null.
  */
-export function useOptionalGlobalTransport(): AgentTransport | null {
+export function useOptionalGlobalTransport(): IClientTransport | null {
   try {
     return useGlobalTransport();
   } catch {
@@ -327,7 +327,7 @@ export function useGlobalAgent(): UseAgentReturn | null {
  * Get the global transport instance from the AgentProvider.
  * Returns null if used outside of an AgentProvider.
  */
-export function useGlobalTransport(): AgentTransport | null {
+export function useGlobalTransport(): IClientTransport | null {
   const context = useContext(AgentContext);
   return context?.transport || null;
 }
@@ -345,7 +345,7 @@ export function useGlobalAgentStrict(): UseAgentReturn {
  * Get the global transport instance from the AgentProvider.
  * Throws an error if used outside of an AgentProvider.
  */
-export function useGlobalTransportStrict(): AgentTransport {
+export function useGlobalTransportStrict(): IClientTransport {
   const context = useContext(AgentContext);
   if (!context) {
     throw new Error('useGlobalTransport must be used within an AgentProvider');

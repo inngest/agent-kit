@@ -25,7 +25,7 @@
  */
 
 import { InngestSubscriptionState } from "@inngest/realtime/hooks";
-import { type AgentTransport } from '../transport/transport.js';
+import { type IClientTransport } from '../transport/transport.js';
 
 // =============================================================================
 // REALTIME TOKEN TYPES
@@ -622,7 +622,7 @@ export type StreamingAction = MultiThreadStreamingAction;
  *     formData: getFormData(),
  *     userPreferences: getUserPreferences()
  *   }),
- *   transport: new CustomAgentTransport(),
+ *   transport: new CustomClientTransport(),
  *   onError: (error) => {
  *     console.error('Agent error:', error);
  *     showErrorNotification(error.message);
@@ -670,7 +670,7 @@ export interface UseAgentOptions {
    * If not provided, a default transport with conventional endpoints will be used.
    * This allows customization of endpoints, headers, and request logic.
    */
-  transport?: AgentTransport;
+  transport?: IClientTransport;
   
   /**
    * Internal flag to disable this useAgent instance when used as an unused fallback.
