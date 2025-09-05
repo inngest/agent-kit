@@ -1,7 +1,7 @@
 "use client";
 
 import { 
-  useChat, 
+  useAgents,
   useEphemeralThreads,
   type ConversationMessage, 
   createDebugLogger 
@@ -50,7 +50,7 @@ export function EphemeralChat({ threadId, storageType, userId, currentSql, tabTi
     clearThreadMessages,
     replaceThreadMessages,
     rehydrateMessageState // NEW: State rehydration function
-  } = useChat({
+  } = useAgents({
     // DON'T pass initialThreadId - prevents automatic database loading
     userId,
     // Disable thread validation for ephemeral persistence layers
