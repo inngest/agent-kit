@@ -499,10 +499,10 @@ export interface ThreadState {
 }
 
 /**
- * Represents the complete multi-thread state of the agent interaction.
+ * Represents the complete state of the agent interaction across multiple threads.
  * Manages multiple conversation threads simultaneously with background streaming.
  */
-export interface MultiThreadStreamingState {
+export interface StreamingState {
   // Multi-thread management
   /** All active threads indexed by threadId */
   threads: Record<string, ThreadState>;
@@ -527,26 +527,10 @@ export interface MultiThreadStreamingState {
 }
 
 /**
- * Legacy interface for backward compatibility - points to current thread state
- * @deprecated Use MultiThreadStreamingState directly for new code
- */
-export interface StreamingState {
-  messages: ConversationMessage[];
-  agentStatus: AgentStatus;
-  currentAgent?: string;
-  isConnected: boolean;
-  error?: {
-    message: string;
-    timestamp: Date;
-    recoverable: boolean;
-  };
-}
-
-/**
- * Defines the set of actions that can be dispatched to the multi-thread streaming reducer.
+ * Defines the set of actions that can be dispatched to the streaming reducer.
  * Each action represents a specific event that can change the multi-thread state.
  */
-export type MultiThreadStreamingAction =
+export type StreamingAction =
   /** Dispatched when new real-time messages are received (all threads, no filtering) */
   | { type: 'REALTIME_MESSAGES_RECEIVED'; messages: any[] }
   /** Dispatched when the connection state changes */
@@ -579,12 +563,6 @@ export type MultiThreadStreamingAction =
   | { type: 'CREATE_THREAD'; threadId: string }
   /** Dispatched to remove a thread completely */
   | { type: 'REMOVE_THREAD'; threadId: string };
-
-/**
- * Legacy action type for backward compatibility
- * @deprecated Use MultiThreadStreamingAction for new code
- */
-export type StreamingAction = MultiThreadStreamingAction;
 
 // =============================================================================
 // HOOK OPTIONS & RETURN TYPES

@@ -27,9 +27,7 @@ import {
   type AgentStatus,
   type AgentError,
   type ThreadState,
-  type MultiThreadStreamingState,
   type StreamingState,
-  type MultiThreadStreamingAction,
   type StreamingAction,
   type UseAgentOptions,
   createDebugLogger,
@@ -768,9 +766,9 @@ const createEmptyThreadState = (): ThreadState => ({
 });
 
 /**
- * Creates initial multi-thread state with a single thread
+ * Creates initial streaming state with a single thread
  */
-const createInitialMultiThreadState = (initialThreadId: string): MultiThreadStreamingState => ({
+const createInitialStreamingState = (initialThreadId: string): StreamingState => ({
   threads: {
     [initialThreadId]: createEmptyThreadState(),
   },
@@ -780,19 +778,11 @@ const createInitialMultiThreadState = (initialThreadId: string): MultiThreadStre
   connectionError: undefined,
 });
 
-// Legacy initial state for backward compatibility
-const initialState: StreamingState = {
-  messages: [],
-  agentStatus: "idle",
-  currentAgent: undefined,
-  isConnected: false,
-  error: undefined,
-};
 
 /**
  * Helper function to ensure a thread exists in the state
  */
-const ensureThread = (state: MultiThreadStreamingState, threadId: string): MultiThreadStreamingState => {
+const ensureThread = (state: StreamingState, threadId: string): StreamingState => {
   if (!state.threads[threadId]) {
     return {
       ...state,
@@ -809,11 +799,11 @@ const ensureThread = (state: MultiThreadStreamingState, threadId: string): Multi
  * Helper function to update a specific thread in the state
  */
 const updateThread = (
-  state: MultiThreadStreamingState, 
+  state: StreamingState, 
   threadId: string, 
   updates: Partial<ThreadState>,
   isDebugEnabled: boolean = false
-): MultiThreadStreamingState => {
+): StreamingState => {
   const ensuredState = ensureThread(state, threadId);
   const currentThread = ensuredState.threads[threadId];
   
@@ -845,7 +835,7 @@ const updateThread = (
 };
 
 /**
- * The main reducer for managing multi-thread agent interactions. This is a pure
+ * The main reducer for managing agent interactions across multiple threads. This is a pure
  * function that handles all state transitions, ensuring predictable and debuggable
  * state updates across multiple conversation threads simultaneously.
  * 
@@ -855,17 +845,17 @@ const updateThread = (
  * - Per-thread status, error handling, and message management
  * - Backward compatibility with single-thread API
  * 
- * @param state - The current multi-thread streaming state
+ * @param state - The current streaming state
  * @param action - The action to process and apply
  * @param isDebugEnabled - Whether to output debug logging
  * @returns A new state with the action applied
  * @pure
  */
-const multiThreadStreamingReducer = (
-  state: MultiThreadStreamingState, 
-  action: MultiThreadStreamingAction, 
+const streamingReducer = (
+  state: StreamingState, 
+  action: StreamingAction, 
   isDebugEnabled: boolean = false
-): MultiThreadStreamingState => {
+): StreamingState => {
   switch (action.type) {
     // MULTI-THREAD: Process all events and route to correct thread buffers
     case 'REALTIME_MESSAGES_RECEIVED': {
@@ -1204,11 +1194,11 @@ const multiThreadStreamingReducer = (
  * Process events for a specific thread (similar to old processBufferedEvents)
  */
 const processThreadEvents = (
-  state: MultiThreadStreamingState,
+  state: StreamingState,
   threadId: string,
   events: NetworkEvent[],
   isDebugEnabled: boolean
-): MultiThreadStreamingState => {
+): StreamingState => {
   let currentState = ensureThread(state, threadId);
   let thread = currentState.threads[threadId];
   
@@ -1296,10 +1286,10 @@ const processThreadEvents = (
  * Process buffered events for a specific thread in sequence order
  */
 const processThreadBufferedEvents = (
-  state: MultiThreadStreamingState,
+  state: StreamingState,
   threadId: string,
   isDebugEnabled: boolean
-): MultiThreadStreamingState => {
+): StreamingState => {
   const thread = state.threads[threadId];
   if (!thread || thread.nextExpectedSequence === null || thread.eventBuffer.size === 0) {
     return state;
@@ -1476,11 +1466,6 @@ const processEventForMessage = (
   };
 };
 
-// Legacy wrapper functions for backward compatibility
-const streamingReducer = (state: StreamingState, action: StreamingAction, isDebugEnabled: boolean = false): StreamingState => {
-  // This is a legacy wrapper - not actually used in the new implementation
-  return state;
-};
 
 // ----- USE AGENT HOOK -------------------------------------------
 
@@ -1768,9 +1753,9 @@ export function useAgent({ threadId, channelKey, userId, onError, debug = DEFAUL
 
   // MULTI-THREAD STATE: Initialize with the provided threadId as the current thread
   const [state, dispatch] = useReducer(
-    (state: MultiThreadStreamingState, action: MultiThreadStreamingAction) => 
-      multiThreadStreamingReducer(state, action, debug), 
-    createInitialMultiThreadState(threadId)
+    (state: StreamingState, action: StreamingAction) => 
+      streamingReducer(state, action, debug), 
+    createInitialStreamingState(threadId)
   );
 
   // Track the last processed threadId to prevent re-processing the same ID

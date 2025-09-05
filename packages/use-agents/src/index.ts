@@ -121,12 +121,10 @@ export type {
   AgentStatus,
   Thread,
   ThreadState,
-  MultiThreadStreamingState,
   StreamingState,
   
   // Event and action types
   NetworkEvent,
-  MultiThreadStreamingAction,
   StreamingAction,
   
   // Configuration types
