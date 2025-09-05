@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect, useMemo } from 'react';
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { useThreads } from './use-threads.js';
 import { useAgent } from './use-agent.js';
 import { v4 as uuidv4 } from 'uuid';
@@ -556,25 +556,27 @@ export const useChat = (config?: UseChatConfig): UseChatReturn => {
     }
   }, [agent, agent.setCurrentThread, agent.getThread, agent.replaceThreadMessages, transport]);
 
-  // Auto-load initial thread data when initialThreadId is provided
-  const [isLoadingInitialThread, setIsLoadingInitialThread] = useState(!!config?.initialThreadId);
-  const [hasLoadedInitialThread, setHasLoadedInitialThread] = useState(false);
+  // Auto-load thread whenever initialThreadId changes (route navigation)
+  const [isLoadingInitialThread, setIsLoadingInitialThread] = useState(false);
+  const lastLoadedInitialIdRef = useRef<string | null>(null);
   
   useEffect(() => {
-    if (config?.initialThreadId && !hasLoadedInitialThread && agent.currentThreadId) {
-      setHasLoadedInitialThread(true);
-      setIsLoadingInitialThread(true);
-      
-      // Load thread data immediately
-      switchToThread(config.initialThreadId)
-        .catch(err => {
-          logger.error('Failed to load initial thread:', err);
-        })
-        .finally(() => {
-          setIsLoadingInitialThread(false);
-        });
-    }
-  }, [config?.initialThreadId, hasLoadedInitialThread, agent.currentThreadId, switchToThread]);
+    const targetId = config?.initialThreadId;
+    if (!targetId) return;
+    
+    // Avoid redundant loads (including React StrictMode double-invoke)
+    if (lastLoadedInitialIdRef.current === targetId) return;
+    lastLoadedInitialIdRef.current = targetId;
+    
+    setIsLoadingInitialThread(true);
+    switchToThread(targetId)
+      .catch(err => {
+        logger.error('Failed to load initial thread:', err);
+      })
+      .finally(() => {
+        setIsLoadingInitialThread(false);
+      });
+  }, [config?.initialThreadId, switchToThread]);
   
   // 7.5. Configurable thread validation (escape hatch for custom persistence layers)
   useEffect(() => {
