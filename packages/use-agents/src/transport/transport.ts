@@ -52,6 +52,13 @@ export interface FetchThreadsParams {
   userId?: string;
   channelKey?: string; // NEW: Support channelKey for anonymous sessions
   limit?: number;
+  /** ISO8601 timestamp of the last item on previous page */
+  cursorTimestamp?: string;
+  /** ID tiebreaker of the last item on previous page */
+  cursorId?: string;
+  /**
+   * Legacy offset support for back-compat internal usage. Avoid using with cursor.
+   */
   offset?: number;
 }
 
@@ -190,7 +197,7 @@ export interface IClientTransport {
   fetchThreads(
     params: FetchThreadsParams,
     options?: RequestOptions
-  ): Promise<{ threads: Thread[]; hasMore: boolean; total: number }>;
+  ): Promise<{ threads: Thread[]; hasMore: boolean; total: number; nextCursorTimestamp?: string | null; nextCursorId?: string | null }>;
 
   /**
    * Fetch the complete message history for a specific thread.
@@ -541,14 +548,21 @@ export class DefaultHttpTransport implements IClientTransport {
   async fetchThreads(
     params: FetchThreadsParams,
     options?: RequestOptions
-  ): Promise<{ threads: Thread[]; hasMore: boolean; total: number }> {
+  ): Promise<{ threads: Thread[]; hasMore: boolean; total: number; nextCursorTimestamp?: string | null; nextCursorId?: string | null }> {
     const endpoint = await this.resolveOption(this.config.api.fetchThreads);
     
     // Build query parameters - support both userId and channelKey
     const queryParams = new URLSearchParams({
       limit: (params.limit || 20).toString(),
-      offset: (params.offset || 0).toString(),
     });
+    
+    // Prefer explicit cursor params over offset if provided
+    if (params.cursorTimestamp && params.cursorId) {
+      queryParams.set('cursorTimestamp', params.cursorTimestamp);
+      queryParams.set('cursorId', params.cursorId);
+    } else if (typeof params.offset === 'number') {
+      queryParams.set('offset', String(params.offset));
+    }
     
     // Add userId or channelKey to query params
     if (params.userId) {
