@@ -97,7 +97,9 @@ export function useThreads(config?: {
   const [hasMore, setHasMore] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [currentThreadId, setCurrentThreadId] = useState<string | null>(null);
-  const [offset, setOffset] = useState(0);
+  const [offset, setOffset] = useState(0); // legacy support
+  const [cursorTimestamp, setCursorTimestamp] = useState<string | null>(null);
+  const [cursorId, setCursorId] = useState<string | null>(null);
 
   // Stable default fetch functions using useCallback with transport integration
   const fetchThreadsDefault = useCallback(async (userId: string, pagination: { limit: number; offset: number }) => {
@@ -201,9 +203,16 @@ export function useThreads(config?: {
         userId,
         isLoadMore,
         offset: currentOffset,
+        cursorTimestamp,
+        cursorId,
         prevCount: threads.length,
       });
-      const data = await fetchThreadsFn(userId, { limit: 20, offset: currentOffset });
+      const data = await fetchThreadsFn(
+        userId,
+        cursorTimestamp && cursorId && isLoadMore
+          ? ({ limit: 20, cursorTimestamp, cursorId } as any)
+          : ({ limit: 20, offset: currentOffset } as any)
+      );
       
       setThreads(currentThreads => {
         const isGeneric = (title?: string) => {
@@ -213,8 +222,15 @@ export function useThreads(config?: {
         };
 
         if (isLoadMore) {
-          // For load more, just append new threads (preserves ordering)
-          return [...currentThreads, ...data.threads];
+          // For load more, append but de-duplicate by id to avoid React key collisions
+          const merged = [...currentThreads, ...data.threads];
+          const seen = new Set<string>();
+          const deduped = merged.filter(t => {
+            if (seen.has(t.id)) return false;
+            seen.add(t.id);
+            return true;
+          });
+          return deduped;
         } else {
           // For initial/refresh load, preserve client ordering but apply server ordering for new sessions
           if (currentThreads.length === 0) {
@@ -478,10 +494,24 @@ export function useThreads(config?: {
           newThreadsAdded: newServerThreads.length,
         });
 
-        return finalThreads;
+        // Final de-duplication guard before returning
+        const seen = new Set<string>();
+        const dedupedFinal = finalThreads.filter(t => {
+          if (seen.has(t.id)) return false;
+          seen.add(t.id);
+          return true;
+        });
+
+        return dedupedFinal;
       });
 
-      setOffset(data.threads.length);
+      // Advance cursor if provided, else fall back to legacy offset
+      if (data.nextCursorTimestamp && data.nextCursorId) {
+        setCursorTimestamp(data.nextCursorTimestamp);
+        setCursorId(data.nextCursorId);
+      } else {
+        setOffset(data.threads.length);
+      }
       setHasMore(data.hasMore);
 
       logger.log('backgroundRefresh:success', {
@@ -494,7 +524,7 @@ export function useThreads(config?: {
       logger.warn('Background refresh failed:', err);
       logger.log('backgroundRefresh:error', { userId, error: err instanceof Error ? err.message : String(err) });
     }
-  }, [userId, fetchThreadsFn, cacheKey]);
+  }, [userId, fetchThreadsFn, cacheKey, cursorTimestamp, cursorId]);
 
   // Hydration effect - load from cache after component mounts
   useEffect(() => {
@@ -506,8 +536,13 @@ export function useThreads(config?: {
         const cached = sessionStorage.getItem(cacheKey);
         if (cached) {
           const parsed = JSON.parse(cached);
-          // Convert date strings back to Date objects
-          const cachedThreads = parsed.map((thread: any) => ({
+          // Convert date strings back to Date objects and de-duplicate cache
+          const seen = new Set<string>();
+          const cachedThreads = parsed.filter((t: any) => {
+            if (seen.has(t.id)) return false;
+            seen.add(t.id);
+            return true;
+          }).map((thread: any) => ({
             ...thread,
             lastMessageAt: new Date(thread.lastMessageAt),
             createdAt: new Date(thread.createdAt),
