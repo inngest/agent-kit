@@ -16,7 +16,7 @@
     "README.md"
   ],
   "scripts": {
-    "build": "tsup",
+    "build": "pnpm i && tsc && tsup",
     "dev": "tsup --watch",
     "lint": "eslint src",
     "type-check": "tsc --noEmit"
