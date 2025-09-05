@@ -3,8 +3,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useRouter } from 'next/navigation';
 import {
-  useChat, // Unified hook combining useAgent and useThreads
-  useAgent, // Direct agent hook for testing client state
+  useAgents, // Unified hook consolidating useChat/useAgent/useThreads
   createDebugLogger, // debug logging utility
 } from "@inngest/use-agents";
 import {
@@ -125,7 +124,7 @@ export function Chat({ threadId: providedThreadId, debug = false }: ChatProps = 
     }
   });
 
-  // Use the unified useChat hook with URL-provided threadId
+  // Use the unified useAgents hook with URL-provided threadId
   const {
     // Thread management
     currentThreadId,
@@ -136,6 +135,7 @@ export function Chat({ threadId: providedThreadId, debug = false }: ChatProps = 
     createNewThread,
     deleteThread,
     loadMoreThreads,
+    switchToThread,
     
     // Message management
     messages,
@@ -151,7 +151,7 @@ export function Chat({ threadId: providedThreadId, debug = false }: ChatProps = 
     // HITL actions
     approveToolCall,
     denyToolCall,
-  } = useChat({
+  } = useAgents({
     // No need to pass userId - it inherits from AgentProvider automatically!
     initialThreadId: providedThreadId,
     debug: true,
@@ -194,7 +194,9 @@ export function Chat({ threadId: providedThreadId, debug = false }: ChatProps = 
   };
 
   const handleThreadSelect = (threadId: string) => {
-    // Navigate to the thread URL - the new page will handle loading the thread data
+    // Immediately switch in the client for responsive UX
+    try { switchToThread(threadId); } catch {}
+    // Keep URL in sync
     router.push(`/chat/${threadId}`);
   };
 
