@@ -58,6 +58,10 @@ export type { UseChatReturn, UseChatConfig } from "./hooks/use-chat.js";
 export { useThreads } from "./hooks/use-threads.js";
 export type { UseThreadsReturn } from "./hooks/use-threads.js";
 
+// New unified hook (Phase 1)
+export { useAgents } from "./hooks/use-agents/index.js";
+export type { UseAgentsReturn, UseAgentsConfig } from "./hooks/use-agents/types.js";
+
 // === UTILITY HOOKS ===
 export { useEphemeralThreads } from "./hooks/use-ephemeral-threads.js";
 export { useConversationBranching } from "./hooks/use-conversation-branching.js";
