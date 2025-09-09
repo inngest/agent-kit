@@ -1,6 +1,10 @@
 // Framework-agnostic Inngest connection adapter (stub)
 // Implements the core connection port with a no-op subscribe for now.
 // This establishes the hexagonal seam without changing runtime behavior.
+//
+// NOTE (2025-09): This is a stub. The plan is to implement a real adapter
+// that uses the non-React Inngest Realtime client and is driven via
+// ConnectionManager + useSyncExternalStore in React.
 
 import type {
   IConnection,

@@ -1,8 +1,11 @@
 import type { IConnection, IConnectionSubscription, IConnectionTokenProvider } from "../ports/connection.js";
 
 /**
- * Minimal, framework-agnostic connection manager.
- * Delegates to an injected IConnection adapter. No runtime logic yet.
+ * NOTE (2025-09): This manager will become the primary realtime path.
+ * For now, `use-connection` requires a token and uses the official
+ * `useInngestSubscription` React hook. We plan to migrate to
+ * `ConnectionManager` + a real `InngestConnection` adapter to be
+ * framework-agnostic and use `useSyncExternalStore` for React.
  */
 export class ConnectionManager {
   private readonly connection: IConnection;
