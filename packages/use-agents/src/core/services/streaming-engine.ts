@@ -17,6 +17,7 @@ export class StreamingEngine {
   ) => StreamingState;
   private readonly debug: boolean;
   private activeSub?: IConnectionSubscription;
+  private listeners: Set<() => void> = new Set();
 
   constructor(params: {
     initialState: StreamingState;
@@ -32,9 +33,33 @@ export class StreamingEngine {
     return this.state;
   }
 
+  /**
+   * Subscribe to state changes. Returns an unsubscribe function.
+   */
+  subscribe(listener: () => void): () => void {
+    this.listeners.add(listener);
+    return () => {
+      try {
+        this.listeners.delete(listener);
+      } catch {}
+    };
+  }
+
+  private notify(): void {
+    for (const l of this.listeners) {
+      try {
+        l();
+      } catch {}
+    }
+  }
+
   dispatch(action: StreamingAction): void {
+    const prev = this.state;
     const next = this.reducer(this.state, action, this.debug);
     this.state = next;
+    if (next !== prev) {
+      this.notify();
+    }
   }
 
   /**
