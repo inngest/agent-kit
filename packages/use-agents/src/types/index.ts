@@ -25,7 +25,7 @@
  */
 
 import { InngestSubscriptionState } from "@inngest/realtime/hooks";
-import { type IClientTransport } from '../transport/transport.js';
+import { type IClientTransport } from '../core/ports/transport.js';
 
 // =============================================================================
 // REALTIME TOKEN TYPES
@@ -128,8 +128,8 @@ export interface DataUIPart {
   name: string; 
   /** The actual data payload */
   data: any; 
-  /** Optional custom React component for rendering */
-  ui?: React.ReactNode; 
+  /** Optional custom UI metadata (framework-agnostic) */
+  ui?: unknown; 
 }
 
 /** 
