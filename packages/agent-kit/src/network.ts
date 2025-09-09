@@ -465,6 +465,9 @@ export class NetworkRun<T extends StateData> extends Network<T> {
       : input as string;
 
     // Initialize conversation thread: Creates a new thread or auto-generates if needed
+    // Capture whether the client provided a threadId BEFORE initialization. If absent, this
+    // implies a brand-new thread and we can skip the initial history load (no-op DB read).
+    const hadClientThreadId = Boolean(this.state.threadId);
     await initializeThread({
       state: this.state,
       history: this.history,
@@ -505,13 +508,16 @@ export class NetworkRun<T extends StateData> extends Network<T> {
       });
     }
 
-    // Load existing conversation history from storage: If threadId exists and history.get() is configured
-    await loadThreadFromStorage({
-      state: this.state,
-      history: this.history,
-      input: inputContent,
-      network: this,
-    });
+    // Load existing conversation history from storage only when the client provided a threadId.
+    // If the threadId was omitted (new thread created this run), skip the initial get().
+    if (hadClientThreadId) {
+      await loadThreadFromStorage({
+        state: this.state,
+        history: this.history,
+        input: inputContent,
+        network: this,
+      });
+    }
 
     // Prepare streaming context after thread initialization
     if (streamingPublish) {
