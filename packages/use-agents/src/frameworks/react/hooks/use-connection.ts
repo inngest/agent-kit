@@ -5,6 +5,16 @@ import { ConnectionManager } from "../../../core/index.js";
 import type { IConnection } from "../../../core/ports/connection.js";
 import { useInngestSubscription, InngestSubscriptionState } from "@inngest/realtime/hooks";
 
+/**
+ * NOTE (2025-09): Realtime subscriptions require a token.
+ * We currently rely on the official `useInngestSubscription` path when a
+ * `refreshToken` handler is provided. The previous fallback path using
+ * `ConnectionManager` has been disabled to make token usage explicit.
+ *
+ * Plan: We'll replace the React hook with a framework-agnostic connection
+ * adapter (`InngestConnection`) managed via `ConnectionManager`, and use
+ * `useSyncExternalStore` to bridge into React.
+ */
 export function useConnectionSubscription(params: {
   connection: IConnection | null;
   channel: string | null;
@@ -18,13 +28,12 @@ export function useConnectionSubscription(params: {
 }) {
   const { connection, channel, userId, threadId, onMessage, onStateChange, debug, refreshToken } = params;
 
-  // Path 1: Use official realtime hook when a token refresher is provided
+  // Token is required for realtime subscriptions
   const enabled = Boolean(channel && refreshToken);
   const { data, state, error } = useInngestSubscription({
     key: channel || undefined,
     enabled,
     refreshToken: async () => {
-      // Delegate token retrieval
       return await refreshToken!();
     },
   });
@@ -40,37 +49,18 @@ export function useConnectionSubscription(params: {
   useEffect(() => {
     if (!enabled) return;
     if (!Array.isArray(data)) return;
-    // Emit only new chunks since last render
     for (let i = lastLenRef.current; i < data.length; i++) {
       try { onMessage(data[i]); } catch {}
     }
     lastLenRef.current = data.length;
   }, [enabled, data, onMessage]);
 
+  // Minimal error logging / diagnostics
   useEffect(() => {
-    if (!enabled && (connection && channel)) {
-      // Path 2: Use ConnectionManager when no refreshToken provided
-      const cm = new ConnectionManager({ connection, debug: Boolean(debug) });
-      (async () => {
-        try {
-          await cm.start({
-            channel,
-            onMessage,
-            onStateChange,
-            userId: userId || undefined,
-            threadId: threadId || undefined,
-          });
-        } catch (err) {
-          if (debug) console.warn("[useConnectionSubscription] subscribe failed", err);
-        }
-      })();
-      return () => {
-        try { cm.stop(); } catch {}
-      };
-    }
-  }, [enabled, connection, channel, userId, threadId, onMessage, onStateChange, debug]);
+    if (enabled || !channel) return;
+    if (debug) console.warn("[useConnectionSubscription] Token is required; realtime disabled (channel=", channel, ")");
+  }, [enabled, channel, debug]);
 
-  // Expose minimal error logging
   useEffect(() => {
     if (!enabled || !error) return;
     if (debug) console.warn("[useConnectionSubscription] realtime error", error);
