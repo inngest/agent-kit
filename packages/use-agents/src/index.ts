@@ -51,6 +51,7 @@
 // === CORE HOOK ===
 export { useAgents } from "./frameworks/react/hooks/use-agents/index.js";
 export type { UseAgentsReturn, UseAgentsConfig } from "./frameworks/react/hooks/use-agents/types.js";
+export { useEphemeralThreads } from "./frameworks/react/hooks/use-ephemeral-threads.js";
 
 // === PROVIDER ===
 export { AgentProvider } from "./frameworks/react/components/AgentProvider.js";
