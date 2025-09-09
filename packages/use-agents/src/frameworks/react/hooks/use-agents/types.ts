@@ -15,13 +15,11 @@ export type UseAgentsConfig = {
   initialThreadId?: string;
   debug?: boolean;
   /**
-   * Experimental: if true, derive status from the core StreamingEngine reducer
-   * instead of the legacy provider agent. Defaults to false.
+   * @deprecated Engine-backed status is always enabled.
    */
   useEngineForStatus?: boolean;
   /**
-   * Experimental: if true, derive messages from the core StreamingEngine reducer
-   * instead of the legacy provider agent. Defaults to false.
+   * @deprecated Engine-backed messages are always enabled.
    */
   useEngineForMessages?: boolean;
   /**
