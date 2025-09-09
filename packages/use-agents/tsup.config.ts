@@ -3,9 +3,6 @@ import { defineConfig } from 'tsup'
 export default defineConfig({
   entry: [
     'src/index.ts',
-    'src/hooks/use-agent.ts',
-    'src/hooks/use-chat.ts', 
-    'src/hooks/use-threads.ts',
     'src/hooks/use-ephemeral-threads.ts',
     'src/hooks/use-conversation-branching.ts',
     'src/hooks/use-edit-message.ts',

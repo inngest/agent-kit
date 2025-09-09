@@ -19,7 +19,8 @@
     "build": "pnpm i && tsc && tsup",
     "dev": "tsup --watch",
     "lint": "eslint src",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "test": "vitest run"
   },
   "keywords": [
     "react",
@@ -50,7 +51,8 @@
     "@types/uuid": "^10.0.0",
     "eslint": "^8.0.0",
     "tsup": "^8.0.0",
-    "typescript": "^5.0.0"
+    "typescript": "^5.0.0",
+    "vitest": "^2.1.8"
   },
   "publishConfig": {
     "access": "public"
