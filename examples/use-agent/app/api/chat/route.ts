@@ -48,15 +48,16 @@ export async function POST(req: NextRequest) {
     // For anonymous sessions, use channelKey as userId for data ownership
     const effectiveUserId = userId || channelKey!; // Non-null assertion safe due to validation above
     
-    // Generate thread ID if not provided
-    // TODO: doesn't agentkit generate and return one of these internally now? need to check on this...
-    const threadId = providedThreadId || randomUUID();
+    // If the client didn't provide a threadId, omit generation here.
+    // AgentKit will create one during initializeThread; the canonical ID will
+    // be returned in the response from this route.
+    const threadId = providedThreadId || undefined;
     
     // Send event to Inngest to trigger the agent chat
     await inngest.send({
       name: "agent/chat.requested",
       data: {
-        threadId,
+        threadId: threadId ?? undefined,
         history,
         userMessage,
         userId: effectiveUserId, // For data ownership (userId or channelKey for anonymous)
@@ -66,7 +67,7 @@ export async function POST(req: NextRequest) {
     
     return NextResponse.json({
       success: true,
-      threadId,
+      threadId: threadId, // May be undefined; client should use response threadId if provided by later enhancements
     });
   } catch (error) {
     return NextResponse.json(

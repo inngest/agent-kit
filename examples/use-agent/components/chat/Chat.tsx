@@ -155,6 +155,10 @@ export function Chat({ threadId: providedThreadId, debug = false }: ChatProps = 
     // No need to pass userId - it inherits from AgentProvider automatically!
     initialThreadId: providedThreadId,
     debug: true,
+    // Surface reducer-driven status from the new engine (thinking/responding/etc.)
+    useEngineForStatus: true,
+    // Use engine-assembled messages by default
+    useEngineForMessages: true,
     
     // Test: Pass a state function to capture current UI context
     state: () => ({
@@ -542,7 +546,7 @@ export function Chat({ threadId: providedThreadId, debug = false }: ChatProps = 
                   onChange={setInputValue}
                   onSubmit={handleSubmit}
                   placeholder="Ask anything"
-                  disabled={!isConnected || status !== 'idle' || isLoadingInitialThread}
+                  disabled={status !== 'idle' || isLoadingInitialThread}
                   status={
                     status === 'thinking' ? 'submitted' :
                     status === 'responding' ? 'streaming' :

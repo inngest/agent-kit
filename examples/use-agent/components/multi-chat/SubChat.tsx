@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { X, Edit2, Check, MessageSquare, Wifi, WifiOff } from 'lucide-react';
-import { useAgent } from '@inngest/use-agents';
+import { useAgents } from '@inngest/use-agents';
 import { ResponsivePromptInput } from '@/components/ai-elements/prompt-input';
 import { Conversation, ConversationContent, ConversationScrollButton } from '@/components/ai-elements/conversation';
 import { Message, MessageContent } from '@/components/ai-elements/message';
@@ -37,16 +37,13 @@ export function SubChat({ subchat, onClose, onRename, showCloseButton }: SubChat
     setIsClientSide(true);
   }, []);
 
-  // 🔍 CRITICAL TEST: Each SubChat creates its own useAgent instance
-  // This should trigger the "Cannot cancel a locked stream" error we discussed
-  // because multiple instances will try to subscribe to the same userId channel
-  // 
-  // TO TEST: Create 2+ subchats and try sending messages - watch console for errors
-  const agent = useAgent({
-    threadId: subchat.threadId,   // ✅ Now proper UUID format
-    // No need to pass userId - it inherits from AgentProvider automatically!
-    debug: true,
-  });
+  // Unified hook instance (consolidated logic)
+  const agent = useAgents({ debug: true });
+
+  // Ensure the subchat controls the active thread immediately
+  useEffect(() => {
+    agent.setCurrentThreadId(subchat.threadId);
+  }, [agent.setCurrentThreadId, subchat.threadId]);
 
   const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();

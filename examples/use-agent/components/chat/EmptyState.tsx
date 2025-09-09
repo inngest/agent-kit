@@ -23,7 +23,7 @@ export function EmptyState({ value, onChange, onSubmit, status, isConnected, sug
           onChange={onChange}
           onSubmit={onSubmit}
           placeholder="Ask anything"
-          disabled={!isConnected || status !== 'idle'}
+          disabled={status !== 'idle'}
           status={
             status === 'thinking' ? 'submitted' :
             status === 'responding' ? 'streaming' :
