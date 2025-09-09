@@ -1,0 +1,104 @@
+import type {
+  ConversationMessage,
+  AgentStatus,
+  Thread,
+  AgentError,
+} from "../../../../types/index.js";
+
+/**
+ * Configuration for the unified useAgents hook.
+ * Extends the existing useChat configuration for full compatibility.
+ */
+export type UseAgentsConfig = {
+  userId?: string;
+  channelKey?: string;
+  initialThreadId?: string;
+  debug?: boolean;
+  /**
+   * Experimental: if true, derive status from the core StreamingEngine reducer
+   * instead of the legacy provider agent. Defaults to false.
+   */
+  useEngineForStatus?: boolean;
+  /**
+   * Experimental: if true, derive messages from the core StreamingEngine reducer
+   * instead of the legacy provider agent. Defaults to false.
+   */
+  useEngineForMessages?: boolean;
+  /**
+   * If true, throws when used outside of an AgentProvider. When false (default),
+   * the hook will create a local streaming instance as a fallback.
+   */
+  requireProvider?: boolean;
+  enableThreadValidation?: boolean;
+  onThreadNotFound?: (threadId: string) => void;
+  state?: () => Record<string, unknown>;
+  onStateRehydrate?: (messageState: Record<string, unknown>, messageId: string) => void;
+  fetchThreads?: (userId: string, pagination: { limit: number; offset: number } | { limit: number; cursorTimestamp: string; cursorId: string }) => Promise<{
+    threads: Thread[];
+    hasMore: boolean;
+    total: number;
+    nextCursorTimestamp?: string | null;
+    nextCursorId?: string | null;
+  }>;
+  fetchHistory?: (threadId: string) => Promise<any[]>;
+  createThread?: (userId: string) => Promise<{ threadId: string; title: string }>;
+  deleteThread?: (threadId: string) => Promise<void>;
+  renameThread?: (threadId: string, title: string) => Promise<void>;
+};
+
+/**
+ * Return type for the unified useAgents hook.
+ * Currently aligns 1:1 with UseChatReturn to ensure a non-breaking migration path.
+ */
+export type UseAgentsReturn = {
+  // Agent state
+  messages: ConversationMessage[];
+  status: AgentStatus;
+  isConnected: boolean;
+  currentAgent?: string;
+  error?: AgentError;
+  clearError: () => void;
+
+  // Thread state
+  threads: Thread[];
+  threadsLoading: boolean;
+  threadsHasMore: boolean;
+  threadsError: string | null;
+  currentThreadId: string | null;
+
+  // Loading
+  isLoadingInitialThread: boolean;
+
+  // Unified actions
+  sendMessage: (message: string, options?: { messageId?: string }) => Promise<void>;
+  sendMessageToThread: (
+    threadId: string,
+    message: string,
+    options?: { messageId?: string; state?: Record<string, unknown> | (() => Record<string, unknown>) }
+  ) => Promise<void>;
+  cancel: () => Promise<void>;
+  approveToolCall: (toolCallId: string, reason?: string) => Promise<void>;
+  denyToolCall: (toolCallId: string, reason?: string) => Promise<void>;
+
+  // Thread navigation
+  switchToThread: (threadId: string) => Promise<void>;
+  setCurrentThreadId: (threadId: string) => void;
+
+  // Advanced thread operations
+  loadThreadHistory: (threadId: string) => Promise<ConversationMessage[]>;
+  clearThreadMessages: (threadId: string) => void;
+  replaceThreadMessages: (threadId: string, messages: ConversationMessage[]) => void;
+
+  // Thread CRUD
+  deleteThread: (threadId: string) => Promise<void>;
+  loadMoreThreads: () => Promise<void>;
+  refreshThreads: () => Promise<void>;
+
+  // Thread creation
+  createNewThread: () => string;
+
+  // Message editing
+  rehydrateMessageState: (messageId: string) => void;
+};
+
+
