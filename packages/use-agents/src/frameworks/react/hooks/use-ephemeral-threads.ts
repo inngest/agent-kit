@@ -5,6 +5,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { type Thread, createDebugLogger } from '../../../types/index.js';
 
 /**
+ * @deprecated Use `createInMemorySessionTransport()` with `useAgents` instead.
  * Configuration options for the useEphemeralThreads hook.
  * 
  * @interface UseEphemeralThreadsOptions
@@ -19,6 +20,7 @@ interface UseEphemeralThreadsOptions {
 }
 
 /**
+ * @deprecated Use `createInMemorySessionTransport()` with `useAgents` instead.
  * A React hook for managing ephemeral conversation threads using browser storage.
  * 
  * This hook provides thread management capabilities without requiring a backend
