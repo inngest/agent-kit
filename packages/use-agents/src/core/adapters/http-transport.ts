@@ -5,7 +5,7 @@
  * This file lives under adapters/ to align with hexagonal architecture.
  */
 
-import { ConversationMessage, Thread, RealtimeToken, createAgentError } from '../../types/index.js';
+import { ConversationMessage, Thread, RealtimeToken, createAgentError } from '../../types/index';
 import type {
   IClientTransport,
   RequestOptions,
@@ -16,7 +16,7 @@ import type {
   DeleteThreadParams,
   GetRealtimeTokenParams,
   ApproveToolCallParams,
-} from "../ports/transport.js";
+} from "../ports/transport";
 
 // =============================================================================
 // DEFAULT TRANSPORT IMPLEMENTATION
