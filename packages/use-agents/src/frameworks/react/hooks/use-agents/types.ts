@@ -4,6 +4,7 @@ import type {
   Thread,
   AgentError,
 } from "../../../../types/index.js";
+import type { IClientTransport } from "../../../../core/ports/transport.js";
 
 /**
  * Configuration for the unified useAgents hook.
@@ -14,6 +15,13 @@ export type UseAgentsConfig = {
   channelKey?: string;
   initialThreadId?: string;
   debug?: boolean;
+  /**
+   * Page size for thread pagination (used by initial load, infinite query, and refresh).
+   * Defaults to 20 when not provided.
+   */
+  threadsPageSize?: number;
+  /** Optional transport instance to override provider/default transport */
+  transport?: IClientTransport;
   /**
    * @deprecated Engine-backed status is always enabled.
    */
