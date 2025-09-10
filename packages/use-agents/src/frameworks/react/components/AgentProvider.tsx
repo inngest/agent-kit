@@ -1,6 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useRef, useMemo } from 'react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { type IClientTransport } from '../../../core/ports/transport.js';
 import { 
   type DefaultHttpTransportConfig,
@@ -71,6 +72,8 @@ interface AgentProviderProps {
   /** Optional: provide a custom connection or token provider (hex port seam) */
   connection?: IConnection;
   tokenProvider?: IConnectionTokenProvider;
+  /** Optional: supply an existing TanStack Query client; otherwise a default will be created */
+  queryClient?: QueryClient;
 }
 
 /**
@@ -150,7 +153,7 @@ interface AgentProviderProps {
  * }
  * ```
  */
-export function AgentProvider({ children, userId, channelKey, debug = true, transport: transportConfig, connection: providedConnection, tokenProvider }: AgentProviderProps) {
+export function AgentProvider({ children, userId, channelKey, debug = true, transport: transportConfig, connection: providedConnection, tokenProvider, queryClient }: AgentProviderProps) {
   // Create a stable fallback threadId that only gets generated once
   const fallbackThreadIdRef = useRef<string | null>(null);
   if (fallbackThreadIdRef.current === null) {
@@ -239,16 +242,25 @@ export function AgentProvider({ children, userId, channelKey, debug = true, tran
     });
   }
 
+  // Ensure a QueryClient exists for TanStack Query usage inside hooks
+  const localQueryClientRef = useRef<QueryClient | null>(null);
+  if (!localQueryClientRef.current) {
+    localQueryClientRef.current = new QueryClient();
+  }
+  const qc = queryClient || localQueryClientRef.current;
+
   return (
-    <AgentContext.Provider value={{ 
-      transport, 
-      userId,
-      channelKey, 
-      resolvedChannelKey,
-      connection,
-    }}>
-      {children}
-    </AgentContext.Provider>
+    <QueryClientProvider client={qc}>
+      <AgentContext.Provider value={{ 
+        transport, 
+        userId,
+        channelKey, 
+        resolvedChannelKey,
+        connection,
+      }}>
+        {children}
+      </AgentContext.Provider>
+    </QueryClientProvider>
   );
 }
 
