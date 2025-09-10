@@ -81,11 +81,13 @@ import type {
             }
             case 'stream.ended':
             case 'run.completed': {
+              // When a run ends, finalize any in-flight tool calls that already produced output
+              const finalized = finalizeToolsWithOutput(thread);
               const updated: ThreadState = {
-                ...thread,
+                ...finalized,
                 agentStatus: 'idle',
                 lastActivity: new Date(),
-              };
+              } as ThreadState;
               next = writeThread(next, threadId, updated);
               break;
             }
@@ -375,7 +377,11 @@ import type {
     }
   
     if (type === 'tool-output') {
-      const tool = msg.parts.find((p) => p.type === 'tool-call' && (p as ToolCallUIPart).toolCallId === partId) as ToolCallUIPart | undefined;
+      // Prefer id match; if not, try a reasonable fallback to the latest in-flight tool
+      let tool = msg.parts.find((p) => p.type === 'tool-call' && (p as ToolCallUIPart).toolCallId === partId) as ToolCallUIPart | undefined;
+      if (!tool) {
+        tool = findFallbackToolPartForCompletion(msg);
+      }
       if (tool) {
         // Finalize output
         tool.output = finalContent !== undefined ? finalContent : tool.output;
@@ -397,15 +403,19 @@ import type {
     const { list, msg } = getOrCreateAssistantMessage(thread.messages as any, data);
     let tool = msg.parts.find((p) => p.type === 'tool-call' && (p as ToolCallUIPart).toolCallId === partId) as ToolCallUIPart | undefined;
     if (!tool) {
-      tool = {
-        type: 'tool-call',
-        toolCallId: partId,
-        toolName: data?.toolName || data?.metadata?.toolName || '',
-        state: 'input-streaming',
-        input: {},
-        output: undefined,
-      } as ToolCallUIPart;
-      msg.parts = [...msg.parts, tool];
+      // Fallback: attach to the most recent tool that is awaiting/streaming input
+      tool = findFallbackToolPartForArgs(msg);
+      if (!tool) {
+        tool = {
+          type: 'tool-call',
+          toolCallId: partId,
+          toolName: data?.toolName || data?.metadata?.toolName || '',
+          state: 'input-streaming',
+          input: {},
+          output: undefined,
+        } as ToolCallUIPart;
+        msg.parts = [...msg.parts, tool];
+      }
     }
     try {
       // Deltas are JSON string chunks; accumulate into object
@@ -431,13 +441,69 @@ import type {
     const delta = data?.delta as string | undefined;
     if (!partId || !messageId || typeof delta !== 'string') return { ...thread };
     const { list, msg } = getOrCreateAssistantMessage(thread.messages as any, data);
-    const tool = msg.parts.find((p) => p.type === 'tool-call' && (p as ToolCallUIPart).toolCallId === partId) as ToolCallUIPart | undefined;
-    if (!tool) return { ...thread };
+    let tool = msg.parts.find((p) => p.type === 'tool-call' && (p as ToolCallUIPart).toolCallId === partId) as ToolCallUIPart | undefined;
+    if (!tool) {
+      // Fallback: attach to the most recent tool that is executing or has input available
+      tool = findFallbackToolPartForOutput(msg);
+      if (!tool) return { ...thread };
+    }
     const prev = typeof tool.output === 'string' ? tool.output : (tool.output === undefined ? '' : JSON.stringify(tool.output));
     tool.output = prev + delta;
     tool.state = 'executing';
     return { ...thread, messages: list, agentStatus: 'calling-tool', lastActivity: new Date() };
   }
   
+  // === Helper utilities for robust tool matching ===
+
+  function findFallbackToolPartForCompletion(message: ConversationMessage): ToolCallUIPart | undefined {
+    // Prefer most recent tool without finalized output
+    const tools = message.parts.filter((p) => p.type === 'tool-call') as ToolCallUIPart[];
+    for (let i = tools.length - 1; i >= 0; i--) {
+      const t = tools[i];
+      if (t.state !== 'output-available') return t;
+    }
+    return undefined;
+  }
+
+  function findFallbackToolPartForArgs(message: ConversationMessage): ToolCallUIPart | undefined {
+    const tools = message.parts.filter((p) => p.type === 'tool-call') as ToolCallUIPart[];
+    for (let i = tools.length - 1; i >= 0; i--) {
+      const t = tools[i];
+      if (t.state === 'input-streaming' || t.state === 'input-available') return t;
+    }
+    return undefined;
+  }
+
+  function findFallbackToolPartForOutput(message: ConversationMessage): ToolCallUIPart | undefined {
+    const tools = message.parts.filter((p) => p.type === 'tool-call') as ToolCallUIPart[];
+    for (let i = tools.length - 1; i >= 0; i--) {
+      const t = tools[i];
+      if (t.state === 'executing' || t.state === 'input-available') return t;
+    }
+    return undefined;
+  }
+
+  function finalizeToolsWithOutput(thread: ThreadState): ThreadState {
+    let changed = false;
+    const updatedMessages = (thread.messages || []).map((m) => {
+      if (m.role !== 'assistant') return m;
+      const parts = m.parts.map((p) => {
+        if (p.type !== 'tool-call') return p;
+        const tool = p as ToolCallUIPart;
+        if (tool.state === 'executing' && tool.output !== undefined) {
+          changed = true;
+          return { ...tool, state: 'output-available' } as ToolCallUIPart;
+        }
+        return p;
+      });
+      if (changed) {
+        return { ...m, parts } as ConversationMessage;
+      }
+      return m;
+    });
+    if (!changed) return thread;
+    return { ...thread, messages: updatedMessages } as ThreadState;
+  }
+
   
   
