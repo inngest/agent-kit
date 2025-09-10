@@ -26,7 +26,18 @@ export function useAgents(config: UseAgentsConfig = {}): UseAgentsReturn {
     [config?.debug]
   );
 
+  // Correlation IDs for debugging
+  const renderSessionIdRef = useRef<string>(`${Date.now()}-${Math.random().toString(36).slice(2)}`);
+  const threadSessionIdRef = useRef<number>(0);
+
   const provider = useProviderContext();
+  if (config.debug) {
+    logger.log(AgentsEvents.ProviderIdentityResolved, {
+      userId: provider.userId,
+      resolvedChannelKey: provider.resolvedChannelKey,
+      renderSessionId: renderSessionIdRef.current,
+    });
+  }
   const { userId, channelKey } = resolveIdentity({
     configUserId: config.userId,
     configChannelKey: config.channelKey,
@@ -155,8 +166,55 @@ export function useAgents(config: UseAgentsConfig = {}): UseAgentsReturn {
     const s = engineState as any;
     const tid = currentThreadId || fallbackThreadIdRef.current!;
     const ts = s?.threads?.[tid];
+    if (config.debug) {
+      const count = Array.isArray(ts?.messages) ? ts.messages.length : 0;
+      logger.log(AgentsEvents.SelectorReadMessages, {
+        threadIdUsed: tid,
+        count,
+        historyLoaded: Boolean(ts?.historyLoaded),
+        currentThreadIdAtRead: currentThreadId,
+        renderSessionId: renderSessionIdRef.current,
+      });
+    }
     return (ts?.messages as ConversationMessage[]) || null;
   }, [currentThreadId, engineState]);
+
+  const currentThreadHistoryLoaded = useMemo(() => {
+    const s = engineState as any;
+    const tid = currentThreadId || fallbackThreadIdRef.current!;
+    return Boolean(s?.threads?.[tid]?.historyLoaded);
+  }, [engineState, currentThreadId]);
+
+  // Diagnostics: capture initial-loading derivation and fallback usage
+  useEffect(() => {
+    if (!config.debug) return;
+    try {
+      const tid = currentThreadId || fallbackThreadIdRef.current!;
+      const hasRealThread = Boolean(config.initialThreadId || currentThreadId);
+      const s = engineRef.current?.getState() as any;
+      const historyLoadedForTid = Boolean(s?.threads?.[tid]?.historyLoaded);
+      const refLoading = isLoadingInitialThreadRef.current;
+      const computedIsLoading = Boolean(hasRealThread && !historyLoadedForTid);
+      logger.log('[diag:init-load]', {
+        hasRealThread,
+        tidUsed: tid,
+        isFallback: tid === fallbackThreadIdRef.current!,
+        historyLoadedForTid,
+        refLoading,
+        computedIsLoading,
+      });
+    } catch {}
+  }, [config.debug, currentThreadId, engineState, currentThreadHistoryLoaded, logger]);
+
+  // Derive hasNewMessages flags for threads from engine state
+  const threadsWithFlags = useMemo(() => {
+    const s = engineState as any;
+    if (!s || !s.threads) return threads;
+    return (threads || []).map((t) => {
+      const ts = s.threads?.[t.id];
+      return ts?.hasNewMessages ? ({ ...t, hasNewMessages: true } as Thread) : t;
+    });
+  }, [threads, engineState]);
 
   useConnectionSubscription({
     connection: provider.connection,
@@ -178,7 +236,8 @@ export function useAgents(config: UseAgentsConfig = {}): UseAgentsReturn {
       logger.log("[realtime:message]", chunk);
       const evt = mapToNetworkEvent(chunk);
       if (!evt) return;
-      if (!shouldProcessEvent(evt as any, { userId, threadId: currentThreadId })) return;
+      // Process all events for this user/channel; reducer routes by evt.data.threadId
+      if (!shouldProcessEvent(evt as any, { userId })) return;
       if (!engineRef.current) {
         engineRef.current = new StreamingEngine({
           initialState: {
@@ -191,6 +250,17 @@ export function useAgents(config: UseAgentsConfig = {}): UseAgentsReturn {
         });
       }
       engineRef.current.handleRealtimeMessages([evt]);
+      // Ephemeral mode: persist updated thread messages to sessionStorage for resumable streams
+      try {
+        if (config.enableThreadValidation === false && typeof window !== "undefined") {
+          const tid = (evt as any)?.data?.threadId || currentThreadId || fallbackThreadIdRef.current!;
+          const s = engineRef.current.getState() as any;
+          const msgs = s?.threads?.[tid]?.messages || [];
+          const keyUser = userId || "anon";
+          const key = `ephemeral_messages_${keyUser}_${tid}`;
+          window.sessionStorage?.setItem(key, JSON.stringify(msgs));
+        }
+      } catch {}
     }, [logger, userId, currentThreadId, config.debug]),
     onStateChange: useCallback((state: unknown) => {
       logger.log("[realtime:state]", state);
@@ -234,8 +304,17 @@ export function useAgents(config: UseAgentsConfig = {}): UseAgentsReturn {
   const loadThreadHistory = useCallback(
     async (threadId: string): Promise<ConversationMessage[]> => {
       try {
+        const t0 = Date.now();
+        const requestId = `${threadId}-${t0}`;
+        logger.log(AgentsEvents.HistoryFetchStart, { threadId, requestId, currentThreadIdAtStart: currentThreadId, renderSessionId: renderSessionIdRef.current });
         const dbMessages: any[] = await fetchHistoryFn(threadId);
-        return threadManagerRef.current!.formatRawHistoryMessages(dbMessages);
+        const formatted = threadManagerRef.current!.formatRawHistoryMessages(dbMessages);
+        const dt = Date.now() - t0;
+        logger.log(AgentsEvents.HistoryFetchEnd, { threadId, requestId, ms: dt, count: formatted.length, currentThreadIdAtEnd: currentThreadId });
+        if (formatted.length === 0) {
+          logger.log(AgentsEvents.HistoryFetchEmpty, { threadId, requestId, ms: dt });
+        }
+        return formatted;
       } catch (err) {
         logger.error("loadThreadHistory failed:", err);
         return [];
@@ -243,6 +322,30 @@ export function useAgents(config: UseAgentsConfig = {}): UseAgentsReturn {
     },
     [fetchHistoryFn, logger]
   );
+
+  // Ephemeral hydration: when validation is disabled, hydrate current thread from sessionStorage
+  useEffect(() => {
+    if (config.enableThreadValidation !== false) return;
+    const tid = currentThreadId || fallbackThreadIdRef.current!;
+    if (typeof window === "undefined" || !tid) return;
+    try {
+      const keyUser = userId || "anon";
+      const key = `ephemeral_messages_${keyUser}_${tid}`;
+      logger.log(AgentsEvents.HydrateSessionStart, { threadId: tid, key });
+      const raw = window.sessionStorage?.getItem(key);
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        // Only hydrate if engine has no messages to avoid flicker
+        const s = engineRef.current?.getState() as any;
+        const existing = s?.threads?.[tid]?.messages || [];
+        if (existing.length === 0) {
+          try { engineRef.current?.dispatch({ type: 'REPLACE_THREAD_MESSAGES', threadId: tid, messages: parsed } as any); } catch {}
+          logger.log(AgentsEvents.HydrateSessionEnd, { threadId: tid, storedCount: parsed.length });
+        }
+      }
+    } catch {}
+  }, [config.enableThreadValidation, currentThreadId, userId]);
 
   // Domain-aware revalidation: if selected thread claims messages but engine has none, refetch once
   useEffect(() => {
@@ -282,12 +385,34 @@ export function useAgents(config: UseAgentsConfig = {}): UseAgentsReturn {
     async (threadId: string) => {
       // Immediate switch for responsive UX
       setCurrentThreadId(threadId);
+      threadSessionIdRef.current++;
+      // Clear unread badge for this thread
+      try { engineRef.current?.dispatch({ type: 'MARK_THREAD_VIEWED', threadId } as any); } catch {}
 
       // Optionally validate/load history when transport is available
       try {
         if (config.enableThreadValidation !== false) {
           const history = await loadThreadHistory(threadId);
           try { engineRef.current?.dispatch({ type: 'REPLACE_THREAD_MESSAGES', threadId, messages: history } as any); } catch {}
+          logger.log(AgentsEvents.EngineReplaceMessages, { threadId, source: 'fetch', count: history?.length || 0, currentThreadIdAtApply: engineRef.current?.getState()?.currentThreadId, renderSessionId: renderSessionIdRef.current });
+
+          // One-shot unconditional revalidation: if initial fetch was empty, refetch once shortly after
+          if (Array.isArray(history) && history.length === 0) {
+            logger.log(AgentsEvents.HistoryRetryStart, { threadId, renderSessionId: renderSessionIdRef.current });
+            setTimeout(async () => {
+              try {
+                const retry = await loadThreadHistory(threadId);
+                const current = engineRef.current?.getState()?.currentThreadId;
+                if (current !== threadId) return;
+                if (Array.isArray(retry) && retry.length > 0) {
+                  try { engineRef.current?.dispatch({ type: 'REPLACE_THREAD_MESSAGES', threadId, messages: retry } as any); } catch {}
+                  logger.log(AgentsEvents.HistoryRetryEnd, { threadId, count: retry.length, currentThreadIdAtApply: current, renderSessionId: renderSessionIdRef.current });
+                }
+              } catch (e) {
+                if (config.debug) logger.warn('[revalidate:retry] history refetch failed', e);
+              }
+            }, 450);
+          }
         }
       } catch (err) {
         logger.warn("switchToThread validation/load failed", err);
@@ -439,14 +564,14 @@ export function useAgents(config: UseAgentsConfig = {}): UseAgentsReturn {
     },
 
     // Thread state
-    threads: threads as Thread[],
+    threads: threadsWithFlags as Thread[],
     threadsLoading,
     threadsHasMore,
     threadsError,
     currentThreadId,
 
-    // Loading
-    isLoadingInitialThread: isLoadingInitialThreadRef.current,
+    // Loading: true only while selected thread hasn't loaded history yet
+    isLoadingInitialThread: Boolean((config.initialThreadId || currentThreadId) && !currentThreadHistoryLoaded),
 
     // Unified actions
     sendMessage,
