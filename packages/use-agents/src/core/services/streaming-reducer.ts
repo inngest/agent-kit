@@ -92,6 +92,15 @@ import type {
             default:
               break;
           }
+          // Mark non-current thread as having unseen messages when updated in background
+          try {
+            if (threadId !== next.currentThreadId) {
+              const t = ensureThread(next, threadId);
+              if (!t.hasNewMessages) {
+                next = writeThread(next, threadId, { ...t, hasNewMessages: true } as ThreadState);
+              }
+            }
+          } catch {}
         }
         return next;
       }
@@ -173,6 +182,7 @@ import type {
           agentStatus: 'idle',
           lastActivity: new Date(),
           error: undefined,
+          historyLoaded: true,
         } as ThreadState;
         return writeThread(state, threadId, updated);
       }
@@ -198,6 +208,15 @@ import type {
         if (!threadId) return state;
         const thread = ensureThread(state, threadId);
         const updated: ThreadState = { ...thread, error: undefined } as ThreadState;
+        return writeThread(state, threadId, updated);
+      }
+
+      case 'MARK_THREAD_VIEWED': {
+        const threadId = (action as any).threadId as string;
+        if (!threadId) return state;
+        const thread = ensureThread(state, threadId);
+        if (!thread.hasNewMessages) return state;
+        const updated: ThreadState = { ...thread, hasNewMessages: false } as ThreadState;
         return writeThread(state, threadId, updated);
       }
   
@@ -238,6 +257,7 @@ import type {
       agentStatus: 'idle',
       hasNewMessages: false,
       lastActivity: new Date(),
+      historyLoaded: false,
     } as unknown as ThreadState;
     state.threads[threadId] = created;
     return created;
