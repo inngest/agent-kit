@@ -5,7 +5,7 @@ import {
   type ConversationMessage, 
   createDebugLogger
 } from '@inngest/use-agents';
-import { createInMemorySessionTransport } from '../../../../packages/use-agents/src/core/adapters/session-transport';
+import { createInMemorySessionTransport } from '@inngest/use-agents';
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { 
   Conversation, 
