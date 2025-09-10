@@ -71,6 +71,7 @@ export {
 // === TRANSPORT (Ports & Adapters) ===
 export { createDefaultHttpTransport, DefaultHttpTransport } from "./core/adapters/http-transport.js";
 export type { DefaultHttpTransportConfig } from "./core/adapters/http-transport.js";
+export { createInMemorySessionTransport, InMemorySessionTransport } from "./core/adapters/session-transport.js";
 export type { IClientTransport } from "./core/ports/transport.js";
 
 // === UTILITIES ===
