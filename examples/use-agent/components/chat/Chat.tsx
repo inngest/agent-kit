@@ -190,6 +190,10 @@ export function Chat({ threadId: providedThreadId, debug = false }: ChatProps = 
     
     // Clear input to give visual feedback that we're in a fresh state
     setInputValue("");
+
+    // Navigate to home so EmptyState is shown until first message is sent
+    try { setMobileSidebarOpen(false); } catch {};
+    router.push('/');
   };
 
   const handleThreadSelect = (threadId: string) => {
