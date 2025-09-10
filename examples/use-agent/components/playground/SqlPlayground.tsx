@@ -5,7 +5,6 @@ import { v4 as uuidv4 } from 'uuid';
 import { Tabs } from './Tabs';
 import { SqlEditor } from './SqlEditor';
 import { EphemeralChat } from './EphemeralChat';
-import { useEphemeralThreads } from '@inngest/use-agents';
 import { Toaster } from '@/components/ui/sonner';
 
 type Tab = {
@@ -34,7 +33,7 @@ export function SqlPlayground() {
 
   const [activeTabId, setActiveTabId] = useState<string | null>(() => tabs[0]?.id || null);
 
-  const ephemeralThreads = useEphemeralThreads({ userId, storageType });
+  // In-memory transport is configured inside EphemeralChat via useAgents; no ephemeral threads hook needed
 
   const activeTab = useMemo(() => tabs.find(tab => tab.id === activeTabId), [tabs, activeTabId]);
 
