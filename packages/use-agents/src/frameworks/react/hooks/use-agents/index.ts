@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { v4 as uuidv4 } from "uuid";
 import { useProviderContext, resolveIdentity, resolveTransport } from "./provider-context.js";
 import { AgentsEvents } from "./logging-events.js";
@@ -75,12 +76,7 @@ export function useAgents(config: UseAgentsConfig = {}): UseAgentsReturn {
   }
 
   // === Internal thread state (consolidated) ===
-  const [threads, setThreads] = useState<Thread[]>([]);
-  const [threadsLoading, setThreadsLoading] = useState<boolean>(true);
-  const [threadsHasMore, setThreadsHasMore] = useState<boolean>(true);
-  const [threadsError, setThreadsError] = useState<string | null>(null);
   const [currentThreadId, setCurrentThreadIdState] = useState<string | null>(null);
-  const [offset, setOffset] = useState<number>(0);
 
   const threadManagerRef = useRef<ThreadManager | null>(null);
   if (!threadManagerRef.current) threadManagerRef.current = new ThreadManager();
@@ -117,38 +113,75 @@ export function useAgents(config: UseAgentsConfig = {}): UseAgentsReturn {
     [config.deleteThread, effectiveTransport]
   );
 
-  const loadThreads = useCallback(
-    async (isLoadMore = false) => {
-      if (!userId && !channelKey) return;
-      try {
-        setThreadsLoading(true);
-        setThreadsError(null);
-        const pagination = { limit: DEFAULT_THREAD_PAGE_SIZE, offset: isLoadMore ? offset : 0 } as any;
-        const data = await fetchThreadsFn(userId as string, pagination);
-        setThreads((prev) => {
-          const tm = threadManagerRef.current!;
-          return isLoadMore ? tm.mergeThreadsPreserveOrder(prev, data.threads) : data.threads;
-        });
-        if (isLoadMore) {
-          setOffset((prev) => prev + (data.threads?.length || 0));
-        } else {
-          setOffset(data.threads?.length || 0);
-        }
-        setThreadsHasMore(Boolean(data.hasMore));
-      } catch (err) {
-        setThreadsError(err instanceof Error ? err.message : String(err));
-      } finally {
-        setThreadsLoading(false);
-      }
-    },
-    [userId, channelKey, offset, fetchThreadsFn]
-  );
+  // === Threads: TanStack Query (infinite) or local fallback ===
+  const identityKey = provider.resolvedChannelKey || channelKey || userId || null;
+  let hasQueryProvider = true;
+  let queryClient: ReturnType<typeof useQueryClient> | null = null;
+  try {
+    queryClient = useQueryClient();
+  } catch {
+    hasQueryProvider = false;
+    queryClient = null;
+  }
+
+  type ThreadsPage = {
+    threads: Thread[];
+    hasMore: boolean;
+    total: number;
+    nextCursorTimestamp?: string | null;
+    nextCursorId?: string | null;
+  };
+
+  // Local fallback state when no QueryClientProvider is present
+  const [threadsLocal, setThreadsLocal] = useState<Thread[]>([]);
+  const [threadsLoadingLocal, setThreadsLoadingLocal] = useState<boolean>(true);
+  const [threadsHasMoreLocal, setThreadsHasMoreLocal] = useState<boolean>(true);
+  const [threadsErrorLocal, setThreadsErrorLocal] = useState<string | null>(null);
+  const [offsetLocal, setOffsetLocal] = useState<number>(0);
 
   useEffect(() => {
-    // Initial load when identity resolves
-    void loadThreads(false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userId, channelKey]);
+    if (hasQueryProvider) return; // handled by TanStack Query
+    if (!userId && !channelKey) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        setThreadsLoadingLocal(true);
+        setThreadsErrorLocal(null);
+        const data = await fetchThreadsFn(userId as string, { limit: DEFAULT_THREAD_PAGE_SIZE, offset: 0 });
+        if (cancelled) return;
+        setThreadsLocal(data.threads || []);
+        setThreadsHasMoreLocal(Boolean(data.hasMore));
+        setOffsetLocal((data.threads?.length) || 0);
+      } catch (e) {
+        if (cancelled) return;
+        setThreadsErrorLocal(e instanceof Error ? e.message : String(e));
+      } finally {
+        if (!cancelled) setThreadsLoadingLocal(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [hasQueryProvider, userId, channelKey, fetchThreadsFn]);
+
+  let threadsQuery: any = null;
+  if (hasQueryProvider) {
+    threadsQuery = useInfiniteQuery({
+      queryKey: ["useAgents", "threads", identityKey],
+      queryFn: async ({ pageParam }: { pageParam?: number }): Promise<ThreadsPage> => {
+        const pagination = { limit: DEFAULT_THREAD_PAGE_SIZE, offset: pageParam ?? 0 } as any;
+        return await fetchThreadsFn(userId as string, pagination);
+      },
+      getNextPageParam: (lastPage: ThreadsPage, allPages: ThreadsPage[]) => {
+        if (!lastPage?.hasMore) return undefined;
+        const totalSoFar = (allPages || []).reduce((sum, p) => sum + ((p?.threads?.length) || 0), 0);
+        return totalSoFar;
+      },
+      initialPageParam: 0,
+      enabled: Boolean(userId || channelKey),
+      staleTime: 120_000,
+      gcTime: 1_800_000,
+      refetchOnWindowFocus: false,
+    } as any);
+  }
 
   // Derive status from engine state if enabled
   const engineState = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
@@ -207,14 +240,24 @@ export function useAgents(config: UseAgentsConfig = {}): UseAgentsReturn {
   }, [config.debug, currentThreadId, engineState, currentThreadHistoryLoaded, logger]);
 
   // Derive hasNewMessages flags for threads from engine state
+  const computedThreads = useMemo(() => {
+    const tm = threadManagerRef.current!;
+    if (hasQueryProvider) {
+      const pages = (threadsQuery?.data?.pages || []) as any[];
+      const list = pages.flatMap((p: any) => p?.threads || []);
+      return tm.mergeThreadsPreserveOrder([], list as any);
+    }
+    return tm.mergeThreadsPreserveOrder([], threadsLocal as any);
+  }, [hasQueryProvider, threadsQuery?.data, threadsLocal]);
+
   const threadsWithFlags = useMemo(() => {
     const s = engineState as any;
-    if (!s || !s.threads) return threads;
-    return (threads || []).map((t) => {
+    if (!s || !s.threads) return computedThreads as Thread[];
+    return (computedThreads as Thread[]).map((t) => {
       const ts = s.threads?.[t.id];
       return ts?.hasNewMessages ? ({ ...t, hasNewMessages: true } as Thread) : t;
     });
-  }, [threads, engineState]);
+  }, [computedThreads, engineState]);
 
   useConnectionSubscription({
     connection: provider.connection,
@@ -301,26 +344,41 @@ export function useAgents(config: UseAgentsConfig = {}): UseAgentsReturn {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [config.initialThreadId]);
 
+  const getHistoryQueryKey = useCallback((tid: string) => ["useAgents", "threadHistory", tid] as const, []);
+
   const loadThreadHistory = useCallback(
     async (threadId: string): Promise<ConversationMessage[]> => {
       try {
         const t0 = Date.now();
         const requestId = `${threadId}-${t0}`;
         logger.log(AgentsEvents.HistoryFetchStart, { threadId, requestId, currentThreadIdAtStart: currentThreadId, renderSessionId: renderSessionIdRef.current });
-        const dbMessages: any[] = await fetchHistoryFn(threadId);
-        const formatted = threadManagerRef.current!.formatRawHistoryMessages(dbMessages);
+        let formatted: ConversationMessage[];
+        if (hasQueryProvider && queryClient) {
+          formatted = await queryClient.fetchQuery({
+            queryKey: getHistoryQueryKey(threadId),
+            queryFn: async () => {
+              const dbMessages: any[] = await fetchHistoryFn(threadId);
+              return threadManagerRef.current!.formatRawHistoryMessages(dbMessages);
+            },
+            staleTime: 300_000,
+            gcTime: 3_600_000,
+          } as any);
+        } else {
+          const dbMessages: any[] = await fetchHistoryFn(threadId);
+          formatted = threadManagerRef.current!.formatRawHistoryMessages(dbMessages);
+        }
         const dt = Date.now() - t0;
-        logger.log(AgentsEvents.HistoryFetchEnd, { threadId, requestId, ms: dt, count: formatted.length, currentThreadIdAtEnd: currentThreadId });
-        if (formatted.length === 0) {
+        logger.log(AgentsEvents.HistoryFetchEnd, { threadId, requestId, ms: dt, count: (formatted as any[])?.length || 0, currentThreadIdAtEnd: currentThreadId });
+        if (Array.isArray(formatted) && formatted.length === 0) {
           logger.log(AgentsEvents.HistoryFetchEmpty, { threadId, requestId, ms: dt });
         }
-        return formatted;
+        return formatted as ConversationMessage[];
       } catch (err) {
         logger.error("loadThreadHistory failed:", err);
-        return [];
+        return [] as ConversationMessage[];
       }
     },
-    [fetchHistoryFn, logger]
+    [fetchHistoryFn, logger, currentThreadId, queryClient, getHistoryQueryKey, hasQueryProvider]
   );
 
   // Ephemeral hydration: when validation is disabled, hydrate current thread from sessionStorage
@@ -351,7 +409,7 @@ export function useAgents(config: UseAgentsConfig = {}): UseAgentsReturn {
   useEffect(() => {
     const tid = currentThreadId || null;
     if (!tid) return;
-    const selected = threads.find((t) => t.id === tid);
+    const selected = (computedThreads as Thread[]).find((t) => t.id === tid);
     const msgs = (engineMessages as ConversationMessage[] | null) || [];
     if (!selected) return;
     if (selected.messageCount > 0 && msgs.length === 0 && !revalidatedOnceRef.current.has(tid)) {
@@ -369,7 +427,7 @@ export function useAgents(config: UseAgentsConfig = {}): UseAgentsReturn {
       }, 400);
       return () => clearTimeout(handle);
     }
-  }, [currentThreadId, threads, engineMessages, loadThreadHistory, logger, config.debug]);
+  }, [currentThreadId, computedThreads, engineMessages, loadThreadHistory, logger, config.debug]);
 
   // Actions
   const setCurrentThreadId = useCallback(
@@ -389,29 +447,20 @@ export function useAgents(config: UseAgentsConfig = {}): UseAgentsReturn {
       // Clear unread badge for this thread
       try { engineRef.current?.dispatch({ type: 'MARK_THREAD_VIEWED', threadId } as any); } catch {}
 
-      // Optionally validate/load history when transport is available
+      // Render from cache immediately if available, then fetch/refetch
       try {
+        const cached = hasQueryProvider && queryClient ? (queryClient.getQueryData(getHistoryQueryKey(threadId)) as ConversationMessage[] | undefined) : undefined;
+        if (Array.isArray(cached) && cached.length > 0) {
+          try { engineRef.current?.dispatch({ type: 'REPLACE_THREAD_MESSAGES', threadId, messages: cached } as any); } catch {}
+          logger.log(AgentsEvents.EngineReplaceMessages, { threadId, source: 'cache', count: cached.length, currentThreadIdAtApply: engineRef.current?.getState()?.currentThreadId, renderSessionId: renderSessionIdRef.current });
+        }
+
         if (config.enableThreadValidation !== false) {
           const history = await loadThreadHistory(threadId);
-          try { engineRef.current?.dispatch({ type: 'REPLACE_THREAD_MESSAGES', threadId, messages: history } as any); } catch {}
-          logger.log(AgentsEvents.EngineReplaceMessages, { threadId, source: 'fetch', count: history?.length || 0, currentThreadIdAtApply: engineRef.current?.getState()?.currentThreadId, renderSessionId: renderSessionIdRef.current });
-
-          // One-shot unconditional revalidation: if initial fetch was empty, refetch once shortly after
-          if (Array.isArray(history) && history.length === 0) {
-            logger.log(AgentsEvents.HistoryRetryStart, { threadId, renderSessionId: renderSessionIdRef.current });
-            setTimeout(async () => {
-              try {
-                const retry = await loadThreadHistory(threadId);
-                const current = engineRef.current?.getState()?.currentThreadId;
-                if (current !== threadId) return;
-                if (Array.isArray(retry) && retry.length > 0) {
-                  try { engineRef.current?.dispatch({ type: 'REPLACE_THREAD_MESSAGES', threadId, messages: retry } as any); } catch {}
-                  logger.log(AgentsEvents.HistoryRetryEnd, { threadId, count: retry.length, currentThreadIdAtApply: current, renderSessionId: renderSessionIdRef.current });
-                }
-              } catch (e) {
-                if (config.debug) logger.warn('[revalidate:retry] history refetch failed', e);
-              }
-            }, 450);
+          const current = engineRef.current?.getState()?.currentThreadId;
+          if (current === threadId) {
+            try { engineRef.current?.dispatch({ type: 'REPLACE_THREAD_MESSAGES', threadId, messages: history } as any); } catch {}
+            logger.log(AgentsEvents.EngineReplaceMessages, { threadId, source: 'fetch', count: history?.length || 0, currentThreadIdAtApply: current, renderSessionId: renderSessionIdRef.current });
           }
         }
       } catch (err) {
@@ -419,7 +468,7 @@ export function useAgents(config: UseAgentsConfig = {}): UseAgentsReturn {
         config.onThreadNotFound?.(threadId);
       }
     },
-    [setCurrentThreadId, loadThreadHistory, config, logger]
+    [setCurrentThreadId, loadThreadHistory, config, logger, queryClient, getHistoryQueryKey, hasQueryProvider]
   );
 
   const createNewThread = useCallback(() => {
@@ -565,9 +614,11 @@ export function useAgents(config: UseAgentsConfig = {}): UseAgentsReturn {
 
     // Thread state
     threads: threadsWithFlags as Thread[],
-    threadsLoading,
-    threadsHasMore,
-    threadsError,
+    threadsLoading: hasQueryProvider ? Boolean(threadsQuery?.isLoading) : threadsLoadingLocal,
+    threadsHasMore: hasQueryProvider ? Boolean(threadsQuery?.hasNextPage) : threadsHasMoreLocal,
+    threadsError: hasQueryProvider
+      ? (threadsQuery?.error ? (threadsQuery.error instanceof Error ? threadsQuery.error.message : String(threadsQuery.error)) : null)
+      : threadsErrorLocal,
     currentThreadId,
 
     // Loading: true only while selected thread hasn't loaded history yet
@@ -600,18 +651,58 @@ export function useAgents(config: UseAgentsConfig = {}): UseAgentsReturn {
     // Thread CRUD
     deleteThread: async (threadId: string) => {
       await deleteThreadFn(threadId);
-      setThreads((prev) => prev.filter((t) => t.id !== threadId));
+      try {
+        if (hasQueryProvider && queryClient) {
+          queryClient.setQueryData(["useAgents", "threads", identityKey], (old: any) => {
+            if (!old) return old;
+            const pages = (old.pages || []).map((p: any) => ({
+              ...p,
+              threads: (p.threads || []).filter((t: any) => t.id !== threadId),
+            }));
+            return { ...old, pages };
+          });
+        } else {
+          setThreadsLocal((prev) => prev.filter((t) => t.id !== threadId));
+        }
+      } catch {}
       if (currentThreadId === threadId) {
         setCurrentThreadIdState(null);
       }
     },
     loadMoreThreads: async () => {
-      if (!threadsHasMore || threadsLoading) return;
-      await loadThreads(true);
+      if (hasQueryProvider) {
+        if (!threadsQuery?.hasNextPage || threadsQuery?.isFetchingNextPage) return;
+        await threadsQuery.fetchNextPage();
+        return;
+      }
+      if (!threadsHasMoreLocal || threadsLoadingLocal) return;
+      try {
+        setThreadsLoadingLocal(true);
+        const data = await fetchThreadsFn(userId as string, { limit: DEFAULT_THREAD_PAGE_SIZE, offset: offsetLocal });
+        setThreadsLocal((prev) => {
+          const tm = threadManagerRef.current!;
+          return tm.mergeThreadsPreserveOrder(prev as any, (data.threads || []) as any);
+        });
+        setOffsetLocal((prev) => prev + ((data.threads?.length) || 0));
+        setThreadsHasMoreLocal(Boolean(data.hasMore));
+      } finally {
+        setThreadsLoadingLocal(false);
+      }
     },
     refreshThreads: async () => {
-      setOffset(0);
-      await loadThreads(false);
+      if (hasQueryProvider && queryClient) {
+        await queryClient.invalidateQueries({ queryKey: ["useAgents", "threads", identityKey] } as any);
+        return;
+      }
+      try {
+        setThreadsLoadingLocal(true);
+        const data = await fetchThreadsFn(userId as string, { limit: DEFAULT_THREAD_PAGE_SIZE, offset: 0 });
+        setThreadsLocal(data.threads || []);
+        setThreadsHasMoreLocal(Boolean(data.hasMore));
+        setOffsetLocal((data.threads?.length) || 0);
+      } finally {
+        setThreadsLoadingLocal(false);
+      }
     },
 
     // Thread creation
