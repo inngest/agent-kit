@@ -186,6 +186,67 @@ const chat = useChat({
 });
 ```
 
+#### Ephemeral Session Storage with `useAgents`
+
+You can also wire the unified `useAgents` hook for an ephemeral experience backed by browser session storage. This keeps thread lists in the browser while still using the default HTTP transport for sending messages and realtime streaming.
+
+```tsx
+import { useAgents, useEphemeralThreads } from "@inngest/use-agents";
+
+function EphemeralChat({
+  threadId,
+  userId,
+  currentSql,
+  tabTitle,
+  onSqlChange,
+}) {
+  const { fetchThreads, createThread, deleteThread, fetchHistory } =
+    useEphemeralThreads({ userId, storageType: "session" });
+
+  const {
+    messages,
+    sendMessage,
+    status,
+    setCurrentThreadId,
+    rehydrateMessageState,
+  } = useAgents({
+    userId,
+    enableThreadValidation: false,
+    state: () => ({
+      sqlQuery: currentSql,
+      tabTitle,
+      mode: "sql_playground",
+      timestamp: Date.now(),
+    }),
+    onStateRehydrate: (messageState) => {
+      if (messageState.sqlQuery && messageState.sqlQuery !== currentSql)
+        onSqlChange(messageState.sqlQuery as string);
+    },
+    fetchThreads,
+    createThread,
+    deleteThread,
+    fetchHistory,
+  });
+
+  useEffect(() => {
+    setCurrentThreadId(threadId);
+  }, [threadId, setCurrentThreadId]);
+
+  // ... render messages and input
+}
+```
+
+Endpoints to support the default HTTP transport (can be minimal for demos):
+
+- `POST /api/chat` to request a run
+- `POST /api/realtime/token` to authorize realtime
+- `GET|POST /api/threads` to list/create threads
+- `GET|DELETE /api/threads/[threadId]` to fetch/delete history
+- `POST /api/approve-tool` for HITL approvals
+- `POST /api/chat/cancel` to cancel a run
+
+See docs: `docs/use-agent-docs/transport-examples.md` → "Ephemeral Session Storage (Browser)" for complete examples.
+
 ### `useConversationBranching`
 
 Message editing and alternate conversation paths.
