@@ -23,14 +23,6 @@ export type UseAgentsConfig = {
   /** Optional transport instance to override provider/default transport */
   transport?: IClientTransport;
   /**
-   * @deprecated Engine-backed status is always enabled.
-   */
-  useEngineForStatus?: boolean;
-  /**
-   * @deprecated Engine-backed messages are always enabled.
-   */
-  useEngineForMessages?: boolean;
-  /**
    * If true, throws when used outside of an AgentProvider. When false (default),
    * the hook will create a local streaming instance as a fallback.
    */
