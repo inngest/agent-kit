@@ -2,10 +2,10 @@
 
 import { 
   useAgents,
-  useEphemeralThreads,
   type ConversationMessage, 
-  createDebugLogger 
+  createDebugLogger
 } from '@inngest/use-agents';
+import { createInMemorySessionTransport } from '../../../../packages/use-agents/src/core/adapters/session-transport';
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { 
   Conversation, 
@@ -35,7 +35,8 @@ export function EphemeralChat({ threadId, storageType, userId, currentSql, tabTi
   // Import debug logger
   const logger = useMemo(() => createDebugLogger('EphemeralChat', debug), [debug]);
 
-  const { fetchThreads, createThread, deleteThread, fetchHistory } = useEphemeralThreads({ userId, storageType });
+  // Use in-memory session transport (no persistence).
+  const transport = useMemo(() => createInMemorySessionTransport(), []);
   
   // Message actions (copy, edit, etc.) - same as main Chat
   const { copyMessage, likeMessage, dislikeMessage, readAloud, shareMessage } = useMessageActions();
@@ -56,6 +57,8 @@ export function EphemeralChat({ threadId, storageType, userId, currentSql, tabTi
     // Disable thread validation for ephemeral persistence layers
     // Ephemeral threads don't exist in a traditional database, so validation would always fail
     enableThreadValidation: false,
+    // Cast to any to allow local dev before build updates package types
+    transport,
     
     // ✅ CAPTURE: Current SQL query as state for AI context
     state: () => ({
@@ -67,7 +70,7 @@ export function EphemeralChat({ threadId, storageType, userId, currentSql, tabTi
     }),
     
     // ✅ REHYDRATE: Restore UI state when editing messages from previous contexts
-    onStateRehydrate: (messageState, messageId) => {
+    onStateRehydrate: (messageState: Record<string, unknown>, messageId: string) => {
       logger.log('stateRehydration', {
         messageId,
         messageState,
@@ -88,11 +91,7 @@ export function EphemeralChat({ threadId, storageType, userId, currentSql, tabTi
       // }
     },
     
-    fetchThreads,
-    createThread,
-    deleteThread,
-    fetchHistory,
-  });
+  } as any);
 
   // Initialize ephemeral chat with proper thread switching
   useEffect(() => {
