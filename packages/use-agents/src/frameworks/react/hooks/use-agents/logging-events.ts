@@ -11,6 +11,21 @@ export const AgentsEvents = {
   CurrentThreadChanged: "agents.thread.changed",
   MessagesChanged: "agents.messages.changed",
 
+  // History/rehydration telemetry
+  HistoryFetchStart: "agents.history.fetch.start",
+  HistoryFetchEnd: "agents.history.fetch.end",
+  HistoryFetchEmpty: "agents.history.fetch.empty",
+  HistoryRetryStart: "agents.history.retry.start",
+  HistoryRetryEnd: "agents.history.retry.end",
+  HydrateSessionStart: "agents.hydrate.session.start",
+  HydrateSessionEnd: "agents.hydrate.session.end",
+  EngineReplaceMessages: "agents.engine.thread.replace",
+  SelectorReadMessages: "agents.selector.read.messages",
+  UIEmptyRendered: "agents.ui.empty",
+  ProviderIdentityResolved: "agents.provider.identity.resolved",
+  DevFastRefreshBegin: "agents.dev.fastRefresh.begin",
+  DevFastRefreshEnd: "agents.dev.fastRefresh.end",
+
   SendMessage: "agents.action.sendMessage",
   SendMessageToThread: "agents.action.sendMessageToThread",
   Cancel: "agents.action.cancel",
