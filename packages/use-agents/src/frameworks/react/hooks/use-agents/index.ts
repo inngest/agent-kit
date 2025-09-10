@@ -6,10 +6,10 @@ import { v4 as uuidv4 } from "uuid";
 import { useProviderContext, resolveIdentity, resolveTransport } from "./provider-context.js";
 import { AgentsEvents } from "./logging-events.js";
 import { reduceStreamingState } from "../../../../core/index.js";
-import { DEFAULT_THREAD_PAGE_SIZE } from "../../../../core/domain/constants.js";
+import { DEFAULT_THREAD_PAGE_SIZE } from "../../../../constants.js";
 import { StreamingEngine, ThreadManager } from "../../../../core/index.js";
 import { mapToNetworkEvent, shouldProcessEvent } from "../../../../core/services/event-mapper.js";
-import { getError } from "../../../../core/domain/errors.js";
+// removed domain errors: now unused
 import { useConnectionSubscription } from "../use-connection.js";
 import {
   createDebugLogger,
@@ -44,7 +44,7 @@ export function useAgents(config: UseAgentsConfig = {}): UseAgentsReturn {
     configChannelKey: config.channelKey,
     provider,
   });
-  const transport = resolveTransport(null, provider);
+  const transport = resolveTransport(config.transport || null, provider);
   const effectiveChannel = provider.resolvedChannelKey || channelKey || userId || null;
 
   // Establish effective transport (provider or default HTTP)
@@ -54,6 +54,25 @@ export function useAgents(config: UseAgentsConfig = {}): UseAgentsReturn {
 
   // Local engine for realtime + local state
   const engineRef = useRef<StreamingEngine | null>(null);
+  // Broadcast channel for cross-tab sync
+  const tabIdRef = useRef<string>(`tab-${Math.random().toString(36).slice(2)}`);
+  const bcRef = useRef<BroadcastChannel | null>(null);
+  const appliedEventIdsRef = useRef<Set<string>>(new Set());
+  const perThreadRunBufferRef = useRef<Map<string, any[]>>(new Map());
+  const dedupKeyForEvent = useCallback((evt: any): string => {
+    try {
+      const data = (evt && typeof evt === 'object' && 'data' in evt) ? (evt as any).data || {} : {};
+      const tid = typeof (data as any).threadId === 'string' ? (data as any).threadId : '';
+      const mid = typeof (data as any).messageId === 'string' ? (data as any).messageId : '';
+      const pid = typeof (data as any).partId === 'string' ? (data as any).partId : '';
+      const ev = typeof evt?.event === 'string' ? evt.event : '';
+      const seq = typeof evt?.sequenceNumber === 'number' ? String(evt.sequenceNumber) : '';
+      const id = typeof evt?.id === 'string' ? evt.id : '';
+      return `${tid}|${mid}|${pid}|${ev}|${seq}|${id}`;
+    } catch {
+      return JSON.stringify(evt);
+    }
+  }, []);
   if (!engineRef.current) {
     engineRef.current = new StreamingEngine({
       initialState: {
@@ -147,7 +166,10 @@ export function useAgents(config: UseAgentsConfig = {}): UseAgentsReturn {
       try {
         setThreadsLoadingLocal(true);
         setThreadsErrorLocal(null);
-        const data = await fetchThreadsFn(userId as string, { limit: DEFAULT_THREAD_PAGE_SIZE, offset: 0 });
+        const pageSize = Number.isFinite(config.threadsPageSize as number) && (config.threadsPageSize as number)! > 0
+          ? (config.threadsPageSize as number)
+          : DEFAULT_THREAD_PAGE_SIZE;
+        const data = await fetchThreadsFn(userId as string, { limit: pageSize, offset: 0 });
         if (cancelled) return;
         setThreadsLocal(data.threads || []);
         setThreadsHasMoreLocal(Boolean(data.hasMore));
@@ -167,7 +189,10 @@ export function useAgents(config: UseAgentsConfig = {}): UseAgentsReturn {
     threadsQuery = useInfiniteQuery({
       queryKey: ["useAgents", "threads", identityKey],
       queryFn: async ({ pageParam }: { pageParam?: number }): Promise<ThreadsPage> => {
-        const pagination = { limit: DEFAULT_THREAD_PAGE_SIZE, offset: pageParam ?? 0 } as any;
+        const pageSize = Number.isFinite(config.threadsPageSize as number) && (config.threadsPageSize as number)! > 0
+          ? (config.threadsPageSize as number)
+          : DEFAULT_THREAD_PAGE_SIZE;
+        const pagination = { limit: pageSize, offset: pageParam ?? 0 } as any;
         return await fetchThreadsFn(userId as string, pagination);
       },
       getNextPageParam: (lastPage: ThreadsPage, allPages: ThreadsPage[]) => {
@@ -292,19 +317,42 @@ export function useAgents(config: UseAgentsConfig = {}): UseAgentsReturn {
           debug: Boolean(config.debug),
         });
       }
-      engineRef.current.handleRealtimeMessages([evt]);
-      // Ephemeral mode: persist updated thread messages to sessionStorage for resumable streams
+      // Dedup per event id
+      const dk = dedupKeyForEvent(evt);
+      if (appliedEventIdsRef.current.has(dk)) {
+        return;
+      }
+      appliedEventIdsRef.current.add(dk);
+      // Update per-thread run buffer (reset on run.started / run.completed)
       try {
-        if (config.enableThreadValidation === false && typeof window !== "undefined") {
-          const tid = (evt as any)?.data?.threadId || currentThreadId || fallbackThreadIdRef.current!;
-          const s = engineRef.current.getState() as any;
-          const msgs = s?.threads?.[tid]?.messages || [];
-          const keyUser = userId || "anon";
-          const key = `ephemeral_messages_${keyUser}_${tid}`;
-          window.sessionStorage?.setItem(key, JSON.stringify(msgs));
+        const tid = ((evt as any)?.data?.threadId) || currentThreadId || fallbackThreadIdRef.current!;
+        if (evt.event === 'run.started' && tid) {
+          perThreadRunBufferRef.current.set(tid, []);
+        }
+        const buf = perThreadRunBufferRef.current.get(tid) || [];
+        buf.push(evt);
+        // trim buffer size
+        if (buf.length > 1000) buf.shift();
+        perThreadRunBufferRef.current.set(tid, buf);
+        if ((evt.event === 'run.completed' || evt.event === 'stream.ended') && tid) {
+          // On completion, keep the final assembled assistant message by leaving
+          // the buffer intact; do not clear immediately so new tabs can snapshot
+          // the full set of events for a brief window. A cleanup timer can purge later.
+          // We'll purge on thread switch or after a delay.
+          setTimeout(() => {
+            try {
+              // Only purge if no newer events appended (length small and last is completed)
+              const cur = perThreadRunBufferRef.current.get(tid) || [];
+              if (cur.length > 0) perThreadRunBufferRef.current.set(tid, cur.slice(-200));
+            } catch {}
+          }, 3000);
         }
       } catch {}
-    }, [logger, userId, currentThreadId, config.debug]),
+      // Apply to engine
+      engineRef.current.handleRealtimeMessages([evt]);
+      // Broadcast to sibling tabs
+      try { bcRef.current?.postMessage({ type: 'evt', sender: tabIdRef.current, evt }); } catch {}
+    }, [logger, userId, currentThreadId, config.debug, dedupKeyForEvent]),
     onStateChange: useCallback((state: unknown) => {
       logger.log("[realtime:state]", state);
       try {
@@ -314,9 +362,66 @@ export function useAgents(config: UseAgentsConfig = {}): UseAgentsReturn {
         if (lastConnectedRef.current !== connected) {
           lastConnectedRef.current = connected;
         }
+        try { bcRef.current?.postMessage({ type: 'state', sender: tabIdRef.current, state }); } catch {}
       } catch {}
     }, [logger]),
   });
+
+  // Setup BroadcastChannel for cross-tab sync
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (!effectiveChannel) return;
+    const bc = new BroadcastChannel(`agentkit-stream:${effectiveChannel}`);
+    bcRef.current = bc;
+    const onMessage = (e: MessageEvent) => {
+      const msg = e.data as any;
+      if (!msg || msg.sender === tabIdRef.current) return;
+      if (msg.type === 'evt' && msg.evt) {
+        const evt = msg.evt;
+        const dk = dedupKeyForEvent(evt);
+        if (appliedEventIdsRef.current.has(dk)) return;
+        appliedEventIdsRef.current.add(dk);
+        engineRef.current?.handleRealtimeMessages([evt]);
+        try {
+          const tid = (evt?.data?.threadId) || currentThreadId || fallbackThreadIdRef.current!;
+          const buf = perThreadRunBufferRef.current.get(tid) || [];
+          buf.push(evt);
+          if (buf.length > 1000) buf.shift();
+          perThreadRunBufferRef.current.set(tid, buf);
+        } catch {}
+      } else if (msg.type === 'snapshot:request') {
+        const tid = msg.threadId as string | undefined;
+        if (!tid) return;
+        const buf = perThreadRunBufferRef.current.get(tid) || [];
+        if (buf.length > 0) {
+          try { bc.postMessage({ type: 'snapshot:response', sender: tabIdRef.current, threadId: tid, events: buf }); } catch {}
+        }
+      } else if (msg.type === 'snapshot:response') {
+        const tid = msg.threadId as string | undefined;
+        const events = Array.isArray(msg.events) ? msg.events : [];
+        if (!tid || events.length === 0) return;
+        for (const evt of events) {
+          const dk = dedupKeyForEvent(evt);
+          if (appliedEventIdsRef.current.has(dk)) continue;
+          appliedEventIdsRef.current.add(dk);
+          engineRef.current?.handleRealtimeMessages([evt]);
+        }
+      }
+    };
+    bc.addEventListener('message', onMessage as any);
+    // Request snapshot for current thread shortly after mount/switch
+    const req = setTimeout(() => {
+      const tid = currentThreadId || fallbackThreadIdRef.current!;
+      try { bc.postMessage({ type: 'snapshot:request', sender: tabIdRef.current, threadId: tid }); } catch {}
+    }, 50);
+    return () => {
+      clearTimeout(req);
+      try { bc.removeEventListener('message', onMessage as any); } catch {}
+      try { bc.close(); } catch {}
+      if (bcRef.current === bc) bcRef.current = null;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [effectiveChannel]);
 
   // Utility getters
   const getThreadState = useCallback((tid: string) => {
@@ -337,7 +442,7 @@ export function useAgents(config: UseAgentsConfig = {}): UseAgentsReturn {
 
     isLoadingInitialThreadRef.current = true;
     switchToThread(targetId)
-      .catch((err) => logger.error("Failed to load initial thread:", err))
+      .catch((err: unknown) => logger.error("Failed to load initial thread:", err))
       .finally(() => {
         isLoadingInitialThreadRef.current = false;
       });
@@ -373,7 +478,7 @@ export function useAgents(config: UseAgentsConfig = {}): UseAgentsReturn {
           logger.log(AgentsEvents.HistoryFetchEmpty, { threadId, requestId, ms: dt });
         }
         return formatted as ConversationMessage[];
-      } catch (err) {
+      } catch (err: unknown) {
         logger.error("loadThreadHistory failed:", err);
         return [] as ConversationMessage[];
       }
@@ -381,29 +486,7 @@ export function useAgents(config: UseAgentsConfig = {}): UseAgentsReturn {
     [fetchHistoryFn, logger, currentThreadId, queryClient, getHistoryQueryKey, hasQueryProvider]
   );
 
-  // Ephemeral hydration: when validation is disabled, hydrate current thread from sessionStorage
-  useEffect(() => {
-    if (config.enableThreadValidation !== false) return;
-    const tid = currentThreadId || fallbackThreadIdRef.current!;
-    if (typeof window === "undefined" || !tid) return;
-    try {
-      const keyUser = userId || "anon";
-      const key = `ephemeral_messages_${keyUser}_${tid}`;
-      logger.log(AgentsEvents.HydrateSessionStart, { threadId: tid, key });
-      const raw = window.sessionStorage?.getItem(key);
-      if (!raw) return;
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) {
-        // Only hydrate if engine has no messages to avoid flicker
-        const s = engineRef.current?.getState() as any;
-        const existing = s?.threads?.[tid]?.messages || [];
-        if (existing.length === 0) {
-          try { engineRef.current?.dispatch({ type: 'REPLACE_THREAD_MESSAGES', threadId: tid, messages: parsed } as any); } catch {}
-          logger.log(AgentsEvents.HydrateSessionEnd, { threadId: tid, storedCount: parsed.length });
-        }
-      }
-    } catch {}
-  }, [config.enableThreadValidation, currentThreadId, userId]);
+  // Removed sessionStorage hydration in favor of cross-tab BroadcastChannel snapshotting
 
   // Domain-aware revalidation: if selected thread claims messages but engine has none, refetch once
   useEffect(() => {
@@ -463,7 +546,7 @@ export function useAgents(config: UseAgentsConfig = {}): UseAgentsReturn {
             logger.log(AgentsEvents.EngineReplaceMessages, { threadId, source: 'fetch', count: history?.length || 0, currentThreadIdAtApply: current, renderSessionId: renderSessionIdRef.current });
           }
         }
-      } catch (err) {
+      } catch (err: unknown) {
         logger.warn("switchToThread validation/load failed", err);
         config.onThreadNotFound?.(threadId);
       }
@@ -510,7 +593,7 @@ export function useAgents(config: UseAgentsConfig = {}): UseAgentsReturn {
           channelKey: channelKey,
         } as any);
         try { engineRef.current?.dispatch({ type: 'MESSAGE_SEND_SUCCESS', threadId: tid, messageId } as any); } catch {}
-      } catch (err) {
+      } catch (err: unknown) {
         try { engineRef.current?.dispatch({ type: 'MESSAGE_SEND_FAILED', threadId: tid, messageId, error: (err instanceof Error ? err.message : String(err)) } as any); } catch {}
         throw err;
       }
@@ -662,7 +745,7 @@ export function useAgents(config: UseAgentsConfig = {}): UseAgentsReturn {
             return { ...old, pages };
           });
         } else {
-          setThreadsLocal((prev) => prev.filter((t) => t.id !== threadId));
+          setThreadsLocal((prev: Thread[]) => prev.filter((t: Thread) => t.id !== threadId));
         }
       } catch {}
       if (currentThreadId === threadId) {
@@ -678,12 +761,15 @@ export function useAgents(config: UseAgentsConfig = {}): UseAgentsReturn {
       if (!threadsHasMoreLocal || threadsLoadingLocal) return;
       try {
         setThreadsLoadingLocal(true);
-        const data = await fetchThreadsFn(userId as string, { limit: DEFAULT_THREAD_PAGE_SIZE, offset: offsetLocal });
-        setThreadsLocal((prev) => {
+        const pageSize = Number.isFinite(config.threadsPageSize as number) && (config.threadsPageSize as number)! > 0
+          ? (config.threadsPageSize as number)
+          : DEFAULT_THREAD_PAGE_SIZE;
+        const data = await fetchThreadsFn(userId as string, { limit: pageSize, offset: offsetLocal });
+        setThreadsLocal((prev: Thread[]) => {
           const tm = threadManagerRef.current!;
           return tm.mergeThreadsPreserveOrder(prev as any, (data.threads || []) as any);
         });
-        setOffsetLocal((prev) => prev + ((data.threads?.length) || 0));
+        setOffsetLocal((prev: number) => prev + ((data.threads?.length) || 0));
         setThreadsHasMoreLocal(Boolean(data.hasMore));
       } finally {
         setThreadsLoadingLocal(false);
@@ -696,7 +782,10 @@ export function useAgents(config: UseAgentsConfig = {}): UseAgentsReturn {
       }
       try {
         setThreadsLoadingLocal(true);
-        const data = await fetchThreadsFn(userId as string, { limit: DEFAULT_THREAD_PAGE_SIZE, offset: 0 });
+        const pageSize = Number.isFinite(config.threadsPageSize as number) && (config.threadsPageSize as number)! > 0
+          ? (config.threadsPageSize as number)
+          : DEFAULT_THREAD_PAGE_SIZE;
+        const data = await fetchThreadsFn(userId as string, { limit: pageSize, offset: 0 });
         setThreadsLocal(data.threads || []);
         setThreadsHasMoreLocal(Boolean(data.hasMore));
         setOffsetLocal((data.threads?.length) || 0);
