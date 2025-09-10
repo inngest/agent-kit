@@ -30,8 +30,16 @@ export type UseAgentsConfig = {
   enableThreadValidation?: boolean;
   onThreadNotFound?: (threadId: string) => void;
   state?: () => Record<string, unknown>;
-  onStateRehydrate?: (messageState: Record<string, unknown>, messageId: string) => void;
-  fetchThreads?: (userId: string, pagination: { limit: number; offset: number } | { limit: number; cursorTimestamp: string; cursorId: string }) => Promise<{
+  onStateRehydrate?: (
+    messageState: Record<string, unknown>,
+    messageId: string
+  ) => void;
+  fetchThreads?: (
+    userId: string,
+    pagination:
+      | { limit: number; offset: number }
+      | { limit: number; cursorTimestamp: string; cursorId: string }
+  ) => Promise<{
     threads: Thread[];
     hasMore: boolean;
     total: number;
@@ -39,7 +47,9 @@ export type UseAgentsConfig = {
     nextCursorId?: string | null;
   }>;
   fetchHistory?: (threadId: string) => Promise<any[]>;
-  createThread?: (userId: string) => Promise<{ threadId: string; title: string }>;
+  createThread?: (
+    userId: string
+  ) => Promise<{ threadId: string; title: string }>;
   deleteThread?: (threadId: string) => Promise<void>;
   renameThread?: (threadId: string, title: string) => Promise<void>;
 };
@@ -68,11 +78,17 @@ export type UseAgentsReturn = {
   isLoadingInitialThread: boolean;
 
   // Unified actions
-  sendMessage: (message: string, options?: { messageId?: string }) => Promise<void>;
+  sendMessage: (
+    message: string,
+    options?: { messageId?: string }
+  ) => Promise<void>;
   sendMessageToThread: (
     threadId: string,
     message: string,
-    options?: { messageId?: string; state?: Record<string, unknown> | (() => Record<string, unknown>) }
+    options?: {
+      messageId?: string;
+      state?: Record<string, unknown> | (() => Record<string, unknown>);
+    }
   ) => Promise<void>;
   cancel: () => Promise<void>;
   approveToolCall: (toolCallId: string, reason?: string) => Promise<void>;
@@ -85,7 +101,10 @@ export type UseAgentsReturn = {
   // Advanced thread operations
   loadThreadHistory: (threadId: string) => Promise<ConversationMessage[]>;
   clearThreadMessages: (threadId: string) => void;
-  replaceThreadMessages: (threadId: string, messages: ConversationMessage[]) => void;
+  replaceThreadMessages: (
+    threadId: string,
+    messages: ConversationMessage[]
+  ) => void;
 
   // Thread CRUD
   deleteThread: (threadId: string) => Promise<void>;
@@ -98,5 +117,3 @@ export type UseAgentsReturn = {
   // Message editing
   rehydrateMessageState: (messageId: string) => void;
 };
-
-

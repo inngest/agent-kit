@@ -19,13 +19,17 @@ export function mapToNetworkEvent(input: unknown): NetworkEvent | null {
   if (typeof obj.timestamp !== "number") return null;
   if (typeof obj.sequenceNumber !== "number") return null;
   // data can be any record; ensure object
-  const data = obj.data && typeof obj.data === "object" ? (obj.data as Record<string, unknown>) : {};
-  const id = typeof obj.id === "string" ? obj.id : `${obj.event}:${obj.sequenceNumber}`;
+  const data =
+    obj.data && typeof obj.data === "object"
+      ? (obj.data as Record<string, unknown>)
+      : {};
+  const id =
+    typeof obj.id === "string" ? obj.id : `${obj.event}:${obj.sequenceNumber}`;
   return {
-    event: obj.event as string,
+    event: obj.event,
     data,
-    timestamp: obj.timestamp as number,
-    sequenceNumber: obj.sequenceNumber as number,
+    timestamp: obj.timestamp,
+    sequenceNumber: obj.sequenceNumber,
     id,
   };
 }
@@ -33,12 +37,16 @@ export function mapToNetworkEvent(input: unknown): NetworkEvent | null {
 /** Lightweight event filter to avoid cross-thread/user noise at the reducer. */
 export function shouldProcessEvent(
   evt: NetworkEvent,
-  filter: { channelKey?: string | null; userId?: string | null; threadId?: string | null }
+  filter: {
+    channelKey?: string | null;
+    userId?: string | null;
+    threadId?: string | null;
+  }
 ): boolean {
   const data = (evt as any).data || {};
-  if (filter?.threadId && data.threadId && data.threadId !== filter.threadId) return false;
-  if (filter?.userId && data.userId && data.userId !== filter.userId) return false;
+  if (filter?.threadId && data.threadId && data.threadId !== filter.threadId)
+    return false;
+  if (filter?.userId && data.userId && data.userId !== filter.userId)
+    return false;
   return true;
 }
-
-

@@ -3,7 +3,10 @@
 import { useEffect, useRef } from "react";
 import { ConnectionManager } from "../../../core/index.js";
 import type { IConnection } from "../../../core/ports/connection.js";
-import { useInngestSubscription, InngestSubscriptionState } from "@inngest/realtime/hooks";
+import {
+  useInngestSubscription,
+  InngestSubscriptionState,
+} from "@inngest/realtime/hooks";
 
 /**
  * NOTE (2025-09): Realtime subscriptions require a token.
@@ -26,7 +29,16 @@ export function useConnectionSubscription(params: {
   /** Optional: direct token fetcher; when provided, we use the official hook */
   refreshToken?: () => Promise<any>;
 }) {
-  const { connection, channel, userId, threadId, onMessage, onStateChange, debug, refreshToken } = params;
+  const {
+    connection,
+    channel,
+    userId,
+    threadId,
+    onMessage,
+    onStateChange,
+    debug,
+    refreshToken,
+  } = params;
 
   // Token is required for realtime subscriptions
   const enabled = Boolean(channel && refreshToken);
@@ -50,7 +62,9 @@ export function useConnectionSubscription(params: {
     if (!enabled) return;
     if (!Array.isArray(data)) return;
     for (let i = lastLenRef.current; i < data.length; i++) {
-      try { onMessage(data[i]); } catch {}
+      try {
+        onMessage(data[i]);
+      } catch {}
     }
     lastLenRef.current = data.length;
   }, [enabled, data, onMessage]);
@@ -58,13 +72,17 @@ export function useConnectionSubscription(params: {
   // Minimal error logging / diagnostics
   useEffect(() => {
     if (enabled || !channel) return;
-    if (debug) console.warn("[useConnectionSubscription] Token is required; realtime disabled (channel=", channel, ")");
+    if (debug)
+      console.warn(
+        "[useConnectionSubscription] Token is required; realtime disabled (channel=",
+        channel,
+        ")"
+      );
   }, [enabled, channel, debug]);
 
   useEffect(() => {
     if (!enabled || !error) return;
-    if (debug) console.warn("[useConnectionSubscription] realtime error", error);
+    if (debug)
+      console.warn("[useConnectionSubscription] realtime error", error);
   }, [enabled, error, debug]);
 }
-
-

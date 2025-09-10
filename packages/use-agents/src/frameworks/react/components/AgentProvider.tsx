@@ -1,22 +1,25 @@
 "use client";
 
-import React, { createContext, useContext, useRef, useMemo } from 'react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { type IClientTransport } from '../../../core/ports/transport.js';
-import { 
+import React, { createContext, useContext, useRef, useMemo } from "react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { type IClientTransport } from "../../../core/ports/transport.js";
+import {
   type DefaultHttpTransportConfig,
-  createDefaultHttpTransport 
-} from '../../../core/adapters/http-transport.js';
-import { v4 as uuidv4 } from 'uuid';
-import type { IConnection, IConnectionTokenProvider } from '../../../core/ports/connection.js';
-import { createInngestConnection } from '../../../core/adapters/inngest-connection.js';
+  createDefaultHttpTransport,
+} from "../../../core/adapters/http-transport.js";
+import { v4 as uuidv4 } from "uuid";
+import type {
+  IConnection,
+  IConnectionTokenProvider,
+} from "../../../core/ports/connection.js";
+import { createInngestConnection } from "../../../core/adapters/inngest-connection.js";
 
 /**
  * Context type for AgentProvider - contains shared agent instance and configuration.
- * 
+ *
  * This context enables multiple components to share a single AgentKit connection
  * and transport configuration, improving performance and consistency across the app.
- * 
+ *
  * @interface AgentContextType
  */
 interface AgentContextType {
@@ -36,7 +39,7 @@ export const AgentContext = createContext<AgentContextType | null>(null);
 
 /**
  * Props for the AgentProvider component.
- * 
+ *
  * @interface AgentProviderProps
  */
 interface AgentProviderProps {
@@ -50,12 +53,12 @@ interface AgentProviderProps {
   debug?: boolean;
   /**
    * Transport configuration or instance for API calls.
-   * 
+   *
    * Can be either:
    * - A complete IClientTransport instance
    * - A configuration object to customize the default transport
    * - Undefined to use default transport with conventional endpoints
-   * 
+   *
    * @example
    * ```typescript
    * // Configuration object
@@ -63,8 +66,8 @@ interface AgentProviderProps {
    *   api: { sendMessage: '/api/v2/chat' },
    *   headers: { 'Authorization': `Bearer ${token}` }
    * }}
-   * 
-   * // Transport instance  
+   *
+   * // Transport instance
    * transport={new CustomClientTransport()}
    * ```
    */
@@ -78,32 +81,32 @@ interface AgentProviderProps {
 
 /**
  * AgentProvider creates a shared AgentKit connection for multiple chat components.
- * 
+ *
  * This provider establishes a single WebSocket connection and transport configuration
  * that can be shared across multiple useAgent, useChat, and useThreads hooks within
  * your application. This improves performance and ensures consistency.
- * 
+ *
  * ## Benefits of Using AgentProvider
- * 
+ *
  * - **Performance**: Single WebSocket connection shared across components
  * - **Consistency**: Shared transport configuration and user context
  * - **Flexibility**: Child hooks can still override configuration when needed
  * - **Anonymous Support**: Automatically handles anonymous users with persistent IDs
  * - **Channel-based Sharing**: Smart connection sharing based on channel keys
- * 
+ *
  * ## Usage Patterns
- * 
+ *
  * 1. **Authenticated Users**: `<AgentProvider userId="user-123">`
  * 2. **Anonymous Users**: `<AgentProvider>` (auto-generates persistent anonymous ID)
  * 3. **Collaborative Sessions**: `<AgentProvider channelKey="project-456">`
- * 
+ *
  * @param props - Provider configuration
  * @param props.children - React components to provide context to
  * @param props.userId - User identifier (optional - supports anonymous users)
  * @param props.channelKey - Channel key for collaboration (optional)
  * @param props.debug - Enable debug logging (default: true)
  * @param props.transport - Transport configuration or instance (optional)
- * 
+ *
  * @example
  * ```typescript
  * // Basic authenticated setup
@@ -116,7 +119,7 @@ interface AgentProviderProps {
  *   );
  * }
  * ```
- * 
+ *
  * @example
  * ```typescript
  * // Anonymous user support
@@ -128,13 +131,13 @@ interface AgentProviderProps {
  *   );
  * }
  * ```
- * 
+ *
  * @example
  * ```typescript
  * // Custom transport configuration
  * function App() {
  *   return (
- *     <AgentProvider 
+ *     <AgentProvider
  *       userId="user-123"
  *       transport={{
  *         api: {
@@ -153,7 +156,16 @@ interface AgentProviderProps {
  * }
  * ```
  */
-export function AgentProvider({ children, userId, channelKey, debug = true, transport: transportConfig, connection: providedConnection, tokenProvider, queryClient }: AgentProviderProps) {
+export function AgentProvider({
+  children,
+  userId,
+  channelKey,
+  debug = true,
+  transport: transportConfig,
+  connection: providedConnection,
+  tokenProvider,
+  queryClient,
+}: AgentProviderProps) {
   // Create a stable fallback threadId that only gets generated once
   const fallbackThreadIdRef = useRef<string | null>(null);
   if (fallbackThreadIdRef.current === null) {
@@ -167,14 +179,14 @@ export function AgentProvider({ children, userId, channelKey, debug = true, tran
     // Priority 1: Explicit channelKey (collaborative/multi-user scenarios)
     // Example: channelKey="project-123" allows multiple users on project-123
     if (channelKey) return channelKey;
-    
+
     // Priority 2: Fallback to userId (private chat - current behavior)
     // Example: userId="user-456" creates private chat for user-456
     if (userId) return userId;
-    
+
     // Priority 3: Anonymous fallback (guest user support)
     // Creates a persistent anonymous ID that survives page reloads
-    if (typeof window !== 'undefined') {
+    if (typeof window !== "undefined") {
       let anonymousId = sessionStorage.getItem("agentkit-anonymous-id");
       if (!anonymousId) {
         anonymousId = `anon_${uuidv4()}`;
@@ -182,7 +194,7 @@ export function AgentProvider({ children, userId, channelKey, debug = true, tran
       }
       return anonymousId;
     }
-    
+
     // Server-side/SSR fallback anonymous ID
     return `anon_${uuidv4()}`;
   }, [channelKey, userId]);
@@ -192,7 +204,7 @@ export function AgentProvider({ children, userId, channelKey, debug = true, tran
   if (providerInstanceId.current === null) {
     providerInstanceId.current = `provider-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
   }
-  
+
   // Create or use provided transport instance (memoized for stability)
   const transport = useMemo(() => {
     if (!transportConfig) {
@@ -200,45 +212,61 @@ export function AgentProvider({ children, userId, channelKey, debug = true, tran
       return createDefaultHttpTransport();
     }
 
-    if ('sendMessage' in transportConfig && typeof transportConfig.sendMessage === 'function') {
+    if (
+      "sendMessage" in transportConfig &&
+      typeof transportConfig.sendMessage === "function"
+    ) {
       // It's already a transport instance
-      return transportConfig as IClientTransport;
+      return transportConfig;
     }
 
     // It's a configuration object - create default transport with config
-    return createDefaultHttpTransport(transportConfig as Partial<DefaultHttpTransportConfig>);
+    return createDefaultHttpTransport(
+      transportConfig as Partial<DefaultHttpTransportConfig>
+    );
   }, [transportConfig]);
-  
+
   // Hex port seam: create a connection instance (not yet used by hooks)
   const connection = useMemo<IConnection>(() => {
     // Default token provider pulls from transport per Inngest hooks pattern
     const effectiveTokenProvider: IConnectionTokenProvider | undefined =
-      tokenProvider || (transport
+      tokenProvider ||
+      (transport
         ? {
-            getToken: async (params: { userId?: string; threadId: string; channelKey: string }) => {
+            getToken: async (params: {
+              userId?: string;
+              threadId: string;
+              channelKey: string;
+            }) => {
               const res = await transport.getRealtimeToken({
                 userId: params.userId ?? userId,
                 threadId: params.threadId,
                 channelKey: params.channelKey,
               } as any);
-              return { token: (res as any).token, expires: (res as any).expires };
+              return {
+                token: res.token,
+                expires: res.expires,
+              };
             },
           }
         : undefined);
 
-    return providedConnection ?? createInngestConnection({ tokenProvider: effectiveTokenProvider });
+    return (
+      providedConnection ??
+      createInngestConnection({ tokenProvider: effectiveTokenProvider })
+    );
   }, [providedConnection, tokenProvider, transport, userId]);
-  
+
   // 🔍 DIAGNOSTIC
   if (debug) {
-    console.log('🔍 [DIAG] AgentProvider ready:', {
+    console.log("🔍 [DIAG] AgentProvider ready:", {
       providerId: providerInstanceId.current,
       userId,
       channelKey,
       resolvedChannelKey,
       fallbackThreadId: fallbackThreadIdRef.current,
       hasCustomTransport: !!transportConfig,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   }
 
@@ -251,13 +279,15 @@ export function AgentProvider({ children, userId, channelKey, debug = true, tran
 
   return (
     <QueryClientProvider client={qc}>
-      <AgentContext.Provider value={{ 
-        transport, 
-        userId,
-        channelKey, 
-        resolvedChannelKey,
-        connection,
-      }}>
+      <AgentContext.Provider
+        value={{
+          transport,
+          userId,
+          channelKey,
+          resolvedChannelKey,
+          connection,
+        }}
+      >
         {children}
       </AgentContext.Provider>
     </QueryClientProvider>
@@ -271,16 +301,18 @@ export function AgentProvider({ children, userId, channelKey, debug = true, tran
 /**
  * Hook to safely access global agent from provider.
  * Returns null if no provider is available or if used outside a provider.
- * 
+ *
  * Note: This hook gracefully handles being used outside of an AgentProvider
  * by catching the context error and returning null.
  */
-export function useOptionalGlobalAgent(): null { return null; }
+export function useOptionalGlobalAgent(): null {
+  return null;
+}
 
 /**
  * Hook to safely access global transport from provider.
  * Returns null if no provider is available or if used outside a provider.
- * 
+ *
  * Note: This hook gracefully handles being used outside of an AgentProvider
  * by catching the context error and returning null.
  */
@@ -337,7 +369,9 @@ export function useOptionalGlobalResolvedChannelKey(): string | null {
 // DIRECT PROVIDER ACCESS HOOKS (For strict mode)
 // =============================================================================
 
-export function useGlobalAgent(): null { return null; }
+export function useGlobalAgent(): null {
+  return null;
+}
 
 /**
  * Get the global transport instance from the AgentProvider.
@@ -349,7 +383,11 @@ export function useGlobalTransport(): IClientTransport | null {
 }
 
 // Legacy function that throws - kept for backward compatibility
-export function useGlobalAgentStrict(): never { throw new Error('Global agent is no longer provided; use useAgents hook directly.'); }
+export function useGlobalAgentStrict(): never {
+  throw new Error(
+    "Global agent is no longer provided; use useAgents hook directly."
+  );
+}
 
 /**
  * Get the global transport instance from the AgentProvider.
@@ -358,7 +396,7 @@ export function useGlobalAgentStrict(): never { throw new Error('Global agent is
 export function useGlobalTransportStrict(): IClientTransport {
   const context = useContext(AgentContext);
   if (!context) {
-    throw new Error('useGlobalTransport must be used within an AgentProvider');
+    throw new Error("useGlobalTransport must be used within an AgentProvider");
   }
   return context.transport;
 }

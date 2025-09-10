@@ -43,6 +43,4 @@ export const AgentsEvents = {
   RehydrateState: "agents.action.rehydrateMessageState",
 } as const;
 
-export type AgentsEventName = typeof AgentsEvents[keyof typeof AgentsEvents];
-
-
+export type AgentsEventName = (typeof AgentsEvents)[keyof typeof AgentsEvents];

@@ -1,7 +1,11 @@
 // Framework-agnostic connection port for realtime subscriptions
 
 export interface IConnectionTokenProvider {
-  getToken(params: { userId?: string; threadId: string; channelKey: string }): Promise<{ token: string; expires?: number }>;
+  getToken(params: {
+    userId?: string;
+    threadId: string;
+    channelKey: string;
+  }): Promise<{ token: string; expires?: number }>;
 }
 
 export interface IConnectionSubscription {
@@ -16,5 +20,3 @@ export interface IConnection {
     debug?: boolean;
   }): Promise<IConnectionSubscription> | IConnectionSubscription;
 }
-
-

@@ -1,5 +1,8 @@
 import type { StreamingAction, StreamingState } from "../../types/index.js";
-import type { IConnection, IConnectionSubscription } from "../ports/connection.js";
+import type {
+  IConnection,
+  IConnectionSubscription,
+} from "../ports/connection.js";
 import { reduceStreamingState } from "./streaming-reducer.js";
 
 /**
@@ -21,7 +24,11 @@ export class StreamingEngine {
 
   constructor(params: {
     initialState: StreamingState;
-    reducer?: (s: StreamingState, a: StreamingAction, debug?: boolean) => StreamingState;
+    reducer?: (
+      s: StreamingState,
+      a: StreamingAction,
+      debug?: boolean
+    ) => StreamingState;
     debug?: boolean;
   }) {
     this.state = params.initialState;
@@ -89,7 +96,10 @@ export class StreamingEngine {
    * Handle a batch of realtime messages (already filtered/mapped by caller).
    */
   handleRealtimeMessages(messages: any[]): void {
-    this.dispatch({ type: "REALTIME_MESSAGES_RECEIVED", messages } as StreamingAction);
+    this.dispatch({
+      type: "REALTIME_MESSAGES_RECEIVED",
+      messages,
+    } as StreamingAction);
   }
 
   /**
@@ -102,5 +112,3 @@ export class StreamingEngine {
     this.activeSub = undefined;
   }
 }
-
-

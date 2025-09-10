@@ -1,4 +1,8 @@
-import type { IConnection, IConnectionSubscription, IConnectionTokenProvider } from "../ports/connection.js";
+import type {
+  IConnection,
+  IConnectionSubscription,
+  IConnectionTokenProvider,
+} from "../ports/connection.js";
 
 /**
  * NOTE (2025-09): This manager will become the primary realtime path.
@@ -13,7 +17,11 @@ export class ConnectionManager {
   private unsubscribe?: () => void;
   private readonly debug: boolean;
 
-  constructor(params: { connection: IConnection; tokenProvider?: IConnectionTokenProvider; debug?: boolean }) {
+  constructor(params: {
+    connection: IConnection;
+    tokenProvider?: IConnectionTokenProvider;
+    debug?: boolean;
+  }) {
     this.connection = params.connection;
     this.tokenProvider = params.tokenProvider;
     this.debug = Boolean(params.debug);
@@ -43,5 +51,3 @@ export class ConnectionManager {
     }
   }
 }
-
-

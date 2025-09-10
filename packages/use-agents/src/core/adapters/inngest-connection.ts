@@ -28,7 +28,10 @@ export class InngestConnection implements IConnection {
     // Placeholder implementation – no underlying socket yet.
     // Immediately emit a benign state change to indicate the seam works.
     try {
-      params.onStateChange?.({ status: "stub-connected", channel: params.channel });
+      params.onStateChange?.({
+        status: "stub-connected",
+        channel: params.channel,
+      });
     } catch {}
 
     // Return a no-op unsubscriber; safe to call multiple times.
@@ -38,7 +41,10 @@ export class InngestConnection implements IConnection {
         if (!isActive) return;
         isActive = false;
         try {
-          params.onStateChange?.({ status: "stub-disconnected", channel: params.channel });
+          params.onStateChange?.({
+            status: "stub-disconnected",
+            channel: params.channel,
+          });
         } catch {}
       },
     };
@@ -50,5 +56,3 @@ export function createInngestConnection(params?: {
 }): IConnection {
   return new InngestConnection(params);
 }
-
-

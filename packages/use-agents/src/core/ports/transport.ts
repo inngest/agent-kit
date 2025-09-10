@@ -32,21 +32,67 @@ export interface FetchThreadsParams {
   offset?: number;
 }
 
-export interface FetchHistoryParams { threadId: string }
-export interface CreateThreadParams { userId?: string; channelKey?: string; title?: string; metadata?: Record<string, unknown> }
-export interface DeleteThreadParams { threadId: string }
-export interface GetRealtimeTokenParams { userId?: string; threadId?: string; channelKey?: string }
-export interface ApproveToolCallParams { toolCallId: string; threadId: string; action: 'approve' | 'deny'; reason?: string }
-
-export interface IClientTransport {
-  sendMessage(params: SendMessageParams, options?: RequestOptions): Promise<{ success: boolean; threadId: string }>;
-  getRealtimeToken(params: GetRealtimeTokenParams, options?: RequestOptions): Promise<any>;
-  fetchThreads(params: FetchThreadsParams, options?: RequestOptions): Promise<{ threads: any[]; hasMore: boolean; total: number; nextCursorTimestamp?: string | null; nextCursorId?: string | null }>;
-  fetchHistory(params: FetchHistoryParams, options?: RequestOptions): Promise<any[]>;
-  createThread(params: CreateThreadParams, options?: RequestOptions): Promise<{ threadId: string; title: string }>;
-  deleteThread(params: DeleteThreadParams, options?: RequestOptions): Promise<void>;
-  approveToolCall(params: ApproveToolCallParams, options?: RequestOptions): Promise<void>;
-  cancelMessage?(params: { threadId: string }, options?: RequestOptions): Promise<void>;
+export interface FetchHistoryParams {
+  threadId: string;
+}
+export interface CreateThreadParams {
+  userId?: string;
+  channelKey?: string;
+  title?: string;
+  metadata?: Record<string, unknown>;
+}
+export interface DeleteThreadParams {
+  threadId: string;
+}
+export interface GetRealtimeTokenParams {
+  userId?: string;
+  threadId?: string;
+  channelKey?: string;
+}
+export interface ApproveToolCallParams {
+  toolCallId: string;
+  threadId: string;
+  action: "approve" | "deny";
+  reason?: string;
 }
 
-
+export interface IClientTransport {
+  sendMessage(
+    params: SendMessageParams,
+    options?: RequestOptions
+  ): Promise<{ success: boolean; threadId: string }>;
+  getRealtimeToken(
+    params: GetRealtimeTokenParams,
+    options?: RequestOptions
+  ): Promise<any>;
+  fetchThreads(
+    params: FetchThreadsParams,
+    options?: RequestOptions
+  ): Promise<{
+    threads: any[];
+    hasMore: boolean;
+    total: number;
+    nextCursorTimestamp?: string | null;
+    nextCursorId?: string | null;
+  }>;
+  fetchHistory(
+    params: FetchHistoryParams,
+    options?: RequestOptions
+  ): Promise<any[]>;
+  createThread(
+    params: CreateThreadParams,
+    options?: RequestOptions
+  ): Promise<{ threadId: string; title: string }>;
+  deleteThread(
+    params: DeleteThreadParams,
+    options?: RequestOptions
+  ): Promise<void>;
+  approveToolCall(
+    params: ApproveToolCallParams,
+    options?: RequestOptions
+  ): Promise<void>;
+  cancelMessage?(
+    params: { threadId: string },
+    options?: RequestOptions
+  ): Promise<void>;
+}

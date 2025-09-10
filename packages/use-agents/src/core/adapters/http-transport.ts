@@ -5,7 +5,12 @@
  * This file lives under adapters/ to align with hexagonal architecture.
  */
 
-import { ConversationMessage, Thread, RealtimeToken, createAgentError } from '../../types/index';
+import {
+  ConversationMessage,
+  type Thread,
+  type RealtimeToken,
+  createAgentError,
+} from "../../types/index";
 import type {
   IClientTransport,
   RequestOptions,
@@ -40,16 +45,20 @@ export interface DefaultHttpTransportConfig {
     approveToolCall: string | (() => string | Promise<string>);
     cancelMessage?: string | (() => string | Promise<string>); // e.g., '/api/chat/cancel'
   };
-  
+
   /**
    * Default headers to include with all requests.
    */
-  headers?: Record<string, string> | (() => Record<string, string> | Promise<Record<string, string>>);
-  
+  headers?:
+    | Record<string, string>
+    | (() => Record<string, string> | Promise<Record<string, string>>);
+
   /**
    * Default body fields to include with all requests.
    */
-  body?: Record<string, any> | (() => Record<string, any> | Promise<Record<string, any>>);
+  body?:
+    | Record<string, any>
+    | (() => Record<string, any> | Promise<Record<string, any>>);
 
   /**
    * Base URL for all endpoints (optional).
@@ -72,39 +81,46 @@ export class DefaultHttpTransport implements IClientTransport {
   constructor(config?: Partial<DefaultHttpTransportConfig>) {
     this.config = {
       api: {
-        sendMessage: '/api/chat',
-        getRealtimeToken: '/api/realtime/token',
-        fetchThreads: '/api/threads',
-        fetchHistory: '/api/threads/{threadId}',
-        createThread: '/api/threads',
-        deleteThread: '/api/threads/{threadId}',
-        approveToolCall: '/api/approve-tool',
-        cancelMessage: '/api/chat/cancel',
+        sendMessage: "/api/chat",
+        getRealtimeToken: "/api/realtime/token",
+        fetchThreads: "/api/threads",
+        fetchHistory: "/api/threads/{threadId}",
+        createThread: "/api/threads",
+        deleteThread: "/api/threads/{threadId}",
+        approveToolCall: "/api/approve-tool",
+        cancelMessage: "/api/chat/cancel",
       },
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       },
-      baseURL: '',
+      baseURL: "",
       ...config,
     } as DefaultHttpTransportConfig;
 
-    this.fetchFn = this.config.fetch || ((url: string | URL | Request, init?: RequestInit) => fetch(url, init));
+    this.fetchFn =
+      this.config.fetch ||
+      ((url: string | URL | Request, init?: RequestInit) => fetch(url, init));
   }
 
-  private async resolveOption<T>(option: T | (() => T | Promise<T>)): Promise<T> {
-    if (typeof option === 'function') {
+  private async resolveOption<T>(
+    option: T | (() => T | Promise<T>)
+  ): Promise<T> {
+    if (typeof option === "function") {
       return await (option as () => T | Promise<T>)();
     }
-    return option as T;
+    return option;
   }
 
-  private buildURL(template: string, params: Record<string, string> = {}): string {
+  private buildURL(
+    template: string,
+    params: Record<string, string> = {}
+  ): string {
     let url = template;
     for (const [key, value] of Object.entries(params)) {
       url = url.replace(`{${key}}`, encodeURIComponent(value));
     }
-    if (this.config.baseURL && !url.startsWith('http')) {
-      url = `${this.config.baseURL.replace(/\/$/, '')}${url.startsWith('/') ? '' : '/'}${url}`;
+    if (this.config.baseURL && !url.startsWith("http")) {
+      url = `${this.config.baseURL.replace(/\/$/, "")}${url.startsWith("/") ? "" : "/"}${url}`;
     }
     return url;
   }
@@ -112,7 +128,12 @@ export class DefaultHttpTransport implements IClientTransport {
   private async makeRequest<T>(
     endpoint: string,
     params: Record<string, string> = {},
-    options: { method?: string; body?: any; headers?: Record<string, string>; signal?: AbortSignal } = {}
+    options: {
+      method?: string;
+      body?: any;
+      headers?: Record<string, string>;
+      signal?: AbortSignal;
+    } = {}
   ): Promise<T> {
     const url = this.buildURL(endpoint, params);
     const defaultHeaders = await this.resolveOption(this.config.headers || {});
@@ -122,12 +143,20 @@ export class DefaultHttpTransport implements IClientTransport {
 
     let body: string | undefined;
     if (options.body) {
-      body = typeof options.body === 'string' ? options.body : JSON.stringify({ ...defaultBody, ...options.body });
-    } else if (options.method !== 'GET' && options.method !== 'DELETE') {
+      body =
+        typeof options.body === "string"
+          ? options.body
+          : JSON.stringify({ ...defaultBody, ...options.body });
+    } else if (options.method !== "GET" && options.method !== "DELETE") {
       body = JSON.stringify(defaultBody);
     }
 
-    const response = await this.fetchFn(url, { method: options.method || 'GET', headers, body, signal: options.signal });
+    const response = await this.fetchFn(url, {
+      method: options.method || "GET",
+      headers,
+      body,
+      signal: options.signal,
+    });
     if (!response.ok) {
       let message = `HTTP ${response.status}: ${response.statusText}`;
       try {
@@ -138,106 +167,197 @@ export class DefaultHttpTransport implements IClientTransport {
       if (message) agentError.message = message;
       throw agentError;
     }
-    if (response.status === 204 || response.headers.get('content-length') === '0') {
+    if (
+      response.status === 204 ||
+      response.headers.get("content-length") === "0"
+    ) {
       return undefined as T;
     }
     return response.json();
   }
 
-  async sendMessage(params: SendMessageParams, options?: RequestOptions): Promise<{ success: boolean; threadId: string }> {
+  async sendMessage(
+    params: SendMessageParams,
+    options?: RequestOptions
+  ): Promise<{ success: boolean; threadId: string }> {
     const endpoint = await this.resolveOption(this.config.api.sendMessage);
-    return this.makeRequest(endpoint, {}, {
-      method: 'POST',
-      body: {
-        userMessage: params.userMessage,
-        threadId: params.threadId,
-        history: params.history,
-        userId: params.userId,
-        channelKey: params.channelKey,
-        ...options?.body,
-      },
-      headers: options?.headers,
-      signal: options?.signal,
-    });
+    return this.makeRequest(
+      endpoint,
+      {},
+      {
+        method: "POST",
+        body: {
+          userMessage: params.userMessage,
+          threadId: params.threadId,
+          history: params.history,
+          userId: params.userId,
+          channelKey: params.channelKey,
+          ...options?.body,
+        },
+        headers: options?.headers,
+        signal: options?.signal,
+      }
+    );
   }
 
-  async getRealtimeToken(params: GetRealtimeTokenParams, options?: RequestOptions): Promise<RealtimeToken> {
+  async getRealtimeToken(
+    params: GetRealtimeTokenParams,
+    options?: RequestOptions
+  ): Promise<RealtimeToken> {
     const endpoint = await this.resolveOption(this.config.api.getRealtimeToken);
-    return this.makeRequest<RealtimeToken>(endpoint, {}, {
-      method: 'POST',
-      body: { userId: params.userId, threadId: params.threadId, channelKey: params.channelKey, ...options?.body },
-      headers: options?.headers,
-      signal: options?.signal,
-    });
+    return this.makeRequest<RealtimeToken>(
+      endpoint,
+      {},
+      {
+        method: "POST",
+        body: {
+          userId: params.userId,
+          threadId: params.threadId,
+          channelKey: params.channelKey,
+          ...options?.body,
+        },
+        headers: options?.headers,
+        signal: options?.signal,
+      }
+    );
   }
 
   async fetchThreads(
     params: FetchThreadsParams,
     options?: RequestOptions
-  ): Promise<{ threads: Thread[]; hasMore: boolean; total: number; nextCursorTimestamp?: string | null; nextCursorId?: string | null }>{
+  ): Promise<{
+    threads: Thread[];
+    hasMore: boolean;
+    total: number;
+    nextCursorTimestamp?: string | null;
+    nextCursorId?: string | null;
+  }> {
     const endpoint = await this.resolveOption(this.config.api.fetchThreads);
-    const queryParams = new URLSearchParams({ limit: String(params.limit || 20) });
+    const queryParams = new URLSearchParams({
+      limit: String(params.limit || 20),
+    });
     if (params.cursorTimestamp && params.cursorId) {
-      queryParams.set('cursorTimestamp', params.cursorTimestamp);
-      queryParams.set('cursorId', params.cursorId);
-    } else if (typeof params.offset === 'number') {
-      queryParams.set('offset', String(params.offset));
+      queryParams.set("cursorTimestamp", params.cursorTimestamp);
+      queryParams.set("cursorId", params.cursorId);
+    } else if (typeof params.offset === "number") {
+      queryParams.set("offset", String(params.offset));
     }
-    if (params.userId) queryParams.set('userId', params.userId);
-    else if (params.channelKey) queryParams.set('channelKey', params.channelKey);
+    if (params.userId) queryParams.set("userId", params.userId);
+    else if (params.channelKey)
+      queryParams.set("channelKey", params.channelKey);
     const url = `${endpoint}?${queryParams}`;
-    return this.makeRequest(url, {}, { method: 'GET', headers: options?.headers, signal: options?.signal });
+    return this.makeRequest(
+      url,
+      {},
+      { method: "GET", headers: options?.headers, signal: options?.signal }
+    );
   }
 
-  async fetchHistory(params: FetchHistoryParams, options?: RequestOptions): Promise<any[]> {
+  async fetchHistory(
+    params: FetchHistoryParams,
+    options?: RequestOptions
+  ): Promise<any[]> {
     const endpoint = await this.resolveOption(this.config.api.fetchHistory);
-    const response = await this.makeRequest<{ messages: any[] }>(endpoint, { threadId: params.threadId }, {
-      method: 'GET',
-      headers: options?.headers,
-      signal: options?.signal,
-    });
+    const response = await this.makeRequest<{ messages: any[] }>(
+      endpoint,
+      { threadId: params.threadId },
+      {
+        method: "GET",
+        headers: options?.headers,
+        signal: options?.signal,
+      }
+    );
     return response.messages;
   }
 
-  async createThread(params: CreateThreadParams, options?: RequestOptions): Promise<{ threadId: string; title: string }>{
+  async createThread(
+    params: CreateThreadParams,
+    options?: RequestOptions
+  ): Promise<{ threadId: string; title: string }> {
     const endpoint = await this.resolveOption(this.config.api.createThread);
-    return this.makeRequest(endpoint, {}, {
-      method: 'POST',
-      body: { userId: params.userId, channelKey: params.channelKey, title: params.title, metadata: params.metadata, ...options?.body },
-      headers: options?.headers,
-      signal: options?.signal,
-    });
+    return this.makeRequest(
+      endpoint,
+      {},
+      {
+        method: "POST",
+        body: {
+          userId: params.userId,
+          channelKey: params.channelKey,
+          title: params.title,
+          metadata: params.metadata,
+          ...options?.body,
+        },
+        headers: options?.headers,
+        signal: options?.signal,
+      }
+    );
   }
 
-  async deleteThread(params: DeleteThreadParams, options?: RequestOptions): Promise<void> {
+  async deleteThread(
+    params: DeleteThreadParams,
+    options?: RequestOptions
+  ): Promise<void> {
     const endpoint = await this.resolveOption(this.config.api.deleteThread);
-    await this.makeRequest<void>(endpoint, { threadId: params.threadId }, { method: 'DELETE', headers: options?.headers, signal: options?.signal });
+    await this.makeRequest<void>(
+      endpoint,
+      { threadId: params.threadId },
+      { method: "DELETE", headers: options?.headers, signal: options?.signal }
+    );
   }
 
-  async approveToolCall(params: ApproveToolCallParams, options?: RequestOptions): Promise<void> {
+  async approveToolCall(
+    params: ApproveToolCallParams,
+    options?: RequestOptions
+  ): Promise<void> {
     const endpoint = await this.resolveOption(this.config.api.approveToolCall);
-    await this.makeRequest<void>(endpoint, {}, {
-      method: 'POST',
-      body: { toolCallId: params.toolCallId, threadId: params.threadId, action: params.action, reason: params.reason, ...options?.body },
-      headers: options?.headers,
-      signal: options?.signal,
-    });
+    await this.makeRequest<void>(
+      endpoint,
+      {},
+      {
+        method: "POST",
+        body: {
+          toolCallId: params.toolCallId,
+          threadId: params.threadId,
+          action: params.action,
+          reason: params.reason,
+          ...options?.body,
+        },
+        headers: options?.headers,
+        signal: options?.signal,
+      }
+    );
   }
 
-  async cancelMessage(params: { threadId: string }, options?: RequestOptions): Promise<void> {
+  async cancelMessage(
+    params: { threadId: string },
+    options?: RequestOptions
+  ): Promise<void> {
     const cancelEndpoint = this.config.api.cancelMessage;
-    if (!cancelEndpoint) throw new Error('cancelMessage endpoint not configured');
+    if (!cancelEndpoint)
+      throw new Error("cancelMessage endpoint not configured");
     const endpoint = await this.resolveOption(cancelEndpoint);
-    await this.makeRequest<void>(endpoint, {}, { method: 'POST', body: { threadId: params.threadId, ...options?.body }, headers: options?.headers, signal: options?.signal });
+    await this.makeRequest<void>(
+      endpoint,
+      {},
+      {
+        method: "POST",
+        body: { threadId: params.threadId, ...options?.body },
+        headers: options?.headers,
+        signal: options?.signal,
+      }
+    );
   }
 }
 
-export function createDefaultHttpTransport(config?: Partial<DefaultHttpTransportConfig>): DefaultHttpTransport {
+export function createDefaultHttpTransport(
+  config?: Partial<DefaultHttpTransportConfig>
+): DefaultHttpTransport {
   return new DefaultHttpTransport(config);
 }
 
-export function createCustomTransport(baseTransport: IClientTransport, overrides: Partial<IClientTransport>): IClientTransport {
+export function createCustomTransport(
+  baseTransport: IClientTransport,
+  overrides: Partial<IClientTransport>
+): IClientTransport {
   return { ...baseTransport, ...overrides };
 }
-
-

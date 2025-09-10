@@ -58,5 +58,3 @@ export function resolveTransport(
   if (provided) return provided;
   return provider?.transport ?? null;
 }
-
-
