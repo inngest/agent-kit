@@ -488,6 +488,8 @@ export interface ThreadState {
   hasNewMessages: boolean;
   /** Timestamp of the last activity in this thread. */
   lastActivity: Date;
+  /** Whether initial history has been loaded at least once for this thread. */
+  historyLoaded?: boolean;
   
   // Error handling (per thread)
   /** Thread-specific error information. */
