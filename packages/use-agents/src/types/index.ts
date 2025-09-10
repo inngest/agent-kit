@@ -25,7 +25,7 @@
  */
 
 import { InngestSubscriptionState } from "@inngest/realtime/hooks";
-import { type IClientTransport } from '../core/ports/transport.js';
+// Note: transport types are imported where needed in framework code; no import here
 
 // =============================================================================
 // REALTIME TOKEN TYPES
@@ -566,96 +566,4 @@ export type StreamingAction =
   /** Dispatched to remove a thread completely */
   | { type: 'REMOVE_THREAD'; threadId: string };
 
-// =============================================================================
-// HOOK OPTIONS & RETURN TYPES
-// =============================================================================
-
-/**
- * Configuration options for the useAgent hook.
- * 
- * These options control all aspects of agent interaction including connection
- * management, state capture, transport configuration, and debugging. The hook
- * supports both simple usage (minimal config) and advanced scenarios (full customization).
- * 
- * ## Configuration Hierarchy
- * 
- * 1. **Hook Options**: Direct parameters passed to useAgent (highest priority)
- * 2. **Provider Options**: Inherited from AgentProvider if available
- * 3. **Defaults**: Built-in fallbacks for anonymous users and default transports
- * 
- * @interface UseAgentOptions
- * @example
- * ```typescript
- * // Minimal configuration
- * const minimal = useAgent({
- *   threadId: 'conversation-123'
- * });
- * 
- * // Full configuration
- * const advanced = useAgent({
- *   threadId: 'conversation-123',
- *   userId: 'user-456',
- *   channelKey: 'project-789', // For collaboration
- *   debug: true,
- *   state: () => ({
- *     currentTab: getCurrentTab(),
- *     formData: getFormData(),
- *     userPreferences: getUserPreferences()
- *   }),
- *   transport: new CustomClientTransport(),
- *   onError: (error) => {
- *     console.error('Agent error:', error);
- *     showErrorNotification(error.message);
- *   }
- * });
- * ```
- */
-export interface UseAgentOptions {
-  /** The unique identifier for the conversation thread. */
-  threadId: string;
-  /** Channel key for subscription (flexible - enables collaborative features) */
-  channelKey?: string;
-  /** The user identifier for attribution and data ownership (optional - can be anonymous). */
-  userId?: string;
-  /** An optional callback for handling errors. */
-  onError?: (error: Error) => void;
-  /** 
-   * Enable debug logging for this agent instance. 
-   * When true, detailed console logs will be output for debugging purposes.
-   * Defaults to true in development, false in production.
-   */
-  debug?: boolean;
-  
-  /**
-   * Optional function to capture client-side state when sending messages.
-   * This state will be included in the UserMessage object and can be persisted
-   * for debugging, regeneration, and enhanced context.
-   * 
-   * @returns Object containing any client-side state to be captured
-   * 
-   * @example
-   * ```typescript
-   * state: () => ({
-   *   formData: currentFormState,
-   *   selectedItems: selectedIds,
-   *   uiMode: currentMode,
-   *   filters: activeFilters
-   * })
-   * ```
-   */
-  state?: () => Record<string, unknown>;
-  
-  /**
-   * Optional transport instance for making API calls.
-   * If not provided, a default transport with conventional endpoints will be used.
-   * This allows customization of endpoints, headers, and request logic.
-   */
-  transport?: IClientTransport;
-  
-  /**
-   * Internal flag to disable this useAgent instance when used as an unused fallback.
-   * This prevents double subscriptions when both provider and local agents exist.
-   * @internal
-   */
-  __disableSubscription?: boolean;
-}
+// [Removed] Legacy UseAgentOptions type; use useAgents types in React layer
