@@ -373,15 +373,6 @@ export class StreamingContext {
    * Create a child streaming context for agent runs within network runs
    */
   createChildContext(agentRunId: string): StreamingContext {
-    if (this.debug) {
-      console.log("🔧 [CHILD-CTX] Creating child context:", {
-        parentRunId: this.runId,
-        childRunId: agentRunId,
-        inheritedMessageId: this.messageId,
-        scope: "agent",
-        timestamp: new Date().toISOString(),
-      });
-    }
     return new StreamingContext({
       publish: this.publish,
       runId: agentRunId,
@@ -430,15 +421,6 @@ export class StreamingContext {
     }
   ): StreamingContext {
     const debug = config.debug ?? process.env.NODE_ENV === "development";
-    if (debug) {
-      console.log("🔧 [STREAMING-CTX] Creating StreamingContext with:", {
-        runId: config.runId,
-        messageId: config.messageId,
-        scope: config.scope,
-        threadId: networkState.threadId,
-        timestamp: new Date().toISOString(),
-      });
-    }
     return new StreamingContext({
       publish: config.publish,
       runId: config.runId,
@@ -519,17 +501,6 @@ export class StreamingContext {
     
     // Format: "tool_" (5) + shortMessageId (8) + "_" (1) + shortTimestamp (8) + "_" (1) + randomSuffix (6) = 29 chars
     const partId = `tool_${shortMessageId}_${shortTimestamp}_${randomSuffix}`;
-    
-    if (this.debug) {
-      console.log(
-        "🔧 [PART-ID] Generated OpenAI-compatible partId:",
-        partId,
-        "(length:", partId.length, ") for messageId:",
-        this.messageId,
-        "at",
-        new Date().toISOString()
-      );
-    }
     return partId;
   }
 
@@ -582,16 +553,6 @@ export function isEventType<T extends StreamingEvent>(
  */
 export function generateId(debug?: boolean): string {
   const id = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-  const isDebug = debug ?? process.env.NODE_ENV === "development";
-  if (isDebug) {
-    console.log(
-      "🔧 [ID-GEN] Generated new ID:",
-      id,
-      "at",
-      new Date().toISOString()
-    );
-    console.trace("🔧 [ID-GEN] Call stack for ID generation");
-  }
   return id;
 }
 
