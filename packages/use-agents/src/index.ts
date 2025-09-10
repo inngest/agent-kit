@@ -79,7 +79,7 @@ export { formatMessagesToAgentKitHistory } from "./utils/message-formatting.js";
 export type { AgentKitMessage } from "./utils/message-formatting.js";
 
 // === CORE TYPES & DEBUG ===
-export type { ConversationMessage, Thread } from "./types/index.js";
+export type { ConversationMessage, Thread, AgentError, AgentStatus } from "./types/index.js";
 export { createDebugLogger } from "./types/index.js";
 
 // === ADVANCED (opt-in) ===
