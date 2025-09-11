@@ -2,7 +2,7 @@
   "scripts": {
     "lint": "eslint",
     "test": "pnpm run --if-present --recursive test",
-    "build": "pnpm run --if-present --recursive build",
+    "build": "pnpm -r --filter './packages/*' --if-present run build",
     "release": "pnpm run build && changeset publish",
     "version": "changeset version && pnpm install --lockfile-only"
   },
