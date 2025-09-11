@@ -16,11 +16,12 @@
     "README.md"
   ],
   "scripts": {
-    "build": "pnpm i && tsc && tsup",
+    "build": "tsc && tsup",
     "dev": "tsup --watch",
     "lint": "eslint src",
     "type-check": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "prepare": "tsc && tsup"
   },
   "keywords": [
     "react",
