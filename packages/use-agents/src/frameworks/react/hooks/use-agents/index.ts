@@ -30,6 +30,9 @@ import {
   type Thread,
   type NetworkEvent,
   type AgentStatus,
+  type StreamingState,
+  type ThreadsPage,
+  type CrossTabMessage,
 } from "../../../../types/index.js";
 import type { InngestSubscriptionState } from "@inngest/realtime/hooks";
 import type { UseAgentsConfig, UseAgentsReturn } from "./types.js";
@@ -80,10 +83,16 @@ export function useAgents(config: UseAgentsConfig = {}): UseAgentsReturn {
   const perThreadRunBufferRef = useRef<Map<string, NetworkEvent[]>>(new Map());
   const dedupKeyForEvent = useCallback((evt: NetworkEvent): string => {
     try {
-      const data = evt.data ?? {};
+      const data = (evt.data as Record<string, unknown>) ?? {};
       const tid = typeof data.threadId === "string" ? data.threadId : "";
-      const mid = typeof data.messageId === "string" ? data.messageId : "";
-      const pid = typeof data.partId === "string" ? data.partId : "";
+      const mid =
+        typeof (data as { messageId?: unknown }).messageId === "string"
+          ? (data as { messageId?: string }).messageId!
+          : "";
+      const pid =
+        typeof (data as { partId?: unknown }).partId === "string"
+          ? (data as { partId?: string }).partId!
+          : "";
       const ev = typeof evt.event === "string" ? evt.event : "";
       const seq =
         typeof evt.sequenceNumber === "number"
@@ -189,14 +198,6 @@ export function useAgents(config: UseAgentsConfig = {}): UseAgentsReturn {
     queryClient = null;
   }
 
-  type ThreadsPage = {
-    threads: Thread[];
-    hasMore: boolean;
-    total: number;
-    nextCursorTimestamp?: string | null;
-    nextCursorId?: string | null;
-  };
-
   // Local fallback state when no QueryClientProvider is present
   const [threadsLocal, setThreadsLocal] = useState<Thread[]>([]);
   const [threadsLoadingLocal, setThreadsLoadingLocal] = useState<boolean>(true);
@@ -276,28 +277,25 @@ export function useAgents(config: UseAgentsConfig = {}): UseAgentsReturn {
   }
 
   // Derive status from engine state if enabled
-  const engineState = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+  const engineState = useSyncExternalStore<StreamingState>(
+    subscribe,
+    getSnapshot,
+    getSnapshot
+  );
   const engineStatus = useMemo(() => {
     if (!engineState) return null;
-    const s = engineState as unknown as {
-      threads?: Record<string, { agentStatus?: string }>;
-    };
     const tid = currentThreadId || fallbackThreadIdRef.current!;
-    const ts = s?.threads?.[tid];
-    return ts?.agentStatus || null;
+    const ts = engineState.threads?.[tid];
+    return (ts?.agentStatus as AgentStatus | undefined) || null;
   }, [currentThreadId, engineState]);
 
   // Derive messages from engine state if enabled
   const engineMessages = useMemo<ConversationMessage[] | null>(() => {
     if (!engineState) return null;
-    const s = engineState as unknown as {
-      threads?: Record<
-        string,
-        { messages?: ConversationMessage[]; historyLoaded?: boolean }
-      >;
-    };
     const tid = currentThreadId || fallbackThreadIdRef.current!;
-    const ts = s?.threads?.[tid];
+    const ts = engineState.threads?.[tid] as
+      | { messages?: ConversationMessage[]; historyLoaded?: boolean }
+      | undefined;
     if (config.debug) {
       const count = Array.isArray(ts?.messages) ? ts.messages.length : 0;
       logger.log(AgentsEvents.SelectorReadMessages, {
@@ -312,11 +310,8 @@ export function useAgents(config: UseAgentsConfig = {}): UseAgentsReturn {
   }, [currentThreadId, engineState]);
 
   const currentThreadHistoryLoaded = useMemo(() => {
-    const s = engineState as unknown as {
-      threads?: Record<string, { historyLoaded?: boolean }>;
-    };
     const tid = currentThreadId || fallbackThreadIdRef.current!;
-    return Boolean(s?.threads?.[tid]?.historyLoaded);
+    return Boolean(engineState?.threads?.[tid]?.historyLoaded);
   }, [engineState, currentThreadId]);
 
   // Diagnostics: capture initial-loading derivation and fallback usage
@@ -364,9 +359,7 @@ export function useAgents(config: UseAgentsConfig = {}): UseAgentsReturn {
   }, [hasQueryProvider, threadsQuery?.data, threadsLocal]);
 
   const threadsWithFlags = useMemo(() => {
-    const s = engineState as unknown as {
-      threads?: Record<string, { hasNewMessages?: boolean }>;
-    };
+    const s = engineState;
     if (!s || !s.threads) return computedThreads;
     return computedThreads.map((t) => {
       const ts = s.threads?.[t.id];
@@ -503,15 +496,8 @@ export function useAgents(config: UseAgentsConfig = {}): UseAgentsReturn {
     if (!effectiveChannel) return;
     const bc = new BroadcastChannel(`agentkit-stream:${effectiveChannel}`);
     bcRef.current = bc;
-    const onMessage = (e: MessageEvent) => {
-      const msg = e.data as {
-        type?: string;
-        sender?: string;
-        evt?: NetworkEvent;
-        state?: unknown;
-        threadId?: string;
-        events?: NetworkEvent[];
-      };
+    const onMessage = (e: MessageEvent<CrossTabMessage>) => {
+      const msg = e.data;
       if (!msg || msg.sender === tabIdRef.current) return;
       if (msg.type === "evt" && msg.evt) {
         const evt = msg.evt;
@@ -595,9 +581,7 @@ export function useAgents(config: UseAgentsConfig = {}): UseAgentsReturn {
 
   // Utility getters
   const getThreadState = useCallback((tid: string) => {
-    const s = engineRef.current?.getState() as unknown as {
-      threads?: Record<string, { messages?: ConversationMessage[] }>;
-    };
+    const s = engineRef.current?.getState();
     return s?.threads?.[tid];
   }, []);
 
@@ -1027,7 +1011,7 @@ export function useAgents(config: UseAgentsConfig = {}): UseAgentsReturn {
   return {
     // Agent state
     messages: engineMessages || [],
-    status: (engineStatus ?? "idle") as AgentStatus,
+    status: engineStatus ?? "idle",
     isConnected: Boolean(engineRef.current?.getState().isConnected),
     currentAgent: undefined,
     error: undefined,

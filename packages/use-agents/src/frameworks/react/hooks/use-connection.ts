@@ -27,15 +27,22 @@ export function useConnectionSubscription(params: {
 
   // Token is required for realtime subscriptions
   const enabled = Boolean(channel && refreshToken);
-  const subOptions = {
+  type SubscriptionOptions = {
+    key?: string;
+    enabled?: boolean;
+    refreshToken: () => Promise<unknown>;
+  };
+  const subOptions: SubscriptionOptions = {
     key: channel || undefined,
     enabled,
     refreshToken: async () => {
       return await refreshToken!();
     },
-  } as unknown as Parameters<typeof useInngestSubscription>[0];
+  };
 
-  const { data, state, error } = useInngestSubscription(subOptions);
+  const { data, state, error } = useInngestSubscription(
+    subOptions as unknown as Parameters<typeof useInngestSubscription>[0]
+  );
 
   const lastLenRef = useRef(0);
   useEffect(() => {
