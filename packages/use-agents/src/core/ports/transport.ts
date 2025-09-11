@@ -2,7 +2,7 @@
 // This provides a stable hexagonal port surface which we can evolve independently
 
 // Port interface surface for transports
-import type { Thread, RealtimeToken } from "../../types/index.js";
+import type { RealtimeToken, ThreadsPage } from "../../types/index.js";
 export interface RequestOptions {
   headers?: Record<string, string>;
   body?: Record<string, unknown>;
@@ -69,13 +69,7 @@ export interface IClientTransport {
   fetchThreads(
     params: FetchThreadsParams,
     options?: RequestOptions
-  ): Promise<{
-    threads: Thread[];
-    hasMore: boolean;
-    total: number;
-    nextCursorTimestamp?: string | null;
-    nextCursorId?: string | null;
-  }>;
+  ): Promise<ThreadsPage>;
   fetchHistory(
     params: FetchHistoryParams,
     options?: RequestOptions

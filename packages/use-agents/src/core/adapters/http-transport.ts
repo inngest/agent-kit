@@ -158,17 +158,13 @@ export class DefaultHttpTransport implements IClientTransport {
       signal: options.signal,
     });
     if (!response.ok) {
+      type ApiErrorBody = { error?: { message?: string }; message?: string };
       let message = `HTTP ${response.status}: ${response.statusText}`;
       try {
-        const data = (await response.json()) as unknown;
-        if (data && typeof data === "object") {
-          const anyData = data as Record<string, unknown>;
-          const err = anyData.error as Record<string, unknown> | undefined;
-          const detail =
-            (err?.message as string) || (anyData.message as string);
-          if (typeof detail === "string" && detail.length > 0) {
-            message = detail;
-          }
+        const data = (await response.json()) as ApiErrorBody;
+        const detail = data?.error?.message || data?.message;
+        if (typeof detail === "string" && detail.length > 0) {
+          message = detail;
         }
       } catch {
         // ignore JSON parsing errors; fallback to default message

@@ -29,7 +29,7 @@ function getUserKey(userId?: string | null): string {
  * - Handles thread CRUD and history locally
  */
 export class InMemorySessionTransport implements IClientTransport {
-  private readonly http: DefaultHttpTransport;
+  private readonly http: IClientTransport;
 
   constructor(config?: Partial<DefaultHttpTransportConfig>) {
     this.http = new DefaultHttpTransport(config);
@@ -118,14 +118,8 @@ export class InMemorySessionTransport implements IClientTransport {
     params: { threadId: string },
     options?: RequestOptions
   ): Promise<void> {
-    const httpWithCancel = this.http as unknown as {
-      cancelMessage?: (
-        p: { threadId: string },
-        o?: RequestOptions
-      ) => Promise<void>;
-    };
-    if (typeof httpWithCancel.cancelMessage === "function") {
-      return httpWithCancel.cancelMessage(params, options);
+    if (typeof this.http.cancelMessage === "function") {
+      return this.http.cancelMessage(params, options);
     }
   }
 }
