@@ -19,7 +19,8 @@
     "module": "ESNext"
   },
   "include": [
-    "src/**/*"
+    "src/**/*",
+    "tsup.config.ts"
   ],
   "exclude": [
     "node_modules",
