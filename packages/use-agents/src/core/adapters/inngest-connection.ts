@@ -19,12 +19,12 @@ export class InngestConnection implements IConnection {
     this.tokenProvider = params?.tokenProvider;
   }
 
-  async subscribe(params: {
+  subscribe(params: {
     channel: string;
     onMessage: (chunk: unknown) => void;
     onStateChange?: (state: unknown) => void;
     debug?: boolean;
-  }): Promise<IConnectionSubscription> {
+  }): IConnectionSubscription {
     // Placeholder implementation – no underlying socket yet.
     // Immediately emit a benign state change to indicate the seam works.
     try {
@@ -32,7 +32,9 @@ export class InngestConnection implements IConnection {
         status: "stub-connected",
         channel: params.channel,
       });
-    } catch {}
+    } catch {
+      // ignore
+    }
 
     // Return a no-op unsubscriber; safe to call multiple times.
     let isActive = true;
@@ -45,7 +47,9 @@ export class InngestConnection implements IConnection {
             status: "stub-disconnected",
             channel: params.channel,
           });
-        } catch {}
+        } catch {
+          // ignore
+        }
       },
     };
   }

@@ -2,9 +2,10 @@
 // This provides a stable hexagonal port surface which we can evolve independently
 
 // Port interface surface for transports
+import type { Thread, RealtimeToken } from "../../types/index.js";
 export interface RequestOptions {
   headers?: Record<string, string>;
-  body?: Record<string, any>;
+  body?: Record<string, unknown>;
   signal?: AbortSignal;
 }
 
@@ -18,7 +19,7 @@ export interface SendMessageParams {
     systemPrompt?: string;
   };
   threadId: string;
-  history: any[];
+  history: unknown[];
   userId?: string;
   channelKey?: string;
 }
@@ -64,12 +65,12 @@ export interface IClientTransport {
   getRealtimeToken(
     params: GetRealtimeTokenParams,
     options?: RequestOptions
-  ): Promise<any>;
+  ): Promise<RealtimeToken>;
   fetchThreads(
     params: FetchThreadsParams,
     options?: RequestOptions
   ): Promise<{
-    threads: any[];
+    threads: Thread[];
     hasMore: boolean;
     total: number;
     nextCursorTimestamp?: string | null;
@@ -78,7 +79,7 @@ export interface IClientTransport {
   fetchHistory(
     params: FetchHistoryParams,
     options?: RequestOptions
-  ): Promise<any[]>;
+  ): Promise<unknown[]>;
   createThread(
     params: CreateThreadParams,
     options?: RequestOptions

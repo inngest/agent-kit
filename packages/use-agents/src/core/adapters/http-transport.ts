@@ -6,9 +6,9 @@
  */
 
 import {
-  ConversationMessage,
   type Thread,
   type RealtimeToken,
+  type AgentError,
   createAgentError,
 } from "../../types/index";
 import type {
@@ -57,8 +57,8 @@ export interface DefaultHttpTransportConfig {
    * Default body fields to include with all requests.
    */
   body?:
-    | Record<string, any>
-    | (() => Record<string, any> | Promise<Record<string, any>>);
+    | Record<string, unknown>
+    | (() => Record<string, unknown> | Promise<Record<string, unknown>>);
 
   /**
    * Base URL for all endpoints (optional).
@@ -130,7 +130,7 @@ export class DefaultHttpTransport implements IClientTransport {
     params: Record<string, string> = {},
     options: {
       method?: string;
-      body?: any;
+      body?: unknown;
       headers?: Record<string, string>;
       signal?: AbortSignal;
     } = {}
@@ -160,12 +160,29 @@ export class DefaultHttpTransport implements IClientTransport {
     if (!response.ok) {
       let message = `HTTP ${response.status}: ${response.statusText}`;
       try {
-        const data = await response.json();
-        message = data.error?.message || data.message || message;
-      } catch {}
+        const data = (await response.json()) as unknown;
+        if (data && typeof data === "object") {
+          const anyData = data as Record<string, unknown>;
+          const err = anyData.error as Record<string, unknown> | undefined;
+          const detail =
+            (err?.message as string) || (anyData.message as string);
+          if (typeof detail === "string" && detail.length > 0) {
+            message = detail;
+          }
+        }
+      } catch {
+        // ignore JSON parsing errors; fallback to default message
+      }
       const agentError = createAgentError(response, `Request to ${endpoint}`);
-      if (message) agentError.message = message;
-      throw agentError;
+      if (message) (agentError as { message: string }).message = message;
+      interface ErrorWithAgentError extends Error {
+        agentError: AgentError;
+      }
+      const err: ErrorWithAgentError = new Error(
+        (agentError as { message: string }).message
+      ) as ErrorWithAgentError;
+      err.agentError = agentError;
+      throw err;
     }
     if (
       response.status === 204 ||
@@ -173,7 +190,7 @@ export class DefaultHttpTransport implements IClientTransport {
     ) {
       return undefined as T;
     }
-    return response.json();
+    return (await response.json()) as T;
   }
 
   async sendMessage(
@@ -256,9 +273,9 @@ export class DefaultHttpTransport implements IClientTransport {
   async fetchHistory(
     params: FetchHistoryParams,
     options?: RequestOptions
-  ): Promise<any[]> {
+  ): Promise<unknown[]> {
     const endpoint = await this.resolveOption(this.config.api.fetchHistory);
-    const response = await this.makeRequest<{ messages: any[] }>(
+    const response = await this.makeRequest<{ messages: unknown[] }>(
       endpoint,
       { threadId: params.threadId },
       {

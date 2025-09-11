@@ -3,7 +3,7 @@ import type {
   SendMessageParams,
   RequestOptions,
   FetchThreadsParams,
-  FetchHistoryParams,
+  // FetchHistoryParams,
   CreateThreadParams,
   DeleteThreadParams,
   ApproveToolCallParams,
@@ -47,12 +47,12 @@ export class InMemorySessionTransport implements IClientTransport {
   async getRealtimeToken(
     params: GetRealtimeTokenParams,
     options?: RequestOptions
-  ): Promise<any> {
+  ): Promise<{ token: string; expires?: number }> {
     return this.http.getRealtimeToken(params, options);
   }
 
   // Ephemeral, per-tab thread list
-  async fetchThreads(params: FetchThreadsParams): Promise<{
+  fetchThreads(params: FetchThreadsParams): Promise<{
     threads: Thread[];
     hasMore: boolean;
     total: number;
@@ -64,19 +64,19 @@ export class InMemorySessionTransport implements IClientTransport {
     const limit = params.limit ?? 20;
     const offset = params.offset ?? 0;
     const slice = list.slice(offset, offset + limit);
-    return {
+    return Promise.resolve({
       threads: slice,
       hasMore: offset + limit < list.length,
       total: list.length,
-    };
+    });
   }
 
   // No server history in ephemeral mode
-  async fetchHistory(_params: FetchHistoryParams): Promise<any[]> {
-    return [];
+  fetchHistory(): Promise<unknown[]> {
+    return Promise.resolve([]);
   }
 
-  async createThread(
+  createThread(
     params: CreateThreadParams
   ): Promise<{ threadId: string; title: string }> {
     const id = crypto.randomUUID?.() || String(Date.now());
@@ -92,16 +92,17 @@ export class InMemorySessionTransport implements IClientTransport {
     const key = getUserKey(params.userId);
     const list = threadsByUser.get(key) || [];
     threadsByUser.set(key, [thread, ...list]);
-    return { threadId: id, title: thread.title };
+    return Promise.resolve({ threadId: id, title: thread.title });
   }
 
-  async deleteThread(params: DeleteThreadParams): Promise<void> {
+  deleteThread(params: DeleteThreadParams): Promise<void> {
     for (const [key, list] of threadsByUser) {
       threadsByUser.set(
         key,
         list.filter((t) => t.id !== params.threadId)
       );
     }
+    return Promise.resolve();
   }
 
   // Delegate approvals to HTTP (optional on the backend)
@@ -117,8 +118,14 @@ export class InMemorySessionTransport implements IClientTransport {
     params: { threadId: string },
     options?: RequestOptions
   ): Promise<void> {
-    if (typeof (this.http as any).cancelMessage === "function") {
-      return (this.http as any).cancelMessage(params, options);
+    const httpWithCancel = this.http as unknown as {
+      cancelMessage?: (
+        p: { threadId: string },
+        o?: RequestOptions
+      ) => Promise<void>;
+    };
+    if (typeof httpWithCancel.cancelMessage === "function") {
+      return httpWithCancel.cancelMessage(params, options);
     }
   }
 }
