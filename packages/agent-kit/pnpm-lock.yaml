@@ -71,6 +71,9 @@ importers:
       typescript-eslint:
         specifier: ^8.15.0
         version: 8.22.0(eslint@9.19.0)(typescript@5.7.3)
+      vite:
+        specifier: ^6.0.0
+        version: 6.3.6(@types/node@22.12.0)
       vitest:
         specifier: ^2.1.8
         version: 2.1.9(@types/node@22.12.0)
@@ -2564,19 +2567,19 @@ packages:
     engines: {node: ^18.0.0 || >=20.0.0}
     hasBin: true
 
-  vite@7.1.3:
-    resolution: {integrity: sha512-OOUi5zjkDxYrKhTV3V7iKsoS37VUM7v40+HuwEmcrsf11Cdx9y3DIr2Px6liIcZFwt3XSRpQvFpL3WVy7ApkGw==}
-    engines: {node: ^20.19.0 || >=22.12.0}
+  vite@6.3.6:
+    resolution: {integrity: sha512-0msEVHJEScQbhkbVTb/4iHZdJ6SXp/AvxL2sjwYQFfBqleHtnCqv1J3sa9zbWz/6kW1m9Tfzn92vW+kZ1WV6QA==}
+    engines: {node: ^18.0.0 || ^20.0.0 || >=22.0.0}
     hasBin: true
     peerDependencies:
-      '@types/node': ^20.19.0 || >=22.12.0
+      '@types/node': ^18.0.0 || ^20.0.0 || >=22.0.0
       jiti: '>=1.21.0'
-      less: ^4.0.0
+      less: '*'
       lightningcss: ^1.21.0
-      sass: ^1.70.0
-      sass-embedded: ^1.70.0
-      stylus: '>=0.54.8'
-      sugarss: ^5.0.0
+      sass: '*'
+      sass-embedded: '*'
+      stylus: '*'
+      sugarss: '*'
       terser: ^5.16.0
       tsx: ^4.8.1
       yaml: ^2.4.2
@@ -3936,13 +3939,13 @@ snapshots:
       chai: 5.2.0
       tinyrainbow: 1.2.0
 
-  '@vitest/mocker@2.1.9(vite@7.1.3(@types/node@22.12.0))':
+  '@vitest/mocker@2.1.9(vite@6.3.6(@types/node@22.12.0))':
     dependencies:
       '@vitest/spy': 2.1.9
       estree-walker: 3.0.3
       magic-string: 0.30.17
     optionalDependencies:
-      vite: 7.1.3(@types/node@22.12.0)
+      vite: 6.3.6(@types/node@22.12.0)
 
   '@vitest/pretty-format@2.1.9':
     dependencies:
@@ -4293,7 +4296,7 @@ snapshots:
       '@humanfs/node': 0.16.6
       '@humanwhocodes/module-importer': 1.0.1
       '@humanwhocodes/retry': 0.4.2
-      '@types/estree': 1.0.6
+      '@types/estree': 1.0.8
       '@types/json-schema': 7.0.15
       ajv: 6.12.6
       chalk: 4.1.2
@@ -5401,7 +5404,7 @@ snapshots:
       debug: 4.4.0(supports-color@5.5.0)
       es-module-lexer: 1.6.0
       pathe: 1.1.2
-      vite: 7.1.3(@types/node@22.12.0)
+      vite: 6.3.6(@types/node@22.12.0)
     transitivePeerDependencies:
       - '@types/node'
       - jiti
@@ -5416,7 +5419,7 @@ snapshots:
       - tsx
       - yaml
 
-  vite@7.1.3(@types/node@22.12.0):
+  vite@6.3.6(@types/node@22.12.0):
     dependencies:
       esbuild: 0.25.9
       fdir: 6.5.0(picomatch@4.0.3)
@@ -5431,7 +5434,7 @@ snapshots:
   vitest@2.1.9(@types/node@22.12.0):
     dependencies:
       '@vitest/expect': 2.1.9
-      '@vitest/mocker': 2.1.9(vite@7.1.3(@types/node@22.12.0))
+      '@vitest/mocker': 2.1.9(vite@6.3.6(@types/node@22.12.0))
       '@vitest/pretty-format': 2.1.9
       '@vitest/runner': 2.1.9
       '@vitest/snapshot': 2.1.9
@@ -5447,7 +5450,7 @@ snapshots:
       tinyexec: 0.3.2
       tinypool: 1.0.2
       tinyrainbow: 1.2.0
-      vite: 7.1.3(@types/node@22.12.0)
+      vite: 6.3.6(@types/node@22.12.0)
       vite-node: 2.1.9(@types/node@22.12.0)
       why-is-node-running: 2.3.0
     optionalDependencies:
