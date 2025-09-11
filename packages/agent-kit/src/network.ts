@@ -460,9 +460,10 @@ export class NetworkRun<T extends StateData> extends Network<T> {
     // Enables a client-authoritative pattern where the UI maintains conversation state and sends it with each request. Allows `history.get()` to serve as a fallback for new threads or recovery
 
     // Extract string content for history functions that expect string input
-    const inputContent = typeof input === 'object' && input !== null && 'content' in input 
-      ? (input as UserMessage).content 
-      : input as string;
+    const inputContent =
+      typeof input === "object" && input !== null && "content" in input
+        ? input.content
+        : input;
 
     // Initialize conversation thread: Creates a new thread or auto-generates if needed
     // Capture whether the client provided a threadId BEFORE initialization. If absent, this
@@ -477,11 +478,16 @@ export class NetworkRun<T extends StateData> extends Network<T> {
 
     // Persist the user's message at the beginning of the run for resilience
     if (this.history?.appendUserMessage) {
-      let userMessage: { id: string; content: string; role: "user"; timestamp: Date };
-      
-      if (typeof input === 'object' && input !== null && 'id' in input) {
+      let userMessage: {
+        id: string;
+        content: string;
+        role: "user";
+        timestamp: Date;
+      };
+
+      if (typeof input === "object" && input !== null && "id" in input) {
         // Input is a UserMessage object - extract data from it
-        const userInput = input as UserMessage;
+        const userInput = input;
         userMessage = {
           id: userInput.id,
           content: userInput.content,
@@ -492,12 +498,12 @@ export class NetworkRun<T extends StateData> extends Network<T> {
         // Input is a string - generate a new ID
         userMessage = {
           id: randomUUID(),
-          content: input as string,
+          content: input,
           role: "user",
           timestamp: new Date(),
         };
       }
-      
+
       await this.history.appendUserMessage({
         state: this.state,
         network: this,
@@ -542,8 +548,6 @@ export class NetworkRun<T extends StateData> extends Network<T> {
     // Wrap step tools for automatic step lifecycle events
     const step = await getStepTools();
     const wrappedStep = createStepWrapper(step, streamingContext);
-    try {
-    } catch {}
 
     const available = await this.availableAgents();
     if (available.length === 0) {
@@ -716,7 +720,6 @@ export class NetworkRun<T extends StateData> extends Network<T> {
         initialResultCount,
         network: this,
       });
-
     } catch (error) {
       // Emit error events for network streaming
       if (streamingContext) {
@@ -789,9 +792,10 @@ export class NetworkRun<T extends StateData> extends Network<T> {
     }
     if (router instanceof RoutingAgent) {
       // RoutingAgents expect string input, so extract content from UserMessage
-      const inputContent = typeof input === 'object' && input !== null && 'content' in input 
-        ? (input as UserMessage).content 
-        : input as string;
+      const inputContent =
+        typeof input === "object" && input !== null && "content" in input
+          ? input.content
+          : input;
       return await this.getNextAgentsViaRoutingAgent(router, inputContent);
     }
 
@@ -806,13 +810,17 @@ export class NetworkRun<T extends StateData> extends Network<T> {
     });
 
     // Extract string content for router (routers always receive string for backwards compatibility)
-    const routerInputContent = typeof input === 'object' && input !== null && 'content' in input 
-      ? (input as UserMessage).content 
-      : input as string;
+    const routerInputContent =
+      typeof input === "object" && input !== null && "content" in input
+        ? input.content
+        : input;
 
     const agent = await router({
       input: routerInputContent, // Always pass string content for backwards compatibility
-      userMessage: typeof input === 'object' && input !== null && 'content' in input ? input as UserMessage : undefined,
+      userMessage:
+        typeof input === "object" && input !== null && "content" in input
+          ? input
+          : undefined,
       network: this,
       stack,
       lastResult: this.state.results[this.state.results.length - 1],
@@ -824,9 +832,10 @@ export class NetworkRun<T extends StateData> extends Network<T> {
     }
     if (agent instanceof RoutingAgent) {
       // Functions may also return routing agents - extract content for RoutingAgent
-      const inputContent = typeof input === 'object' && input !== null && 'content' in input 
-        ? (input as UserMessage).content 
-        : input as string;
+      const inputContent =
+        typeof input === "object" && input !== null && "content" in input
+          ? input.content
+          : input;
       return await this.getNextAgentsViaRoutingAgent(agent, inputContent);
     }
 

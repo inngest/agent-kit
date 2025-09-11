@@ -16,7 +16,7 @@ export interface UserMessage {
 
   /** The role is always 'user' to accurately represent the source. */
   role: "user";
-  
+
   /** Optional, client-provided state snapshot to be persisted. */
   state?: Record<string, unknown>;
 

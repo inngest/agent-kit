@@ -79,7 +79,7 @@ export interface HistoryConfig<T extends StateData> {
         timestamp: Date;
       };
     }
-  ) => Promise<any>;
+  ) => Promise<void>;
 
   /**
    * appendResults is called to save new agent results to storage after a

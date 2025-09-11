@@ -21,7 +21,12 @@ import { createAgenticModelFromAiAdapter, type AgenticModel } from "./model";
 import { createNetwork, NetworkRun } from "./network";
 import { State, type StateData } from "./state";
 import { type MCP, type Tool } from "./tool";
-import { AgentResult, type Message, type ToolResultMessage, type UserMessage } from "./types";
+import {
+  AgentResult,
+  type Message,
+  type ToolResultMessage,
+  type UserMessage,
+} from "./types";
 import {
   getInngestFnInput,
   getStepTools,
@@ -237,8 +242,6 @@ export class Agent<T extends StateData> {
         messageId = randomUUID();
       }
 
-
-
       // Create streaming context for this standalone agent
       standaloneStreamingContext = StreamingContext.fromNetworkState(s, {
         publish: streaming.publish,
@@ -277,9 +280,10 @@ export class Agent<T extends StateData> {
     // For standalone agents, streaming is controlled by the streaming parameter.
 
     // Extract string content for history functions that expect string input
-    const inputContent = typeof input === 'object' && input !== null && 'content' in input 
-      ? (input as UserMessage).content 
-      : input as string;
+    const inputContent =
+      typeof input === "object" && input !== null && "content" in input
+        ? input.content
+        : input;
 
     // Initialize conversation thread: Creates a new thread or auto-generates if needed
     await initializeThread({
@@ -731,24 +735,29 @@ export class Agent<T extends StateData> {
     // include the existing network's state as part of the prompt.
     //
     // Note that the agent's system message always comes first.
-    const systemContent = typeof this.system === "string"
-      ? this.system
-      : await this.system({ network });
-    
+    const systemContent =
+      typeof this.system === "string"
+        ? this.system
+        : await this.system({ network });
+
     // Extract content and optional system prompt from input
-    const inputContent = typeof input === 'object' && input !== null && 'content' in input
-      ? (input as UserMessage).content
-      : input as string;
-    
-    const userSystemPrompt = typeof input === 'object' && input !== null && 'systemPrompt' in input
-      ? (input as UserMessage).systemPrompt
-      : undefined;
-    
+    const inputContent =
+      typeof input === "object" && input !== null && "content" in input
+        ? input.content
+        : input;
+
+    const userSystemPrompt =
+      typeof input === "object" && input !== null && "systemPrompt" in input
+        ? input.systemPrompt
+        : undefined;
+
     const messages: Message[] = [
       {
         type: "text",
         role: "system",
-        content: userSystemPrompt ? `${systemContent}\n\n${userSystemPrompt}` : systemContent,
+        content: userSystemPrompt
+          ? `${systemContent}\n\n${userSystemPrompt}`
+          : systemContent,
       },
     ];
 

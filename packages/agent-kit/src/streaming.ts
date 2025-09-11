@@ -426,7 +426,10 @@ export class StreamingContext {
       runId: config.runId,
       messageId: config.messageId,
       threadId: networkState.threadId,
-      userId: networkState.data.userId,
+      userId:
+        typeof (networkState.data as { userId?: unknown }).userId === "string"
+          ? ((networkState.data as { userId?: unknown }).userId as string)
+          : undefined,
       scope: config.scope,
       debug,
     });
@@ -495,10 +498,10 @@ export class StreamingContext {
   generatePartId(): string {
     // Create shorter, OpenAI-compatible ID (≤ 40 chars)
     // Format: "tool_" + shortened messageId + timestamp suffix + random
-    const shortMessageId = this.messageId.replace(/-/g, '').substring(0, 8); // 8 chars
+    const shortMessageId = this.messageId.replace(/-/g, "").substring(0, 8); // 8 chars
     const shortTimestamp = Date.now().toString().slice(-8); // Last 8 digits
     const randomSuffix = Math.random().toString(36).substr(2, 6); // 6 chars
-    
+
     // Format: "tool_" (5) + shortMessageId (8) + "_" (1) + shortTimestamp (8) + "_" (1) + randomSuffix (6) = 29 chars
     const partId = `tool_${shortMessageId}_${shortTimestamp}_${randomSuffix}`;
     return partId;
@@ -551,7 +554,7 @@ export function isEventType<T extends StreamingEvent>(
 /**
  * Utility to generate unique IDs
  */
-export function generateId(debug?: boolean): string {
+export function generateId(): string {
   const id = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   return id;
 }
@@ -578,12 +581,11 @@ export function createStepWrapper(
       if (prop === "run") {
         return async <T>(stepId: string, fn: () => Promise<T>): Promise<T> => {
           // Delegate to the original Inngest step.run while emitting streaming events
-          const originalRun = (Reflect.get(
+          const originalRun = Reflect.get(
             target,
             "run",
             receiver
-          ) as unknown) as <R>(id: string, fn: () => Promise<R>) => Promise<R>;
-
+          ) as unknown as <R>(id: string, fn: () => Promise<R>) => Promise<R>;
 
           // Do not publish streaming step events here to avoid nested step.* within Inngest steps
           // Rely on the actual Inngest step.run for step visibility in the console
