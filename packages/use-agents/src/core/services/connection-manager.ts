@@ -1,6 +1,5 @@
 import type {
   IConnection,
-  IConnectionSubscription,
   IConnectionTokenProvider,
 } from "../ports/connection.js";
 
@@ -40,7 +39,7 @@ export class ConnectionManager {
       onStateChange: params.onStateChange ?? (() => {}),
       debug: this.debug,
     });
-    this.unsubscribe = sub.unsubscribe;
+    this.unsubscribe = sub.unsubscribe.bind(sub);
   }
 
   stop(): void {

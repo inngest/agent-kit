@@ -43,10 +43,18 @@ export function shouldProcessEvent(
     threadId?: string | null;
   }
 ): boolean {
-  const data = (evt as any).data || {};
-  if (filter?.threadId && data.threadId && data.threadId !== filter.threadId)
+  const data = evt.data || {};
+  if (
+    filter?.threadId &&
+    typeof data.threadId === "string" &&
+    data.threadId !== filter.threadId
+  )
     return false;
-  if (filter?.userId && data.userId && data.userId !== filter.userId)
+  if (
+    filter?.userId &&
+    typeof data.userId === "string" &&
+    data.userId !== filter.userId
+  )
     return false;
   return true;
 }

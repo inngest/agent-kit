@@ -79,22 +79,40 @@ export class ThreadManager {
 
   parseCachedThreads(raw: unknown): Thread[] {
     if (!Array.isArray(raw)) return [];
+    const input = raw as unknown[];
     const seen = new Set<string>();
     const out: Thread[] = [];
-    for (const item of raw) {
-      if (!item || typeof item !== "object") continue;
-      const id = item.id as string | undefined;
+    for (const item of input) {
+      if (!isRecord(item)) continue;
+      const id = typeof item.id === "string" ? item.id : undefined;
       if (!id || seen.has(id)) continue;
       seen.add(id);
+
+      const title =
+        typeof item.title === "string" ? item.title : "New conversation";
+
+      let messageCount = 0;
+      const mc = item["messageCount"];
+      if (typeof mc === "number") messageCount = mc;
+      else if (typeof mc === "string") {
+        const n = Number.parseInt(mc, 10);
+        if (!Number.isNaN(n)) messageCount = n;
+      }
+
+      const lastMessageAt = toDate(item["lastMessageAt"]);
+      const createdAt = toDate(item["createdAt"]);
+      const updatedAt = toDate(item["updatedAt"]);
+      const hasNewMessages = item["hasNewMessages"] === true;
+
       out.push(
         this.reviveThreadDates({
           id,
-          title: item.title ?? "New conversation",
-          messageCount: Number(item.messageCount ?? 0),
-          lastMessageAt: item.lastMessageAt,
-          createdAt: item.createdAt,
-          updatedAt: item.updatedAt,
-          hasNewMessages: Boolean(item.hasNewMessages),
+          title,
+          messageCount,
+          lastMessageAt,
+          createdAt,
+          updatedAt,
+          hasNewMessages,
         } as Thread)
       );
     }
@@ -105,40 +123,66 @@ export class ThreadManager {
     return `threads_${userId}`;
   }
 
-  formatRawHistoryMessages(rawMessages: any[]): ConversationMessage[] {
-    // Minimal conversion: map to basic UI messages
-    return (rawMessages || []).map((msg: any) => {
-      if (msg.type === "user") {
+  formatRawHistoryMessages(rawMessages: unknown[]): ConversationMessage[] {
+    if (!Array.isArray(rawMessages)) return [];
+    return rawMessages.map((raw) => {
+      const msg = isRecord(raw) ? raw : {};
+      const id =
+        typeof msg["message_id"] === "string"
+          ? msg["message_id"]
+          : `msg-${Date.now()}`;
+      const baseTimestamp = msg["createdAt"] ?? msg["created_at"] ?? Date.now();
+      const timestamp = toDate(baseTimestamp);
+
+      if (msg["type"] === "user") {
+        const content =
+          typeof msg["content"] === "string" ? msg["content"] : "";
+        const clientState = isRecord(msg["clientState"])
+          ? msg["clientState"]
+          : undefined;
         return {
-          id: msg.message_id,
+          id,
           role: "user",
           parts: [
-            {
-              type: "text",
-              id: `text-${msg.message_id}`,
-              content: msg.content || "",
-              status: "complete",
-            },
+            { type: "text", id: `text-${id}`, content, status: "complete" },
           ],
-          timestamp: new Date(msg.createdAt || msg.created_at || Date.now()),
+          timestamp,
           status: "sent",
-          clientState: msg.clientState,
+          clientState,
         } as ConversationMessage;
       }
+
+      // assistant: extract first text output if present
+      let assistantText = "";
+      const data = msg["data"];
+      if (isRecord(data)) {
+        const output = data["output"];
+        if (Array.isArray(output)) {
+          for (const item of output as unknown[]) {
+            if (
+              isRecord(item) &&
+              item["type"] === "text" &&
+              typeof item["content"] === "string"
+            ) {
+              assistantText = item["content"];
+              break;
+            }
+          }
+        }
+      }
+
       return {
-        id: msg.message_id,
+        id,
         role: "assistant",
         parts: [
           {
             type: "text",
-            id: `text-${msg.message_id}`,
-            content:
-              msg.data?.output?.find?.((o: any) => o.type === "text")
-                ?.content || "",
+            id: `text-${id}`,
+            content: assistantText,
             status: "complete",
           },
         ],
-        timestamp: new Date(msg.createdAt || msg.created_at || Date.now()),
+        timestamp,
         status: "sent",
       } as ConversationMessage;
     });
@@ -149,4 +193,18 @@ export function isGenericTitle(title?: string | null): boolean {
   if (!title) return true;
   const t = String(title).trim().toLowerCase();
   return t.length === 0 || t === "new conversation" || t === "new query";
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object";
+}
+
+function toDate(value: unknown): Date {
+  if (value instanceof Date) return value;
+  if (typeof value === "number") return new Date(value);
+  if (typeof value === "string") {
+    const t = Date.parse(value);
+    if (!Number.isNaN(t)) return new Date(t);
+  }
+  return new Date();
 }

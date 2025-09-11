@@ -1,4 +1,8 @@
-import type { StreamingAction, StreamingState } from "../../types/index.js";
+import type {
+  StreamingAction,
+  StreamingState,
+  NetworkEvent,
+} from "../../types/index.js";
 import type {
   IConnection,
   IConnectionSubscription,
@@ -46,9 +50,7 @@ export class StreamingEngine {
   subscribe(listener: () => void): () => void {
     this.listeners.add(listener);
     return () => {
-      try {
-        this.listeners.delete(listener);
-      } catch {}
+      this.listeners.delete(listener);
     };
   }
 
@@ -56,7 +58,9 @@ export class StreamingEngine {
     for (const l of this.listeners) {
       try {
         l();
-      } catch {}
+      } catch {
+        // ignore listener errors
+      }
     }
   }
 
@@ -95,20 +99,24 @@ export class StreamingEngine {
   /**
    * Handle a batch of realtime messages (already filtered/mapped by caller).
    */
-  handleRealtimeMessages(messages: any[]): void {
+  handleRealtimeMessages(messages: NetworkEvent[]): void {
     this.dispatch({
       type: "REALTIME_MESSAGES_RECEIVED",
       messages,
-    } as StreamingAction);
+    });
   }
 
   /**
    * Clean up active subscription if any.
    */
   teardown(): void {
-    try {
-      this.activeSub?.unsubscribe();
-    } catch {}
+    if (this.activeSub) {
+      try {
+        this.activeSub.unsubscribe();
+      } catch {
+        // ignore
+      }
+    }
     this.activeSub = undefined;
   }
 }
