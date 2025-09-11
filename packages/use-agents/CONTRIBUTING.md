@@ -91,11 +91,10 @@ src/
 
 ### Architecture overview
 
-- Hexagonal core layered beneath a React framework facade:
-  - Ports (interfaces) in `core/ports/` define stable boundaries for transports and realtime connections.
-  - Adapters in `core/adapters/` implement those ports: HTTP requests and in-memory session behavior.
-  - Services in `core/services/` provide pure logic (reducer), state orchestration (engine), event mapping, and connection lifecycle.
-  - The React layer (`frameworks/react/`) composes these into hooks and a provider while staying thin and easily swappable.
+- Ports (interfaces) in `core/ports/` define stable boundaries for transports and realtime connections.
+- Adapters in `core/adapters/` implement those ports: HTTP requests and in-memory session behavior.
+- Services in `core/services/` provide pure logic (reducer), state orchestration (engine), event mapping, and connection lifecycle.
+- The React layer (`frameworks/react/`) composes these into hooks and a provider while staying thin and easily swappable.
 
 Key flows:
 
