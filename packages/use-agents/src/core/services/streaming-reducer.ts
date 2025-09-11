@@ -5,6 +5,12 @@ import type {
   ConversationMessage,
   TextUIPart,
   ToolCallUIPart,
+  RunStarted,
+  PartCreated,
+  TextDelta,
+  ToolArgsDelta,
+  ToolOutputDelta,
+  PartCompleted,
 } from "../../types/index.js";
 
 // Minimal pure reducer wrapper – delegates to current logic via a simple switch
@@ -45,51 +51,56 @@ export function reduceStreamingState(
       let next: StreamingState = state;
       for (const evt of action.messages) {
         const eventName = typeof evt.event === "string" ? evt.event : undefined;
-        const data =
-          (evt.data as Record<string, unknown> | undefined) ?? undefined;
-        const threadId =
-          (typeof data?.threadId === "string" ? data.threadId : undefined) ||
-          next.currentThreadId;
+        const data = (evt as { data?: { threadId?: string } }).data;
+        const threadId = data?.threadId || next.currentThreadId;
         if (!threadId) continue;
 
         const thread = ensureThread(next, threadId);
 
         switch (eventName) {
           case "run.started": {
+            const d = (evt as RunStarted).data;
             const updated: ThreadState = {
               ...thread,
               agentStatus: "thinking",
               currentAgent:
-                typeof data?.name === "string"
-                  ? data.name
-                  : thread.currentAgent,
+                typeof d?.name === "string" ? d.name : thread.currentAgent,
               lastActivity: new Date(),
             };
             next = writeThread(next, threadId, updated);
             break;
           }
           case "part.created": {
-            const updated = applyPartCreated(thread, data ?? {});
+            const updated = applyPartCreated(thread, (evt as PartCreated).data);
             next = writeThread(next, threadId, updated);
             break;
           }
           case "text.delta": {
-            const updated = applyTextDelta(thread, data ?? {});
+            const updated = applyTextDelta(thread, (evt as TextDelta).data);
             next = writeThread(next, threadId, updated);
             break;
           }
           case "tool_call.arguments.delta": {
-            const updated = applyToolArgumentsDelta(thread, data ?? {});
+            const updated = applyToolArgumentsDelta(
+              thread,
+              (evt as ToolArgsDelta).data
+            );
             next = writeThread(next, threadId, updated);
             break;
           }
           case "tool_call.output.delta": {
-            const updated = applyToolOutputDelta(thread, data ?? {});
+            const updated = applyToolOutputDelta(
+              thread,
+              (evt as ToolOutputDelta).data
+            );
             next = writeThread(next, threadId, updated);
             break;
           }
           case "part.completed": {
-            const updated = applyPartCompleted(thread, data ?? {});
+            const updated = applyPartCompleted(
+              thread,
+              (evt as PartCompleted).data
+            );
             next = writeThread(next, threadId, updated);
             break;
           }
@@ -321,9 +332,9 @@ function writeThread(
 
 function getOrCreateAssistantMessage(
   messages: ConversationMessage[],
-  data: Record<string, unknown>
+  data: { messageId?: string }
 ): { list: ConversationMessage[]; msg: ConversationMessage } {
-  const messageIdRaw = data?.messageId as string | undefined;
+  const messageIdRaw = data?.messageId;
   const messageId: string = messageIdRaw || `msg-${Date.now()}`;
   let msg = messages.find((m) => m.id === messageId && m.role === "assistant");
   if (msg) return { list: messages, msg };
@@ -358,12 +369,12 @@ function ensureTextPart(
 
 function applyPartCreated(
   thread: ThreadState,
-  data: Record<string, unknown>
+  data: PartCreated["data"]
 ): ThreadState {
   if (!data) return thread;
-  const type = data?.type as string | undefined;
-  const messageId = data?.messageId as string | undefined;
-  const partId = data?.partId as string | undefined;
+  const type = data?.type;
+  const messageId = data?.messageId;
+  const partId = data?.partId;
   if (!type || !messageId || !partId) return { ...thread };
   const { list, msg } = getOrCreateAssistantMessage(thread.messages, data);
   if (type === "text") {
@@ -372,10 +383,7 @@ function applyPartCreated(
     const tool: ToolCallUIPart = {
       type: "tool-call",
       toolCallId: partId,
-      toolName:
-        ((data?.metadata as Record<string, unknown> | undefined)?.toolName as
-          | string
-          | undefined) || "",
+      toolName: data?.metadata?.toolName || "",
       state: "input-streaming",
       input: {},
       output: undefined,
@@ -392,12 +400,12 @@ function applyPartCreated(
 
 function applyTextDelta(
   thread: ThreadState,
-  data: Record<string, unknown>
+  data: TextDelta["data"]
 ): ThreadState {
   if (!data) return thread;
-  const partId = data?.partId as string | undefined;
-  const messageId = data?.messageId as string | undefined;
-  const delta = data?.delta as string | undefined;
+  const partId = data?.partId;
+  const messageId = data?.messageId;
+  const delta = data?.delta;
   if (!partId || !messageId || typeof delta !== "string") return { ...thread };
   const { list, msg } = getOrCreateAssistantMessage(thread.messages, data);
   const part = ensureTextPart(msg, partId);
@@ -413,12 +421,12 @@ function applyTextDelta(
 
 function applyPartCompleted(
   thread: ThreadState,
-  data: Record<string, unknown>
+  data: PartCompleted["data"]
 ): ThreadState {
   if (!data) return thread;
-  const messageId = data?.messageId as string | undefined;
-  const partId = data?.partId as string | undefined;
-  const type = data?.type as string | undefined;
+  const messageId = data?.messageId;
+  const partId = data?.partId;
+  const type = data?.type;
   const finalContent = data?.finalContent;
   if (!messageId || !partId) return { ...thread };
   const { list, msg } = getOrCreateAssistantMessage(thread.messages, data);
@@ -439,12 +447,7 @@ function applyPartCompleted(
       tool = {
         type: "tool-call",
         toolCallId: partId,
-        toolName:
-          (data?.toolName as string | undefined) ||
-          ((data?.metadata as Record<string, unknown> | undefined)?.toolName as
-            | string
-            | undefined) ||
-          "",
+        toolName: data?.toolName || data?.metadata?.toolName || "",
         state: "input-available",
         input: {},
       } as ToolCallUIPart;
@@ -497,12 +500,12 @@ function applyPartCompleted(
 
 function applyToolArgumentsDelta(
   thread: ThreadState,
-  data: Record<string, unknown>
+  data: ToolArgsDelta["data"]
 ): ThreadState {
   if (!data) return thread;
-  const partId = data?.partId as string | undefined;
-  const messageId = data?.messageId as string | undefined;
-  const delta = data?.delta as string | undefined;
+  const partId = data?.partId;
+  const messageId = data?.messageId;
+  const delta = data?.delta;
   if (!partId || !messageId || typeof delta !== "string") return { ...thread };
   const { list, msg } = getOrCreateAssistantMessage(thread.messages, data);
   let tool = msg.parts.find(
@@ -517,12 +520,7 @@ function applyToolArgumentsDelta(
       tool = {
         type: "tool-call",
         toolCallId: partId,
-        toolName:
-          (data?.toolName as string | undefined) ||
-          ((data?.metadata as Record<string, unknown> | undefined)?.toolName as
-            | string
-            | undefined) ||
-          "",
+        toolName: data?.toolName || data?.metadata?.toolName || "",
         state: "input-streaming",
         input: {},
         output: undefined,
@@ -568,12 +566,12 @@ function applyToolArgumentsDelta(
 
 function applyToolOutputDelta(
   thread: ThreadState,
-  data: Record<string, unknown>
+  data: ToolOutputDelta["data"]
 ): ThreadState {
   if (!data) return thread;
-  const partId = data?.partId as string | undefined;
-  const messageId = data?.messageId as string | undefined;
-  const delta = data?.delta as string | undefined;
+  const partId = data?.partId;
+  const messageId = data?.messageId;
+  const delta = data?.delta;
   if (!partId || !messageId || typeof delta !== "string") return { ...thread };
   const { list, msg } = getOrCreateAssistantMessage(thread.messages, data);
   let tool = msg.parts.find(
