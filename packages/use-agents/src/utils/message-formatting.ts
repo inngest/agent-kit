@@ -9,11 +9,7 @@
  * @fileoverview Message format conversion utilities for AgentKit React integration
  */
 
-import {
-  type ConversationMessage,
-  type TextUIPart,
-  type ToolCallUIPart,
-} from "../types/index.js";
+import { type ConversationMessage, type TextUIPart } from "../types/index.js";
 
 /**
  * AgentKit Message format union type.

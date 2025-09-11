@@ -3,12 +3,6 @@ import { defineConfig } from 'tsup'
 export default defineConfig({
   entry: [
     'src/index.ts',
-    'src/hooks/use-ephemeral-threads.ts',
-    'src/hooks/use-conversation-branching.ts',
-    'src/hooks/use-edit-message.ts',
-    'src/hooks/use-message-actions.ts',
-    'src/hooks/use-mobile.ts',
-    'src/hooks/use-sidebar.ts',
     'src/components/AgentProvider.tsx',
   ],
   format: ['esm'], // ESM only as requested

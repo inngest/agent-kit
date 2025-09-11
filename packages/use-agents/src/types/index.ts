@@ -114,11 +114,11 @@ export interface ToolCallUIPart {
     | "executing"
     | "output-available";
   /** Tool input parameters, streamed incrementally */
-  input: any;
+  input: unknown;
   /** Tool output result, if available */
-  output?: any;
+  output?: unknown;
   /** Error information if the tool call failed */
-  error?: any;
+  error?: unknown;
 }
 
 /**
@@ -131,7 +131,7 @@ export interface DataUIPart {
   /** Human-readable name for the data */
   name: string;
   /** The actual data payload */
-  data: any;
+  data: unknown;
   /** Optional custom UI metadata (framework-agnostic) */
   ui?: unknown;
 }
@@ -231,7 +231,7 @@ export interface HitlUIPart {
   /** Unique identifier for this HITL request */
   id: string;
   /** Array of tool calls awaiting approval */
-  toolCalls: Array<{ toolName: string; toolInput: any }>;
+  toolCalls: Array<{ toolName: string; toolInput: unknown }>;
   /** Current status of the approval request */
   status: "pending" | "approved" | "denied" | "expired";
   /** ISO timestamp when this request expires */
@@ -451,9 +451,9 @@ export function createAgentError(
  * Debug logger interface for consistent logging across hooks.
  */
 export interface DebugLogger {
-  log: (...args: any[]) => void;
-  warn: (...args: any[]) => void;
-  error: (...args: any[]) => void;
+  log: (...args: unknown[]) => void;
+  warn: (...args: unknown[]) => void;
+  error: (...args: unknown[]) => void;
 }
 
 /**
@@ -467,12 +467,14 @@ export function createDebugLogger(
   const prefix = `[AgentKit:${namespace}]`;
 
   return {
-    log: enabled ? (...args: any[]) => console.log(prefix, ...args) : () => {},
+    log: enabled
+      ? (...args: unknown[]) => console.log(prefix, ...args)
+      : () => {},
     warn: enabled
-      ? (...args: any[]) => console.warn(prefix, ...args)
+      ? (...args: unknown[]) => console.warn(prefix, ...args)
       : () => {},
     error: enabled
-      ? (...args: any[]) => console.error(prefix, ...args)
+      ? (...args: unknown[]) => console.error(prefix, ...args)
       : () => {},
   };
 }
@@ -553,7 +555,7 @@ export interface StreamingState {
  */
 export type StreamingAction =
   /** Dispatched when new real-time messages are received (all threads, no filtering) */
-  | { type: "REALTIME_MESSAGES_RECEIVED"; messages: any[] }
+  | { type: "REALTIME_MESSAGES_RECEIVED"; messages: NetworkEvent[] }
   /** Dispatched when the connection state changes */
   | { type: "CONNECTION_STATE_CHANGED"; state: InngestSubscriptionState }
   /** Dispatched when switching the currently displayed thread */
