@@ -63,7 +63,110 @@ export interface AgentMessageChunk {
 /**
  * Type alias for streaming events - mirrors StreamingEvent from AgentKit
  */
-export type NetworkEvent = AgentMessageChunk;
+export type JsonObject = Record<string, unknown>;
+
+// =============================================================================
+// REALTIME EVENT UNION (KNOWN + UNKNOWN FALLBACK)
+// =============================================================================
+
+type EventBase = {
+  timestamp: number;
+  sequenceNumber: number;
+  id: string;
+};
+
+type WithThread = { threadId?: string; userId?: string };
+
+export type RunStarted = EventBase & {
+  event: "run.started";
+  data: WithThread & { name?: string };
+};
+
+export type RunCompleted = EventBase & {
+  event: "run.completed";
+  data: WithThread;
+};
+
+export type StreamEnded = EventBase & {
+  event: "stream.ended";
+  data: WithThread;
+};
+
+export type PartCreated = EventBase & {
+  event: "part.created";
+  data: WithThread & {
+    messageId: string;
+    partId: string;
+    type: "text" | "tool-call";
+    metadata?: { toolName?: string };
+  };
+};
+
+export type TextDelta = EventBase & {
+  event: "text.delta";
+  data: WithThread & { messageId: string; partId: string; delta: string };
+};
+
+export type ToolArgsDelta = EventBase & {
+  event: "tool_call.arguments.delta";
+  data: WithThread & {
+    messageId: string;
+    partId: string;
+    delta: string;
+    toolName?: string;
+    metadata?: { toolName?: string };
+  };
+};
+
+export type ToolOutputDelta = EventBase & {
+  event: "tool_call.output.delta";
+  data: WithThread & { messageId: string; partId: string; delta: string };
+};
+
+export type PartCompleted = EventBase & {
+  event: "part.completed";
+  data: WithThread & {
+    messageId: string;
+    partId: string;
+    type: "text" | "tool-call" | "tool-output";
+    finalContent?: unknown;
+    toolName?: string;
+    metadata?: { toolName?: string };
+  };
+};
+
+export type UnknownEvent = EventBase & {
+  event: string;
+  data: JsonObject;
+};
+
+export type RealtimeEvent =
+  | RunStarted
+  | RunCompleted
+  | StreamEnded
+  | PartCreated
+  | TextDelta
+  | ToolArgsDelta
+  | ToolOutputDelta
+  | PartCompleted
+  | UnknownEvent;
+
+export type NetworkEvent = RealtimeEvent;
+
+// =============================================================================
+// Cross-tab BroadcastChannel message types
+// =============================================================================
+
+export type CrossTabMessage =
+  | { type: "evt"; sender: string; evt: RealtimeEvent }
+  | { type: "state"; sender: string; state: InngestSubscriptionState }
+  | { type: "snapshot:request"; sender: string; threadId: string }
+  | {
+      type: "snapshot:response";
+      sender: string;
+      threadId: string;
+      events: RealtimeEvent[];
+    };
 
 // =============================================================================
 // CORE CONVERSATION TYPES
@@ -335,6 +438,17 @@ export interface Thread {
   createdAt: Date;
   updatedAt: Date;
   hasNewMessages?: boolean;
+}
+
+/**
+ * Common pagination result for thread listings.
+ */
+export interface ThreadsPage {
+  threads: Thread[];
+  hasMore: boolean;
+  total: number;
+  nextCursorTimestamp?: string | null;
+  nextCursorId?: string | null;
 }
 
 // =============================================================================
