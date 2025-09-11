@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { mapToNetworkEvent, shouldProcessEvent } from '../event-mapper.js';
+import { makeEvent } from './test-utils.js';
 
 describe('event-mapper', () => {
   it('maps valid chunks', () => {
@@ -16,13 +17,9 @@ describe('event-mapper', () => {
 
 describe('mapToNetworkEvent extra', () => {
   it('maps a valid payload', () => {
-    const evt = mapToNetworkEvent({
-      event: 'text.delta',
-      data: { messageId: 'm1', partId: 'p1', delta: 'Hi' },
-      timestamp: Date.now(),
-      sequenceNumber: 5,
-      id: 'publish-5:text.delta',
-    });
+    const evt = mapToNetworkEvent(
+      makeEvent('text.delta', { messageId: 'm1', partId: 'p1', delta: 'Hi' }, { sequenceNumber: 5, id: 'publish-5:text.delta' })
+    );
     expect(evt?.event).toBe('text.delta');
     expect(evt?.sequenceNumber).toBe(5);
   });
@@ -31,6 +28,19 @@ describe('mapToNetworkEvent extra', () => {
     expect(mapToNetworkEvent(null)).toBeNull();
     expect(mapToNetworkEvent({} as any)).toBeNull();
     expect(mapToNetworkEvent({ event: 'x' } as any)).toBeNull();
+  });
+
+  it('returns generic fallback for incomplete known event shapes', () => {
+    const evt = mapToNetworkEvent({
+      event: 'part.created',
+      data: { threadId: 't1' }, // missing messageId/partId/type
+      timestamp: Date.now(),
+      sequenceNumber: 1,
+      id: 'publish-1:part.created',
+    });
+    expect(evt).not.toBeNull();
+    expect(evt?.event).toBe('part.created');
+    expect(typeof evt?.id).toBe('string');
   });
 });
 
