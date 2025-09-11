@@ -6,7 +6,14 @@ import tseslint from "typescript-eslint";
 
 export default tseslint.config(
   {
-    ignores: ["**/dist", "eslint.config.mjs", "examples/**"],
+    ignores: [
+      "**/dist",
+      "eslint.config.mjs",
+      "examples/**",
+      "packages/use-agents/src/**/__tests__/**",
+      "packages/use-agents/src/**/*.test.ts",
+      "packages/use-agents/src/**/*.test.tsx",
+    ],
   },
   eslint.configs.recommended,
   tseslint.configs.recommendedTypeChecked,
@@ -15,6 +22,7 @@ export default tseslint.config(
       parserOptions: {
         projectService: true,
         tsconfigRootDir: import.meta.dirname,
+        allowDefaultProject: true,
       },
     },
   },
