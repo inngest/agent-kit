@@ -1,12 +1,8 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { ConnectionManager } from "../../../core/index.js";
 import type { IConnection } from "../../../core/ports/connection.js";
-import {
-  useInngestSubscription,
-  InngestSubscriptionState,
-} from "@inngest/realtime/hooks";
+import { useInngestSubscription } from "@inngest/realtime/hooks";
 
 /**
  * NOTE (2025-09): Realtime subscriptions require a token.
@@ -21,41 +17,35 @@ import {
 export function useConnectionSubscription(params: {
   connection: IConnection | null;
   channel: string | null;
-  userId?: string | null;
-  threadId?: string | null;
   onMessage: (chunk: unknown) => void;
   onStateChange?: (state: unknown) => void;
   debug?: boolean;
   /** Optional: direct token fetcher; when provided, we use the official hook */
-  refreshToken?: () => Promise<any>;
+  refreshToken?: () => Promise<unknown>;
 }) {
-  const {
-    connection,
-    channel,
-    userId,
-    threadId,
-    onMessage,
-    onStateChange,
-    debug,
-    refreshToken,
-  } = params;
+  const { channel, onMessage, onStateChange, debug, refreshToken } = params;
 
   // Token is required for realtime subscriptions
   const enabled = Boolean(channel && refreshToken);
-  const { data, state, error } = useInngestSubscription({
+  const subOptions = {
     key: channel || undefined,
     enabled,
     refreshToken: async () => {
       return await refreshToken!();
     },
-  });
+  } as unknown as Parameters<typeof useInngestSubscription>[0];
+
+  const { data, state, error } = useInngestSubscription(subOptions);
 
   const lastLenRef = useRef(0);
   useEffect(() => {
     if (!enabled) return;
     try {
       onStateChange?.(state);
-    } catch {}
+    } catch (err) {
+      if (debug)
+        console.warn("[useConnectionSubscription] state handler error", err);
+    }
   }, [enabled, state, onStateChange]);
 
   useEffect(() => {
@@ -64,7 +54,13 @@ export function useConnectionSubscription(params: {
     for (let i = lastLenRef.current; i < data.length; i++) {
       try {
         onMessage(data[i]);
-      } catch {}
+      } catch (err) {
+        if (debug)
+          console.warn(
+            "[useConnectionSubscription] message handler error",
+            err
+          );
+      }
     }
     lastLenRef.current = data.length;
   }, [enabled, data, onMessage]);

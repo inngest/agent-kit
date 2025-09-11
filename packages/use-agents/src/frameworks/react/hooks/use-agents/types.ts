@@ -46,7 +46,7 @@ export type UseAgentsConfig = {
     nextCursorTimestamp?: string | null;
     nextCursorId?: string | null;
   }>;
-  fetchHistory?: (threadId: string) => Promise<any[]>;
+  fetchHistory?: (threadId: string) => Promise<unknown[]>;
   createThread?: (
     userId: string
   ) => Promise<{ threadId: string; title: string }>;

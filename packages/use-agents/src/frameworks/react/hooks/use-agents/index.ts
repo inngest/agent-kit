@@ -16,7 +16,6 @@ import {
   resolveTransport,
 } from "./provider-context.js";
 import { AgentsEvents } from "./logging-events.js";
-import { reduceStreamingState } from "../../../../core/index.js";
 import { DEFAULT_THREAD_PAGE_SIZE } from "../../../../constants.js";
 import { StreamingEngine, ThreadManager } from "../../../../core/index.js";
 import {
@@ -29,7 +28,10 @@ import {
   createDebugLogger,
   type ConversationMessage,
   type Thread,
+  type NetworkEvent,
+  type AgentStatus,
 } from "../../../../types/index.js";
+import type { InngestSubscriptionState } from "@inngest/realtime/hooks";
 import type { UseAgentsConfig, UseAgentsReturn } from "./types.js";
 import { formatMessagesToAgentKitHistory } from "../../../../utils/message-formatting.js";
 import { createDefaultHttpTransport } from "../../../../core/adapters/http-transport.js";
@@ -75,20 +77,19 @@ export function useAgents(config: UseAgentsConfig = {}): UseAgentsReturn {
   const tabIdRef = useRef<string>(`tab-${Math.random().toString(36).slice(2)}`);
   const bcRef = useRef<BroadcastChannel | null>(null);
   const appliedEventIdsRef = useRef<Set<string>>(new Set());
-  const perThreadRunBufferRef = useRef<Map<string, any[]>>(new Map());
-  const dedupKeyForEvent = useCallback((evt: any): string => {
+  const perThreadRunBufferRef = useRef<Map<string, NetworkEvent[]>>(new Map());
+  const dedupKeyForEvent = useCallback((evt: NetworkEvent): string => {
     try {
-      const data =
-        evt && typeof evt === "object" && "data" in evt ? evt.data || {} : {};
+      const data = evt.data ?? {};
       const tid = typeof data.threadId === "string" ? data.threadId : "";
       const mid = typeof data.messageId === "string" ? data.messageId : "";
       const pid = typeof data.partId === "string" ? data.partId : "";
-      const ev = typeof evt?.event === "string" ? evt.event : "";
+      const ev = typeof evt.event === "string" ? evt.event : "";
       const seq =
-        typeof evt?.sequenceNumber === "number"
+        typeof evt.sequenceNumber === "number"
           ? String(evt.sequenceNumber)
           : "";
-      const id = typeof evt?.id === "string" ? evt.id : "";
+      const id = typeof evt.id === "string" ? evt.id : "";
       return `${tid}|${mid}|${pid}|${ev}|${seq}|${id}`;
     } catch {
       return JSON.stringify(evt);
@@ -101,7 +102,7 @@ export function useAgents(config: UseAgentsConfig = {}): UseAgentsReturn {
         currentThreadId: "",
         lastProcessedIndex: 0,
         isConnected: false,
-      } as any,
+      },
       debug: Boolean(config.debug),
     });
   }
@@ -128,8 +129,26 @@ export function useAgents(config: UseAgentsConfig = {}): UseAgentsReturn {
 
   const fetchThreadsFn = useMemo(
     () =>
-      (config.fetchThreads as any) ||
-      (async (uid: string, pagination: any) => {
+      (config.fetchThreads as
+        | ((
+            uid: string,
+            pagination: {
+              limit: number;
+              offset?: number;
+              cursorTimestamp?: string;
+              cursorId?: string;
+            }
+          ) => Promise<ThreadsPage>)
+        | undefined) ||
+      (async (
+        uid: string,
+        pagination: {
+          limit: number;
+          offset?: number;
+          cursorTimestamp?: string;
+          cursorId?: string;
+        }
+      ): Promise<ThreadsPage> => {
         return effectiveTransport.fetchThreads({
           userId: uid,
           channelKey: channelKey || undefined,
@@ -137,32 +156,21 @@ export function useAgents(config: UseAgentsConfig = {}): UseAgentsReturn {
           offset: pagination.offset ?? 0,
           cursorTimestamp: pagination.cursorTimestamp,
           cursorId: pagination.cursorId,
-        } as any);
+        });
       }),
     [config.fetchThreads, effectiveTransport, channelKey]
   );
   const fetchHistoryFn = useMemo(
     () =>
-      (config.fetchHistory as any) ||
+      (config.fetchHistory as (tid: string) => Promise<unknown[]>) ||
       (async (tid: string) => {
         return effectiveTransport.fetchHistory({ threadId: tid });
       }),
     [config.fetchHistory, effectiveTransport]
   );
-  const createThreadFn = useMemo(
-    () =>
-      (config.createThread as any) ||
-      (async (uid: string) => {
-        return effectiveTransport.createThread({
-          userId: uid,
-          channelKey: channelKey || undefined,
-        });
-      }),
-    [config.createThread, effectiveTransport, channelKey]
-  );
   const deleteThreadFn = useMemo(
     () =>
-      (config.deleteThread as any) ||
+      (config.deleteThread as (tid: string) => Promise<void> | undefined) ||
       (async (tid: string) => {
         return effectiveTransport.deleteThread({ threadId: tid });
       }),
@@ -202,7 +210,7 @@ export function useAgents(config: UseAgentsConfig = {}): UseAgentsReturn {
     if (hasQueryProvider) return; // handled by TanStack Query
     if (!userId && !channelKey) return;
     let cancelled = false;
-    (async () => {
+    void (async () => {
       try {
         setThreadsLoadingLocal(true);
         setThreadsErrorLocal(null);
@@ -231,7 +239,7 @@ export function useAgents(config: UseAgentsConfig = {}): UseAgentsReturn {
     };
   }, [hasQueryProvider, userId, channelKey, fetchThreadsFn]);
 
-  let threadsQuery: any = null;
+  let threadsQuery: ReturnType<typeof useInfiniteQuery> | null = null;
   if (hasQueryProvider) {
     threadsQuery = useInfiniteQuery({
       queryKey: ["useAgents", "threads", identityKey],
@@ -245,7 +253,10 @@ export function useAgents(config: UseAgentsConfig = {}): UseAgentsReturn {
           (config.threadsPageSize as number) > 0
             ? (config.threadsPageSize as number)
             : DEFAULT_THREAD_PAGE_SIZE;
-        const pagination = { limit: pageSize, offset: pageParam ?? 0 } as any;
+        const pagination = { limit: pageSize, offset: pageParam ?? 0 } as {
+          limit: number;
+          offset: number;
+        };
         return await fetchThreadsFn(userId as string, pagination);
       },
       getNextPageParam: (lastPage: ThreadsPage, allPages: ThreadsPage[]) => {
@@ -261,23 +272,30 @@ export function useAgents(config: UseAgentsConfig = {}): UseAgentsReturn {
       staleTime: 120_000,
       gcTime: 1_800_000,
       refetchOnWindowFocus: false,
-    } as any);
+    });
   }
 
   // Derive status from engine state if enabled
   const engineState = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
   const engineStatus = useMemo(() => {
     if (!engineState) return null;
-    const s = engineState as any;
+    const s = engineState as unknown as {
+      threads?: Record<string, { agentStatus?: string }>;
+    };
     const tid = currentThreadId || fallbackThreadIdRef.current!;
     const ts = s?.threads?.[tid];
-    return (ts?.agentStatus as string) || null;
+    return ts?.agentStatus || null;
   }, [currentThreadId, engineState]);
 
   // Derive messages from engine state if enabled
   const engineMessages = useMemo<ConversationMessage[] | null>(() => {
     if (!engineState) return null;
-    const s = engineState as any;
+    const s = engineState as unknown as {
+      threads?: Record<
+        string,
+        { messages?: ConversationMessage[]; historyLoaded?: boolean }
+      >;
+    };
     const tid = currentThreadId || fallbackThreadIdRef.current!;
     const ts = s?.threads?.[tid];
     if (config.debug) {
@@ -290,11 +308,13 @@ export function useAgents(config: UseAgentsConfig = {}): UseAgentsReturn {
         renderSessionId: renderSessionIdRef.current,
       });
     }
-    return (ts?.messages as ConversationMessage[]) || null;
+    return Array.isArray(ts?.messages) ? ts.messages : null;
   }, [currentThreadId, engineState]);
 
   const currentThreadHistoryLoaded = useMemo(() => {
-    const s = engineState as any;
+    const s = engineState as unknown as {
+      threads?: Record<string, { historyLoaded?: boolean }>;
+    };
     const tid = currentThreadId || fallbackThreadIdRef.current!;
     return Boolean(s?.threads?.[tid]?.historyLoaded);
   }, [engineState, currentThreadId]);
@@ -305,8 +325,11 @@ export function useAgents(config: UseAgentsConfig = {}): UseAgentsReturn {
     try {
       const tid = currentThreadId || fallbackThreadIdRef.current!;
       const hasRealThread = Boolean(config.initialThreadId || currentThreadId);
-      const s = engineRef.current?.getState() as any;
-      const historyLoadedForTid = Boolean(s?.threads?.[tid]?.historyLoaded);
+      const s = engineRef.current?.getState();
+      const historyLoadedForTid = Boolean(
+        (s as { threads?: Record<string, { historyLoaded?: boolean }> })
+          ?.threads?.[tid]?.historyLoaded
+      );
       const refLoading = isLoadingInitialThreadRef.current;
       const computedIsLoading = Boolean(hasRealThread && !historyLoadedForTid);
       logger.log("[diag:init-load]", {
@@ -317,7 +340,9 @@ export function useAgents(config: UseAgentsConfig = {}): UseAgentsReturn {
         refLoading,
         computedIsLoading,
       });
-    } catch {}
+    } catch {
+      /* empty */
+    }
   }, [
     config.debug,
     currentThreadId,
@@ -327,18 +352,21 @@ export function useAgents(config: UseAgentsConfig = {}): UseAgentsReturn {
   ]);
 
   // Derive hasNewMessages flags for threads from engine state
-  const computedThreads = useMemo(() => {
+  const computedThreads = useMemo<Thread[]>(() => {
     const tm = threadManagerRef.current!;
     if (hasQueryProvider) {
-      const pages = (threadsQuery?.data?.pages || []) as any[];
-      const list = pages.flatMap((p: any) => p?.threads || []);
-      return tm.mergeThreadsPreserveOrder([], list as any);
+      const data = threadsQuery?.data as { pages?: ThreadsPage[] } | undefined;
+      const pages = data?.pages || [];
+      const list = pages.flatMap((p) => p.threads || []);
+      return tm.mergeThreadsPreserveOrder([], list);
     }
-    return tm.mergeThreadsPreserveOrder([], threadsLocal as any);
+    return tm.mergeThreadsPreserveOrder([], threadsLocal);
   }, [hasQueryProvider, threadsQuery?.data, threadsLocal]);
 
   const threadsWithFlags = useMemo(() => {
-    const s = engineState as any;
+    const s = engineState as unknown as {
+      threads?: Record<string, { hasNewMessages?: boolean }>;
+    };
     if (!s || !s.threads) return computedThreads;
     return computedThreads.map((t) => {
       const ts = s.threads?.[t.id];
@@ -351,16 +379,12 @@ export function useAgents(config: UseAgentsConfig = {}): UseAgentsReturn {
   useConnectionSubscription({
     connection: provider.connection,
     channel: effectiveChannel,
-    userId,
-    threadId: currentThreadId,
     debug: Boolean(config.debug),
     refreshToken:
       (transport ?? effectiveTransport)
         ? async () => {
             const tid = currentThreadId || fallbackThreadIdRef.current!;
-            return await (
-              (transport ?? effectiveTransport) as any
-            ).getRealtimeToken({
+            return await (transport ?? effectiveTransport).getRealtimeToken({
               userId,
               threadId: tid,
               channelKey: effectiveChannel || userId,
@@ -373,7 +397,7 @@ export function useAgents(config: UseAgentsConfig = {}): UseAgentsReturn {
         const evt = mapToNetworkEvent(chunk);
         if (!evt) return;
         // Process all events for this user/channel; reducer routes by evt.data.threadId
-        if (!shouldProcessEvent(evt as any, { userId })) return;
+        if (!shouldProcessEvent(evt, { userId })) return;
         if (!engineRef.current) {
           engineRef.current = new StreamingEngine({
             initialState: {
@@ -381,7 +405,7 @@ export function useAgents(config: UseAgentsConfig = {}): UseAgentsReturn {
               currentThreadId: currentThreadId || fallbackThreadIdRef.current!,
               lastProcessedIndex: 0,
               isConnected: true,
-            } as any,
+            },
             debug: Boolean(config.debug),
           });
         }
@@ -393,10 +417,11 @@ export function useAgents(config: UseAgentsConfig = {}): UseAgentsReturn {
         appliedEventIdsRef.current.add(dk);
         // Update per-thread run buffer (reset on run.started / run.completed)
         try {
+          const threadIdValue = evt.data?.threadId;
           const tid =
-            (evt as any)?.data?.threadId ||
-            currentThreadId ||
-            fallbackThreadIdRef.current!;
+            typeof threadIdValue === "string"
+              ? threadIdValue
+              : currentThreadId || fallbackThreadIdRef.current!;
           if (evt.event === "run.started" && tid) {
             perThreadRunBufferRef.current.set(tid, []);
           }
@@ -419,10 +444,14 @@ export function useAgents(config: UseAgentsConfig = {}): UseAgentsReturn {
                 const cur = perThreadRunBufferRef.current.get(tid) || [];
                 if (cur.length > 0)
                   perThreadRunBufferRef.current.set(tid, cur.slice(-200));
-              } catch {}
+              } catch {
+                /* empty */
+              }
             }, 3000);
           }
-        } catch {}
+        } catch {
+          /* empty */
+        }
         // Apply to engine
         engineRef.current.handleRealtimeMessages([evt]);
         // Broadcast to sibling tabs
@@ -432,7 +461,9 @@ export function useAgents(config: UseAgentsConfig = {}): UseAgentsReturn {
             sender: tabIdRef.current,
             evt,
           });
-        } catch {}
+        } catch {
+          /* empty */
+        }
       },
       [logger, userId, currentThreadId, config.debug, dedupKeyForEvent]
     ),
@@ -443,8 +474,8 @@ export function useAgents(config: UseAgentsConfig = {}): UseAgentsReturn {
           // Only trigger re-render when connected flag actually changes
           engineRef.current?.dispatch({
             type: "CONNECTION_STATE_CHANGED",
-            state,
-          } as any);
+            state: state as InngestSubscriptionState,
+          });
           const connected = String(state) === "Active";
           if (lastConnectedRef.current !== connected) {
             lastConnectedRef.current = connected;
@@ -455,8 +486,12 @@ export function useAgents(config: UseAgentsConfig = {}): UseAgentsReturn {
               sender: tabIdRef.current,
               state,
             });
-          } catch {}
-        } catch {}
+          } catch {
+            /* empty */
+          }
+        } catch {
+          /* empty */
+        }
       },
       [logger]
     ),
@@ -469,7 +504,14 @@ export function useAgents(config: UseAgentsConfig = {}): UseAgentsReturn {
     const bc = new BroadcastChannel(`agentkit-stream:${effectiveChannel}`);
     bcRef.current = bc;
     const onMessage = (e: MessageEvent) => {
-      const msg = e.data;
+      const msg = e.data as {
+        type?: string;
+        sender?: string;
+        evt?: NetworkEvent;
+        state?: unknown;
+        threadId?: string;
+        events?: NetworkEvent[];
+      };
       if (!msg || msg.sender === tabIdRef.current) return;
       if (msg.type === "evt" && msg.evt) {
         const evt = msg.evt;
@@ -478,17 +520,20 @@ export function useAgents(config: UseAgentsConfig = {}): UseAgentsReturn {
         appliedEventIdsRef.current.add(dk);
         engineRef.current?.handleRealtimeMessages([evt]);
         try {
+          const tidVal = evt.data?.threadId;
           const tid =
-            evt?.data?.threadId ||
-            currentThreadId ||
-            fallbackThreadIdRef.current!;
+            typeof tidVal === "string"
+              ? tidVal
+              : currentThreadId || fallbackThreadIdRef.current!;
           const buf = perThreadRunBufferRef.current.get(tid) || [];
           buf.push(evt);
           if (buf.length > 1000) buf.shift();
           perThreadRunBufferRef.current.set(tid, buf);
-        } catch {}
+        } catch {
+          /* empty */
+        }
       } else if (msg.type === "snapshot:request") {
-        const tid = msg.threadId as string | undefined;
+        const tid = msg.threadId;
         if (!tid) return;
         const buf = perThreadRunBufferRef.current.get(tid) || [];
         if (buf.length > 0) {
@@ -499,11 +544,15 @@ export function useAgents(config: UseAgentsConfig = {}): UseAgentsReturn {
               threadId: tid,
               events: buf,
             });
-          } catch {}
+          } catch {
+            /* empty */
+          }
         }
       } else if (msg.type === "snapshot:response") {
-        const tid = msg.threadId as string | undefined;
-        const events = Array.isArray(msg.events) ? msg.events : [];
+        const tid = msg.threadId;
+        const events: NetworkEvent[] = Array.isArray(msg.events)
+          ? msg.events
+          : [];
         if (!tid || events.length === 0) return;
         for (const evt of events) {
           const dk = dedupKeyForEvent(evt);
@@ -513,7 +562,7 @@ export function useAgents(config: UseAgentsConfig = {}): UseAgentsReturn {
         }
       }
     };
-    bc.addEventListener("message", onMessage as any);
+    bc.addEventListener("message", onMessage as EventListener);
     // Request snapshot for current thread shortly after mount/switch
     const req = setTimeout(() => {
       const tid = currentThreadId || fallbackThreadIdRef.current!;
@@ -523,24 +572,32 @@ export function useAgents(config: UseAgentsConfig = {}): UseAgentsReturn {
           sender: tabIdRef.current,
           threadId: tid,
         });
-      } catch {}
+      } catch {
+        /* empty */
+      }
     }, 50);
     return () => {
       clearTimeout(req);
       try {
-        bc.removeEventListener("message", onMessage as any);
-      } catch {}
+        bc.removeEventListener("message", onMessage as EventListener);
+      } catch {
+        /* empty */
+      }
       try {
         bc.close();
-      } catch {}
+      } catch {
+        /* empty */
+      }
       if (bcRef.current === bc) bcRef.current = null;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // Intentionally only re-run on channel changes
   }, [effectiveChannel]);
 
   // Utility getters
   const getThreadState = useCallback((tid: string) => {
-    const s = engineRef.current?.getState() as any;
+    const s = engineRef.current?.getState() as unknown as {
+      threads?: Record<string, { messages?: ConversationMessage[] }>;
+    };
     return s?.threads?.[tid];
   }, []);
 
@@ -563,7 +620,6 @@ export function useAgents(config: UseAgentsConfig = {}): UseAgentsReturn {
       .finally(() => {
         isLoadingInitialThreadRef.current = false;
       });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [config.initialThreadId]);
 
   const getHistoryQueryKey = useCallback(
@@ -587,16 +643,16 @@ export function useAgents(config: UseAgentsConfig = {}): UseAgentsReturn {
           formatted = await queryClient.fetchQuery({
             queryKey: getHistoryQueryKey(threadId),
             queryFn: async () => {
-              const dbMessages: any[] = await fetchHistoryFn(threadId);
+              const dbMessages: unknown[] = await fetchHistoryFn(threadId);
               return threadManagerRef.current!.formatRawHistoryMessages(
                 dbMessages
               );
             },
             staleTime: 300_000,
             gcTime: 3_600_000,
-          } as any);
+          });
         } else {
-          const dbMessages: any[] = await fetchHistoryFn(threadId);
+          const dbMessages: unknown[] = await fetchHistoryFn(threadId);
           formatted =
             threadManagerRef.current!.formatRawHistoryMessages(dbMessages);
         }
@@ -605,7 +661,7 @@ export function useAgents(config: UseAgentsConfig = {}): UseAgentsReturn {
           threadId,
           requestId,
           ms: dt,
-          count: (formatted as any[])?.length || 0,
+          count: formatted?.length || 0,
           currentThreadIdAtEnd: currentThreadId,
         });
         if (Array.isArray(formatted) && formatted.length === 0) {
@@ -618,7 +674,7 @@ export function useAgents(config: UseAgentsConfig = {}): UseAgentsReturn {
         return formatted;
       } catch (err: unknown) {
         logger.error("loadThreadHistory failed:", err);
-        return [] as ConversationMessage[];
+        return [];
       }
     },
     [
@@ -651,22 +707,26 @@ export function useAgents(config: UseAgentsConfig = {}): UseAgentsReturn {
           "[revalidate] missing history despite messageCount>0; refetching",
           { tid, messageCount: selected.messageCount }
         );
-      const handle = setTimeout(async () => {
-        try {
-          const history = await loadThreadHistory(tid);
-          const current = engineRef.current?.getState()?.currentThreadId;
-          if (current !== tid) return;
+      const handle = setTimeout(() => {
+        void (async () => {
           try {
-            engineRef.current?.dispatch({
-              type: "REPLACE_THREAD_MESSAGES",
-              threadId: tid,
-              messages: history,
-            } as any);
-          } catch {}
-        } catch (err) {
-          if (config.debug)
-            logger.warn("[revalidate] history refetch failed", err);
-        }
+            const history = await loadThreadHistory(tid);
+            const current = engineRef.current?.getState()?.currentThreadId;
+            if (current !== tid) return;
+            try {
+              engineRef.current?.dispatch({
+                type: "REPLACE_THREAD_MESSAGES",
+                threadId: tid,
+                messages: history,
+              });
+            } catch {
+              /* empty */
+            }
+          } catch (err) {
+            if (config.debug)
+              logger.warn("[revalidate] history refetch failed", err);
+          }
+        })();
       }, 400);
       return () => clearTimeout(handle);
     }
@@ -686,13 +746,41 @@ export function useAgents(config: UseAgentsConfig = {}): UseAgentsReturn {
         engineRef.current?.dispatch({
           type: "SET_CURRENT_THREAD",
           threadId,
-        } as any);
-      } catch {}
+        });
+      } catch {
+        /* empty */
+      }
       setCurrentThreadIdState(threadId);
       logger.log("setCurrentThreadId", { threadId });
     },
     [logger]
   );
+
+  const dispatchReplaceMessages = useCallback(
+    (threadId: string, messages: ConversationMessage[]) => {
+      try {
+        engineRef.current?.dispatch({
+          type: "REPLACE_THREAD_MESSAGES",
+          threadId,
+          messages,
+        });
+      } catch {
+        /* empty */
+      }
+    },
+    []
+  );
+
+  const dispatchMarkViewed = useCallback((threadId: string) => {
+    try {
+      engineRef.current?.dispatch({
+        type: "MARK_THREAD_VIEWED",
+        threadId,
+      });
+    } catch {
+      /* empty */
+    }
+  }, []);
 
   const switchToThread = useCallback(
     async (threadId: string) => {
@@ -700,12 +788,7 @@ export function useAgents(config: UseAgentsConfig = {}): UseAgentsReturn {
       setCurrentThreadId(threadId);
       threadSessionIdRef.current++;
       // Clear unread badge for this thread
-      try {
-        engineRef.current?.dispatch({
-          type: "MARK_THREAD_VIEWED",
-          threadId,
-        } as any);
-      } catch {}
+      dispatchMarkViewed(threadId);
 
       // Render from cache immediately if available, then fetch/refetch
       try {
@@ -714,17 +797,12 @@ export function useAgents(config: UseAgentsConfig = {}): UseAgentsReturn {
             ? queryClient.getQueryData(getHistoryQueryKey(threadId))
             : undefined;
         if (Array.isArray(cached) && cached.length > 0) {
-          try {
-            engineRef.current?.dispatch({
-              type: "REPLACE_THREAD_MESSAGES",
-              threadId,
-              messages: cached,
-            } as any);
-          } catch {}
+          const cachedMessages = cached as ConversationMessage[];
+          dispatchReplaceMessages(threadId, cachedMessages);
           logger.log(AgentsEvents.EngineReplaceMessages, {
             threadId,
             source: "cache",
-            count: cached.length,
+            count: cachedMessages.length,
             currentThreadIdAtApply:
               engineRef.current?.getState()?.currentThreadId,
             renderSessionId: renderSessionIdRef.current,
@@ -735,13 +813,7 @@ export function useAgents(config: UseAgentsConfig = {}): UseAgentsReturn {
           const history = await loadThreadHistory(threadId);
           const current = engineRef.current?.getState()?.currentThreadId;
           if (current === threadId) {
-            try {
-              engineRef.current?.dispatch({
-                type: "REPLACE_THREAD_MESSAGES",
-                threadId,
-                messages: history,
-              } as any);
-            } catch {}
+            dispatchReplaceMessages(threadId, history);
             logger.log(AgentsEvents.EngineReplaceMessages, {
               threadId,
               source: "fetch",
@@ -764,6 +836,8 @@ export function useAgents(config: UseAgentsConfig = {}): UseAgentsReturn {
       queryClient,
       getHistoryQueryKey,
       hasQueryProvider,
+      dispatchReplaceMessages,
+      dispatchMarkViewed,
     ]
   );
 
@@ -773,8 +847,10 @@ export function useAgents(config: UseAgentsConfig = {}): UseAgentsReturn {
       engineRef.current?.dispatch({
         type: "CREATE_THREAD",
         threadId: id,
-      } as any);
-    } catch {}
+      });
+    } catch {
+      /* empty */
+    }
     setCurrentThreadIdState(id);
     logger.log("createNewThread", { id });
     return id;
@@ -794,7 +870,7 @@ export function useAgents(config: UseAgentsConfig = {}): UseAgentsReturn {
       const messageId = options?.messageId ?? uuidv4();
       const clientState = options?.state
         ? typeof options.state === "function"
-          ? (options.state as any)()
+          ? (options.state as () => Record<string, unknown>)()
           : options.state
         : typeof config.state === "function"
           ? config.state()
@@ -808,11 +884,12 @@ export function useAgents(config: UseAgentsConfig = {}): UseAgentsReturn {
           message,
           messageId,
           clientState,
-        } as any);
-      } catch {}
+        });
+      } catch {
+        /* empty */
+      }
 
-      const msgs = (getThreadState(tid)?.messages ||
-        []) as ConversationMessage[];
+      const msgs = getThreadState(tid)?.messages || [];
       const history = formatMessagesToAgentKitHistory(msgs);
       try {
         await effectiveTransport.sendMessage({
@@ -827,14 +904,16 @@ export function useAgents(config: UseAgentsConfig = {}): UseAgentsReturn {
           history,
           userId,
           channelKey: channelKey,
-        } as any);
+        });
         try {
           engineRef.current?.dispatch({
             type: "MESSAGE_SEND_SUCCESS",
             threadId: tid,
             messageId,
-          } as any);
-        } catch {}
+          });
+        } catch {
+          /* empty */
+        }
       } catch (err: unknown) {
         try {
           engineRef.current?.dispatch({
@@ -842,8 +921,10 @@ export function useAgents(config: UseAgentsConfig = {}): UseAgentsReturn {
             threadId: tid,
             messageId,
             error: err instanceof Error ? err.message : String(err),
-          } as any);
-        } catch {}
+          });
+        } catch {
+          /* empty */
+        }
         throw err;
       }
     },
@@ -913,7 +994,7 @@ export function useAgents(config: UseAgentsConfig = {}): UseAgentsReturn {
       enableThreadValidation: config.enableThreadValidation,
     });
     return () => logger.log(AgentsEvents.Unmount, {});
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // Intentionally empty deps: run once on mount
   }, []);
 
   useEffect(() => {
@@ -923,7 +1004,7 @@ export function useAgents(config: UseAgentsConfig = {}): UseAgentsReturn {
   useEffect(() => {
     const s = engineRef.current?.getState();
     logger.log(AgentsEvents.ConnectionChanged, {
-      connected: Boolean(s?.isConnected),
+      connected: Boolean((s as { isConnected?: boolean })?.isConnected),
     });
   });
 
@@ -945,8 +1026,8 @@ export function useAgents(config: UseAgentsConfig = {}): UseAgentsReturn {
 
   return {
     // Agent state
-    messages: (engineMessages as any) || [],
-    status: (engineStatus as any) || "idle",
+    messages: engineMessages || [],
+    status: (engineStatus ?? "idle") as AgentStatus,
     isConnected: Boolean(engineRef.current?.getState().isConnected),
     currentAgent: undefined,
     error: undefined,
@@ -956,8 +1037,10 @@ export function useAgents(config: UseAgentsConfig = {}): UseAgentsReturn {
         engineRef.current?.dispatch({
           type: "CLEAR_THREAD_ERROR",
           threadId: tid,
-        } as any);
-      } catch {}
+        });
+      } catch {
+        /* empty */
+      }
     },
 
     // Thread state
@@ -972,7 +1055,7 @@ export function useAgents(config: UseAgentsConfig = {}): UseAgentsReturn {
       ? threadsQuery?.error
         ? threadsQuery.error instanceof Error
           ? threadsQuery.error.message
-          : String(threadsQuery.error)
+          : JSON.stringify(threadsQuery.error)
         : null
       : threadsErrorLocal,
     currentThreadId,
@@ -988,7 +1071,7 @@ export function useAgents(config: UseAgentsConfig = {}): UseAgentsReturn {
     cancel: async () => {
       const tid = currentThreadId || fallbackThreadIdRef.current!;
       if (!effectiveTransport?.cancelMessage) return;
-      await effectiveTransport.cancelMessage({ threadId: tid } as any);
+      await effectiveTransport.cancelMessage({ threadId: tid });
     },
     approveToolCall,
     denyToolCall,
@@ -1004,8 +1087,10 @@ export function useAgents(config: UseAgentsConfig = {}): UseAgentsReturn {
         engineRef.current?.dispatch({
           type: "CLEAR_THREAD_MESSAGES",
           threadId,
-        } as any);
-      } catch {}
+        });
+      } catch {
+        /* empty */
+      }
     },
     replaceThreadMessages: (
       threadId: string,
@@ -1016,8 +1101,10 @@ export function useAgents(config: UseAgentsConfig = {}): UseAgentsReturn {
           type: "REPLACE_THREAD_MESSAGES",
           threadId,
           messages,
-        } as any);
-      } catch {}
+        });
+      } catch {
+        /* empty */
+      }
     },
 
     // Thread CRUD
@@ -1027,15 +1114,13 @@ export function useAgents(config: UseAgentsConfig = {}): UseAgentsReturn {
         if (hasQueryProvider && queryClient) {
           queryClient.setQueryData(
             ["useAgents", "threads", identityKey],
-            (old: any) => {
+            (old: { pages?: ThreadsPage[] } | undefined) => {
               if (!old) return old;
-              const pages = (old.pages || []).map((p: any) => ({
+              const pages = (old.pages || []).map((p) => ({
                 ...p,
-                threads: (p.threads || []).filter(
-                  (t: any) => t.id !== threadId
-                ),
+                threads: (p.threads || []).filter((t) => t.id !== threadId),
               }));
-              return { ...old, pages };
+              return { ...old, pages } as { pages: ThreadsPage[] };
             }
           );
         } else {
@@ -1043,7 +1128,9 @@ export function useAgents(config: UseAgentsConfig = {}): UseAgentsReturn {
             prev.filter((t: Thread) => t.id !== threadId)
           );
         }
-      } catch {}
+      } catch {
+        /* empty */
+      }
       if (currentThreadId === threadId) {
         setCurrentThreadIdState(null);
       }
@@ -1069,7 +1156,7 @@ export function useAgents(config: UseAgentsConfig = {}): UseAgentsReturn {
         });
         setThreadsLocal((prev: Thread[]) => {
           const tm = threadManagerRef.current!;
-          return tm.mergeThreadsPreserveOrder(prev as any, data.threads || []);
+          return tm.mergeThreadsPreserveOrder(prev, data.threads || []);
         });
         setOffsetLocal((prev: number) => prev + (data.threads?.length || 0));
         setThreadsHasMoreLocal(Boolean(data.hasMore));
@@ -1081,7 +1168,7 @@ export function useAgents(config: UseAgentsConfig = {}): UseAgentsReturn {
       if (hasQueryProvider && queryClient) {
         await queryClient.invalidateQueries({
           queryKey: ["useAgents", "threads", identityKey],
-        } as any);
+        });
         return;
       }
       try {

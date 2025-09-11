@@ -129,12 +129,32 @@ export function useEphemeralThreads({
     try {
       const cached = storage.getItem(cacheKey);
       if (cached) {
-        const parsedThreads = JSON.parse(cached).map((t: any) => ({
-          ...t,
-          lastMessageAt: new Date(t.lastMessageAt),
-          createdAt: new Date(t.createdAt),
-          updatedAt: new Date(t.updatedAt),
-        }));
+        const raw = JSON.parse(cached) as unknown[];
+        const parsedThreads: Thread[] = (raw || [])
+          .filter(
+            (t: unknown): t is Record<string, unknown> =>
+              t !== null && typeof t === "object"
+          )
+          .map((t) => ({
+            id:
+              typeof t.id === "string"
+                ? t.id
+                : typeof t.id === "number"
+                  ? String(t.id)
+                  : uuidv4(),
+            title: typeof t.title === "string" ? t.title : "New Query",
+            messageCount: Number(t.messageCount ?? 0),
+            lastMessageAt: new Date(
+              (t.lastMessageAt as string | number | Date | undefined) ??
+                Date.now()
+            ),
+            createdAt: new Date(
+              (t.createdAt as string | number | Date | undefined) ?? Date.now()
+            ),
+            updatedAt: new Date(
+              (t.updatedAt as string | number | Date | undefined) ?? Date.now()
+            ),
+          }));
         setThreads(parsedThreads);
       }
     } catch (e) {
@@ -171,10 +191,10 @@ export function useEphemeralThreads({
       return newThreads;
     });
 
-    return {
+    return Promise.resolve({
       threadId: newThread.id,
       title: newThread.title || "New conversation",
-    };
+    });
   }, [persistThreads]);
 
   const deleteThread = useCallback(
@@ -184,6 +204,7 @@ export function useEphemeralThreads({
         persistThreads(newThreads);
         return newThreads;
       });
+      return Promise.resolve();
     },
     [persistThreads]
   );
@@ -197,11 +218,13 @@ export function useEphemeralThreads({
       hasMore: boolean;
       total: number;
     }> => {
-      return {
+      void userId;
+      void pagination;
+      return Promise.resolve({
         threads: threads,
         hasMore: false,
         total: threads.length,
-      };
+      });
     },
     [threads]
   );
@@ -217,12 +240,21 @@ export function useEphemeralThreads({
     deleteThread,
     fetchThreads,
     // Provide dummy functions for the rest of the interface
-    loadMore: async () => {},
-    refresh: async () => {},
+    loadMore: async (): Promise<void> => {
+      /* no-op for ephemeral */
+    },
+    refresh: async (): Promise<void> => {
+      /* no-op for ephemeral */
+    },
     addOptimisticThread: (threadId: string, title: string) => {
+      void threadId;
+      void title;
       // In this ephemeral model, createThread is not optimistic, so this can be a no-op
     },
-    fetchHistory: async (threadId: string) => [],
+    fetchHistory: async (threadId: string) => {
+      void threadId;
+      return Promise.resolve([]);
+    },
     clearCache: () => {
       if (!storage) return;
       try {

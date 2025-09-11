@@ -242,7 +242,7 @@ export function AgentProvider({
                 userId: params.userId ?? userId,
                 threadId: params.threadId,
                 channelKey: params.channelKey,
-              } as any);
+              });
               return {
                 token: res.token,
                 expires: res.expires,
