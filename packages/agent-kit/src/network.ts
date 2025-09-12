@@ -146,6 +146,14 @@ export class Network<T extends StateData> {
   public run(
     ...[input, overrides]: Network.RunArgs<T>
   ): Promise<NetworkRun<T>> {
+    // Automatically normalize a string clientTimestamp to a Date object.
+    if (
+      typeof input === "object" &&
+      typeof input.clientTimestamp === "string"
+    ) {
+      input.clientTimestamp = new Date(input.clientTimestamp);
+    }
+
     let state: State<T>;
     if (overrides?.state) {
       if (overrides.state instanceof State) {
@@ -488,11 +496,20 @@ export class NetworkRun<T extends StateData> extends Network<T> {
       if (typeof input === "object" && input !== null && "id" in input) {
         // Input is a UserMessage object - extract data from it
         const userInput = input;
+
+        // Ensure clientTimestamp is a Date object before assignment
+        const timestamp =
+          userInput.clientTimestamp instanceof Date
+            ? userInput.clientTimestamp
+            : userInput.clientTimestamp
+              ? new Date(userInput.clientTimestamp)
+              : new Date();
+
         userMessage = {
           id: userInput.id,
           content: userInput.content,
           role: "user",
-          timestamp: userInput.clientTimestamp || new Date(),
+          timestamp,
         };
       } else {
         // Input is a string - generate a new ID
