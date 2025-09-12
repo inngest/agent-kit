@@ -84,7 +84,7 @@ const customerSupportRouter = createRoutingAgent<CustomerSupportState>({
         .strict() as unknown as z.ZodType<any>,
       handler: (args: any, ctx: any) => {
         const { name, reason } = args as { name: string; reason: string };
-        const { network } = ctx as { network: any };
+        const { network } = ctx as { network: Network<CustomerSupportState> };
         if (typeof name !== "string") {
           throw new Error("The routing agent requested an invalid agent");
         }
@@ -130,7 +130,7 @@ const customerSupportRouter = createRoutingAgent<CustomerSupportState>({
         .strict() as unknown as z.ZodType<any>,
       handler: (args: any, ctx: any) => {
         const { summary } = args as { summary?: string };
-        const { network } = ctx as { network: any };
+        const { network } = ctx as { network: Network<CustomerSupportState> };
         network.state.data.conversationComplete = true;
         network.state.data.lastRoutingDecision = {
           nextAgent: "DONE",
