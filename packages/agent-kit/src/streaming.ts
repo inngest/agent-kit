@@ -9,6 +9,7 @@
 import { type Inngest } from "inngest";
 import { type GetStepTools } from "inngest";
 import { type State, type StateData } from "./state";
+import { z } from "zod";
 
 /**
  * Base interface for all streaming events
@@ -25,6 +26,18 @@ export interface AgentMessageChunk {
   /** Suggested Inngest step ID for optional developer use */
   id: string;
 }
+
+/**
+ * Canonical runtime schema for AgentKit streaming events.
+ * Matches the AgentMessageChunk interface above.
+ */
+export const AgentMessageChunkSchema = z.object({
+  event: z.string(),
+  data: z.record(z.any()),
+  timestamp: z.number(),
+  sequenceNumber: z.number(),
+  id: z.string(),
+});
 
 // =============================================================================
 // RUN LIFECYCLE EVENTS

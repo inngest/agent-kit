@@ -9,3 +9,4 @@ export * from "./util";
 export * from "./types";
 export * from "./history";
 export * from "./streaming";
+// Schema now lives inline in streaming.ts
