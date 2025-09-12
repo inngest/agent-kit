@@ -21,7 +21,7 @@ export interface UserMessage {
   state?: Record<string, unknown>;
 
   /** Optional, client-provided timestamp for optimistic UI ordering. */
-  clientTimestamp?: Date;
+  clientTimestamp?: Date | string;
 
   /** Optional, one-time system prompt to prepend for this specific turn. */
   systemPrompt?: string;
