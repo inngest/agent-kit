@@ -87,8 +87,11 @@ export type {
   HitlUIPart,
   DebugLogger,
   ErrorClassification,
+  ChatRequestPayload,
+  ChatRequestEvent,
 } from "./types/index.js";
 export type { IClientTransport } from "./core/ports/transport.js";
+export type { SendMessageParams } from "./core/ports/transport.js";
 export type { DefaultHttpTransportConfig } from "./core/adapters/http-transport.js";
 export type {
   IConnection,

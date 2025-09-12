@@ -154,6 +154,41 @@ export type RealtimeEvent =
 export type NetworkEvent = RealtimeEvent;
 
 // =============================================================================
+// CHAT REQUEST TYPES (Frontend/API payload and Inngest event)
+// =============================================================================
+
+/**
+ * ChatRequestPayload is the request body shape sent from the frontend to your
+ * API route responsible for triggering the chat. clientTimestamp may be a
+ * Date on the client, but will serialize to a string on the wire.
+ */
+export interface ChatRequestPayload {
+  userMessage: {
+    id: string;
+    content: string;
+    role: "user";
+    state?: Record<string, unknown>;
+    clientTimestamp?: Date | string;
+    systemPrompt?: string;
+  };
+  threadId?: string;
+  history?: unknown[];
+  userId?: string;
+  channelKey?: string;
+}
+
+/**
+ * ChatRequestEvent is the Inngest event data shape consumed by the function
+ * that runs the agent/network. It mirrors ChatRequestPayload, but narrows
+ * clientTimestamp to string to match typical event transport.
+ */
+export type ChatRequestEvent = Omit<ChatRequestPayload, "userMessage"> & {
+  userMessage: Omit<ChatRequestPayload["userMessage"], "clientTimestamp"> & {
+    clientTimestamp?: string;
+  };
+};
+
+// =============================================================================
 // Cross-tab BroadcastChannel message types
 // =============================================================================
 
