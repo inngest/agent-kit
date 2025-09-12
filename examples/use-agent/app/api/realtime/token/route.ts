@@ -3,12 +3,16 @@ import { getSubscriptionToken } from "@inngest/realtime";
 import { inngest } from "@/inngest/client";
 import { userChannel } from "@/lib/realtime";
 
+// Typed request body for this endpoint
+export type RequestBody = {
+  userId?: string;
+  channelKey?: string;
+};
+
 export async function POST(req: NextRequest) {
   try {
-    const { 
-      userId: requestUserId, 
-      channelKey 
-    } = await req.json();
+    const body = (await req.json()) as RequestBody;
+    const { userId: requestUserId, channelKey } = body;
         
     // TODO: Add authentication, authorization and input validation here
     
