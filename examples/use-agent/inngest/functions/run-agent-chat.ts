@@ -1,18 +1,12 @@
 import { inngest } from "../client";
 import { createCustomerSupportNetwork } from "../networks/customer-support-network";
 import { userChannel } from "../../lib/realtime";
-import { createState } from "@inngest/agent-kit";
+import { createState, type Message } from "@inngest/agent-kit";
 import type { CustomerSupportState } from "../types/state";
 import { PostgresHistoryAdapter } from "../db";
-
-// Inline type to avoid depending on private dist paths
-type AgentMessageChunk = {
-  event: string;
-  data: Record<string, any>;
-  timestamp: number;
-  sequenceNumber: number;
-  id: string;
-};
+import type { AgentMessageChunk } from '@inngest/agent-kit';
+import type { ChatRequestEvent } from '@inngest/use-agents';
+import { v4 as uuidv4 } from "uuid";
 
 // Instantiate the history adapter ONCE, in the global scope.
 // This is the most important step to prevent connection pool exhaustion in a
@@ -37,20 +31,8 @@ export const runAgentChat = inngest.createFunction(
     // would typically run database migrations as part of a deployment script.
     await step.run("initialize-db-tables", () => historyAdapter.initializeTables());
     
-    const { threadId, userMessage, userId, channelKey, history } = event.data as {
-      threadId: string;
-      userMessage: {
-        id: string;
-        content: string;
-        role: 'user';
-        state?: Record<string, unknown>;
-        clientTimestamp?: string;
-        systemPrompt?: string;
-      };
-      userId: string;
-      channelKey?: string; // NEW: Optional channel key for flexible subscriptions
-      history: Array<{ type: 'text'; role: 'user' | 'assistant'; content: string; }>;
-    };
+    const { threadId: providedThreadId, userMessage, userId, channelKey, history } = event.data as ChatRequestEvent;
+    const threadId = providedThreadId || uuidv4();
     
     // Validate required userId
     if (!userId) {
@@ -63,23 +45,17 @@ export const runAgentChat = inngest.createFunction(
         createState<CustomerSupportState>({
           userId,
         }, { 
-          messages: history,
-          threadId 
+          messages: history as Message[] | undefined,
+          threadId, 
         }),
         historyAdapter // Use the shared global instance
       );
       
-      // Convert the received userMessage to the proper UserMessage type with Date object
-      const userMessageWithDate = {
-        ...userMessage,
-        clientTimestamp: userMessage.clientTimestamp ? new Date(userMessage.clientTimestamp) : undefined,
-      };
-
       // Determine the target channel for publishing (channelKey takes priority)
       const targetChannel = channelKey || userId;
       
       // Run the network with streaming enabled
-      await network.run(userMessageWithDate, {
+      await network.run(userMessage, {
         streaming: {
           publish: async (chunk: AgentMessageChunk) => {
             await publish(userChannel(targetChannel).agent_stream(chunk));
