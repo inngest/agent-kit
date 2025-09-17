@@ -35,7 +35,7 @@ import {
   type CrossTabMessage,
 } from "../../../../types/index.js";
 import type { InngestSubscriptionState } from "@inngest/realtime/hooks";
-import type { UseAgentsConfig, UseAgentsReturn } from "./types.js";
+import type { UseAgentsConfig, UseAgentsReturn, OnEventMeta } from "./types.js";
 import { formatMessagesToAgentKitHistory } from "../../../../utils/message-formatting.js";
 import { createDefaultHttpTransport } from "../../../../core/adapters/http-transport.js";
 // mergeThreadsPreserveOrder now lives in core ThreadManager; use instance method instead
@@ -396,7 +396,7 @@ export function useAgents(config: UseAgentsConfig = {}): UseAgentsReturn {
         // Low-level event callback (WS path)
         try {
           const data = (evt.data || {}) as Record<string, unknown>;
-          const meta = {
+          const meta: OnEventMeta = {
             threadId:
               typeof data["threadId"] === "string"
                 ? data["threadId"]
@@ -404,18 +404,14 @@ export function useAgents(config: UseAgentsConfig = {}): UseAgentsReturn {
             runId:
               typeof data["runId"] === "string" ? data["runId"] : undefined,
             scope:
-              typeof data["scope"] === "string" ? data["scope"] : undefined,
+              typeof data["scope"] === "string"
+                ? (data["scope"] as OnEventMeta["scope"])
+                : undefined,
             messageId:
               typeof data["messageId"] === "string"
                 ? data["messageId"]
                 : undefined,
             source: "ws",
-          } as {
-            threadId?: string;
-            runId?: string;
-            scope?: string;
-            messageId?: string;
-            source?: string;
           };
           config.onEvent?.(evt, meta);
         } catch {
@@ -521,7 +517,7 @@ export function useAgents(config: UseAgentsConfig = {}): UseAgentsReturn {
                       data?: Record<string, unknown>;
                     });
               const d = envelope?.data || {};
-              const meta = {
+              const meta: OnEventMeta = {
                 threadId: tid,
                 messageId:
                   typeof d["messageId"] === "string"
@@ -533,15 +529,22 @@ export function useAgents(config: UseAgentsConfig = {}): UseAgentsReturn {
                     : typeof d["runId"] === "string"
                       ? d["runId"]
                       : undefined,
-                scope: typeof d["scope"] === "string" ? d["scope"] : undefined,
-              } as {
-                threadId: string;
-                messageId?: string;
-                runId?: string;
-                scope?: string;
+                scope:
+                  typeof d["scope"] === "string"
+                    ? (d["scope"] as OnEventMeta["scope"])
+                    : undefined,
               };
               logger.log("[UA-DIAG] ui-onStreamEnded-callback", meta);
-              onStreamEndedRef.current?.(meta);
+              if (meta.threadId) {
+                onStreamEndedRef.current?.(
+                  meta as unknown as {
+                    threadId: string;
+                    messageId?: string;
+                    runId?: string;
+                    scope?: "network" | "agent";
+                  }
+                );
+              }
             } catch {
               /* noop */
             }
@@ -611,7 +614,7 @@ export function useAgents(config: UseAgentsConfig = {}): UseAgentsReturn {
         // Low-level event callback (BroadcastChannel path)
         try {
           const data = (evt.data || {}) as Record<string, unknown>;
-          const meta = {
+          const meta: OnEventMeta = {
             threadId:
               typeof data["threadId"] === "string"
                 ? data["threadId"]
@@ -619,18 +622,14 @@ export function useAgents(config: UseAgentsConfig = {}): UseAgentsReturn {
             runId:
               typeof data["runId"] === "string" ? data["runId"] : undefined,
             scope:
-              typeof data["scope"] === "string" ? data["scope"] : undefined,
+              typeof data["scope"] === "string"
+                ? (data["scope"] as OnEventMeta["scope"])
+                : undefined,
             messageId:
               typeof data["messageId"] === "string"
                 ? data["messageId"]
                 : undefined,
             source: "bc",
-          } as {
-            threadId?: string;
-            runId?: string;
-            scope?: string;
-            messageId?: string;
-            source?: string;
           };
           config.onEvent?.(evt, meta);
         } catch {
@@ -655,7 +654,7 @@ export function useAgents(config: UseAgentsConfig = {}): UseAgentsReturn {
           ) {
             try {
               const data = (evt.data || {}) as Record<string, unknown>;
-              const meta = {
+              const meta: OnEventMeta = {
                 threadId: tid,
                 messageId:
                   typeof data["messageId"] === "string"
@@ -664,14 +663,20 @@ export function useAgents(config: UseAgentsConfig = {}): UseAgentsReturn {
                 runId:
                   typeof data["runId"] === "string" ? data["runId"] : undefined,
                 scope:
-                  typeof data["scope"] === "string" ? data["scope"] : undefined,
-              } as {
-                threadId: string;
-                messageId?: string;
-                runId?: string;
-                scope?: string;
+                  typeof data["scope"] === "string"
+                    ? (data["scope"] as OnEventMeta["scope"])
+                    : undefined,
               };
-              onStreamEndedRef.current?.(meta);
+              if (meta.threadId) {
+                onStreamEndedRef.current?.(
+                  meta as unknown as {
+                    threadId: string;
+                    messageId?: string;
+                    runId?: string;
+                    scope?: "network" | "agent";
+                  }
+                );
+              }
             } catch {
               /* empty */
             }
