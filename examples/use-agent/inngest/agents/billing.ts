@@ -6,10 +6,9 @@ import type { CustomerSupportState } from "../types/state";
 const checkSubscriptionTool = createTool({
   name: "check_subscription",
   description: "Check the current subscription status for a customer",
-  // Cast to generic ZodType to avoid deep type instantiation issues
   parameters: z.object({
     userId: z.string(),
-  }) as unknown as z.ZodType<any>,
+  }),
   handler: async ({ userId }) => {
     // Mock implementation
     return {
@@ -29,7 +28,7 @@ const processRefundTool = createTool({
     userId: z.string(),
     amount: z.number(),
     reason: z.string(),
-  }) as unknown as z.ZodType<any>,
+  }),
   handler: async ({ userId, amount, reason }) => {
     // Mock implementation
     return {
@@ -50,7 +49,7 @@ const getInvoiceHistoryTool = createTool({
     userId: z.string(),
     // Optional params should use .nullable() for OpenAI tool schema compatibility
     limit: z.number().nullable(),
-  }) as unknown) as z.ZodType<any>,
+  })),
   handler: async ({ userId, limit }) => {
     const effectiveLimit = typeof limit === "number" ? limit : 5;
     // Mock implementation
