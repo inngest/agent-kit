@@ -3,6 +3,7 @@ import type {
   AgentStatus,
   Thread,
   AgentError,
+  NetworkEvent,
 } from "../../../../types/index.js";
 import type { IClientTransport } from "../../../../core/ports/transport.js";
 
@@ -15,6 +16,30 @@ export type UseAgentsConfig = {
   channelKey?: string;
   initialThreadId?: string;
   debug?: boolean;
+  /**
+   * Low-level callback invoked for every normalized realtime event processed by the hook.
+   * Useful for driving UI directly from events (thinking indicators, tool states, etc.).
+   */
+  onEvent?: (
+    evt: NetworkEvent,
+    meta: {
+      threadId?: string;
+      runId?: string;
+      scope?: string;
+      messageId?: string;
+      source?: string;
+    }
+  ) => void;
+  /**
+   * Optional callback fired when a terminal stream event is received.
+   * Triggers on either "stream.ended" or "run.completed" for the thread.
+   */
+  onStreamEnded?: (args: {
+    threadId: string;
+    messageId?: string;
+    runId?: string;
+    scope?: string;
+  }) => void;
   /**
    * Page size for thread pagination (used by initial load, infinite query, and refresh).
    * Defaults to 20 when not provided.
