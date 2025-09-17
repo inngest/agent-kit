@@ -66,6 +66,7 @@ export { createDebugLogger } from "./types/index.js";
 export type {
   UseAgentsReturn,
   UseAgentsConfig,
+  OnEventMeta,
 } from "./frameworks/react/hooks/use-agents/types.js";
 export type {
   ConversationMessage,
