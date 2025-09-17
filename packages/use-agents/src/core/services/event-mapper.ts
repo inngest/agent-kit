@@ -32,6 +32,10 @@ export function mapToNetworkEvent(input: unknown): NetworkEvent | null {
         data: {
           threadId: data.threadId as string | undefined,
           name: data.name as string | undefined,
+          scope: data.scope as string | undefined,
+          parentRunId: data.parentRunId as string | undefined,
+          runId: data.runId as string | undefined,
+          messageId: data.messageId as string | undefined,
         },
         timestamp: obj.timestamp,
         sequenceNumber: obj.sequenceNumber,
@@ -42,7 +46,13 @@ export function mapToNetworkEvent(input: unknown): NetworkEvent | null {
     case "stream.ended": {
       return {
         event: obj.event,
-        data: { threadId: data.threadId as string | undefined },
+        data: {
+          threadId: data.threadId as string | undefined,
+          scope: data.scope as string | undefined,
+          runId: data.runId as string | undefined,
+          messageId: data.messageId as string | undefined,
+          name: data.name as string | undefined,
+        },
         timestamp: obj.timestamp,
         sequenceNumber: obj.sequenceNumber,
         id,
