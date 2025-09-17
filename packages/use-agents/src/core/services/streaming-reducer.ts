@@ -11,7 +11,19 @@ import type {
   ToolArgsDelta,
   ToolOutputDelta,
   PartCompleted,
+  NetworkEvent,
 } from "../../types/index.js";
+
+// Safe accessor for typed event.data
+function getEventData<T extends Record<string, unknown>>(
+  evt: NetworkEvent
+): T | undefined {
+  const anyEvt = evt as unknown as { data?: unknown };
+  if (!anyEvt || typeof anyEvt !== "object") return undefined;
+  const data = (anyEvt as { data?: unknown }).data;
+  if (data && typeof data === "object") return data as T;
+  return undefined;
+}
 
 // Minimal pure reducer wrapper – delegates to current logic via a simple switch
 // We start with no-op transitions to establish the hexagonal seam without behavior changes.
@@ -50,75 +62,102 @@ export function reduceStreamingState(
         return state;
       let next: StreamingState = state;
       for (const evt of action.messages) {
-        const eventName = typeof evt.event === "string" ? evt.event : undefined;
-        const data = (evt as { data?: { threadId?: string } }).data;
-        const threadId = data?.threadId || next.currentThreadId;
+        const eventName = evt.event;
+        const dataForThread = getEventData<{ threadId?: string }>(evt);
+        const threadId =
+          (dataForThread && typeof dataForThread.threadId === "string"
+            ? dataForThread.threadId
+            : undefined) || next.currentThreadId;
         if (!threadId) continue;
 
+        // Ensure thread exists
         const thread = ensureThread(next, threadId);
 
-        switch (eventName) {
-          case "run.started": {
-            const d = (evt as RunStarted).data;
-            const updated: ThreadState = {
-              ...thread,
-              agentStatus: "thinking",
-              currentAgent:
-                typeof d?.name === "string" ? d.name : thread.currentAgent,
-              lastActivity: new Date(),
-            };
-            next = writeThread(next, threadId, updated);
-            break;
-          }
-          case "part.created": {
-            const updated = applyPartCreated(thread, (evt as PartCreated).data);
-            next = writeThread(next, threadId, updated);
-            break;
-          }
-          case "text.delta": {
-            const updated = applyTextDelta(thread, (evt as TextDelta).data);
-            next = writeThread(next, threadId, updated);
-            break;
-          }
-          case "tool_call.arguments.delta": {
-            const updated = applyToolArgumentsDelta(
-              thread,
-              (evt as ToolArgsDelta).data
-            );
-            next = writeThread(next, threadId, updated);
-            break;
-          }
-          case "tool_call.output.delta": {
-            const updated = applyToolOutputDelta(
-              thread,
-              (evt as ToolOutputDelta).data
-            );
-            next = writeThread(next, threadId, updated);
-            break;
-          }
-          case "part.completed": {
-            const updated = applyPartCompleted(
-              thread,
-              (evt as PartCompleted).data
-            );
-            next = writeThread(next, threadId, updated);
-            break;
-          }
-          case "stream.ended":
-          case "run.completed": {
-            // When a run ends, finalize any in-flight tool calls that already produced output
-            const finalized = finalizeToolsWithOutput(thread);
-            const updated: ThreadState = {
-              ...finalized,
-              agentStatus: "idle",
-              lastActivity: new Date(),
-            } as ThreadState;
-            next = writeThread(next, threadId, updated);
-            break;
-          }
-          default:
-            break;
+        // Per-thread dedup by sequenceNumber
+        if (thread.eventBuffer.has(evt.sequenceNumber)) {
+          if (_debug)
+            console.log("[ordering] dedup: already buffered", {
+              threadId,
+              seq: evt.sequenceNumber,
+              event: evt.event,
+            });
+          continue;
         }
+
+        // Opportunistic immediate apply for pre-epoch or duplicate/lower seq events
+        if (
+          eventName !== "run.started" &&
+          typeof evt.sequenceNumber === "number" &&
+          typeof thread.nextExpectedSequence === "number" &&
+          evt.sequenceNumber <= thread.nextExpectedSequence - 1
+        ) {
+          const updatedThread = applyEvent(thread, evt);
+          next = writeThread(next, threadId, updatedThread);
+          // Mark background flag if needed
+          if (threadId !== next.currentThreadId) {
+            const t2 = ensureThread(next, threadId);
+            if (!t2.hasNewMessages) {
+              next = writeThread(next, threadId, {
+                ...t2,
+                hasNewMessages: true,
+              } as ThreadState);
+            }
+          }
+          continue;
+        }
+
+        // Buffer the event (ordered path)
+        thread.eventBuffer.set(evt.sequenceNumber, evt);
+
+        // Epoch handling for run.started
+        if (eventName === "run.started") {
+          const d =
+            getEventData<{
+              scope?: string;
+              parentRunId?: string;
+              name?: string;
+            }>(evt) || {};
+          const scope = typeof d.scope === "string" ? d.scope : undefined;
+          const parentRunId =
+            typeof d.parentRunId === "string" ? d.parentRunId : undefined;
+
+          // Epoch boundary only for network runs or standalone agent runs (no parentRunId)
+          const isEpochStart =
+            scope === "network" || (scope === "agent" && !parentRunId);
+
+          if (isEpochStart) {
+            // Reset epoch: set next expected to s + 1 and purge older entries
+            const s = evt.sequenceNumber;
+            thread.nextExpectedSequence = s + 1;
+            thread.runActive = true;
+            thread.agentStatus = "submitted";
+            thread.currentAgent =
+              typeof d.name === "string" ? d.name : thread.currentAgent;
+            thread.lastActivity = new Date();
+            for (const key of Array.from(thread.eventBuffer.keys())) {
+              if (key <= s) thread.eventBuffer.delete(key);
+            }
+            if (_debug)
+              console.log("[ordering] epoch-reset", {
+                threadId,
+                scope,
+                parentRunId,
+                seq: s,
+                nextExpected: thread.nextExpectedSequence,
+              });
+          } else {
+            // Agent sub-run within a network epoch: update thinking status only
+            thread.runActive = true;
+            thread.agentStatus = "submitted";
+            thread.currentAgent =
+              typeof d.name === "string" ? d.name : thread.currentAgent;
+            thread.lastActivity = new Date();
+          }
+        }
+
+        // Drain any consecutive events now available
+        next = drainBuffer(next, threadId, _debug);
+
         // Mark non-current thread as having unseen messages when updated in background
         try {
           if (threadId !== next.currentThreadId) {
@@ -169,7 +208,7 @@ export function reduceStreamingState(
       const updated: ThreadState = {
         ...base,
         messages: [...existing, userMessage],
-        agentStatus: "thinking",
+        agentStatus: "submitted",
         lastActivity: new Date(),
       } as ThreadState;
       return writeThread(state, threadId, updated);
@@ -220,7 +259,7 @@ export function reduceStreamingState(
       const updated: ThreadState = {
         ...thread,
         messages,
-        agentStatus: "idle",
+        agentStatus: "ready",
         lastActivity: new Date(),
         error: undefined,
         historyLoaded: true,
@@ -236,9 +275,8 @@ export function reduceStreamingState(
         ...thread,
         messages: [],
         eventBuffer: new Map(),
-        nextExpectedSequence: null,
-        lastProcessedSequence: 0,
-        agentStatus: "idle",
+        nextExpectedSequence: 0,
+        agentStatus: "ready",
         error: undefined,
       } as ThreadState;
       return writeThread(state, threadId, updated);
@@ -296,18 +334,189 @@ export function reduceStreamingState(
   }
 }
 
+// === Buffer draining and ordered application ===
+
+function drainBuffer(
+  state: StreamingState,
+  threadId: string,
+  debug?: boolean
+): StreamingState {
+  let next = state;
+  let thread = ensureThread(next, threadId);
+
+  // Guard: Avoid infinite loops on malformed state
+  if (typeof thread.nextExpectedSequence !== "number") {
+    thread.nextExpectedSequence = 0;
+  }
+
+  // Back-compat fallback: if no event for current expectation and no epoch set,
+  // align to the smallest buffered sequence to allow processing to begin.
+  // Do NOT align if the smallest buffered event is an agent sub-run run.started
+  // (scope === 'agent' with parentRunId present). That would jump past gaps.
+  if (
+    !thread.eventBuffer.has(thread.nextExpectedSequence) &&
+    thread.eventBuffer.size > 0 &&
+    thread.runActive !== true
+  ) {
+    try {
+      const keys = Array.from(thread.eventBuffer.keys());
+      const minSeq = Math.min(...keys);
+      const minEvt = thread.eventBuffer.get(minSeq);
+      const isAgentSubRun = Boolean(
+        minEvt &&
+          minEvt.event === "run.started" &&
+          (() => {
+            const data = getEventData<{ scope?: string; parentRunId?: string }>(
+              minEvt as NetworkEvent
+            );
+            return (
+              data?.scope === "agent" && typeof data?.parentRunId === "string"
+            );
+          })()
+      );
+      const isAlignableEvent = Boolean(
+        minEvt &&
+          (minEvt.event === "run.started" || minEvt.event === "part.created")
+      );
+      if (
+        thread.nextExpectedSequence < minSeq &&
+        !isAgentSubRun &&
+        isAlignableEvent
+      ) {
+        thread.nextExpectedSequence = minSeq;
+        if (debug)
+          console.log("[ordering] align-nextExpected", {
+            threadId,
+            alignedTo: minSeq,
+          });
+      }
+    } catch {
+      /* noop */
+    }
+  } else if (
+    // Log gaps during active runs for diagnostics
+    !thread.eventBuffer.has(thread.nextExpectedSequence) &&
+    thread.eventBuffer.size > 0 &&
+    thread.runActive === true
+  ) {
+    try {
+      const keys = Array.from(thread.eventBuffer.keys()).sort((a, b) => a - b);
+      const minSeq = keys[0];
+      const maxSeq = keys[keys.length - 1];
+      if (debug)
+        console.warn("[UA-DIAG] reducer-gap-stalled", {
+          threadId,
+          nextExpected: thread.nextExpectedSequence,
+          minBuffered: minSeq,
+          maxBuffered: maxSeq,
+          size: thread.eventBuffer.size,
+        });
+    } catch {
+      /* noop */
+    }
+  }
+
+  let progressed = false;
+  while (thread.eventBuffer.has(thread.nextExpectedSequence)) {
+    const evt = thread.eventBuffer.get(thread.nextExpectedSequence)!;
+    thread.eventBuffer.delete(thread.nextExpectedSequence);
+    if (debug)
+      console.log("[UA-DIAG] reducer-apply", {
+        threadId,
+        event: evt.event,
+        seq: thread.nextExpectedSequence,
+      });
+    const updatedThread = applyEvent(thread, evt);
+    // Write thread updates after each event application
+    next = writeThread(next, threadId, updatedThread);
+    thread = ensureThread(next, threadId);
+    thread.nextExpectedSequence += 1;
+    progressed = true;
+    if (
+      debug &&
+      (evt.event === "run.completed" || evt.event === "stream.ended")
+    ) {
+      console.log("[UA-DIAG] reducer-terminal-applied", {
+        threadId,
+        event: evt.event,
+        appliedSeq: thread.nextExpectedSequence - 1,
+      });
+    }
+    if (debug)
+      console.log("[ordering] drain", {
+        threadId,
+        appliedSeq: thread.nextExpectedSequence - 1,
+      });
+  }
+
+  // If no progress, return unchanged reference
+  return progressed ? next : state;
+}
+
+function applyEvent(thread: ThreadState, evt: NetworkEvent): ThreadState {
+  switch (evt.event) {
+    case "run.started": {
+      const d =
+        getEventData<RunStarted["data"]>(evt) || ({} as RunStarted["data"]);
+      return {
+        ...thread,
+        agentStatus: "submitted",
+        runActive: true,
+        currentAgent:
+          typeof d?.name === "string" ? d.name : thread.currentAgent,
+        lastActivity: new Date(),
+      } as ThreadState;
+    }
+    case "part.created": {
+      return applyPartCreated(thread, (evt as PartCreated).data);
+    }
+    case "text.delta": {
+      return applyTextDelta(thread, (evt as TextDelta).data);
+    }
+    case "tool_call.arguments.delta": {
+      return applyToolArgumentsDelta(thread, (evt as ToolArgsDelta).data);
+    }
+    case "tool_call.output.delta": {
+      return applyToolOutputDelta(thread, (evt as ToolOutputDelta).data);
+    }
+    case "part.completed": {
+      return applyPartCompleted(thread, (evt as PartCompleted).data);
+    }
+    case "run.completed": {
+      // Do not mark ready on run.completed; only finalize tool outputs.
+      // We will transition to "ready" exclusively on stream.ended.
+      const finalized = finalizeToolsWithOutput(thread);
+      return {
+        ...finalized,
+        lastActivity: new Date(),
+      } as ThreadState;
+    }
+    case "stream.ended": {
+      const finalized = finalizeToolsWithOutput(thread);
+      return {
+        ...finalized,
+        agentStatus: "ready",
+        runActive: false,
+        lastActivity: new Date(),
+      } as ThreadState;
+    }
+    default:
+      return thread;
+  }
+}
+
 function ensureThread(state: StreamingState, threadId: string): ThreadState {
   const existing = state.threads[threadId];
   if (existing) return existing;
   const created: ThreadState = {
     messages: [],
     eventBuffer: new Map(),
-    nextExpectedSequence: null,
-    lastProcessedSequence: 0,
-    agentStatus: "idle",
+    nextExpectedSequence: 0,
+    agentStatus: "ready",
     hasNewMessages: false,
     lastActivity: new Date(),
     historyLoaded: false,
+    runActive: false, // Default to inactive
   } as ThreadState;
   state.threads[threadId] = created;
   return created;
@@ -393,7 +602,7 @@ function applyPartCreated(
   return {
     ...thread,
     messages: list,
-    agentStatus: type === "tool-call" ? "calling-tool" : "responding",
+    agentStatus: "streaming",
     lastActivity: new Date(),
   };
 }
@@ -414,7 +623,7 @@ function applyTextDelta(
   return {
     ...thread,
     messages: list,
-    agentStatus: "responding",
+    agentStatus: "streaming",
     lastActivity: new Date(),
   };
 }
@@ -468,7 +677,7 @@ function applyPartCompleted(
     return {
       ...thread,
       messages: list,
-      agentStatus: "calling-tool",
+      agentStatus: "streaming",
       lastActivity: new Date(),
     };
   }
@@ -488,7 +697,7 @@ function applyPartCompleted(
       return {
         ...thread,
         messages: list,
-        agentStatus: "responding",
+        agentStatus: "streaming",
         lastActivity: new Date(),
       };
     }
@@ -559,7 +768,7 @@ function applyToolArgumentsDelta(
   return {
     ...thread,
     messages: list,
-    agentStatus: "calling-tool",
+    agentStatus: "streaming",
     lastActivity: new Date(),
   };
 }
@@ -595,7 +804,7 @@ function applyToolOutputDelta(
   return {
     ...thread,
     messages: list,
-    agentStatus: "calling-tool",
+    agentStatus: "streaming",
     lastActivity: new Date(),
   };
 }
