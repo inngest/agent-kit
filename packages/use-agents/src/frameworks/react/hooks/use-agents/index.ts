@@ -46,6 +46,14 @@ export function useAgents(config: UseAgentsConfig = {}): UseAgentsReturn {
     [config?.debug]
   );
 
+  // Stable ref to optional onStreamEnded callback
+  const onStreamEndedRef = useRef<UseAgentsConfig["onStreamEnded"]>(
+    config.onStreamEnded
+  );
+  useEffect(() => {
+    onStreamEndedRef.current = config.onStreamEnded;
+  }, [config.onStreamEnded]);
+
   // Correlation IDs for debugging
   const renderSessionIdRef = useRef<string>(
     `${Date.now()}-${Math.random().toString(36).slice(2)}`
@@ -286,7 +294,34 @@ export function useAgents(config: UseAgentsConfig = {}): UseAgentsReturn {
     if (!engineState) return null;
     const tid = currentThreadId || fallbackThreadIdRef.current!;
     const ts = engineState.threads?.[tid];
-    return (ts?.agentStatus as AgentStatus | undefined) || null;
+    // Map legacy reducer statuses to new simplified statuses for public API
+    const legacy =
+      (ts?.agentStatus as
+        | "idle"
+        | "thinking"
+        | "calling-tool"
+        | "responding"
+        | "error"
+        | undefined) || undefined;
+    let mapped: AgentStatus | null = null;
+    switch (legacy) {
+      case "idle":
+        mapped = "ready";
+        break;
+      case "thinking":
+        mapped = "submitted";
+        break;
+      case "calling-tool":
+      case "responding":
+        mapped = "streaming";
+        break;
+      case "error":
+        mapped = "error";
+        break;
+      default:
+        mapped = null;
+    }
+    return mapped;
   }, [currentThreadId, engineState]);
 
   // Derive messages from engine state if enabled
@@ -313,38 +348,6 @@ export function useAgents(config: UseAgentsConfig = {}): UseAgentsReturn {
     const tid = currentThreadId || fallbackThreadIdRef.current!;
     return Boolean(engineState?.threads?.[tid]?.historyLoaded);
   }, [engineState, currentThreadId]);
-
-  // Diagnostics: capture initial-loading derivation and fallback usage
-  useEffect(() => {
-    if (!config.debug) return;
-    try {
-      const tid = currentThreadId || fallbackThreadIdRef.current!;
-      const hasRealThread = Boolean(config.initialThreadId || currentThreadId);
-      const s = engineRef.current?.getState();
-      const historyLoadedForTid = Boolean(
-        (s as { threads?: Record<string, { historyLoaded?: boolean }> })
-          ?.threads?.[tid]?.historyLoaded
-      );
-      const refLoading = isLoadingInitialThreadRef.current;
-      const computedIsLoading = Boolean(hasRealThread && !historyLoadedForTid);
-      logger.log("[diag:init-load]", {
-        hasRealThread,
-        tidUsed: tid,
-        isFallback: tid === fallbackThreadIdRef.current!,
-        historyLoadedForTid,
-        refLoading,
-        computedIsLoading,
-      });
-    } catch {
-      /* empty */
-    }
-  }, [
-    config.debug,
-    currentThreadId,
-    engineState,
-    currentThreadHistoryLoaded,
-    logger,
-  ]);
 
   // Derive hasNewMessages flags for threads from engine state
   const computedThreads = useMemo<Thread[]>(() => {
@@ -386,9 +389,64 @@ export function useAgents(config: UseAgentsConfig = {}): UseAgentsReturn {
         : undefined,
     onMessage: useCallback(
       (chunk: unknown) => {
+        logger.log("[UA-DIAG] ui-onMessage", { chunkType: typeof chunk });
         logger.log("[realtime:message]", chunk);
         const evt = mapToNetworkEvent(chunk);
         if (!evt) return;
+        // Low-level event callback (WS path)
+        try {
+          const data = (evt.data || {}) as Record<string, unknown>;
+          const meta = {
+            threadId:
+              typeof data["threadId"] === "string"
+                ? data["threadId"]
+                : undefined,
+            runId:
+              typeof data["runId"] === "string" ? data["runId"] : undefined,
+            scope:
+              typeof data["scope"] === "string" ? data["scope"] : undefined,
+            messageId:
+              typeof data["messageId"] === "string"
+                ? data["messageId"]
+                : undefined,
+            source: "ws",
+          } as {
+            threadId?: string;
+            runId?: string;
+            scope?: string;
+            messageId?: string;
+            source?: string;
+          };
+          config.onEvent?.(evt, meta);
+        } catch {
+          /* noop */
+        }
+        // DIAG: terminal receipt logging
+        try {
+          if (evt.event === "run.completed" || evt.event === "stream.ended") {
+            const data = (evt.data || {}) as Record<string, unknown>;
+            logger.log("[UA-DIAG] ui-terminal-received", {
+              event: evt.event,
+              threadId:
+                typeof data["threadId"] === "string"
+                  ? data["threadId"]
+                  : undefined,
+              runId:
+                typeof (chunk as { runId?: unknown })?.runId === "string"
+                  ? (chunk as { runId?: string }).runId
+                  : typeof data["runId"] === "string"
+                    ? data["runId"]
+                    : undefined,
+              scope:
+                typeof data["scope"] === "string" ? data["scope"] : undefined,
+              seq: evt.sequenceNumber,
+              id: evt.id,
+              source: "ws",
+            });
+          }
+        } catch {
+          /* noop */
+        }
         // Process all events for this user/channel; reducer routes by evt.data.threadId
         if (!shouldProcessEvent(evt, { userId })) return;
         if (!engineRef.current) {
@@ -405,6 +463,7 @@ export function useAgents(config: UseAgentsConfig = {}): UseAgentsReturn {
         // Dedup per event id
         const dk = dedupKeyForEvent(evt);
         if (appliedEventIdsRef.current.has(dk)) {
+          logger.log("[UA-DIAG] ui-dedup-skip", { id: dk });
           return;
         }
         appliedEventIdsRef.current.add(dk);
@@ -441,6 +500,51 @@ export function useAgents(config: UseAgentsConfig = {}): UseAgentsReturn {
                 /* empty */
               }
             }, 3000);
+
+            // Invoke optional callback for terminal events
+            try {
+              const raw = chunk as {
+                runId?: string;
+                data?: { event?: string; data?: Record<string, unknown> };
+              };
+              const envelope =
+                raw &&
+                raw.data &&
+                typeof raw.data === "object" &&
+                typeof (raw.data as { event?: unknown }).event === "string"
+                  ? (raw.data as {
+                      event: string;
+                      data?: Record<string, unknown>;
+                    })
+                  : (raw as unknown as {
+                      event?: string;
+                      data?: Record<string, unknown>;
+                    });
+              const d = envelope?.data || {};
+              const meta = {
+                threadId: tid,
+                messageId:
+                  typeof d["messageId"] === "string"
+                    ? d["messageId"]
+                    : undefined,
+                runId:
+                  typeof (raw as { runId?: unknown }).runId === "string"
+                    ? ((raw as { runId?: string }).runId as string)
+                    : typeof d["runId"] === "string"
+                      ? d["runId"]
+                      : undefined,
+                scope: typeof d["scope"] === "string" ? d["scope"] : undefined,
+              } as {
+                threadId: string;
+                messageId?: string;
+                runId?: string;
+                scope?: string;
+              };
+              logger.log("[UA-DIAG] ui-onStreamEnded-callback", meta);
+              onStreamEndedRef.current?.(meta);
+            } catch {
+              /* noop */
+            }
           }
         } catch {
           /* empty */
@@ -504,6 +608,34 @@ export function useAgents(config: UseAgentsConfig = {}): UseAgentsReturn {
         const dk = dedupKeyForEvent(evt);
         if (appliedEventIdsRef.current.has(dk)) return;
         appliedEventIdsRef.current.add(dk);
+        // Low-level event callback (BroadcastChannel path)
+        try {
+          const data = (evt.data || {}) as Record<string, unknown>;
+          const meta = {
+            threadId:
+              typeof data["threadId"] === "string"
+                ? data["threadId"]
+                : undefined,
+            runId:
+              typeof data["runId"] === "string" ? data["runId"] : undefined,
+            scope:
+              typeof data["scope"] === "string" ? data["scope"] : undefined,
+            messageId:
+              typeof data["messageId"] === "string"
+                ? data["messageId"]
+                : undefined,
+            source: "bc",
+          } as {
+            threadId?: string;
+            runId?: string;
+            scope?: string;
+            messageId?: string;
+            source?: string;
+          };
+          config.onEvent?.(evt, meta);
+        } catch {
+          /* empty */
+        }
         engineRef.current?.handleRealtimeMessages([evt]);
         try {
           const tidVal = evt.data?.threadId;
@@ -515,6 +647,35 @@ export function useAgents(config: UseAgentsConfig = {}): UseAgentsReturn {
           buf.push(evt);
           if (buf.length > 1000) buf.shift();
           perThreadRunBufferRef.current.set(tid, buf);
+
+          // Callback on terminal events for BC path as well
+          if (
+            (evt.event === "run.completed" || evt.event === "stream.ended") &&
+            tid
+          ) {
+            try {
+              const data = (evt.data || {}) as Record<string, unknown>;
+              const meta = {
+                threadId: tid,
+                messageId:
+                  typeof data["messageId"] === "string"
+                    ? data["messageId"]
+                    : undefined,
+                runId:
+                  typeof data["runId"] === "string" ? data["runId"] : undefined,
+                scope:
+                  typeof data["scope"] === "string" ? data["scope"] : undefined,
+              } as {
+                threadId: string;
+                messageId?: string;
+                runId?: string;
+                scope?: string;
+              };
+              onStreamEndedRef.current?.(meta);
+            } catch {
+              /* empty */
+            }
+          }
         } catch {
           /* empty */
         }
@@ -1011,7 +1172,7 @@ export function useAgents(config: UseAgentsConfig = {}): UseAgentsReturn {
   return {
     // Agent state
     messages: engineMessages || [],
-    status: engineStatus ?? "idle",
+    status: (engineStatus as AgentStatus) ?? "ready",
     isConnected: Boolean(engineRef.current?.getState().isConnected),
     currentAgent: undefined,
     error: undefined,
