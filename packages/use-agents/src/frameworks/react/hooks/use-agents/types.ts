@@ -11,6 +11,14 @@ import type { IClientTransport } from "../../../../core/ports/transport.js";
  * Configuration for the unified useAgents hook.
  * Extends the existing useChat configuration for full compatibility.
  */
+export type OnEventMeta = {
+  threadId?: string;
+  runId?: string;
+  scope?: "network" | "agent";
+  messageId?: string;
+  source?: "ws" | "bc" | "unknown";
+};
+
 export type UseAgentsConfig = {
   userId?: string;
   channelKey?: string;
@@ -20,16 +28,7 @@ export type UseAgentsConfig = {
    * Low-level callback invoked for every normalized realtime event processed by the hook.
    * Useful for driving UI directly from events (thinking indicators, tool states, etc.).
    */
-  onEvent?: (
-    evt: NetworkEvent,
-    meta: {
-      threadId?: string;
-      runId?: string;
-      scope?: string;
-      messageId?: string;
-      source?: string;
-    }
-  ) => void;
+  onEvent?: (evt: NetworkEvent, meta: OnEventMeta) => void;
   /**
    * Optional callback fired when a terminal stream event is received.
    * Triggers on either "stream.ended" or "run.completed" for the thread.
@@ -38,7 +37,7 @@ export type UseAgentsConfig = {
     threadId: string;
     messageId?: string;
     runId?: string;
-    scope?: string;
+    scope?: "network" | "agent";
   }) => void;
   /**
    * Page size for thread pagination (used by initial load, infinite query, and refresh).
