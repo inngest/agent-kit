@@ -452,10 +452,9 @@ export interface ConversationMessage {
  * Used to provide real-time feedback to users about what the agent is doing.
  */
 export type AgentStatus =
-  | "idle"
-  | "thinking"
-  | "calling-tool"
-  | "responding"
+  | "ready" // previously "idle"
+  | "submitted" // previously "thinking"
+  | "streaming" // previously "responding" or "calling-tool"
   | "error";
 
 // =============================================================================
@@ -645,9 +644,7 @@ export interface ThreadState {
   /** A buffer for events that arrive out of order for this thread. */
   eventBuffer: Map<number, NetworkEvent>;
   /** The next sequence number this thread expects to process. */
-  nextExpectedSequence: number | null;
-  /** The highest sequence number this thread has processed (for deduplication). */
-  lastProcessedSequence: number;
+  nextExpectedSequence: number;
 
   // UI state (per thread)
   /** The current status of the agent for this thread. */
@@ -660,6 +657,8 @@ export interface ThreadState {
   lastActivity: Date;
   /** Whether initial history has been loaded at least once for this thread. */
   historyLoaded?: boolean;
+  /** Whether a run is currently active for this thread (from run.started to run.completed/stream.ended). */
+  runActive?: boolean;
 
   // Error handling (per thread)
   /** Thread-specific error information. */
