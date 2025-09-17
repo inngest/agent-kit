@@ -18,11 +18,20 @@ export function SqlToolPart({ part, onInsertSql }: SqlToolPartProps) {
     }
     
     if (typeof output === 'object' && output !== null) {
+      // AgentKit wraps tool outputs in an envelope: { data: {...} }
+      const data = (output && typeof output === 'object' && 'data' in output)
+        ? (output as any).data
+        : output;
+      if (data && typeof data === 'object') {
+        if ((data as any).sql) return (data as any).sql as string;
+        if ((data as any).query) return (data as any).query as string;
+        if ((data as any).code) return (data as any).code as string;
+      }
       // Try common property names for SQL
-      if (output.sql) return output.sql;
-      if (output.query) return output.query;
-      if (output.code) return output.code;
-      if (output.data && typeof output.data === 'string') return output.data;
+      if ((output as any).sql) return (output as any).sql;
+      if ((output as any).query) return (output as any).query;
+      if ((output as any).code) return (output as any).code;
+      if ((output as any).data && typeof (output as any).data === 'string') return (output as any).data;
       
       // If it's an object, stringify it nicely
       return JSON.stringify(output, null, 2);
