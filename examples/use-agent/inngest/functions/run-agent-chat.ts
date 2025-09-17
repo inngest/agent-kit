@@ -1,8 +1,8 @@
 import { inngest } from "../client";
-import { createCustomerSupportNetwork } from "../networks/customer-support-network";
+import { createInsightsNetwork } from "../sql-agents/network";
 import { userChannel } from "../../lib/realtime";
 import { createState, type Message } from "@inngest/agent-kit";
-import type { CustomerSupportState } from "../types/state";
+import type { InsightsAgentState } from "../sql-agents/event-matcher";
 import { PostgresHistoryAdapter } from "../db";
 import type { AgentMessageChunk } from '@inngest/agent-kit';
 import type { ChatRequestEvent } from '@inngest/use-agents';
@@ -12,7 +12,7 @@ import { v4 as uuidv4 } from "uuid";
 // This is the most important step to prevent connection pool exhaustion in a
 // serverless environment. A single function container will reuse this instance
 // and its underlying connection pool across multiple invocations.
-const historyAdapter = new PostgresHistoryAdapter<CustomerSupportState>({
+const historyAdapter = new PostgresHistoryAdapter<InsightsAgentState>({
   // connectionString is now managed by the shared pool module.
 });
 
@@ -40,14 +40,19 @@ export const runAgentChat = inngest.createFunction(
     }
     
     try {
-      const network = createCustomerSupportNetwork(
+      const clientState = (userMessage as any)?.state || {};
+      const network = createInsightsNetwork(
         threadId,
-        createState<CustomerSupportState>({
-          userId,
-        }, { 
-          messages: history as Message[] | undefined,
-          threadId, 
-        }),
+        createState<InsightsAgentState>(
+          {
+            userId,
+            ...(clientState as Partial<InsightsAgentState>),
+          } as InsightsAgentState,
+          {
+            messages: history as Message[] | undefined,
+            threadId,
+          }
+        ),
         historyAdapter // Use the shared global instance
       );
       
