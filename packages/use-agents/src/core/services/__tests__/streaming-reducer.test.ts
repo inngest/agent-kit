@@ -27,12 +27,12 @@ describe("reduceStreamingState (hex core seam)", () => {
       {
         type: "REALTIME_MESSAGES_RECEIVED",
         messages: [
-          { event: "run.started", data: { threadId: "t1", name: "agent" }, timestamp: Date.now(), sequenceNumber: 1, id: "e1" } as any,
+          { event: "run.started", data: { threadId: "t1", name: "agent", scope: "agent" }, timestamp: Date.now(), sequenceNumber: 1, id: "e1" } as any,
         ] as any,
       },
       false
     );
-    expect(state.threads["t1"].agentStatus).toBe("thinking");
+    expect(state.threads["t1"].agentStatus).toBe("submitted");
     state = reduceStreamingState(
       state,
       {
@@ -43,7 +43,8 @@ describe("reduceStreamingState (hex core seam)", () => {
       },
       false
     );
-    expect(state.threads["t1"].agentStatus).toBe("idle");
+    // With new semantics, run.completed does not set ready; ready occurs on stream.ended
+    expect(state.threads["t1"].agentStatus).toBe("submitted");
   });
 
   it("handles part.created and text.delta", () => {
@@ -91,7 +92,7 @@ describe("reduceStreamingState (hex core seam)", () => {
     );
     const afterSecond = state.threads["t1"].messages?.length || 0;
     expect(afterSecond).toBe(afterFirst);
-    expect(state.threads["t1"].agentStatus).toBe("thinking");
+    expect(state.threads["t1"].agentStatus).toBe("submitted");
   });
 
   it("SUCCESS and FAILED update the correct message and error state", () => {
@@ -118,7 +119,7 @@ describe("reduceStreamingState (hex core seam)", () => {
     state = reduceStreamingState(state, { type: "REPLACE_THREAD_MESSAGES", threadId: "t1", messages: msgs } as any, false);
     const t = state.threads["t1"];
     expect(t.historyLoaded).toBe(true);
-    expect(t.agentStatus).toBe("idle");
+    expect(t.agentStatus).toBe("ready");
     expect(t.error).toBeUndefined();
   });
 
@@ -129,10 +130,9 @@ describe("reduceStreamingState (hex core seam)", () => {
     const t = state.threads["t1"];
     expect(t.messages.length).toBe(0);
     expect(t.eventBuffer instanceof Map).toBe(true);
-    expect(t.nextExpectedSequence).toBeNull();
-    expect(t.lastProcessedSequence).toBe(0);
+    expect(t.nextExpectedSequence).toBe(0);
     expect(t.error).toBeUndefined();
-    expect(t.agentStatus).toBe("idle");
+    expect(t.agentStatus).toBe("ready");
   });
 
   it("CLEAR_THREAD_ERROR clears only error", () => {
@@ -203,7 +203,7 @@ describe("reduceStreamingState (hex core seam)", () => {
     expect(tool?.output).toBe("DONE");
   });
 
-  it("run.completed finalizes executing tools with output and idles agent", () => {
+  it("run.completed finalizes executing tools with output; stream.ended idles agent", () => {
     let state = makeState();
     state = reduceStreamingState(state, {
       type: "REALTIME_MESSAGES_RECEIVED",
@@ -216,7 +216,189 @@ describe("reduceStreamingState (hex core seam)", () => {
     const msg = state.threads["t1"].messages?.find((m: any) => m.id === "m1");
     const tool = msg?.parts?.find(isToolCallPart) as any;
     expect(tool?.state).toBe("output-available");
-    expect(state.threads["t1"].agentStatus).toBe("idle");
+    // After run.completed we no longer set ready; append stream.ended to idle the agent
+    state = reduceStreamingState(state, { type: "REALTIME_MESSAGES_RECEIVED", messages: [makeEvent("stream.ended", { threadId: "t1", scope: "network" })] } as any, false);
+    expect(state.threads["t1"].agentStatus).toBe("ready");
+  });
+
+  it("epoch reset on network run.started sets nextExpectedSequence to s+1 and purges <= s", () => {
+    let state = makeState();
+    state = reduceStreamingState(
+      state,
+      {
+        type: "REALTIME_MESSAGES_RECEIVED",
+        messages: [
+          makeEvent("run.started", { threadId: "t1", name: "net", scope: "network" } as any, {
+            sequenceNumber: 0,
+            id: "r0",
+          } as any),
+        ] as any,
+      } as any,
+      false
+    );
+    const t = state.threads["t1"] as any;
+    expect(t.agentStatus).toBe("submitted");
+    expect(t.runActive).toBe(true);
+    expect(t.nextExpectedSequence).toBe(1);
+    expect(t.eventBuffer.has(0)).toBe(false);
+
+    // Now send in-order events 1,2 and ensure they apply
+    state = reduceStreamingState(
+      state,
+      {
+        type: "REALTIME_MESSAGES_RECEIVED",
+        messages: [
+          makeEvent(
+            "part.created",
+            { threadId: "t1", messageId: "m1", partId: "p1", type: "text" } as any,
+            { sequenceNumber: 1, id: "e1" } as any
+          ),
+          makeEvent(
+            "text.delta",
+            { threadId: "t1", messageId: "m1", partId: "p1", delta: "Hello" } as any,
+            { sequenceNumber: 2, id: "e2" } as any
+          ),
+        ] as any,
+      } as any,
+      false
+    );
+    const msg = state.threads["t1"].messages?.find((m: any) => m.id === "m1");
+    const text = msg?.parts?.find(isTextPart);
+    expect(text?.content || "").toContain("Hello");
+  });
+
+  it("agent sub-run with parentRunId does not reset epoch (no jump)", () => {
+    let state = makeState();
+    // Start network epoch
+    state = reduceStreamingState(
+      state,
+      {
+        type: "REALTIME_MESSAGES_RECEIVED",
+        messages: [
+          makeEvent("run.started", { threadId: "t1", name: "net", scope: "network" } as any, {
+            sequenceNumber: 0,
+            id: "r0",
+          } as any),
+        ] as any,
+      } as any,
+      false
+    );
+    // Buffer a valid next event and an agent sub-run at a higher seq
+    state = reduceStreamingState(
+      state,
+      {
+        type: "REALTIME_MESSAGES_RECEIVED",
+        messages: [
+          makeEvent(
+            "part.created",
+            { threadId: "t1", messageId: "m2", partId: "p2", type: "text" } as any,
+            { sequenceNumber: 1, id: "pc1" } as any
+          ),
+          makeEvent(
+            "run.started",
+            { threadId: "t1", name: "agentA", scope: "agent", parentRunId: "net-1" } as any,
+            { sequenceNumber: 10, id: "a10" } as any
+          ),
+        ] as any,
+      } as any,
+      false
+    );
+    const t = state.threads["t1"] as any;
+    // Should have applied seq 1 and advanced only to 2; not jumped to 11
+    expect(t.nextExpectedSequence).toBe(2);
+    const msg = t.messages?.find((m: any) => m.id === "m2");
+    const text = msg?.parts?.find(isTextPart);
+    expect(Boolean(text)).toBe(true);
+  });
+
+  it("standalone agent run (no parentRunId) resets epoch on agent run.started", () => {
+    let state = makeState();
+    state = reduceStreamingState(
+      state,
+      {
+        type: "REALTIME_MESSAGES_RECEIVED",
+        messages: [
+          makeEvent(
+            "run.started",
+            { threadId: "tX", name: "solo-agent", scope: "agent" } as any,
+            { sequenceNumber: 0, id: "solo0" } as any
+          ),
+        ] as any,
+      } as any,
+      false
+    );
+    const t = state.threads["tX"] as any;
+    expect(t.runActive).toBe(true);
+    expect(t.agentStatus).toBe("submitted");
+    expect(t.nextExpectedSequence).toBe(1);
+  });
+
+  it("purges prior-epoch buffered events on network run.started and doesn't regress state", () => {
+    let state = makeState();
+    // Buffer some late events from a prior epoch (simulate seq 5 text before run start)
+    state = reduceStreamingState(
+      state,
+      {
+        type: "REALTIME_MESSAGES_RECEIVED",
+        messages: [
+          // Note: don't align to a delta pre-epoch; keep it buffered
+          makeEvent(
+            "text.delta",
+            { threadId: "tZ", messageId: "mZ", partId: "pZ", delta: "late" } as any,
+            { sequenceNumber: 5, id: "late5" } as any
+          ),
+        ] as any,
+      } as any,
+      false
+    );
+    // Start new network epoch at seq 0 → reset to s+1 = 1 and purge <= 0; late seq 5 remains buffered but won't apply until gap fills
+    state = reduceStreamingState(
+      state,
+      {
+        type: "REALTIME_MESSAGES_RECEIVED",
+        messages: [
+          makeEvent("run.started", { threadId: "tZ", name: "net", scope: "network" } as any, {
+            sequenceNumber: 0,
+            id: "nz0",
+          } as any),
+        ] as any,
+      } as any,
+      false
+    );
+    const t = state.threads["tZ"] as any;
+    expect(t.nextExpectedSequence).toBe(1);
+    // Now send seq 1 and ensure only then text applies; we assert text isn't present before
+    let msg = t.messages?.find((m: any) => m.id === "mZ");
+    let text = msg?.parts?.find(isTextPart);
+    // We may have created a part if a prior part.created existed; if not, text should be undefined
+    if (text) {
+      expect(text.content || "").not.toContain("late");
+    } else {
+      expect(text).toBeUndefined();
+    }
+
+    state = reduceStreamingState(
+      state,
+      {
+        type: "REALTIME_MESSAGES_RECEIVED",
+        messages: [
+          makeEvent(
+            "part.created",
+            { threadId: "tZ", messageId: "mZ", partId: "pZ", type: "text" } as any,
+            { sequenceNumber: 1, id: "pc1z" } as any
+          ),
+          makeEvent(
+            "text.delta",
+            { threadId: "tZ", messageId: "mZ", partId: "pZ", delta: "ok" } as any,
+            { sequenceNumber: 2, id: "td2z" } as any
+          ),
+        ] as any,
+      } as any,
+      false
+    );
+    msg = state.threads["tZ"].messages?.find((m: any) => m.id === "mZ");
+    text = msg?.parts?.find(isTextPart);
+    expect(text?.content || "").toContain("ok");
   });
 });
 
