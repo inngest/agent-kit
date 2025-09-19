@@ -52,7 +52,8 @@ export class AgenticModel<TAiAdapter extends AiAdapter.Any> {
         model: this.#model,
         body,
         publish,
-      } as unknown)) as AiAdapter.Input<TAiAdapter>;
+      // eslint-disable-next-line
+      } as unknown as any)) as AiAdapter.Input<TAiAdapter>;
     } else {
       // Allow the model to mutate options and body for this call
       const modelCopy = { ...this.#model };
