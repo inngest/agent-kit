@@ -90,7 +90,7 @@ export class Agent<T extends StateData> {
    * The agent's responses will be streamed to any listeners token by token,
    * as fast as possible.
    */
-  publish?: {
+  publish?: (state: T) => ({
     /**
      * channel is the channel to broadcast on.
      */
@@ -100,7 +100,7 @@ export class Agent<T extends StateData> {
      * topic is the topic to broadcast on, within the current channel.
      */
     topic: string;
-  };
+  });
 
   /**
    * lifecycles are programmatic hooks used to manage the agent.
@@ -312,14 +312,14 @@ export class Agent<T extends StateData> {
     p: AgenticModel.Any,
     prompt: Message[],
     history: Message[],
-    network: NetworkRun<T>
+    network: NetworkRun<T>,
   ): Promise<AgentResult> {
     const { output, raw } = await p.infer(
       this.name,
       prompt.concat(history),
       Array.from(this.tools.values()),
       this.tool_choice || "auto",
-      this.publish,
+      this.publish && this.publish(network?.state?.data),
     );
 
     // Now that we've made the call, we instantiate a new AgentResult for
@@ -621,7 +621,7 @@ export namespace Agent {
     model?: AiAdapter.Any;
     mcpServers?: MCP.Server[];
     history?: HistoryConfig<T>;
-    publish?: {
+    publish?: (state: T) => {
       channel: string;
       topic: string;
     },
