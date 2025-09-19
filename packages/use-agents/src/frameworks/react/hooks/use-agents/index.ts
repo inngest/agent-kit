@@ -40,7 +40,11 @@ import { formatMessagesToAgentKitHistory } from "../../../../utils/message-forma
 import { createDefaultHttpTransport } from "../../../../core/adapters/http-transport.js";
 // mergeThreadsPreserveOrder now lives in core ThreadManager; use instance method instead
 
-export function useAgents(config: UseAgentsConfig = {}): UseAgentsReturn {
+export function useAgents<
+  TManifest extends Record<string, unknown> = Record<string, unknown>,
+>(
+  config: UseAgentsConfig<TManifest> = {} as UseAgentsConfig<TManifest>
+): UseAgentsReturn {
   const logger = useMemo(
     () => createDebugLogger("useAgents", config?.debug ?? false),
     [config?.debug]
@@ -53,6 +57,13 @@ export function useAgents(config: UseAgentsConfig = {}): UseAgentsReturn {
   useEffect(() => {
     onStreamEndedRef.current = config.onStreamEnded;
   }, [config.onStreamEnded]);
+  // onToolResult callback (generic)
+  const onToolResultRef = useRef<UseAgentsConfig<TManifest>["onToolResult"]>(
+    config.onToolResult
+  );
+  useEffect(() => {
+    onToolResultRef.current = config.onToolResult;
+  }, [config]);
 
   // Correlation IDs for debugging
   const renderSessionIdRef = useRef<string>(
@@ -295,6 +306,7 @@ export function useAgents(config: UseAgentsConfig = {}): UseAgentsReturn {
     const tid = currentThreadId || fallbackThreadIdRef.current!;
     const ts = engineState.threads?.[tid];
     // Map legacy reducer statuses to new simplified statuses for public API
+    // TODO: remove this legacy status mapping
     const legacy =
       (ts?.agentStatus as
         | "idle"
@@ -417,32 +429,7 @@ export function useAgents(config: UseAgentsConfig = {}): UseAgentsReturn {
         } catch {
           /* noop */
         }
-        // DIAG: terminal receipt logging
-        try {
-          if (evt.event === "run.completed" || evt.event === "stream.ended") {
-            const data = (evt.data || {}) as Record<string, unknown>;
-            logger.log("[UA-DIAG] ui-terminal-received", {
-              event: evt.event,
-              threadId:
-                typeof data["threadId"] === "string"
-                  ? data["threadId"]
-                  : undefined,
-              runId:
-                typeof (chunk as { runId?: unknown })?.runId === "string"
-                  ? (chunk as { runId?: string }).runId
-                  : typeof data["runId"] === "string"
-                    ? data["runId"]
-                    : undefined,
-              scope:
-                typeof data["scope"] === "string" ? data["scope"] : undefined,
-              seq: evt.sequenceNumber,
-              id: evt.id,
-              source: "ws",
-            });
-          }
-        } catch {
-          /* noop */
-        }
+
         // Process all events for this user/channel; reducer routes by evt.data.threadId
         if (!shouldProcessEvent(evt, { userId })) return;
         if (!engineRef.current) {
@@ -457,6 +444,7 @@ export function useAgents(config: UseAgentsConfig = {}): UseAgentsReturn {
           });
         }
         // Dedup per event id
+        // TODO: why is this needed? comment in the explanation
         const dk = dedupKeyForEvent(evt);
         if (appliedEventIdsRef.current.has(dk)) {
           logger.log("[UA-DIAG] ui-dedup-skip", { id: dk });
@@ -552,6 +540,37 @@ export function useAgents(config: UseAgentsConfig = {}): UseAgentsReturn {
         } catch {
           /* empty */
         }
+        // Invoke strongly-typed tool result callback when applicable (no any/unsafe access)
+        if (evt.event === "part.completed" && onToolResultRef.current) {
+          const d = (evt.data || {}) as Record<string, unknown>;
+          const type = typeof d["type"] === "string" ? d["type"] : undefined;
+          const md = ((): { toolName?: unknown } | undefined => {
+            const m = d["metadata"];
+            return m && typeof m === "object"
+              ? (m as { toolName?: unknown })
+              : undefined;
+          })();
+          const toolName =
+            typeof md?.toolName === "string"
+              ? (md.toolName as keyof TManifest)
+              : undefined;
+          if (type === "tool-output" && toolName) {
+            const partId = typeof d["partId"] === "string" ? d["partId"] : "";
+            const messageId =
+              typeof d["messageId"] === "string" ? d["messageId"] : "";
+            const output = d["finalContent"];
+            const result = {
+              toolName,
+              output,
+              partId,
+              messageId,
+            } as unknown as Parameters<
+              NonNullable<UseAgentsConfig<TManifest>["onToolResult"]>
+            >[0];
+            onToolResultRef.current(result);
+          }
+        }
+
         // Apply to engine
         engineRef.current.handleRealtimeMessages([evt]);
         // Broadcast to sibling tabs
