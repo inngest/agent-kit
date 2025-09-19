@@ -167,6 +167,12 @@ export interface PartCompletedEvent extends AgentMessageChunk {
     messageId: string; // Which message this part belongs to
     type: string;
     finalContent: unknown; // The complete, aggregated content of this part
+    metadata?: {
+      toolName?: string; // For tool-call/tool-output parts
+      dataType?: string; // For data parts
+      mimeType?: string; // For file parts
+      agentName?: string; // For tracking which agent created this part
+    };
   };
 }
 
