@@ -39,7 +39,8 @@ export class AgenticModel<TAiAdapter extends AiAdapter.Any> {
     stepID: string,
     input: Message[],
     tools: Tool.Any[],
-    tool_choice: Tool.Choice
+    tool_choice: Tool.Choice,
+    publish?: { channel: string; topic: string },
   ): Promise<AgenticModel.InferenceResponse> {
     const body = this.requestParser(this.#model, input, tools, tool_choice);
     let result: AiAdapter.Input<TAiAdapter>;
@@ -50,7 +51,8 @@ export class AgenticModel<TAiAdapter extends AiAdapter.Any> {
       result = (await step.ai.infer(stepID, {
         model: this.#model,
         body,
-      })) as AiAdapter.Input<TAiAdapter>;
+        publish,
+      } as unknown)) as AiAdapter.Input<TAiAdapter>;
     } else {
       // Allow the model to mutate options and body for this call
       const modelCopy = { ...this.#model };

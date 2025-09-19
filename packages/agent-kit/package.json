@@ -69,7 +69,7 @@
     "@types/express": "^5.0.0",
     "@types/node": "^22.9.1",
     "@types/xxhashjs": "^0.2.4",
-    "inngest": "3.39.1",
+    "inngest": "3.40.4-pr-1078.0",
     "nodemon": "^3.0.2",
     "ts-node": "^10.9.2",
     "tsup": "^8.3.6",

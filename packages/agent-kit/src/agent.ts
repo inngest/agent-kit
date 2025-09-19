@@ -84,6 +84,25 @@ export class Agent<T extends StateData> {
   tool_choice?: Tool.Choice;
 
   /**
+   * publish allows you to stream the responses on the given chanenl and topic
+   * using Inngest's realtime publishing.
+   *
+   * The agent's responses will be streamed to any listeners token by token,
+   * as fast as possible.
+   */
+  publish?: {
+    /**
+     * channel is the channel to broadcast on.
+     */
+    channel: string;
+
+    /**
+     * topic is the topic to broadcast on, within the current channel.
+     */
+    topic: string;
+  };
+
+  /**
    * lifecycles are programmatic hooks used to manage the agent.
    */
   lifecycles: Agent.Lifecycle<T> | Agent.RoutingLifecycle<T> | undefined;
@@ -298,7 +317,8 @@ export class Agent<T extends StateData> {
       this.name,
       prompt.concat(history),
       Array.from(this.tools.values()),
-      this.tool_choice || "auto"
+      this.tool_choice || "auto",
+      this.publish,
     );
 
     // Now that we've made the call, we instantiate a new AgentResult for
@@ -600,6 +620,10 @@ export namespace Agent {
     model?: AiAdapter.Any;
     mcpServers?: MCP.Server[];
     history?: HistoryConfig<T>;
+    publish?: {
+      channel: string;
+      topic: string;
+    },
   }
 
   export interface RoutingConstructor<T extends StateData>
