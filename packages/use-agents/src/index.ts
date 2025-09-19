@@ -90,6 +90,9 @@ export type {
   ErrorClassification,
   ChatRequestPayload,
   ChatRequestEvent,
+  ToolManifest,
+  TypedToolResult,
+  ToolResultPayload,
 } from "./types/index.js";
 export type { IClientTransport } from "./core/ports/transport.js";
 export type { SendMessageParams } from "./core/ports/transport.js";
