@@ -4,6 +4,8 @@ import type {
   Thread,
   AgentError,
   NetworkEvent,
+  ToolManifest,
+  TypedToolResult,
 } from "../../../../types/index.js";
 import type { IClientTransport } from "../../../../core/ports/transport.js";
 
@@ -19,7 +21,7 @@ export type OnEventMeta = {
   source?: "ws" | "bc" | "unknown";
 };
 
-export type UseAgentsConfig = {
+export type UseAgentsConfig<TManifest extends ToolManifest = ToolManifest> = {
   userId?: string;
   channelKey?: string;
   initialThreadId?: string;
@@ -39,6 +41,8 @@ export type UseAgentsConfig = {
     runId?: string;
     scope?: "network" | "agent";
   }) => void;
+  /** Optional, strongly-typed callback for tool results */
+  onToolResult?: (result: TypedToolResult<TManifest>) => void;
   /**
    * Page size for thread pagination (used by initial load, infinite query, and refresh).
    * Defaults to 20 when not provided.
