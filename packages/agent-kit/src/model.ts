@@ -42,7 +42,7 @@ export class AgenticModel<TAiAdapter extends AiAdapter.Any> {
     tool_choice: Tool.Choice,
     publish?: { channel: string; topic: string },
   ): Promise<AgenticModel.InferenceResponse> {
-    const stream = publish && publish.channel !== "" && publish.topic !== "";
+    const stream = publish ? (publish.channel !== "" && publish.topic !== "") : false;
 
     const body = this.requestParser(this.#model, input, tools, tool_choice, stream);
     let result: AiAdapter.Input<TAiAdapter>;
