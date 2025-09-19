@@ -141,6 +141,7 @@ export class Agent<T extends StateData> {
     this.setTools(opts.tools);
     this.mcpServers = opts.mcpServers;
     this._mcpClients = [];
+    this.publish = opts.publish;
   }
 
   private setTools(tools: Agent.Constructor<T>["tools"]): void {
