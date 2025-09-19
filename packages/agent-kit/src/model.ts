@@ -48,6 +48,7 @@ export class AgenticModel<TAiAdapter extends AiAdapter.Any> {
     const step = await getStepTools();
 
     if (step) {
+      // eslint-disable-next-line
       result = (await step.ai.infer(stepID, {
         model: this.#model,
         body,
