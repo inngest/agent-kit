@@ -625,6 +625,7 @@ export class Agent<T extends StateData> {
               messageId: streamingContext.messageId,
               type: "tool-call",
               finalContent: tool.input ?? {},
+              metadata: { toolName: tool.name, agentName: this.name },
             },
           });
         }
@@ -704,6 +705,7 @@ export class Agent<T extends StateData> {
               messageId: streamingContext.messageId,
               type: "tool-output",
               finalContent: result,
+              metadata: { toolName: tool.name, agentName: this.name },
             },
           });
         }
