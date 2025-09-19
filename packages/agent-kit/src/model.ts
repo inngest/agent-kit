@@ -42,7 +42,9 @@ export class AgenticModel<TAiAdapter extends AiAdapter.Any> {
     tool_choice: Tool.Choice,
     publish?: { channel: string; topic: string },
   ): Promise<AgenticModel.InferenceResponse> {
-    const body = this.requestParser(this.#model, input, tools, tool_choice);
+    const stream = publish && publish.channel !== "" && publish.topic !== "";
+
+    const body = this.requestParser(this.#model, input, tools, tool_choice, stream);
     let result: AiAdapter.Input<TAiAdapter>;
 
     const step = await getStepTools();
@@ -118,7 +120,8 @@ export namespace AgenticModel {
     model: TAiAdapter,
     state: Message[],
     tools: Tool.Any[],
-    tool_choice: Tool.Choice
+    tool_choice: Tool.Choice,
+    stream?: boolean,
   ) => AiAdapter.Input<TAiAdapter>;
 
   export type ResponseParser<TAiAdapter extends AiAdapter.Any> = (
