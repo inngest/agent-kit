@@ -154,6 +154,24 @@ export type RealtimeEvent =
 export type NetworkEvent = RealtimeEvent;
 
 // =============================================================================
+// TOOL RESULT TYPING (GENERIC MANIFEST)
+// =============================================================================
+
+export type ToolManifest = Record<string, unknown>;
+
+export type TypedToolResult<TManifest extends ToolManifest> = {
+  [TName in keyof TManifest]: {
+    toolName: TName;
+    output: TManifest[TName];
+    partId: string;
+    messageId: string;
+  };
+}[keyof TManifest];
+
+// Common wrapper type for tool handler outputs
+export type ToolResultPayload<T> = { data: T };
+
+// =============================================================================
 // CHAT REQUEST TYPES (Frontend/API payload and Inngest event)
 // =============================================================================
 
