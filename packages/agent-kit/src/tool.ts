@@ -18,11 +18,13 @@ export function createTool<
   name,
   description,
   parameters,
+  lifecycle,
   handler,
 }: {
   name: string;
   description?: string;
   parameters?: TInput;
+  lifecycle?: Tool.Lifecycle<TState>;
   handler: (
     input: ZodOutput<TInput>,
     opts: Tool.Options<TState>
@@ -32,6 +34,7 @@ export function createTool<
     name,
     description,
     parameters,
+    lifecycle,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     handler: handler as any as <TState extends StateData>(
       input: ZodOutput<TInput>,
@@ -51,6 +54,9 @@ export type Tool<TInput extends Tool.Input> = {
     server: MCP.Server;
     tool: MCP.Tool;
   };
+
+  // lifecycle hooks for this tool
+  lifecycle?: Tool.Lifecycle<any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 
   strict?: boolean;
 
@@ -72,6 +78,51 @@ export namespace Tool {
   export type Input = AnyZodType;
 
   export type Choice = "auto" | "any" | (string & {});
+
+  export interface Lifecycle<T extends StateData> {
+    /**
+     * onStart is called before the tool is executed.
+     * Can modify input and prevent execution by returning continue: false.
+     */
+    onStart?: (args: {
+      tool: Tool.Any;
+      input: any; // eslint-disable-line @typescript-eslint/no-explicit-any
+      agent: Agent<T>;
+      network: NetworkRun<T>;
+    }) => MaybePromise<{
+      input: any; // eslint-disable-line @typescript-eslint/no-explicit-any
+      continue: boolean;
+    }>;
+
+    /**
+     * onSuccess is called after successful tool execution.
+     * Can modify the result returned from the tool.
+     */
+    onSuccess?: (args: {
+      tool: Tool.Any;
+      input: any; // eslint-disable-line @typescript-eslint/no-explicit-any
+      result: any; // eslint-disable-line @typescript-eslint/no-explicit-any
+      agent: Agent<T>;
+      network: NetworkRun<T>;
+    }) => MaybePromise<{
+      result: any; // eslint-disable-line @typescript-eslint/no-explicit-any
+    }>;
+
+    /**
+     * onError is called when tool execution throws an error.
+     * Can modify the error or mark it as handled.
+     */
+    onError?: (args: {
+      tool: Tool.Any;
+      input: any; // eslint-disable-line @typescript-eslint/no-explicit-any
+      error: any; // eslint-disable-line @typescript-eslint/no-explicit-any
+      agent: Agent<T>;
+      network: NetworkRun<T>;
+    }) => MaybePromise<{
+      error: any; // eslint-disable-line @typescript-eslint/no-explicit-any
+      handled: boolean;
+    }>;
+  }
 }
 
 export namespace MCP {

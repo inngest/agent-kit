@@ -96,6 +96,14 @@ export class Agent<T extends StateData> {
   model: AiAdapter.Any | undefined;
 
   /**
+   * toolLifecycles defines lifecycle hooks for tools that will be matched
+   * and attached when MCP tools are dynamically created.
+   */
+  toolLifecycles:
+    | Record<string, Tool.Lifecycle<T> & { match?: RegExp }>
+    | undefined;
+
+  /**
    * mcpServers is a list of MCP (model-context-protocol) servers which can
    * provide tools to the agent.
    */
@@ -119,6 +127,8 @@ export class Agent<T extends StateData> {
     this.lifecycles = opts.lifecycle;
     this.model = opts.model;
     this.history = opts.history;
+    this.toolLifecycles =
+      "toolLifecycles" in opts ? opts.toolLifecycles : undefined;
     this.setTools(opts.tools);
     this.mcpServers = opts.mcpServers;
     this._mcpClients = [];
@@ -356,32 +366,93 @@ export class Agent<T extends StateData> {
           );
         }
 
-        // Call this tool.
-        //
-        // XXX: You might expect this to be wrapped in a step, but each tool can
-        // use multiple step tools, eg. `step.run`, then `step.waitForEvent` for
-        // human in the loop tasks.
-        //
+        // Call lifecycle hooks and execute tool
+        let toolInput = tool.input;
+        let shouldContinue = true;
 
-        const result = await Promise.resolve(
-          found.handler(tool.input, {
+        // Call onStart hook if available
+        if (found.lifecycle?.onStart) {
+          const startResult = await found.lifecycle.onStart({
+            tool: found,
+            input: toolInput,
             agent: this,
             network,
-            step: await getStepTools(),
-          })
-        )
-          .then((r) => {
-            return {
-              // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-              data:
-                typeof r === "undefined"
-                  ? `${tool.name} successfully executed`
-                  : r,
-            };
-          })
-          .catch((err) => {
-            return { error: serializeError(err) };
           });
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+          toolInput = startResult.input;
+          shouldContinue = startResult.continue;
+        }
+
+        let result: { data?: any; error?: any } = { data: undefined }; // eslint-disable-line @typescript-eslint/no-explicit-any
+
+        if (shouldContinue) {
+          // Execute the tool
+          //
+          // XXX: You might expect this to be wrapped in a step, but each tool can
+          // use multiple step tools, eg. `step.run`, then `step.waitForEvent` for
+          // human in the loop tasks.
+          //
+          try {
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+            const toolResult = await Promise.resolve(
+              found.handler(toolInput, {
+                agent: this,
+                network,
+                step: await getStepTools(),
+              })
+            );
+
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+            const processedResult =
+              typeof toolResult === "undefined"
+                ? `${tool.name} successfully executed`
+                : toolResult;
+
+            // Call onSuccess hook if available
+            if (found.lifecycle?.onSuccess) {
+              const successResult = await found.lifecycle.onSuccess({
+                tool: found,
+                input: toolInput,
+                // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+                result: processedResult,
+                agent: this,
+                network,
+              });
+              // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+              result = { data: successResult.result };
+            } else {
+              // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+              result = { data: processedResult };
+            }
+          } catch (err) {
+            let processedError = serializeError(err);
+            let errorHandled = false;
+
+            // Call onError hook if available
+            if (found.lifecycle?.onError) {
+              const errorResult = await found.lifecycle.onError({
+                tool: found,
+                input: toolInput,
+                error: err,
+                agent: this,
+                network,
+              });
+              // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+              processedError = errorResult.error;
+              errorHandled = errorResult.handled;
+            }
+
+            if (!errorHandled) {
+              result = { error: processedError };
+            } else {
+              // If error is handled, treat it as successful result
+              result = { data: processedError };
+            }
+          }
+        } else {
+          // Tool execution was skipped by onStart hook
+          result = { data: `${tool.name} execution skipped by lifecycle hook` };
+        }
 
         output.push({
           role: "tool_result",
@@ -474,6 +545,22 @@ export class Agent<T extends StateData> {
           zschema = undefined;
         }
 
+        // Find matching lifecycle for this tool
+        let lifecycle: Tool.Lifecycle<T> | undefined = undefined;
+        if (this.toolLifecycles) {
+          for (const [pattern, config] of Object.entries(this.toolLifecycles)) {
+            if (config.match) {
+              if (config.match.test(name)) {
+                lifecycle = config;
+                break;
+              }
+            } else if (pattern === name || pattern === t.name) {
+              lifecycle = config;
+              break;
+            }
+          }
+        }
+
         // Add the MCP tools directly to the tool set.
         this.tools.set(name, {
           name: name,
@@ -483,6 +570,7 @@ export class Agent<T extends StateData> {
             server,
             tool: t,
           },
+          lifecycle,
           handler: async (input: { [x: string]: unknown } | undefined) => {
             const fn = () =>
               client.callTool({
@@ -600,6 +688,7 @@ export namespace Agent {
     model?: AiAdapter.Any;
     mcpServers?: MCP.Server[];
     history?: HistoryConfig<T>;
+    toolLifecycles?: Record<string, Tool.Lifecycle<T> & { match?: RegExp }>;
   }
 
   export interface RoutingConstructor<T extends StateData>
