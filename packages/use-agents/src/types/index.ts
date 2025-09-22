@@ -157,12 +157,27 @@ export type NetworkEvent = RealtimeEvent;
 // TOOL RESULT TYPING (GENERIC MANIFEST)
 // =============================================================================
 
-export type ToolManifest = Record<string, unknown>;
+// Rich manifest describing tool input and output typings.
+export type ToolManifest = Record<
+  string,
+  {
+    input: unknown;
+    output: unknown; // output shape is defined by the manifest (often ToolResultPayload<...>)
+  }
+>;
 
+// Flattened tool result for DX: expose data directly in addition to raw output
 export type TypedToolResult<TManifest extends ToolManifest> = {
   [TName in keyof TManifest]: {
+    /** Name of the tool that produced this result */
     toolName: TName;
-    output: TManifest[TName];
+    /** Raw output object as produced by the tool (typically { data: T }) */
+    output: TManifest[TName]["output"];
+    /** Flattened data extracted from output when shape is { data: T } */
+    data: TManifest[TName]["output"] extends { data: infer D } ? D : never;
+    /** Tool input parameters if available from state at callback time */
+    input?: TManifest[TName]["input"];
+    /** Identifiers for correlating with message/part */
     partId: string;
     messageId: string;
   };
@@ -229,9 +244,9 @@ export type CrossTabMessage =
  * Union type representing all possible message parts that can appear in a conversation.
  * Each part type handles a specific kind of content or interaction within a message.
  */
-export type MessagePart =
+export type MessagePart<TManifest extends ToolManifest = ToolManifest> =
   | TextUIPart
-  | ToolCallUIPart
+  | ToolCallUIPart<TManifest>
   | DataUIPart
   | FileUIPart
   | SourceUIPart
@@ -256,26 +271,34 @@ export interface TextUIPart {
 /**
  * Represents a tool call that the agent is making, with streaming input and output.
  */
-export interface ToolCallUIPart {
+type ToolCallUIPartBase<TManifest extends ToolManifest = ToolManifest> = {
   type: "tool-call";
   /** Unique identifier for this tool call */
   toolCallId: string;
   /** Name of the tool being called */
-  toolName: string;
-  /** Current state of the tool call execution */
-  state:
-    | "input-streaming"
-    | "input-available"
-    | "awaiting-approval"
-    | "executing"
-    | "output-available";
+  toolName: keyof TManifest & string;
   /** Tool input parameters, streamed incrementally */
-  input: unknown;
-  /** Tool output result, if available */
-  output?: unknown;
+  input: TManifest[keyof TManifest]["input"];
   /** Error information if the tool call failed */
   error?: unknown;
-}
+};
+
+/**
+ * Discriminated union keyed by state: when state is 'output-available', output is required.
+ */
+export type ToolCallUIPart<TManifest extends ToolManifest = ToolManifest> =
+  | (ToolCallUIPartBase<TManifest> & {
+      state:
+        | "input-streaming"
+        | "input-available"
+        | "awaiting-approval"
+        | "executing";
+      output?: TManifest[keyof TManifest]["output"];
+    })
+  | (ToolCallUIPartBase<TManifest> & {
+      state: "output-available";
+      output: TManifest[keyof TManifest]["output"];
+    });
 
 /**
  * Represents structured data with optional custom UI rendering.
@@ -448,13 +471,16 @@ export interface HitlUIPart {
  * };
  * ```
  */
-export interface ConversationMessage {
+export interface ConversationMessage<
+  TManifest extends ToolManifest = ToolManifest,
+  TState = Record<string, unknown>,
+> {
   /** Unique identifier for this message */
   id: string;
   /** Whether this message is from the user or the assistant */
   role: "user" | "assistant";
   /** Array of message parts that make up the complete message */
-  parts: MessagePart[];
+  parts: MessagePart<TManifest>[];
   /** ID of the agent that created this message (for assistant messages) */
   agentId?: string;
   /** When this message was created */
@@ -462,8 +488,28 @@ export interface ConversationMessage {
   /** The status of the message, particularly for optimistic user messages */
   status?: "sending" | "sent" | "failed";
   /** Client state captured when this message was originally sent */
-  clientState?: Record<string, unknown>;
+  clientState?: TState;
 }
+
+// =============================================================================
+// DX HELPER TYPES
+// =============================================================================
+
+export type AgentConfig<
+  M extends ToolManifest = ToolManifest,
+  S = Record<string, unknown>,
+> = {
+  tools: M;
+  state: S;
+};
+
+export type AgentMessage<C extends AgentConfig> = ConversationMessage<
+  C["tools"],
+  C["state"]
+>;
+export type AgentPart<C extends AgentConfig> = MessagePart<C["tools"]>;
+export type AgentToolPart<C extends AgentConfig> = ToolCallUIPart<C["tools"]>;
+export type AnyToolCallPart = ToolCallUIPart<ToolManifest>;
 
 /**
  * Represents the current activity status of the agent.
@@ -474,6 +520,50 @@ export type AgentStatus =
   | "submitted" // previously "thinking"
   | "streaming" // previously "responding" or "calling-tool"
   | "error";
+
+// =============================================================================
+// TOOL UTILITY TYPE ALIASES (for UI ergonomics)
+// =============================================================================
+
+/** Tool name union extracted from AgentConfig's manifest */
+export type ToolName<C extends AgentConfig> = keyof C["tools"] & string;
+
+/** Tool input type for a specific tool in a config */
+export type ToolInputOf<
+  C extends AgentConfig,
+  K extends ToolName<C>,
+> = C["tools"][K]["input"];
+
+/** Tool output wrapper type for a specific tool in a config */
+export type ToolOutputOf<
+  C extends AgentConfig,
+  K extends ToolName<C>,
+> = C["tools"][K]["output"];
+
+/** Flattened ToolResultPayload data for a specific tool in a config */
+export type ToolDataOf<
+  C extends AgentConfig,
+  K extends ToolName<C>,
+> = C["tools"][K]["output"] extends { data: infer D } ? D : never;
+
+/** Strongly-typed ToolCallUIPart for a specific tool in a config */
+export type ToolPartFor<C extends AgentConfig, K extends ToolName<C>> =
+  | (Omit<AgentToolPart<C>, "toolName" | "input" | "output"> & {
+      toolName: K;
+      input: ToolInputOf<C, K>;
+      state: "output-available";
+      output: ToolOutputOf<C, K>;
+    })
+  | (Omit<AgentToolPart<C>, "toolName" | "input" | "output" | "state"> & {
+      toolName: K;
+      input: ToolInputOf<C, K>;
+      state:
+        | "input-streaming"
+        | "input-available"
+        | "awaiting-approval"
+        | "executing";
+      output?: ToolOutputOf<C, K>;
+    });
 
 // =============================================================================
 // THREAD TYPES
@@ -653,10 +743,13 @@ export function createDebugLogger(
  * Represents the state for a single conversation thread.
  * Each thread maintains its own messages, status, and event processing state.
  */
-export interface ThreadState {
+export interface ThreadState<
+  TManifest extends ToolManifest = ToolManifest,
+  TState = Record<string, unknown>,
+> {
   // Core conversation
   /** The array of messages in this thread's conversation. */
-  messages: ConversationMessage[];
+  messages: ConversationMessage<TManifest, TState>[];
 
   // Event processing (per thread)
   /** A buffer for events that arrive out of order for this thread. */
@@ -691,10 +784,13 @@ export interface ThreadState {
  * Represents the complete state of the agent interaction across multiple threads.
  * Manages multiple conversation threads simultaneously with background streaming.
  */
-export interface StreamingState {
+export interface StreamingState<
+  TManifest extends ToolManifest = ToolManifest,
+  TState = Record<string, unknown>,
+> {
   // Multi-thread management
   /** All active threads indexed by threadId */
-  threads: Record<string, ThreadState>;
+  threads: Record<string, ThreadState<TManifest, TState>>;
   /** The currently active/displayed thread ID */
   currentThreadId: string;
 
@@ -719,7 +815,10 @@ export interface StreamingState {
  * Defines the set of actions that can be dispatched to the streaming reducer.
  * Each action represents a specific event that can change the multi-thread state.
  */
-export type StreamingAction =
+export type StreamingAction<
+  TManifest extends ToolManifest = ToolManifest,
+  TState = Record<string, unknown>,
+> =
   /** Dispatched when new real-time messages are received (all threads, no filtering) */
   | { type: "REALTIME_MESSAGES_RECEIVED"; messages: NetworkEvent[] }
   /** Dispatched when the connection state changes */
@@ -732,7 +831,7 @@ export type StreamingAction =
       threadId: string;
       message: string;
       messageId: string;
-      clientState?: Record<string, unknown>;
+      clientState?: TState;
     }
   /** Dispatched when the message was successfully sent to the backend */
   | { type: "MESSAGE_SEND_SUCCESS"; threadId: string; messageId: string }
@@ -764,7 +863,7 @@ export type StreamingAction =
   | {
       type: "REPLACE_THREAD_MESSAGES";
       threadId: string;
-      messages: ConversationMessage[];
+      messages: ConversationMessage<TManifest, TState>[];
     }
   /** Dispatched to mark a thread as viewed (clear hasNewMessages flag) */
   | { type: "MARK_THREAD_VIEWED"; threadId: string }

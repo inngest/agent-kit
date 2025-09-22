@@ -9,7 +9,11 @@
  * @fileoverview Message format conversion utilities for AgentKit React integration
  */
 
-import { type ConversationMessage, type TextUIPart } from "../types/index.js";
+import {
+  type ConversationMessage,
+  type TextUIPart,
+  type ToolManifest,
+} from "../types/index.js";
 
 /**
  * AgentKit Message format union type.
@@ -79,8 +83,11 @@ export type AgentKitMessage =
  * // Returns: [{ role: 'user', type: 'text', content: 'Hello' }, { role: 'assistant', type: 'text', content: 'Hi!' }, { role: 'assistant', type: 'tool_call', tools: [...] }]
  * ```
  */
-export const formatMessagesToAgentKitHistory = (
-  messages: ConversationMessage[]
+export const formatMessagesToAgentKitHistory = <
+  TManifest extends ToolManifest = ToolManifest,
+  TState = Record<string, unknown>,
+>(
+  messages: ConversationMessage<TManifest, TState>[]
 ): AgentKitMessage[] => {
   const result: AgentKitMessage[] = [];
 

@@ -33,6 +33,7 @@ import {
   type StreamingState,
   type ThreadsPage,
   type CrossTabMessage,
+  type ToolManifest,
 } from "../../../../types/index.js";
 import type { InngestSubscriptionState } from "@inngest/realtime/hooks";
 import type { UseAgentsConfig, UseAgentsReturn, OnEventMeta } from "./types.js";
@@ -40,11 +41,29 @@ import { formatMessagesToAgentKitHistory } from "../../../../utils/message-forma
 import { createDefaultHttpTransport } from "../../../../core/adapters/http-transport.js";
 // mergeThreadsPreserveOrder now lives in core ThreadManager; use instance method instead
 
+// Overloads for developer ergonomics
 export function useAgents<
-  TManifest extends Record<string, unknown> = Record<string, unknown>,
+  TConfig extends { tools: ToolManifest; state: unknown },
 >(
-  config: UseAgentsConfig<TManifest> = {} as UseAgentsConfig<TManifest>
-): UseAgentsReturn {
+  config: UseAgentsConfig<TConfig["tools"], TConfig["state"]>
+): UseAgentsReturn<TConfig["tools"], TConfig["state"]>;
+
+export function useAgents<
+  TManifest extends ToolManifest = ToolManifest,
+  TState = Record<string, unknown>,
+>(
+  config: UseAgentsConfig<TManifest, TState>
+): UseAgentsReturn<TManifest, TState>;
+
+export function useAgents<
+  TManifest extends ToolManifest = ToolManifest,
+  TState = Record<string, unknown>,
+>(
+  config: UseAgentsConfig<TManifest, TState> = {} as UseAgentsConfig<
+    TManifest,
+    TState
+  >
+): UseAgentsReturn<TManifest, TState> {
   const logger = useMemo(
     () => createDebugLogger("useAgents", config?.debug ?? false),
     [config?.debug]
@@ -58,9 +77,9 @@ export function useAgents<
     onStreamEndedRef.current = config.onStreamEnded;
   }, [config.onStreamEnded]);
   // onToolResult callback (generic)
-  const onToolResultRef = useRef<UseAgentsConfig<TManifest>["onToolResult"]>(
-    config.onToolResult
-  );
+  const onToolResultRef = useRef<
+    UseAgentsConfig<TManifest, TState>["onToolResult"]
+  >(config.onToolResult);
   useEffect(() => {
     onToolResultRef.current = config.onToolResult;
   }, [config]);
@@ -94,7 +113,7 @@ export function useAgents<
   }, [transport]);
 
   // Local engine for realtime + local state
-  const engineRef = useRef<StreamingEngine | null>(null);
+  const engineRef = useRef<StreamingEngine<TManifest, TState> | null>(null);
   // Broadcast channel for cross-tab sync
   const tabIdRef = useRef<string>(`tab-${Math.random().toString(36).slice(2)}`);
   const bcRef = useRef<BroadcastChannel | null>(null);
@@ -130,7 +149,7 @@ export function useAgents<
         currentThreadId: "",
         lastProcessedIndex: 0,
         isConnected: false,
-      },
+      } as unknown as StreamingState<TManifest, TState>,
       debug: Boolean(config.debug),
     });
   }
@@ -296,7 +315,7 @@ export function useAgents<
   }
 
   // Derive status from engine state if enabled
-  const engineState = useSyncExternalStore<StreamingState>(
+  const engineState = useSyncExternalStore<StreamingState<TManifest, TState>>(
     subscribe,
     getSnapshot,
     getSnapshot
@@ -337,11 +356,16 @@ export function useAgents<
   }, [currentThreadId, engineState]);
 
   // Derive messages from engine state if enabled
-  const engineMessages = useMemo<ConversationMessage[] | null>(() => {
+  const engineMessages = useMemo<
+    ConversationMessage<TManifest, TState>[] | null
+  >(() => {
     if (!engineState) return null;
     const tid = currentThreadId || fallbackThreadIdRef.current!;
     const ts = engineState.threads?.[tid] as
-      | { messages?: ConversationMessage[]; historyLoaded?: boolean }
+      | {
+          messages?: ConversationMessage<TManifest, TState>[];
+          historyLoaded?: boolean;
+        }
       | undefined;
     if (config.debug) {
       const count = Array.isArray(ts?.messages) ? ts.messages.length : 0;
@@ -559,9 +583,45 @@ export function useAgents<
             const messageId =
               typeof d["messageId"] === "string" ? d["messageId"] : "";
             const output = d["finalContent"];
+
+            // Best-effort flattening of data from output when shape is { data: T }
+
+            const data =
+              output &&
+              typeof output === "object" &&
+              "data" in (output as Record<string, unknown>)
+                ? (output as { data: unknown }).data
+                : (undefined as unknown);
+
+            // Attempt to retrieve tool input from engine state using threadId/messageId/partId
+            let input: unknown;
+            try {
+              const threadIdValue = d["threadId"];
+              const tid =
+                typeof threadIdValue === "string"
+                  ? threadIdValue
+                  : currentThreadId || fallbackThreadIdRef.current!;
+              const s = engineRef.current?.getState();
+              const ts = s?.threads?.[tid];
+              const msgs = Array.isArray(ts?.messages) ? ts.messages : [];
+              const msg = msgs.find(
+                (m) => m.id === messageId && m.role === "assistant"
+              );
+              const toolPart = msg?.parts.find(
+                (p) =>
+                  (p as { type?: unknown }).type === "tool-call" &&
+                  (p as { toolCallId?: unknown }).toolCallId === partId
+              ) as { input?: unknown } | undefined;
+              input = toolPart?.input;
+            } catch {
+              /* noop */
+            }
+
             const result = {
               toolName,
               output,
+              data,
+              input,
               partId,
               messageId,
             } as unknown as Parameters<
@@ -797,7 +857,9 @@ export function useAgents<
   );
 
   const loadThreadHistory = useCallback(
-    async (threadId: string): Promise<ConversationMessage[]> => {
+    async (
+      threadId: string
+    ): Promise<ConversationMessage<TManifest, TState>[]> => {
       try {
         const t0 = Date.now();
         const requestId = `${threadId}-${t0}`;
@@ -807,7 +869,7 @@ export function useAgents<
           currentThreadIdAtStart: currentThreadId,
           renderSessionId: renderSessionIdRef.current,
         });
-        let formatted: ConversationMessage[];
+        let formatted: ConversationMessage<TManifest, TState>[];
         if (hasQueryProvider && queryClient) {
           formatted = await queryClient.fetchQuery({
             queryKey: getHistoryQueryKey(threadId),
@@ -815,15 +877,16 @@ export function useAgents<
               const dbMessages: unknown[] = await fetchHistoryFn(threadId);
               return threadManagerRef.current!.formatRawHistoryMessages(
                 dbMessages
-              );
+              ) as unknown as ConversationMessage<TManifest, TState>[];
             },
             staleTime: 300_000,
             gcTime: 3_600_000,
           });
         } else {
           const dbMessages: unknown[] = await fetchHistoryFn(threadId);
-          formatted =
-            threadManagerRef.current!.formatRawHistoryMessages(dbMessages);
+          formatted = threadManagerRef.current!.formatRawHistoryMessages(
+            dbMessages
+          ) as unknown as ConversationMessage<TManifest, TState>[];
         }
         const dt = Date.now() - t0;
         logger.log(AgentsEvents.HistoryFetchEnd, {
@@ -926,7 +989,7 @@ export function useAgents<
   );
 
   const dispatchReplaceMessages = useCallback(
-    (threadId: string, messages: ConversationMessage[]) => {
+    (threadId: string, messages: ConversationMessage<TManifest, TState>[]) => {
       try {
         engineRef.current?.dispatch({
           type: "REPLACE_THREAD_MESSAGES",
@@ -966,7 +1029,10 @@ export function useAgents<
             ? queryClient.getQueryData(getHistoryQueryKey(threadId))
             : undefined;
         if (Array.isArray(cached) && cached.length > 0) {
-          const cachedMessages = cached as ConversationMessage[];
+          const cachedMessages = cached as ConversationMessage<
+            TManifest,
+            TState
+          >[];
           dispatchReplaceMessages(threadId, cachedMessages);
           logger.log(AgentsEvents.EngineReplaceMessages, {
             threadId,
@@ -1031,7 +1097,7 @@ export function useAgents<
       message: string,
       options?: {
         messageId?: string;
-        state?: Record<string, unknown> | (() => Record<string, unknown>);
+        state?: TState | (() => TState);
       }
     ) => {
       if (!effectiveTransport) return;
@@ -1039,10 +1105,10 @@ export function useAgents<
       const messageId = options?.messageId ?? uuidv4();
       const clientState = options?.state
         ? typeof options.state === "function"
-          ? (options.state as () => Record<string, unknown>)()
+          ? (options.state as () => TState)()
           : options.state
         : typeof config.state === "function"
-          ? config.state()
+          ? (config.state as () => TState)()
           : undefined;
 
       // optimistic user message
@@ -1059,14 +1125,14 @@ export function useAgents<
       }
 
       const msgs = getThreadState(tid)?.messages || [];
-      const history = formatMessagesToAgentKitHistory(msgs);
+      const history = formatMessagesToAgentKitHistory<TManifest, TState>(msgs);
       try {
         await effectiveTransport.sendMessage({
           userMessage: {
             id: messageId,
             content: message,
             role: "user",
-            state: clientState,
+            state: clientState as Record<string, unknown> | undefined,
             clientTimestamp: new Date(),
           },
           threadId: tid,
@@ -1263,7 +1329,7 @@ export function useAgents<
     },
     replaceThreadMessages: (
       threadId: string,
-      messages: ConversationMessage[]
+      messages: ConversationMessage<TManifest, TState>[]
     ) => {
       try {
         engineRef.current?.dispatch({
@@ -1364,5 +1430,5 @@ export function useAgents<
 
     // Editing support
     rehydrateMessageState,
-  } satisfies UseAgentsReturn;
+  } satisfies UseAgentsReturn<TManifest, TState>;
 }

@@ -61,6 +61,13 @@ export {
 } from "./core/adapters/session-transport.js";
 export { formatMessagesToAgentKitHistory } from "./utils/message-formatting.js";
 export { createDebugLogger } from "./types/index.js";
+export type {
+  AgentConfig,
+  AgentMessage,
+  AgentPart,
+  AgentToolPart,
+  AnyToolCallPart,
+} from "./types/index.js";
 
 // Type exports (do not affect runtime surface)
 export type {
@@ -93,6 +100,15 @@ export type {
   ToolManifest,
   TypedToolResult,
   ToolResultPayload,
+} from "./types/index.js";
+// Note: isTool(part) is exported elsewhere previously; avoid re-exporting non-existent member here.
+export { isToolPart, hasToolOutput, getToolData } from "./utils/type-guards.js";
+export type {
+  ToolName,
+  ToolInputOf,
+  ToolOutputOf,
+  ToolDataOf,
+  ToolPartFor,
 } from "./types/index.js";
 export type { IClientTransport } from "./core/ports/transport.js";
 export type { SendMessageParams } from "./core/ports/transport.js";

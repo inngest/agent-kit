@@ -2,6 +2,7 @@ import type {
   StreamingAction,
   StreamingState,
   NetworkEvent,
+  ToolManifest,
 } from "../../types/index.js";
 import type {
   IConnection,
@@ -15,24 +16,27 @@ import { reduceStreamingState } from "./streaming-reducer.js";
  * - Applies pure reducer on dispatch
  * - Provides optional connection subscribe wiring (no-op ready)
  */
-export class StreamingEngine {
-  private state: StreamingState;
+export class StreamingEngine<
+  TManifest extends ToolManifest = ToolManifest,
+  TState = Record<string, unknown>,
+> {
+  private state: StreamingState<TManifest, TState>;
   private readonly reducer: (
-    state: StreamingState,
-    action: StreamingAction,
+    state: StreamingState<TManifest, TState>,
+    action: StreamingAction<TManifest, TState>,
     debug?: boolean
-  ) => StreamingState;
+  ) => StreamingState<TManifest, TState>;
   private readonly debug: boolean;
   private activeSub?: IConnectionSubscription;
   private listeners: Set<() => void> = new Set();
 
   constructor(params: {
-    initialState: StreamingState;
+    initialState: StreamingState<TManifest, TState>;
     reducer?: (
-      s: StreamingState,
-      a: StreamingAction,
+      s: StreamingState<TManifest, TState>,
+      a: StreamingAction<TManifest, TState>,
       debug?: boolean
-    ) => StreamingState;
+    ) => StreamingState<TManifest, TState>;
     debug?: boolean;
   }) {
     this.state = params.initialState;
@@ -40,7 +44,7 @@ export class StreamingEngine {
     this.debug = params.debug ?? false;
   }
 
-  getState(): StreamingState {
+  getState(): StreamingState<TManifest, TState> {
     return this.state;
   }
 
@@ -64,7 +68,7 @@ export class StreamingEngine {
     }
   }
 
-  dispatch(action: StreamingAction): void {
+  dispatch(action: StreamingAction<TManifest, TState>): void {
     const prev = this.state;
     const next = this.reducer(this.state, action, this.debug);
     this.state = next;

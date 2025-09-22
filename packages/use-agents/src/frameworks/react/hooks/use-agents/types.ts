@@ -21,7 +21,10 @@ export type OnEventMeta = {
   source?: "ws" | "bc" | "unknown";
 };
 
-export type UseAgentsConfig<TManifest extends ToolManifest = ToolManifest> = {
+export type UseAgentsConfig<
+  TManifest extends ToolManifest = ToolManifest,
+  TState = Record<string, unknown>,
+> = {
   userId?: string;
   channelKey?: string;
   initialThreadId?: string;
@@ -57,11 +60,8 @@ export type UseAgentsConfig<TManifest extends ToolManifest = ToolManifest> = {
   requireProvider?: boolean;
   enableThreadValidation?: boolean;
   onThreadNotFound?: (threadId: string) => void;
-  state?: () => Record<string, unknown>;
-  onStateRehydrate?: (
-    messageState: Record<string, unknown>,
-    messageId: string
-  ) => void;
+  state?: () => TState;
+  onStateRehydrate?: (messageState: TState, messageId: string) => void;
   fetchThreads?: (
     userId: string,
     pagination:
@@ -86,9 +86,12 @@ export type UseAgentsConfig<TManifest extends ToolManifest = ToolManifest> = {
  * Return type for the unified useAgents hook.
  * Currently aligns 1:1 with UseChatReturn to ensure a non-breaking migration path.
  */
-export type UseAgentsReturn = {
+export type UseAgentsReturn<
+  TManifest extends ToolManifest = ToolManifest,
+  TState = Record<string, unknown>,
+> = {
   // Agent state
-  messages: ConversationMessage[];
+  messages: ConversationMessage<TManifest, TState>[];
   status: AgentStatus;
   isConnected: boolean;
   currentAgent?: string;
@@ -115,7 +118,7 @@ export type UseAgentsReturn = {
     message: string,
     options?: {
       messageId?: string;
-      state?: Record<string, unknown> | (() => Record<string, unknown>);
+      state?: TState | (() => TState);
     }
   ) => Promise<void>;
   cancel: () => Promise<void>;
@@ -127,11 +130,13 @@ export type UseAgentsReturn = {
   setCurrentThreadId: (threadId: string) => void;
 
   // Advanced thread operations
-  loadThreadHistory: (threadId: string) => Promise<ConversationMessage[]>;
+  loadThreadHistory: (
+    threadId: string
+  ) => Promise<ConversationMessage<TManifest, TState>[]>;
   clearThreadMessages: (threadId: string) => void;
   replaceThreadMessages: (
     threadId: string,
-    messages: ConversationMessage[]
+    messages: ConversationMessage<TManifest, TState>[]
   ) => void;
 
   // Thread CRUD
