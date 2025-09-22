@@ -11,6 +11,7 @@
     "lint": "eslint .",
     "release": "pnpm run build && changeset publish",
     "prepare": "husky install",
+    "type-check": "tsc --noEmit",
     "dev": "nodemon --watch demo -e ts --exec \"ts-node -P tsconfig-demo.json demo/index.ts\""
   },
   "files": [
