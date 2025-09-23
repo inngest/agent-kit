@@ -1,0 +1,27 @@
+---
+title: Basic Example
+description: Minimal client and server wiring for UI streaming.
+---
+
+This page shows a minimal client component using `useAgents` and the server routes you need (`/api/chat`, `/api/realtime/token`).
+
+Client outline:
+
+```tsx
+// Example-only outline; full code in examples
+export function Chat() {
+  // const { messages, sendMessage, status } = useAgents({ userId, initialThreadId });
+  return null;
+}
+```
+
+Server outline:
+
+```ts
+// Inngest function triggers a Network/Agent run and streams events
+```
+
+Notes:
+
+- Protect token and chat routes with auth.
+- Validate inputs; handle rate limits.

@@ -1,0 +1,13 @@
+---
+title: Thread Management
+description: Thread IDs, switching, and history loading.
+---
+
+Thread IDs:
+
+- Client-provided: upsert via `createThread`; load history iff client didn’t send messages
+- Auto-generated: server may assign UUID and upsert
+
+Switching threads:
+
+- Load history on demand; preserve optimistic messages

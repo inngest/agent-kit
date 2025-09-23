@@ -1,0 +1,14 @@
+---
+title: Generative UI
+description: Rendering text and tool-call parts with statuses.
+---
+
+Common parts to render:
+
+- `text` (status: streaming → complete)
+- `tool-call` (states: input-streaming → input-available → executing → output-available)
+
+Tips:
+
+- Show typing indicators during `run.started`/`responding`
+- Surface errors from thread state when present

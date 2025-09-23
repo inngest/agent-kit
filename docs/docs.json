@@ -37,13 +37,16 @@
             ]
           },
           {
-            "group": "Streaming",
+            "group": "UI Streaming",
             "pages": [
-              "streaming/overview",
-              "streaming/automatic-streaming",
-              "streaming/react-hooks-quickstart",
-              "streaming/hook-selection-guide",
-              "streaming/provider-pattern"
+              "ui-streaming/overview",
+              "ui-streaming/use-agents-overview",
+              "ui-streaming/basic-example",
+              "ui-streaming/structured-outputs",
+              "ui-streaming/generative-ui",
+              "ui-streaming/persistence",
+              "ui-streaming/thread-management",
+              "ui-streaming/realtime-events-reference"
             ]
           },
           {
