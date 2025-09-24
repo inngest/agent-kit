@@ -1,8 +1,9 @@
-import { serve } from "inngest/next";
-import { inngest } from "@/inngest/client";
-import { runAgentChat } from "@/inngest/functions";
+import { serve } from 'inngest/next';
+
+import { inngest } from './client';
+import { runAgentNetwork } from './functions/run-network';
 
 export const { GET, POST, PUT } = serve({
   client: inngest,
-  functions: [runAgentChat],
-}); 
+  functions: [runAgentNetwork],
+});

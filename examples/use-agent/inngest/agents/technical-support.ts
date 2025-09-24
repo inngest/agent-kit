@@ -3,7 +3,7 @@ import { z } from "zod";
 import type { CustomerSupportState } from "../types/state";
 
 // Mock technical support tools
-const checkSystemStatusTool = createTool({
+export const checkSystemStatusTool = createTool({
   name: "check_system_status",
   description: "Check the current status of various system components",
   parameters: z.object({
@@ -21,7 +21,7 @@ const checkSystemStatusTool = createTool({
   },
 });
 
-const createSupportTicketTool = createTool({
+export const createSupportTicketTool = createTool({
   name: "create_support_ticket",
   description: "Create a support ticket for complex technical issues",
   parameters: z.object({
@@ -44,7 +44,7 @@ const createSupportTicketTool = createTool({
   },
 });
 
-const searchKnowledgeBaseTool = createTool({
+export const searchKnowledgeBaseTool = createTool({
   name: "search_knowledge_base",
   description: "Search the knowledge base for relevant articles and solutions",
   parameters: z.object({

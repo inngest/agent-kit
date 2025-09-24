@@ -3,7 +3,7 @@ import { z } from "zod";
 import type { CustomerSupportState } from "../types/state";
 
 // Mock billing tools
-const checkSubscriptionTool = createTool({
+export const checkSubscriptionTool = createTool({
   name: "check_subscription",
   description: "Check the current subscription status for a customer",
   parameters: z.object({
@@ -21,7 +21,7 @@ const checkSubscriptionTool = createTool({
   },
 });
 
-const processRefundTool = createTool({
+export const processRefundTool = createTool({
   name: "process_refund",
   description: "Process a refund request for a customer",
   parameters: z.object({
@@ -42,7 +42,7 @@ const processRefundTool = createTool({
   },
 });
 
-const getInvoiceHistoryTool = createTool({
+export const getInvoiceHistoryTool = createTool({
   name: "get_invoice_history",
   description: "Get invoice history for a customer",
   parameters: (z.object({

@@ -5,7 +5,17 @@ import { useRouter } from 'next/navigation';
 import {
   useAgents, // Unified hook consolidating useChat/useAgent/useThreads
   createDebugLogger, // debug logging utility
+  type ConversationMessage,
 } from "@inngest/use-agents";
+import type { CustomerSupportAgentConfig } from "@/lib/chat-types";
+type ChatMessage = ConversationMessage<
+  CustomerSupportAgentConfig["tools"],
+  CustomerSupportAgentConfig["state"]
+>;
+type ChatMessages = ConversationMessage<
+  CustomerSupportAgentConfig["tools"],
+  CustomerSupportAgentConfig["state"]
+>[];
 import {
   useMessageActions, // handles message actions like copy, edit, regenerate, etc.
   useSidebar, // handles the sidebar state and mobile sidebar open/close
@@ -136,6 +146,7 @@ export function Chat({ threadId: providedThreadId, debug = false }: ChatProps = 
     deleteThread,
     loadMoreThreads,
     switchToThread,
+    setCurrentThreadId,
     
     // Message management
     messages,
@@ -143,6 +154,7 @@ export function Chat({ threadId: providedThreadId, debug = false }: ChatProps = 
     
     // Status and state
     status,
+    currentAgent,
     isLoadingInitialThread,
     isConnected,
     error,
@@ -151,7 +163,7 @@ export function Chat({ threadId: providedThreadId, debug = false }: ChatProps = 
     // HITL actions
     approveToolCall,
     denyToolCall,
-  } = useAgents({
+  } = useAgents<CustomerSupportAgentConfig>({
     // No need to pass userId - it inherits from AgentProvider automatically!
     initialThreadId: providedThreadId,
     debug: true,
@@ -203,13 +215,20 @@ export function Chat({ threadId: providedThreadId, debug = false }: ChatProps = 
     router.push(`/chat/${threadId}`);
   };
 
+  // Keep internal thread selection in sync with URL param when provided
+  useEffect(() => {
+    if (providedThreadId && currentThreadId !== providedThreadId) {
+      try { setCurrentThreadId(providedThreadId); } catch {}
+    }
+  }, [providedThreadId, currentThreadId, setCurrentThreadId]);
+
   // Thread validation is now handled internally by useChat hook
   // This component should not need to know about thread management complexity
 
   // Reasoning component internally tracks duration via isStreaming
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!inputValue.trim() || status !== "idle") return;
+    if (!inputValue.trim() || status !== "ready") return;
 
     const isFirstMessage = messages.length === 0;
     const isOnHomePage = !providedThreadId;
@@ -247,10 +266,10 @@ export function Chat({ threadId: providedThreadId, debug = false }: ChatProps = 
     setInputValue(suggestion);
   };
 
-  const handleRegenerateFrom = (message: any) => {
+  const handleRegenerateFrom = (message: ChatMessage) => {
     // Find the user message that preceded this assistant message
-    const messageIndex = messages.findIndex(m => m.id === message.id);
-    const precedingUserMessage = messages.slice(0, messageIndex).reverse().find(m => m.role === 'user');
+    const messageIndex = messages.findIndex((m: ChatMessage) => m.id === message.id);
+    const precedingUserMessage = messages.slice(0, messageIndex).reverse().find((m: ChatMessage) => m.role === 'user');
     
     if (precedingUserMessage) {
       const userContent = precedingUserMessage.parts
@@ -304,7 +323,7 @@ export function Chat({ threadId: providedThreadId, debug = false }: ChatProps = 
   };
 
   // useChat provides messages for the current thread
-  const displayMessages = messages;
+  const displayMessages: ChatMessages = messages;
 
   // Identify the most recent assistant message (used to position the thinking indicator)
   const lastAssistantId = [...displayMessages].reverse().find(m => m.role === 'assistant')?.id;
@@ -382,7 +401,7 @@ export function Chat({ threadId: providedThreadId, debug = false }: ChatProps = 
                 value={inputValue}
                 onChange={setInputValue}
                 onSubmit={handleSubmit}
-                status={status}
+                status={status as 'ready' | 'submitted' | 'streaming' | 'error'}
                 isConnected={isConnected}
                 suggestions={mockSuggestions}
                 onSuggestionClick={handleSuggestionClick}
@@ -390,14 +409,14 @@ export function Chat({ threadId: providedThreadId, debug = false }: ChatProps = 
             ) : (
             <Conversation className="flex-1 min-h-0 m-0 p-0 px-[1px]">
               <ConversationContent className="p-0 pt-4 pb-12 px-3">
-                {displayMessages.map((message, messageIndex) => (
+                {displayMessages.map((message, messageIndex: number) => (
                   <div key={message.id}>
                     {/* Reasoning indicator above the assistant message using shared component */}
                     {message.role === 'assistant' && message.id === lastAssistantId && (
                       <div key={`${message.id}-reasoning`} className="mb-6 relative left-0.5">
                         <Reasoning 
                           className="w-full"
-                          isStreaming={status === 'thinking' || status === 'responding'}
+                          isStreaming={status === 'submitted' || status === 'streaming'}
                           hasStreamStarted={message.parts.some((p: any) => p?.type === 'text' && typeof p?.content === 'string' && p.content.length > 0)}
                           defaultOpen={false}
                         >
@@ -418,10 +437,10 @@ export function Chat({ threadId: providedThreadId, debug = false }: ChatProps = 
                             <React.Fragment key={`${message.id}-fragment`}>
                               <Message from={message.role} key={`${message.id}-message`} className="flex-col items-start">
                                 {hasTextDelta && (
-                                  <MessageTitle currentAgent={undefined} />
+                                  <MessageTitle currentAgent={currentAgent} />
                                 )}
                                 <MessageContent className="px-0.5">
-                                  {message.parts.map((part: any, index: number) => (
+                                  {message.parts.map((part, index: number) => (
                                     <MessagePart 
                                       key={`${message.id}-part-${index}`}
                                       part={part} 
@@ -442,7 +461,7 @@ export function Chat({ threadId: providedThreadId, debug = false }: ChatProps = 
                               {hasCompletedText && (
                                 <div key={`${message.id}-actions`}>
                                   <MessageActions
-                                    message={message as any}
+                                    message={message}
                                     onCopyMessage={copyMessage}
                                     onRegenerateFrom={handleRegenerateFrom}
                                     onLikeMessage={likeMessage}
@@ -477,7 +496,7 @@ export function Chat({ threadId: providedThreadId, debug = false }: ChatProps = 
                             <BranchMessages>
                               <Message from={message.role} key={`${message.id}-main`} className="flex-col items-end">
                                 <MessageContent>
-                                  {message.parts.map((part: any, index: number) => (
+                                  {message.parts.map((part, index: number) => (
                                     <MessagePart 
                                       key={`${message.id}-part-${index}`}
                                       part={part} 
@@ -519,12 +538,12 @@ export function Chat({ threadId: providedThreadId, debug = false }: ChatProps = 
                 ))}
 
                 {/* Optimistic and mocked reasoning indicator when no assistant message exists yet */}
-                {!lastAssistantId && (status === 'thinking' || status === 'responding') && (
+                {!lastAssistantId && (status === 'submitted' || status === 'streaming') && (
                   <div className="mb-2">
                     <Reasoning 
                       className="w-full"
                       isStreaming={true}
-                      hasStreamStarted={status === 'responding'}
+                      hasStreamStarted={status === 'streaming'}
                       defaultOpen={false}
                     >
                       <ReasoningTrigger />
@@ -545,10 +564,10 @@ export function Chat({ threadId: providedThreadId, debug = false }: ChatProps = 
                   onChange={setInputValue}
                   onSubmit={handleSubmit}
                   placeholder="Ask anything"
-                  disabled={status !== 'idle' || isLoadingInitialThread}
+                  disabled={status !== 'ready' || isLoadingInitialThread}
                   status={
-                    status === 'thinking' ? 'submitted' :
-                    status === 'responding' ? 'streaming' :
+                    status === 'submitted' ? 'submitted' :
+                    status === 'streaming' ? 'streaming' :
                     status === 'error' ? 'error' :
                     undefined
                   }

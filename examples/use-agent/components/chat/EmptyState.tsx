@@ -7,7 +7,7 @@ interface EmptyStateProps {
   value: string;
   onChange: (v: string) => void;
   onSubmit: (e: React.FormEvent) => void;
-  status: 'idle' | 'thinking' | 'calling-tool' | 'responding' | 'error';
+  status: 'ready' | 'submitted' | 'streaming' | 'error';
   isConnected: boolean;
   suggestions: string[];
   onSuggestionClick: (s: string) => void;
@@ -23,10 +23,10 @@ export function EmptyState({ value, onChange, onSubmit, status, isConnected, sug
           onChange={onChange}
           onSubmit={onSubmit}
           placeholder="Ask anything"
-          disabled={status !== 'idle'}
+          disabled={status !== 'ready'}
           status={
-            status === 'thinking' ? 'submitted' :
-            status === 'responding' ? 'streaming' :
+            status === 'submitted' ? 'submitted' :
+            status === 'streaming' ? 'streaming' :
             status === 'error' ? 'error' :
             undefined
           }
