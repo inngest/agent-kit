@@ -344,34 +344,42 @@ export interface TextUIPart {
 /**
  * Represents a tool call that the agent is making, with streaming input and output.
  */
-type ToolCallUIPartBase<TManifest extends ToolManifest = ToolManifest> = {
-  type: "tool-call";
-  /** Unique identifier for this tool call */
-  toolCallId: string;
-  /** Name of the tool being called */
-  toolName: keyof TManifest & string;
-  /** Tool input parameters, streamed incrementally */
-  input: TManifest[keyof TManifest]["input"];
-  /** Error information if the tool call failed */
-  error?: unknown;
-};
-
-/**
- * Discriminated union keyed by state: when state is 'output-available', output is required.
- */
-export type ToolCallUIPart<TManifest extends ToolManifest = ToolManifest> =
-  | (ToolCallUIPartBase<TManifest> & {
+type ToolCallUIPartForTool<
+  TManifest extends ToolManifest,
+  TName extends keyof TManifest & string,
+> =
+  | {
+      type: "tool-call";
+      toolCallId: string;
+      toolName: TName;
       state:
         | "input-streaming"
         | "input-available"
         | "awaiting-approval"
         | "executing";
-      output?: TManifest[keyof TManifest]["output"];
-    })
-  | (ToolCallUIPartBase<TManifest> & {
+      input: TManifest[TName]["input"];
+      output?: TManifest[TName]["output"];
+      error?: unknown;
+    }
+  | {
+      type: "tool-call";
+      toolCallId: string;
+      toolName: TName;
       state: "output-available";
-      output: TManifest[keyof TManifest]["output"];
-    });
+      input: TManifest[TName]["input"];
+      output: TManifest[TName]["output"];
+      error?: unknown;
+    };
+
+export type ToolCallUIPart<TManifest extends ToolManifest = ToolManifest> =
+  keyof TManifest extends never
+    ? never
+    : {
+        [TName in keyof TManifest & string]: ToolCallUIPartForTool<
+          TManifest,
+          TName
+        >;
+      }[keyof TManifest & string];
 
 /**
  * Represents structured data with optional custom UI rendering.

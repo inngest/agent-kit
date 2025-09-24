@@ -244,7 +244,7 @@ describe("reduceStreamingState (hex core seam)", () => {
     msg = state.threads["t1"].messages?.find((m: any) => m.id === "m1");
     tool = msg?.parts?.find((p: any) => p.type === "tool-call" && p.toolCallId === "p1") as any;
     expect(tool?.state).toBe("output-available");
-    expect(tool?.output).toBe("DONE");
+    expect(tool?.output?.data ?? tool?.output).toBe("DONE");
   });
 
   it("run.completed finalizes executing tools with output; stream.ended idles agent", () => {

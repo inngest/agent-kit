@@ -13,6 +13,7 @@ import type {
   PartCompleted,
   AgentKitEvent,
   ToolManifest,
+  ToolResultPayload,
 } from "../../types/index.js";
 
 // Safe accessor for typed event.data
@@ -649,7 +650,7 @@ function applyPartCreated<
       toolCallId: partId,
       toolName: (data?.metadata?.toolName || "") as keyof TManifest & string,
       state: "input-streaming",
-      input: {},
+      input: {} as ToolCallUIPart<TManifest>["input"],
       output: undefined,
     } as ToolCallUIPart<TManifest>;
     msg.parts = [...msg.parts, tool];
@@ -727,7 +728,7 @@ function applyPartCompleted<
           data?.metadata?.toolName ||
           "") as keyof TManifest & string,
         state: "input-available",
-        input: {},
+        input: {} as ToolCallUIPart<TManifest>["input"],
       } as ToolCallUIPart<TManifest>;
       msg.parts = [...msg.parts, tool];
     }
@@ -762,7 +763,10 @@ function applyPartCompleted<
     }
     if (tool) {
       // Finalize output
-      tool.output = finalContent !== undefined ? finalContent : tool.output;
+      tool.output = normalizeToolResultPayload(
+        tool.toolName,
+        finalContent
+      ) as ToolCallUIPart<TManifest>["output"];
       tool.state = "output-available";
       return {
         ...thread,
@@ -809,7 +813,7 @@ function applyToolArgumentsDelta<
           data?.metadata?.toolName ||
           "") as keyof TManifest & string,
         state: "input-streaming",
-        input: {},
+        input: {} as ToolCallUIPart<TManifest>["input"],
         output: undefined,
       } as ToolCallUIPart<TManifest>;
       msg.parts = [...msg.parts, tool];
@@ -877,13 +881,32 @@ function applyToolOutputDelta<
     tool = findFallbackToolPartForOutput(msg);
     if (!tool) return { ...thread };
   }
-  const prev =
-    typeof tool.output === "string"
-      ? tool.output
-      : tool.output === undefined
-        ? ""
-        : JSON.stringify(tool.output as unknown);
-  tool.output = (prev + delta) as ToolCallUIPart<TManifest>["output"];
+  const previous =
+    tool.output &&
+    typeof tool.output === "object" &&
+    tool.output !== null &&
+    "data" in tool.output
+      ? (tool.output as { data: unknown }).data
+      : undefined;
+
+  const previousString = (() => {
+    if (previous === undefined) return "";
+    if (typeof previous === "string") return previous;
+    if (typeof previous === "number" || typeof previous === "boolean") {
+      return String(previous);
+    }
+    try {
+      return JSON.stringify(previous);
+    } catch {
+      return "";
+    }
+  })();
+
+  const nextData = `${previousString}${delta}`;
+
+  tool.output = {
+    data: nextData,
+  } as ToolCallUIPart<TManifest>["output"];
   tool.state = "executing";
   return {
     ...thread,
@@ -950,10 +973,18 @@ function finalizeToolsWithOutput<
       if (p.type !== "tool-call") return p;
       const tool = p; // narrowed to ToolCallUIPart by discriminant
       if (tool.state === "executing" && tool.output !== undefined) {
+        const wrappedOutput =
+          tool.output &&
+          typeof tool.output === "object" &&
+          tool.output !== null &&
+          "data" in tool.output
+            ? (tool.output as ToolResultPayload<unknown>)
+            : ({ data: tool.output } satisfies ToolResultPayload<unknown>);
         changed = true;
         return {
           ...tool,
           state: "output-available",
+          output: wrappedOutput as ToolCallUIPart<TManifest>["output"],
         } as ToolCallUIPart<TManifest>;
       }
       return p;
@@ -968,4 +999,19 @@ function finalizeToolsWithOutput<
     TManifest,
     TState
   >;
+}
+
+function normalizeToolResultPayload(
+  _toolName: string,
+  finalContent: unknown
+): ToolResultPayload<unknown> {
+  if (
+    finalContent &&
+    typeof finalContent === "object" &&
+    finalContent !== null &&
+    "data" in (finalContent as Record<string, unknown>)
+  ) {
+    return finalContent as ToolResultPayload<unknown>;
+  }
+  return { data: finalContent } satisfies ToolResultPayload<unknown>;
 }

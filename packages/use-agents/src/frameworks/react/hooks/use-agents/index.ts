@@ -329,35 +329,30 @@ export function useAgents<
     if (!engineState) return null;
     const tid = currentThreadId || fallbackThreadIdRef.current!;
     const ts = engineState.threads?.[tid];
-    // Map legacy reducer statuses to new simplified statuses for public API
-    // TODO: remove this legacy status mapping
-    const legacy =
-      (ts?.agentStatus as
-        | "idle"
-        | "thinking"
-        | "calling-tool"
-        | "responding"
-        | "error"
-        | undefined) || undefined;
-    let mapped: AgentStatus | null = null;
-    switch (legacy) {
+    // Prefer new simplified statuses; fall back to legacy mapping if encountered
+    const raw = ts?.agentStatus as unknown;
+    if (
+      raw === "ready" ||
+      raw === "submitted" ||
+      raw === "streaming" ||
+      raw === "error"
+    ) {
+      return raw as AgentStatus;
+    }
+    // Legacy reducer statuses → map to new API
+    switch (raw) {
       case "idle":
-        mapped = "ready";
-        break;
+        return "ready";
       case "thinking":
-        mapped = "submitted";
-        break;
+        return "submitted";
       case "calling-tool":
       case "responding":
-        mapped = "streaming";
-        break;
+        return "streaming";
       case "error":
-        mapped = "error";
-        break;
+        return "error";
       default:
-        mapped = null;
+        return null;
     }
-    return mapped;
   }, [currentThreadId, engineState]);
 
   // Derive messages from engine state if enabled

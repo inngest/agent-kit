@@ -2,7 +2,6 @@ import type {
   AgentConfig,
   AgentToolPart,
   ToolName,
-  ToolPartFor,
   ToolOutputOf,
   ToolDataOf,
 } from "../types/index.js";
@@ -14,8 +13,12 @@ import type {
 export function isToolPart<C extends AgentConfig, K extends ToolName<C>>(
   part: AgentToolPart<C>,
   name: K
-): part is ToolPartFor<C, K> {
-  return part?.type === "tool-call" && part?.toolName === name;
+): part is AgentToolPart<C> & { toolName: K; state: "output-available" } {
+  return (
+    part?.type === "tool-call" &&
+    part?.toolName === name &&
+    part?.state === "output-available"
+  );
 }
 
 /**
