@@ -549,6 +549,7 @@ export class NetworkRun<T extends StateData> extends Network<T> {
         runId: networkRunId,
         messageId: networkRunId, // Use networkRunId as messageId for network-level events
         scope: "network",
+        simulateChunking: overrides?.streaming?.simulateChunking,
       });
       await streamingContext.publishEvent({
         event: "run.started",

@@ -248,6 +248,7 @@ export class Agent<T extends StateData> {
         runId: agentRunId,
         messageId,
         scope: "agent",
+        simulateChunking: streaming.simulateChunking,
       });
 
       // Create wrapped step for standalone agent streaming
@@ -511,14 +512,26 @@ export class Agent<T extends StateData> {
           },
         });
 
-        const chunkSize = 50;
-        for (let i = 0; i < content.length; i += chunkSize) {
+        if (streamingContext.isSimulatedChunking()) {
+          const chunkSize = 50;
+          for (let i = 0; i < content.length; i += chunkSize) {
+            await streamingContext.publishEvent({
+              event: "text.delta",
+              data: {
+                partId,
+                messageId: streamingContext.messageId,
+                delta: content.slice(i, i + chunkSize),
+              },
+            });
+          }
+        } else {
+          // Single delta when not simulating chunking
           await streamingContext.publishEvent({
             event: "text.delta",
             data: {
               partId,
               messageId: streamingContext.messageId,
-              delta: content.slice(i, i + chunkSize),
+              delta: content,
             },
           });
         }
@@ -605,14 +618,26 @@ export class Agent<T extends StateData> {
               metadata: { toolName: tool.name, agentName: this.name },
             },
           });
-          const argChunkSize = 50;
-          for (let i = 0; i < toolArgsJson.length; i += argChunkSize) {
+          if (streamingContext.isSimulatedChunking()) {
+            const argChunkSize = 50;
+            for (let i = 0; i < toolArgsJson.length; i += argChunkSize) {
+              await streamingContext.publishEvent({
+                event: "tool_call.arguments.delta",
+                data: {
+                  partId: toolCallPartId,
+                  delta: toolArgsJson.slice(i, i + argChunkSize),
+                  toolName: i === 0 ? tool.name : undefined,
+                  messageId: streamingContext.messageId,
+                },
+              });
+            }
+          } else {
             await streamingContext.publishEvent({
               event: "tool_call.arguments.delta",
               data: {
                 partId: toolCallPartId,
-                delta: toolArgsJson.slice(i, i + argChunkSize),
-                toolName: i === 0 ? tool.name : undefined,
+                delta: toolArgsJson,
+                toolName: tool.name,
                 messageId: streamingContext.messageId,
               },
             });
@@ -685,13 +710,24 @@ export class Agent<T extends StateData> {
           });
 
           const resultJson = JSON.stringify(result);
-          const outChunk = 80;
-          for (let i = 0; i < resultJson.length; i += outChunk) {
+          if (streamingContext.isSimulatedChunking()) {
+            const outChunk = 80;
+            for (let i = 0; i < resultJson.length; i += outChunk) {
+              await streamingContext.publishEvent({
+                event: "tool_call.output.delta",
+                data: {
+                  partId: outputPartId,
+                  delta: resultJson.slice(i, i + outChunk),
+                  messageId: streamingContext.messageId,
+                },
+              });
+            }
+          } else {
             await streamingContext.publishEvent({
               event: "tool_call.output.delta",
               data: {
                 partId: outputPartId,
-                delta: resultJson.slice(i, i + outChunk),
+                delta: resultJson,
                 messageId: streamingContext.messageId,
               },
             });

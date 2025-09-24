@@ -349,6 +349,8 @@ class SequenceCounter {
 export interface StreamingConfig {
   /** Function to publish events to the client */
   publish: (chunk: AgentMessageChunk) => Promise<void>;
+  /** When true, emit simulated chunked deltas; otherwise emit a single delta */
+  simulateChunking?: boolean;
 }
 
 /**
@@ -358,6 +360,7 @@ export class StreamingContext {
   private publish: (chunk: AgentMessageChunk) => Promise<void>;
   private sequenceCounter: SequenceCounter;
   private debug: boolean;
+  private simulateChunking: boolean;
 
   public readonly runId: string;
   public readonly parentRunId?: string;
@@ -376,6 +379,7 @@ export class StreamingContext {
     scope: "network" | "agent";
     sequenceCounter?: SequenceCounter;
     debug?: boolean;
+    simulateChunking?: boolean;
   }) {
     this.publish = config.publish;
     this.runId = config.runId;
@@ -386,6 +390,7 @@ export class StreamingContext {
     this.scope = config.scope;
     this.sequenceCounter = config.sequenceCounter || new SequenceCounter();
     this.debug = config.debug ?? process.env.NODE_ENV === "development";
+    this.simulateChunking = config.simulateChunking ?? false;
   }
 
   /**
@@ -402,6 +407,7 @@ export class StreamingContext {
       scope: "agent",
       sequenceCounter: this.sequenceCounter, // Share the same counter
       debug: this.debug, // Inherit debug setting
+      simulateChunking: this.simulateChunking,
     });
   }
 
@@ -423,6 +429,7 @@ export class StreamingContext {
       scope: config.scope,
       sequenceCounter: this.sequenceCounter, // Share the same counter instance
       debug: this.debug, // Inherit debug setting
+      simulateChunking: this.simulateChunking,
     });
   }
 
@@ -437,6 +444,7 @@ export class StreamingContext {
       messageId: string;
       scope: "network" | "agent";
       debug?: boolean;
+      simulateChunking?: boolean;
     }
   ): StreamingContext {
     const debug = config.debug ?? process.env.NODE_ENV === "development";
@@ -451,6 +459,7 @@ export class StreamingContext {
           : undefined,
       scope: config.scope,
       debug,
+      simulateChunking: config.simulateChunking ?? false,
     });
   }
 
@@ -531,6 +540,11 @@ export class StreamingContext {
    */
   generateStepId(baseName: string): string {
     return `step_${baseName}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  }
+
+  /** Returns whether simulated chunking is enabled for this context */
+  isSimulatedChunking(): boolean {
+    return this.simulateChunking;
   }
 }
 
