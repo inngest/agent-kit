@@ -1,0 +1,607 @@
+---
+title: "Usage Guide"
+description: "A deep dive into streaming agents"
+---
+
+Let's build a simple SQL generation agent network with realtime streaming. To kick things off, let's walk through a few endpoints you'll need to wire this all up:
+
+- **Inngest Client (`/api/inngest/client.ts`)**: Initializes Inngest with the `realtimeMiddleware`.
+- **Realtime Channel (`/api/inngest/realtime.ts`)**: Defines a typed realtime channel and topic.
+- **Chat Route: `/api/chat/route.ts`**: This is a standard Next.js API route. Its only job is to receive a request from the frontend and send an event to Inngest to trigger a function.
+- **Token Route: `/api/realtime/token/route.ts`**: This secure endpoint generates a subscription token that the frontend needs to connect to Inngest realtime.
+- **Inngest Route: `/api/inngest/route.ts`**: The standard handler that serves all your Inngest functions.
+
+Let's take a closer look at each of these endpoints and what they do...
+
+---
+
+## Set up Inngest for streaming
+
+<Steps>
+  <Step title="Inngest Client - /api/inngest/client.ts">
+  This file configures the Inngest client and enables the realtime middleware, which is essential for streaming.
+
+```tsx
+// app/api/inngest/client.ts
+import { realtimeMiddleware } from "@inngest/realtime/middleware";
+import { Inngest } from "inngest";
+
+export const inngest = new Inngest({
+  id: "agent-app-client",
+  middleware: [realtimeMiddleware()],
+});
+```
+  </Step>
+    <Step title="Realtime Channel - /api/inngest/realtime.ts">
+    Here, we define a strongly-typed channel for our agent's communications. The `agent_stream` topic is where all message chunks will be published fromAgentKit.
+
+```tsx
+// app/api/inngest/realtime.ts
+import { type AgentMessageChunk } from "@inngest/agent-kit";
+import { channel, topic } from "@inngest/realtime";
+
+export const createChannel = channel(
+  (userId: string) => `user:${userId}`
+).addTopic(topic("agent_stream").type<AgentMessageChunk>());
+```
+  </Step>
+    <Step title="Chat API Route - /api/chat/route.ts">
+    This endpoint is the bridge between your frontend and the Inngest backend. It receives the user's message and dispatches an event to trigger the agent network.
+
+```tsx
+// app/api/chat/route.ts
+import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@clerk/nextjs/server"; // Or your auth provider
+import { z } from "zod";
+import { inngest } from "../inngest/client";
+
+const chatRequestSchema = z.object({
+  userMessage: z.object({
+    id: z.string(),
+    content: z.string(),
+    role: z.literal("user"),
+  }),
+  threadId: z.string().optional(),
+  channelKey: z.string(),
+});
+
+export async function POST(req: NextRequest) {
+  try {
+    const { userId } = auth();
+    if (!userId) {
+      return NextResponse.json({ error: "Please sign in" }, { status: 401 });
+    }
+
+    const validationResult = chatRequestSchema.safeParse(await req.json());
+    if (!validationResult.success) {
+      return NextResponse.json({ error: "Invalid request" }, { status: 400 });
+    }
+
+    const { userMessage, threadId, channelKey } = validationResult.data;
+
+    await inngest.send({
+      name: "agent/chat.requested",
+      data: {
+        userMessage,
+        threadId,
+        channelKey,
+        userId,
+      },
+    });
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    return NextResponse.json(
+      {
+        error: error instanceof Error ? error.message : "Failed to start chat",
+      },
+      { status: 500 }
+    );
+  }
+}
+```
+
+  </Step>
+    <Step title="Token API Route">
+    **`/api/realtime/token/route.ts`**
+    
+    This secure endpoint generates a subscription token that the frontend needs to connect to Inngest realtime.
+
+```tsx
+import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@clerk/nextjs/server"; // or any auth provider
+import { getSubscriptionToken } from "@inngest/realtime";
+
+import { inngest } from "../../inngest/client";
+import { createChannel } from "../../inngest/realtime";
+
+export type RequestBody = {
+  userId?: string;
+  channelKey?: string;
+};
+
+export async function POST(req: NextRequest) {
+  const { userId } = auth(); // authenticate the user
+  if (!userId) {
+    return NextResponse.json(
+      { error: "Please sign in to create a token" },
+      { status: 401 }
+    );
+  }
+
+  try {
+    // 1. Get the channel key from the request body and validate it
+    const { channelKey } = (await req.json()) as RequestBody;
+    if (!channelKey) {
+      return NextResponse.json(
+        { error: "channelKey is required" },
+        { status: 400 }
+      );
+    }
+
+    // 2. Create a subscription token for the resolved channel
+    const token = await getSubscriptionToken(inngest, {
+      channel: createChannel(channelKey),
+      topics: ["agent_stream"],
+    });
+
+    // 3. Return the token
+    return NextResponse.json(token);
+  } catch (error) {
+    // ... handle error response
+  }
+}
+```
+
+  </Step>
+    <Step title="Inngest Route - /api/inngest/route.ts">
+    This is the standard Next.js route handler for serving all of your Inngest functions.
+
+    ```tsx
+    // app/api/inngest/route.ts
+    import { serve } from "inngest/next";
+    import { inngest } from "./client";
+    import { runAgentNetwork } from "./functions/run-network";
+
+    export const { GET, POST, PUT } = serve({
+        client: inngest,
+        functions: [runAgentNetwork],
+    });
+    ```
+  </Step>
+</Steps>
+
+Now that we have Inngest and our API routes configured, let’s build out the agents. We are going to create a network of 3 agents orchestrated via a simple code based router. The router will ensure that our network runs the following agents in this exact order:
+
+1. **Event Matcher**: Selects 1-5 event names that we should consider for the query
+
+2. **Query Writer**: Generates a SQL query given a list of events & schemas
+
+3. **Summarizer**: Creates a short summary of the query and adds it to message history
+
+Let’s start by creating our event matcher and query writer agents. Each agent will have access to only one tool each which we will ensure is always invoked by defining a static tool_choice.
+
+```tsx
+import { createAgent, createTool, openai } from "@inngest/agent-kit";
+import { z } from "zod";
+import type { AgentState } from "./types";
+
+// Define the tool for generating SQL
+export const generateSqlTool = createTool({
+  name: "generate_sql",
+  description: "Provide the final SQL SELECT statement...",
+  parameters: z.object({
+    sql: z.string().describe("A single valid SELECT statement."),
+    title: z.string().describe("Short 20-30 character title for this query"),
+    reasoning: z.string().describe("Brief explanation..."),
+  }),
+  handler: ({ sql, title, reasoning }) => {
+    return { sql, title, reasoning };
+  },
+});
+
+// Define the agent that uses the tool
+export const queryWriterAgent = createAgent<AgentState>({
+  name: "Insights Query Writer",
+  description: "Generates a safe, read-only SQL SELECT statement.",
+  system: async ({ network }) => {
+    /* ... dynamic system prompt ... */
+  },
+  model: openai({ model: "gpt-5-nano-2025-08-07" }),
+  tools: [generateSqlTool],
+  tool_choice: "generate_sql", // Force this tool to be called
+});
+
+// Define the event matcher agent
+export const selectEventsTool = createTool({
+  name: "select_events",
+  description:
+    "Select 1-5 event names from the provided list that are most relevant to the user's query.",
+  parameters: z.object({
+    events: z
+      .array(
+        z.object({
+          event_name: z.string(),
+          reason: z.string(),
+        })
+      )
+      .min(1)
+      .max(6),
+  }),
+  handler: (args, { network }) => {
+    const { events } = args;
+
+    // Persist selection on network state for downstream agents
+    network.state.data.selectedEvents = events;
+
+    return {
+      selected: events,
+      reason: "Selected by the LLM based on the user's query.",
+      totalCandidates: network.state.data.eventTypes?.length || 0,
+    };
+  },
+});
+
+export const eventMatcherAgent = createAgent<AgentState>({
+  name: "Insights Event Matcher",
+  description:
+    "Analyzes available events and selects 1-5 that best match the user's intent.",
+  system: async ({ network }) => {
+    const events = network?.state.data.eventTypes || [];
+    const sample = events.slice(0, 50); // avoid overly long prompts
+
+    return [
+      "You are an event selection specialist.",
+      "Your job is to analyze the user's request and the list of available event names, then choose the 1-5 most relevant events.",
+      "",
+      "Instructions:",
+      "- Review the list of available events provided below.",
+      "- Based on the user's query, decide which 1-5 events are the best match.",
+      "- Call the `select_events` tool and pass your final choice in the `events` parameter.",
+      "- Do not guess event names; only use names from the provided list.",
+      "",
+      sample.length
+        ? `Available events (${
+            events.length
+          } total, showing up to 50):\n${sample.join("\n")}`
+        : "No event list is available. Ask the user to clarify which events they are interested in.",
+    ].join("\n");
+  },
+  model: openai({ model: "gpt-5-nano-2025-08-07" }),
+  tools: [selectEventsTool],
+  tool_choice: "select_events", // Force this tool to be called
+});
+```
+
+Once you have your agent defined, you can define your server-side state type and use `createToolManifest` to create a type which will be used on the client-side to ensure end-to-end type safety.
+
+```tsx
+import { createToolManifest, type StateData } from "@inngest/agent-kit";
+import { selectEventsTool } from "./event-matcher";
+import { generateSqlTool } from "./query-writer";
+
+// server-side state used by networks, routers and agents
+export type AgentState = StateData & {
+  userId?: string;
+  eventTypes?: string[];
+  schemas?: Record<string, unknown>;
+  selectedEvents?: { event_name: string; reason: string }[];
+  currentQuery?: string;
+  sql?: string;
+};
+
+// a typed manifest of all available tools
+const manifest = createToolManifest([
+  generateSqlTool,
+  selectEventsTool,
+] as const);
+export type ToolManifest = typeof manifest;
+```
+
+With server-side state and a ToolManifest now defined, you can strongly type your own agent hook and define client-side state that you may want sent in each message:
+
+```tsx
+import {
+  useAgents,
+  type AgentKitEvent,
+  type UseAgentsConfig,
+  type UseAgentsReturn,
+} from "@inngest/use-agent";
+
+import type { ToolManifest } from "@/app/api/inngest/functions/agents/types";
+
+export type ClientState = {
+  sqlQuery: string;
+  eventTypes: string[];
+  schemas: Record<string, unknown> | null;
+  currentQuery: string;
+};
+
+export type AgentConfig = { tools: ToolManifest; state: ClientState };
+
+export type AgentEvent = AgentKitEvent<ToolManifest>;
+
+export function useInsightsAgent(
+  config: UseAgentsConfig<ToolManifest, ClientState>
+): UseAgentsReturn<ToolManifest, ClientState> {
+  return useAgents<{ tools: ToolManifest; state: ClientState }>(config);
+}
+```
+
+Before we move onto implementing the agent hook into your UI components, let's create a summarizer agent and an agent network with a code-based router to orchestrate everything:
+
+```tsx
+// Define the summarizer agent - this agent has no tools and just provides a summary
+export const summarizerAgent = createAgent<AgentState>({
+  name: "Insights Summarizer",
+  description:
+    "Writes a concise summary describing what the generated SQL does and why.",
+  system: async ({ network }) => {
+    const events =
+      network?.state.data.selectedEvents?.map((e) => e.event_name) ?? [];
+    const sql = network?.state.data.sql;
+
+    return [
+      "You are a helpful assistant summarizing the result of a SQL generation process.",
+      "Write a one sentence short summary that explains:",
+      "- What events were just analyzed (if known).",
+      "- What the query returns and how it helps the user.",
+      "Avoid restating the full SQL. Be clear and non-technical when possible.",
+      events.length ? `Selected events: ${events.join(", ")}` : "",
+      sql
+        ? "A SQL statement has been prepared; summarize its intent, not its exact text."
+        : "",
+    ]
+      .filter(Boolean)
+      .join("\n");
+  },
+  model: openai({ model: "gpt-5-nano-2025-08-07" }),
+});
+```
+
+```tsx
+// app/api/inngest/functions/agents/network.ts
+
+import { createNetwork, openai, type Network } from "@inngest/agent-kit";
+import { eventMatcherAgent } from "./event-matcher";
+import { queryWriterAgent } from "./query-writer";
+import { summarizerAgent } from "./summarizer";
+import type { InsightsAgentState } from "./types";
+
+// A simple router that executes agents in a fixed order
+const sequenceRouter: Network.Router<InsightsAgentState> = async ({
+  callCount,
+}) => {
+  if (callCount === 0) return eventMatcherAgent;
+  if (callCount === 1) return queryWriterAgent;
+  if (callCount === 2) return summarizerAgent;
+  return undefined; // ends the network run
+};
+
+// Define the network directly - no factory function needed
+export const insightsNetwork = createNetwork<InsightsAgentState>({
+  name: "Insights SQL Generation Network",
+  description:
+    "Selects relevant events, proposes a SQL query, and summarizes the result.",
+  agents: [eventMatcherAgent, queryWriterAgent, summarizerAgent],
+  defaultModel: openai({ model: "gpt-5-nano-2025-08-07" }),
+  maxIter: 6,
+  router: sequenceRouter,
+});
+```
+
+Now let’s create an Inngest function which we’ll use to run our agent network and configure event streaming:
+
+```tsx
+// app/api/inngest/functions/run-network.ts
+import {
+  createState,
+  type AgentMessageChunk,
+  type Message,
+} from "@inngest/agent-kit";
+import type { ChatRequestEvent } from "@inngest/use-agent";
+import { v4 as uuidv4 } from "uuid";
+
+import { inngest } from "../client";
+import { createChannel } from "../realtime";
+import type { InsightsAgentState } from "./agents/types";
+import { insightsNetwork } from "./agents/network";
+
+export const runAgentNetwork = inngest.createFunction(
+  {
+    id: "run-insights-agent",
+    name: "Insights SQL Agent",
+  },
+  { event: "insights-agent/chat.requested" },
+  async ({ event, publish, step }) => {
+    const {
+      threadId: providedThreadId,
+      userMessage, // new user message
+      userId,
+      channelKey, // channel to stream on
+      history, // previous messages
+    } = event.data as ChatRequestEvent;
+
+    // Validate required userId
+    if (!userId) {
+      throw new Error("userId is required for agent chat execution");
+    }
+
+    // Generate a threadId
+    const threadId = await step.run("generate-thread-id", async () => {
+      return providedThreadId || uuidv4();
+    });
+
+    // Determine the target channel for publishing (channelKey takes priority)
+    const targetChannel = await step.run(
+      "generate-target-channel",
+      async () => {
+        return channelKey || userId;
+      }
+    );
+
+    try {
+      const clientState = userMessage.state || {};
+
+      // Create state for the network
+      const networkState = createState<InsightsAgentState>(
+        {
+          userId,
+          ...clientState, // passing in client-side managed state into our network
+        },
+        {
+          messages: history,
+          threadId,
+        }
+      );
+
+      // Run the network with streaming enabled
+      await insightsNetwork.run(userMessage, {
+        state: networkState,
+        streaming: {
+          publish: async (chunk: AgentMessageChunk) => {
+            // you can inspect and add metadata to chunks here
+            await publish(createChannel(targetChannel).agent_stream(chunk));
+          },
+        },
+      });
+
+      return {
+        success: true,
+        threadId,
+        message: "Agent network completed successfully",
+      };
+    } catch (error) {
+      // emit an error chunk here
+    }
+  }
+);
+```
+
+With all that wired up now, you can now render tool calls and messages in your UI like so:
+
+```tsx
+"use client";
+
+import { useState } from "react";
+import { useInsightsAgent, type ClientState } from "@/lib/use-insights-agent";
+import type { ToolCallUIPart } from "@inngest/use-agent";
+import type { ToolManifest } from "@/app/api/inngest/functions/agents/types";
+
+export default function ChatTestPage() {
+  return (
+    <div>
+      <p>Minimal example using a single-threaded conversation.</p>
+      <Chat />
+    </div>
+  );
+}
+
+function Chat() {
+  const [input, setInput] = useState("");
+  const { messages, status, sendMessage } = useInsightsAgent({
+    channelKey: "chat_test",
+    state: (): ClientState => ({
+      eventTypes: [
+        "app/user.created",
+        "order.created",
+        "payment.failed",
+        "email.sent",
+      ],
+      schemas: null,
+      currentQuery: "",
+      tabTitle: "Chat Test",
+      mode: "demo",
+      timestamp: Date.now(),
+    }),
+  });
+
+  async function onSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    const value = input.trim();
+    if (!value || status !== "ready") return;
+    setInput("");
+    await sendMessage(value);
+  }
+
+  return (
+    <div>
+      <div>
+        {messages.map(({ id, role, parts }) => (
+          <div key={id}>
+            <div>{role}</div>
+            {parts.map((part) => {
+              if (part.type === "text") {
+                return <div key={part.id}>{part.content}</div>;
+              }
+              if (part.type === "tool-call") {
+                return <ToolCallRenderer key={part.toolCallId} part={part} />;
+              }
+              return null;
+            })}
+          </div>
+        ))}
+
+        {status !== "ready" && <p>AI is thinking...</p>}
+      </div>
+
+      <form onSubmit={onSubmit}>
+        <input
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          placeholder={status === "ready" ? "Ask me anything" : "Thinking..."}
+          disabled={status !== "ready"}
+        />
+        <button type="submit" disabled={status !== "ready"}>
+          Send
+        </button>
+      </form>
+    </div>
+  );
+}
+
+function ToolCallRenderer({ part }: { part: ToolCallUIPart<ToolManifest> }) {
+  if (part.state !== "output-available") return null;
+
+  if (part.toolName === "select_events") {
+    const { data } = part.output;
+    return (
+      <div>
+        <div>Selected Events:</div>
+        <ul>
+          {data.selected.map((e) => (
+            <li key={e.event_name}>
+              <p>{e.event_name}</p>
+              <p>{e.reason}</p>
+            </li>
+          ))}
+        </ul>
+      </div>
+    );
+  }
+
+  if (part.toolName === "generate_sql") {
+    const { data } = part.output;
+    return (
+      <div>
+        <div>SQL Query:</div>
+        <p>{data.title}</p>
+        <p>{data.reasoning}</p>
+        <pre>{data.sql}</pre>
+      </div>
+    );
+  }
+
+  return null;
+}
+```
+
+With all that done, you should now have a fully functional SQL generation agent network with realtime streaming!
+
+By following this guide and using the `useAgents` hook, you now have:
+
+1. **Type Safety**: Tool names, inputs, and outputs are fully typed based on your `ToolManifest`
+2. **Real-time Streaming**: See tools execute in real-time with different states (`input-streaming`, `input-available`, `executing`, `output-available`)
+3. **Generative UI**: Each tool can have its own custom rendering logic while maintaining type safety
+4. **State Management**: The hook automatically manages conversation state, message ordering, and streaming events
+5. **Error Handling**: Built-in error states and recovery mechanisms

@@ -1,0 +1,67 @@
+{
+  "name": "@inngest/use-agent",
+  "version": "0.1.0",
+  "description": "React hooks for building AI chat interfaces with AgentKit",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc && tsup",
+    "dev": "tsup --watch",
+    "lint": "eslint src",
+    "type-check": "tsc --noEmit",
+    "test": "vitest run",
+    "prepare": "tsc && tsup"
+  },
+  "keywords": [
+    "react",
+    "hooks",
+    "ai",
+    "chat",
+    "agents",
+    "agentkit",
+    "inngest",
+    "real-time",
+    "streaming"
+  ],
+  "author": "Inngest Inc. <hello@inngest.com>",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/inngest/agent-kit.git",
+    "directory": "packages/use-agent"
+  },
+  "peerDependencies": {
+    "react": ">=18.0.0",
+    "react-dom": ">=18.0.0",
+    "uuid": ">=9.0.0"
+  },
+  "devDependencies": {
+    "@testing-library/react": "^16.3.0",
+    "@types/node": "^22.9.1",
+    "@types/react": "^18.2.0",
+    "@types/uuid": "^10.0.0",
+    "eslint": "^9.15.0",
+    "jsdom": "^26.1.0",
+    "tsup": "^8.0.0",
+    "typescript": "^5.0.0",
+    "vitest": "^2.1.8"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@inngest/realtime": ">=0.4.0",
+    "@tanstack/react-query": "^5.87.4"
+  }
+}
