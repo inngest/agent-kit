@@ -1,14 +1,14 @@
 ---
-"@inngest/use-agents": minor
+"@inngest/use-agent": minor
 ---
 
-# New Package: @inngest/use-agents
+# New Package: @inngest/use-agent
 
 Introducing a comprehensive React hooks package for building AI chat interfaces with AgentKit networks.
 
 ## What's New
 
-**@inngest/use-agents** is a standalone npm package that provides a complete set of React hooks for integrating with AgentKit. This package extracts and consolidates all the React functionality needed to build sophisticated AI chat applications.
+**@inngest/use-agent** is a standalone npm package that provides a complete set of React hooks for integrating with AgentKit. This package extracts and consolidates all the React functionality needed to build sophisticated AI chat applications.
 
 ### Core Features
 

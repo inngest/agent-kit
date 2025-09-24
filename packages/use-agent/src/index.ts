@@ -49,7 +49,10 @@
  */
 
 // Public runtime API
-export { useAgents } from "./frameworks/react/hooks/use-agents/index.js";
+export {
+  useAgents,
+  useAgents as useAgent,
+} from "./frameworks/react/hooks/use-agents/index.js";
 export { AgentProvider } from "./frameworks/react/components/AgentProvider.js";
 export {
   createDefaultHttpTransport,
