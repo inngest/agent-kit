@@ -40,11 +40,19 @@ export class AgenticModel<TAiAdapter extends AiAdapter.Any> {
     input: Message[],
     tools: Tool.Any[],
     tool_choice: Tool.Choice,
-    publish?: { channel: string; topic: string },
+    publish?: { channel: string; topic: string }
   ): Promise<AgenticModel.InferenceResponse> {
-    const stream = publish ? (publish.channel !== "" && publish.topic !== "") : false;
+    const stream = publish
+      ? publish.channel !== "" && publish.topic !== ""
+      : false;
 
-    const body = this.requestParser(this.#model, input, tools, tool_choice, stream);
+    const body = this.requestParser(
+      this.#model,
+      input,
+      tools,
+      tool_choice,
+      stream
+    );
     let result: AiAdapter.Input<TAiAdapter>;
 
     const step = await getStepTools();
@@ -55,7 +63,7 @@ export class AgenticModel<TAiAdapter extends AiAdapter.Any> {
         model: this.#model,
         body,
         publish,
-      // eslint-disable-next-line
+        // eslint-disable-next-line
       } as unknown as any)) as AiAdapter.Input<TAiAdapter>;
     } else {
       // Allow the model to mutate options and body for this call
@@ -121,7 +129,7 @@ export namespace AgenticModel {
     state: Message[],
     tools: Tool.Any[],
     tool_choice: Tool.Choice,
-    stream?: boolean,
+    stream?: boolean
   ) => AiAdapter.Input<TAiAdapter>;
 
   export type ResponseParser<TAiAdapter extends AiAdapter.Any> = (

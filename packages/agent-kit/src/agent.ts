@@ -11,7 +11,12 @@ import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 import { type Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import { ListToolsResultSchema } from "@modelcontextprotocol/sdk/types.js";
 import { EventSource } from "eventsource";
-import { referenceFunction, type Inngest, InngestFunction  } from "inngest";
+import {
+  referenceFunction,
+  type Inngest,
+  type InngestFunction,
+  isInngestFunction,
+} from "inngest";
 import { errors } from "inngest/internals";
 import { type MinimalEventPayload } from "inngest/types";
 import type { ZodType } from "zod";
@@ -20,12 +25,7 @@ import { createNetwork, NetworkRun } from "./network";
 import { State, type StateData } from "./state";
 import { type MCP, type Tool } from "./tool";
 import { AgentResult, type Message, type ToolResultMessage } from "./types";
-import {
-  getInngestFnInput,
-  getStepTools,
-  isInngestFn,
-  type MaybePromise,
-} from "./util";
+import { getInngestFnInput, getStepTools, type MaybePromise } from "./util";
 import {
   type HistoryConfig,
   initializeThread,
@@ -89,7 +89,7 @@ export class Agent<T extends StateData> {
    * The agent's responses will be streamed to any listeners token by token,
    * as fast as possible.
    */
-  publish?: (state: T) => ({
+  publish?: (state: T) => {
     /**
      * channel is the channel to broadcast on.
      */
@@ -99,7 +99,7 @@ export class Agent<T extends StateData> {
      * topic is the topic to broadcast on, within the current channel.
      */
     topic: string;
-  });
+  };
 
   /**
    * lifecycles are programmatic hooks used to manage the agent.
@@ -145,7 +145,7 @@ export class Agent<T extends StateData> {
 
   private setTools(tools: Agent.Constructor<T>["tools"]): void {
     for (const tool of tools || []) {
-      if (isInngestFn(tool)) {
+      if (isInngestFunction(tool)) {
         this.tools.set(tool["absoluteId"], {
           name: tool["absoluteId"],
           description: tool.description,
@@ -311,14 +311,14 @@ export class Agent<T extends StateData> {
     p: AgenticModel.Any,
     prompt: Message[],
     history: Message[],
-    network: NetworkRun<T>,
+    network: NetworkRun<T>
   ): Promise<AgentResult> {
     const { output, raw } = await p.infer(
       this.name,
       prompt.concat(history),
       Array.from(this.tools.values()),
       this.tool_choice || "auto",
-      this.publish && this.publish(network?.state?.data),
+      this.publish && this.publish(network?.state?.data)
     );
 
     // Now that we've made the call, we instantiate a new AgentResult for
@@ -623,7 +623,7 @@ export namespace Agent {
     publish?: (state: T) => {
       channel: string;
       topic: string;
-    },
+    };
   }
 
   export interface RoutingConstructor<T extends StateData>

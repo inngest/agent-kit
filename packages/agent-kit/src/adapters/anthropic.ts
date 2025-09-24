@@ -22,7 +22,7 @@ export const requestParser: AgenticModel.RequestParser<Anthropic.AiModel> = (
   messages,
   tools,
   tool_choice = "auto",
-  stream,
+  stream
 ) => {
   // Note that Anthropic has a top-level system prompt, then a series of prompts
   // for assistants and users.
