@@ -1,5 +1,4 @@
 import {
-  JSONSchemaToZod,
   type JSONSchema,
 } from "@dmitryrechkin/json-schema-to-zod";
 import { type AiAdapter } from "@inngest/ai";
@@ -833,6 +832,9 @@ export class Agent<T extends StateData> {
    * listMCPTools lists all available tools for a given MCP server
    */
   private async listMCPTools(server: MCP.Server) {
+    const { JSONSchemaToZod } = await import(
+      "@dmitryrechkin/json-schema-to-zod"
+    );
     const client = await this.mcpClient(server);
     this._mcpClients.push(client);
     try {
