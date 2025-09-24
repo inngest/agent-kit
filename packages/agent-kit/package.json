@@ -1,6 +1,6 @@
 {
   "name": "@inngest/agent-kit",
-  "version": "0.9.0",
+  "version": "0.12.0",
   "description": "AgentKit is a framework for creating and orchestrating AI agents and AI workflows",
   "main": "dist/index.js",
   "type": "module",
@@ -11,6 +11,7 @@
     "lint": "eslint .",
     "release": "pnpm run build && changeset publish",
     "prepare": "husky install",
+    "type-check": "tsc --noEmit",
     "dev": "nodemon --watch demo -e ts --exec \"ts-node -P tsconfig-demo.json demo/index.ts\""
   },
   "files": [
@@ -35,20 +36,14 @@
   },
   "exports": {
     ".": {
+      "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
-      "require": "./dist/index.cjs",
-      "types": {
-        "import": "./dist/index.d.ts",
-        "require": "./dist/index.d.cts"
-      }
+      "require": "./dist/index.cjs"
     },
     "./server": {
+      "types": "./dist/server.d.ts",
       "import": "./dist/server.js",
-      "require": "./dist/server.cjs",
-      "types": {
-        "import": "./dist/server.d.ts",
-        "require": "./dist/server.d.cts"
-      }
+      "require": "./dist/server.cjs"
     }
   },
   "dependencies": {
@@ -58,11 +53,11 @@
     "eventsource": "^3.0.2",
     "express": "^4.21.1",
     "xxhashjs": "^0.2.2",
-    "zod": "^3.23.8",
     "zod-to-json-schema": "^3.24.3"
   },
   "peerDependencies": {
-    "inngest": ">=3.39.0"
+    "inngest": ">=3.39.0",
+    "zod": ">=3.22 <4"
   },
   "packageManager": "pnpm@9.14.2",
   "devDependencies": {
@@ -70,11 +65,26 @@
     "@types/node": "^22.9.1",
     "@types/xxhashjs": "^0.2.4",
     "inngest": "3.39.1",
+    "zod": "^3.23.6",
     "nodemon": "^3.0.2",
     "ts-node": "^10.9.2",
     "tsup": "^8.3.6",
     "typescript": "^5.6.3",
     "typescript-eslint": "^8.15.0",
+    "vite": "^6.0.0",
     "vitest": "^2.1.8"
+  },
+  "pnpm": {
+    "overrides": {
+      "esbuild@<=0.24.2": ">=0.25.0",
+      "vite@>=5.0.0 <5.4.15": ">=5.4.15",
+      "vite@>=5.0.0 <5.4.16": ">=5.4.16",
+      "vite@>=5.0.0 <5.4.18": ">=5.4.18",
+      "vite@>=5.0.0 <=5.4.18": ">=5.4.19",
+      "vite@>=5.0.0 <5.4.17": ">=5.4.17",
+      "brace-expansion@>=1.0.0 <=1.1.11": ">=1.1.12",
+      "brace-expansion@>=2.0.0 <=2.0.1": ">=2.0.2",
+      "@eslint/plugin-kit@<0.3.4": ">=0.3.4"
+    }
   }
 }

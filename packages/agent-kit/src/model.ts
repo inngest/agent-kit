@@ -41,6 +41,9 @@ export class AgenticModel<TAiAdapter extends AiAdapter.Any> {
     tools: Tool.Any[],
     tool_choice: Tool.Choice
   ): Promise<AgenticModel.InferenceResponse> {
+    // TODO: Implement true token-by-token streaming from LLM providers
+    // Currently using completed response chunking for streaming simulation
+    // Future enhancement: Process real-time token streams from OpenAI/Anthropic/etc.
     const body = this.requestParser(this.#model, input, tools, tool_choice);
     let result: AiAdapter.Input<TAiAdapter>;
 
