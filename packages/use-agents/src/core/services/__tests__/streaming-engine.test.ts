@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { StreamingEngine } from "../../index.js";
 import type { IConnection } from "../../ports/connection.js";
 import { makeEvent, makeConnectionMock } from "./test-utils.js";
+import type { ToolManifest } from "../../../types/index.js";
 
 const makeInitial = () => ({
   threads: {},
@@ -37,7 +38,11 @@ describe("StreamingEngine (hex seam)", () => {
     const engine = new StreamingEngine({ initialState: makeInitial(), debug: false });
     const conn = makeConnectionMock(async ({ onMessage, onStateChange }) => {
       onStateChange?.("Active");
-      onMessage(makeEvent("run.started", { threadId: "t1" }));
+      onMessage(
+        makeEvent<ToolManifest, "run.started">("run.started", {
+          threadId: "t1",
+        })
+      );
       return { unsubscribe: () => { states.push("unsubscribed"); } } as any;
     });
     await engine.subscribeWithConnection(conn, {

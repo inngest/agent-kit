@@ -11,13 +11,13 @@ import type {
   ToolArgsDelta,
   ToolOutputDelta,
   PartCompleted,
-  NetworkEvent,
+  AgentKitEvent,
   ToolManifest,
 } from "../../types/index.js";
 
 // Safe accessor for typed event.data
 function getEventData<T extends Record<string, unknown>>(
-  evt: NetworkEvent
+  evt: AgentKitEvent
 ): T | undefined {
   const anyEvt = evt as unknown as { data?: unknown };
   if (!anyEvt || typeof anyEvt !== "object") return undefined;
@@ -383,7 +383,7 @@ function drainBuffer<
           minEvt.event === "run.started" &&
           (() => {
             const data = getEventData<{ scope?: string; parentRunId?: string }>(
-              minEvt as NetworkEvent
+              minEvt as AgentKitEvent<TManifest>
             );
             return (
               data?.scope === "agent" && typeof data?.parentRunId === "string"
@@ -474,7 +474,7 @@ function applyEvent<
   TState = Record<string, unknown>,
 >(
   thread: ThreadState<TManifest, TState>,
-  evt: NetworkEvent
+  evt: AgentKitEvent<TManifest>
 ): ThreadState<TManifest, TState> {
   switch (evt.event) {
     case "run.started": {

@@ -1,7 +1,7 @@
 import type {
   StreamingAction,
   StreamingState,
-  NetworkEvent,
+  AgentKitEvent,
   ToolManifest,
 } from "../../types/index.js";
 import type {
@@ -103,7 +103,7 @@ export class StreamingEngine<
   /**
    * Handle a batch of realtime messages (already filtered/mapped by caller).
    */
-  handleRealtimeMessages(messages: NetworkEvent[]): void {
+  handleRealtimeMessages(messages: AgentKitEvent<TManifest>[]): void {
     this.dispatch({
       type: "REALTIME_MESSAGES_RECEIVED",
       messages,

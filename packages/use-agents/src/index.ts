@@ -82,6 +82,8 @@ export type {
   AgentStatus,
   ThreadsPage,
   RealtimeEvent,
+  AgentKitEvent,
+  TypedPartCompletedEvent,
   CrossTabMessage,
   MessagePart,
   TextUIPart,

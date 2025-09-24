@@ -1,36 +1,40 @@
 import type {
-  RealtimeEvent,
+  AgentKitEvent,
   MessagePart,
   TextUIPart,
   ToolCallUIPart,
   Thread,
+  ToolManifest,
 } from "../../../types/index.js";
 import type {
   IConnection,
   IConnectionSubscription,
 } from "../../ports/connection.js";
 
-export type EventOf<E extends RealtimeEvent["event"]> = Extract<
-  RealtimeEvent,
-  { event: E }
->;
+export type EventOf<
+  TManifest extends ToolManifest,
+  E extends AgentKitEvent<TManifest>["event"],
+> = Extract<AgentKitEvent<TManifest>, { event: E }>;
 
-export function makeEvent<E extends RealtimeEvent["event"]>(
+export function makeEvent<
+  TManifest extends ToolManifest,
+  E extends AgentKitEvent<TManifest>["event"],
+>(
   event: E,
-  data: EventOf<E>["data"],
-  extras?: Partial<Omit<EventOf<E>, "event" | "data">>
-): EventOf<E> {
+  data: EventOf<TManifest, E>["data"],
+  extras?: Partial<Omit<EventOf<TManifest, E>, "event" | "data">>
+): EventOf<TManifest, E> {
   const base = {
     event,
     data,
     timestamp: Date.now(),
     sequenceNumber: 1,
     id: `${event}:${Math.random().toString(36).slice(2)}`,
-  } satisfies RealtimeEvent;
+  } satisfies AgentKitEvent<ToolManifest>;
   return {
     ...base,
     ...(extras || {}),
-  } as EventOf<E>;
+  } as EventOf<TManifest, E>;
 }
 
 export const isTextPart = (p: MessagePart): p is TextUIPart => p.type === "text";

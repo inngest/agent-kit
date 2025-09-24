@@ -28,7 +28,7 @@ import {
   createDebugLogger,
   type ConversationMessage,
   type Thread,
-  type NetworkEvent,
+  type AgentKitEvent,
   type AgentStatus,
   type StreamingState,
   type ThreadsPage,
@@ -118,30 +118,35 @@ export function useAgents<
   const tabIdRef = useRef<string>(`tab-${Math.random().toString(36).slice(2)}`);
   const bcRef = useRef<BroadcastChannel | null>(null);
   const appliedEventIdsRef = useRef<Set<string>>(new Set());
-  const perThreadRunBufferRef = useRef<Map<string, NetworkEvent[]>>(new Map());
-  const dedupKeyForEvent = useCallback((evt: NetworkEvent): string => {
-    try {
-      const data = (evt.data as Record<string, unknown>) ?? {};
-      const tid = typeof data.threadId === "string" ? data.threadId : "";
-      const mid =
-        typeof (data as { messageId?: unknown }).messageId === "string"
-          ? (data as { messageId?: string }).messageId!
-          : "";
-      const pid =
-        typeof (data as { partId?: unknown }).partId === "string"
-          ? (data as { partId?: string }).partId!
-          : "";
-      const ev = typeof evt.event === "string" ? evt.event : "";
-      const seq =
-        typeof evt.sequenceNumber === "number"
-          ? String(evt.sequenceNumber)
-          : "";
-      const id = typeof evt.id === "string" ? evt.id : "";
-      return `${tid}|${mid}|${pid}|${ev}|${seq}|${id}`;
-    } catch {
-      return JSON.stringify(evt);
-    }
-  }, []);
+  const perThreadRunBufferRef = useRef<Map<string, AgentKitEvent<TManifest>[]>>(
+    new Map()
+  );
+  const dedupKeyForEvent = useCallback(
+    (evt: AgentKitEvent<TManifest>): string => {
+      try {
+        const data = (evt.data as Record<string, unknown>) ?? {};
+        const tid = typeof data.threadId === "string" ? data.threadId : "";
+        const mid =
+          typeof (data as { messageId?: unknown }).messageId === "string"
+            ? (data as { messageId?: string }).messageId!
+            : "";
+        const pid =
+          typeof (data as { partId?: unknown }).partId === "string"
+            ? (data as { partId?: string }).partId!
+            : "";
+        const ev = typeof evt.event === "string" ? evt.event : "";
+        const seq =
+          typeof evt.sequenceNumber === "number"
+            ? String(evt.sequenceNumber)
+            : "";
+        const id = typeof evt.id === "string" ? evt.id : "";
+        return `${tid}|${mid}|${pid}|${ev}|${seq}|${id}`;
+      } catch {
+        return JSON.stringify(evt);
+      }
+    },
+    []
+  );
   if (!engineRef.current) {
     engineRef.current = new StreamingEngine({
       initialState: {
@@ -427,7 +432,7 @@ export function useAgents<
       (chunk: unknown) => {
         logger.log("[UA-DIAG] ui-onMessage", { chunkType: typeof chunk });
         logger.log("[realtime:message]", chunk);
-        const evt = mapToNetworkEvent(chunk);
+        const evt = mapToNetworkEvent<TManifest>(chunk);
         if (!evt) return;
         // Low-level event callback (WS path)
         try {
@@ -574,10 +579,13 @@ export function useAgents<
               ? (m as { toolName?: unknown })
               : undefined;
           })();
-          const toolName =
-            typeof md?.toolName === "string"
-              ? (md.toolName as keyof TManifest)
-              : undefined;
+          const toolName = (
+            typeof d["toolName"] === "string"
+              ? d["toolName"]
+              : typeof md?.toolName === "string"
+                ? md.toolName
+                : undefined
+          ) as keyof TManifest | undefined;
           if (type === "tool-output" && toolName) {
             const partId = typeof d["partId"] === "string" ? d["partId"] : "";
             const messageId =
@@ -682,7 +690,7 @@ export function useAgents<
     if (!effectiveChannel) return;
     const bc = new BroadcastChannel(`agentkit-stream:${effectiveChannel}`);
     bcRef.current = bc;
-    const onMessage = (e: MessageEvent<CrossTabMessage>) => {
+    const onMessage = (e: MessageEvent<CrossTabMessage<TManifest>>) => {
       const msg = e.data;
       if (!msg || msg.sender === tabIdRef.current) return;
       if (msg.type === "evt" && msg.evt) {
@@ -781,8 +789,8 @@ export function useAgents<
         }
       } else if (msg.type === "snapshot:response") {
         const tid = msg.threadId;
-        const events: NetworkEvent[] = Array.isArray(msg.events)
-          ? msg.events
+        const events: AgentKitEvent<TManifest>[] = Array.isArray(msg.events)
+          ? (msg.events as AgentKitEvent<TManifest>[])
           : [];
         if (!tid || events.length === 0) return;
         for (const evt of events) {

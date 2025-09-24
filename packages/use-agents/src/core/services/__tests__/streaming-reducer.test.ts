@@ -1,21 +1,33 @@
 import { describe, it, expect } from "vitest";
 import { reduceStreamingState } from "../../index.js";
-import { makeEvent, isTextPart, isToolCallPart } from "./test-utils.js";
-import type { StreamingState, StreamingAction } from "../../../types/index.js";
+import {
+  isTextPart,
+  isToolCallPart,
+  makeEvent,
+} from "./test-utils.js";
+import type {
+  StreamingState,
+  StreamingAction,
+  ToolManifest,
+} from "../../../types/index.js";
 
-function makeState(): StreamingState {
+type TestManifest = ToolManifest;
+
+function makeState(): StreamingState<TestManifest> {
   return {
     threads: {},
     currentThreadId: "t1",
     lastProcessedIndex: 0,
     isConnected: false,
-  } as StreamingState;
+  } as StreamingState<TestManifest>;
 }
 
 describe("reduceStreamingState (hex core seam)", () => {
   it("returns same reference for unknown actions (no behavior change)", () => {
     const state = makeState();
-    const action = { type: "UNKNOWN_ACTION" } as unknown as StreamingAction;
+    const action = {
+      type: "UNKNOWN_ACTION",
+    } as unknown as StreamingAction<TestManifest>;
     const result = reduceStreamingState(state, action, false);
     expect(result).toBe(state);
   });
@@ -27,8 +39,12 @@ describe("reduceStreamingState (hex core seam)", () => {
       {
         type: "REALTIME_MESSAGES_RECEIVED",
         messages: [
-          { event: "run.started", data: { threadId: "t1", name: "agent", scope: "agent" }, timestamp: Date.now(), sequenceNumber: 1, id: "e1" } as any,
-        ] as any,
+          makeEvent<TestManifest, "run.started">(
+            "run.started",
+            { threadId: "t1", name: "agent", scope: "agent" },
+            { sequenceNumber: 1, id: "e1", timestamp: Date.now() }
+          ),
+        ],
       },
       false
     );
@@ -38,8 +54,12 @@ describe("reduceStreamingState (hex core seam)", () => {
       {
         type: "REALTIME_MESSAGES_RECEIVED",
         messages: [
-          { event: "run.completed", data: { threadId: "t1" }, timestamp: Date.now(), sequenceNumber: 2, id: "e2" } as any,
-        ] as any,
+          makeEvent<TestManifest, "run.completed">(
+            "run.completed",
+            { threadId: "t1" },
+            { sequenceNumber: 2, id: "e2", timestamp: Date.now() }
+          ),
+        ],
       },
       false
     );
@@ -49,10 +69,34 @@ describe("reduceStreamingState (hex core seam)", () => {
 
   it("handles part.created and text.delta", () => {
     let state = makeState();
-    state = reduceStreamingState(state, { type: "REALTIME_MESSAGES_RECEIVED", messages: [makeEvent("part.created", { threadId: "t1", messageId: "m1", partId: "p1", type: "text" })] } as any, false);
+    state = reduceStreamingState(
+      state,
+      {
+        type: "REALTIME_MESSAGES_RECEIVED",
+        messages: [
+          makeEvent<TestManifest, "part.created">(
+            "part.created",
+            { threadId: "t1", messageId: "m1", partId: "p1", type: "text" }
+          ),
+        ],
+      },
+      false
+    );
     expect(state.threads["t1"].messages?.length || 0).toBeGreaterThan(0);
 
-    state = reduceStreamingState(state, { type: "REALTIME_MESSAGES_RECEIVED", messages: [makeEvent("text.delta", { threadId: "t1", messageId: "m1", partId: "p1", delta: "Hello" })] } as any, false);
+    state = reduceStreamingState(
+      state,
+      {
+        type: "REALTIME_MESSAGES_RECEIVED",
+        messages: [
+          makeEvent<TestManifest, "text.delta">(
+            "text.delta",
+            { threadId: "t1", messageId: "m1", partId: "p1", delta: "Hello" }
+          ),
+        ],
+      },
+      false
+    );
     const msg = state.threads["t1"].messages?.find((m: any) => m.id === "m1");
     const text = msg?.parts?.find(isTextPart);
     expect(text?.content || "").toContain("Hello");

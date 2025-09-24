@@ -123,24 +123,81 @@ export type ToolOutputDelta = EventBase & {
   data: WithThread & { messageId: string; partId: string; delta: string };
 };
 
-export type PartCompleted = EventBase & {
+type PartCompletedBasePayload<
+  TType extends "text" | "tool-call" | "tool-output",
+> = WithThread & {
+  messageId: string;
+  partId: string;
+  type: TType;
+  toolName?: string;
+  metadata?: { toolName?: string };
+};
+
+type PartCompletedEventBase<
+  TType extends "text" | "tool-call" | "tool-output",
+  TExtra extends Record<string, unknown> = Record<string, unknown>,
+> = EventBase & {
   event: "part.completed";
-  data: WithThread & {
-    messageId: string;
-    partId: string;
-    type: "text" | "tool-call" | "tool-output";
+  data: PartCompletedBasePayload<TType> & TExtra;
+};
+
+type PartCompletedTextEvent = PartCompletedEventBase<
+  "text",
+  {
+    finalContent?: string | undefined;
+  }
+>;
+
+type PartCompletedToolCallEvent<TManifest extends ToolManifest = ToolManifest> =
+  PartCompletedEventBase<
+    "tool-call",
+    {
+      finalContent?: unknown;
+      toolName?: keyof TManifest & string;
+    }
+  >;
+
+type PartCompletedToolOutputFallbackEvent = PartCompletedEventBase<
+  "tool-output",
+  {
     finalContent?: unknown;
     toolName?: string;
+  }
+> & {
+  data: PartCompletedEventBase<
+    "tool-output",
+    {
+      finalContent?: unknown;
+      toolName?: string;
+    }
+  >["data"] & {
     metadata?: { toolName?: string };
   };
 };
 
-export type UnknownEvent = EventBase & {
-  event: string;
-  data: JsonObject;
-};
+type ManifestToolOutputEvent<TManifest extends ToolManifest> =
+  keyof TManifest extends never
+    ? never
+    : {
+        [TName in keyof TManifest & string]: PartCompletedEventBase<
+          "tool-output",
+          {
+            toolName: TName;
+            finalContent?: TManifest[TName]["output"];
+            metadata?: { toolName?: TName };
+          }
+        >;
+      }[keyof TManifest & string];
 
-export type RealtimeEvent =
+export type TypedPartCompletedEvent<TManifest extends ToolManifest> =
+  | PartCompletedTextEvent
+  | PartCompletedToolCallEvent<TManifest>
+  | ManifestToolOutputEvent<TManifest>
+  | PartCompletedToolOutputFallbackEvent;
+
+export type PartCompleted = TypedPartCompletedEvent<ToolManifest>;
+
+export type AgentKitEvent<TManifest extends ToolManifest = ToolManifest> =
   | RunStarted
   | RunCompleted
   | StreamEnded
@@ -148,10 +205,26 @@ export type RealtimeEvent =
   | TextDelta
   | ToolArgsDelta
   | ToolOutputDelta
-  | PartCompleted
+  | TypedPartCompletedEvent<TManifest>
   | UnknownEvent;
 
-export type NetworkEvent = RealtimeEvent;
+type KnownEventNames =
+  | "run.started"
+  | "run.completed"
+  | "stream.ended"
+  | "part.created"
+  | "text.delta"
+  | "tool_call.arguments.delta"
+  | "tool_call.output.delta"
+  | "part.completed";
+
+export type UnknownEvent = EventBase & {
+  event: Exclude<string, KnownEventNames>;
+  data: JsonObject;
+};
+
+export type RealtimeEvent<TManifest extends ToolManifest = ToolManifest> =
+  AgentKitEvent<TManifest>;
 
 // =============================================================================
 // TOOL RESULT TYPING (GENERIC MANIFEST)
@@ -225,8 +298,8 @@ export type ChatRequestEvent = Omit<ChatRequestPayload, "userMessage"> & {
 // Cross-tab BroadcastChannel message types
 // =============================================================================
 
-export type CrossTabMessage =
-  | { type: "evt"; sender: string; evt: RealtimeEvent }
+export type CrossTabMessage<TManifest extends ToolManifest = ToolManifest> =
+  | { type: "evt"; sender: string; evt: RealtimeEvent<TManifest> }
   | { type: "state"; sender: string; state: InngestSubscriptionState }
   | { type: "snapshot:request"; sender: string; threadId: string }
   | {
@@ -753,7 +826,7 @@ export interface ThreadState<
 
   // Event processing (per thread)
   /** A buffer for events that arrive out of order for this thread. */
-  eventBuffer: Map<number, NetworkEvent>;
+  eventBuffer: Map<number, AgentKitEvent<TManifest>>;
   /** The next sequence number this thread expects to process. */
   nextExpectedSequence: number;
 
@@ -820,7 +893,7 @@ export type StreamingAction<
   TState = Record<string, unknown>,
 > =
   /** Dispatched when new real-time messages are received (all threads, no filtering) */
-  | { type: "REALTIME_MESSAGES_RECEIVED"; messages: NetworkEvent[] }
+  | { type: "REALTIME_MESSAGES_RECEIVED"; messages: AgentKitEvent<TManifest>[] }
   /** Dispatched when the connection state changes */
   | { type: "CONNECTION_STATE_CHANGED"; state: InngestSubscriptionState }
   /** Dispatched when switching the currently displayed thread */

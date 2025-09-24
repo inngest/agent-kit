@@ -3,7 +3,7 @@ import type {
   AgentStatus,
   Thread,
   AgentError,
-  NetworkEvent,
+  AgentKitEvent,
   ToolManifest,
   TypedToolResult,
 } from "../../../../types/index.js";
@@ -33,7 +33,7 @@ export type UseAgentsConfig<
    * Low-level callback invoked for every normalized realtime event processed by the hook.
    * Useful for driving UI directly from events (thinking indicators, tool states, etc.).
    */
-  onEvent?: (evt: NetworkEvent, meta: OnEventMeta) => void;
+  onEvent?: (evt: AgentKitEvent<TManifest>, meta: OnEventMeta) => void;
   /**
    * Optional callback fired when a terminal stream event is received.
    * Triggers on either "stream.ended" or "run.completed" for the thread.

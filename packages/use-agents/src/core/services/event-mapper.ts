@@ -1,10 +1,16 @@
-import type { NetworkEvent, JsonObject } from "../../types/index.js";
+import type {
+  AgentKitEvent,
+  JsonObject,
+  ToolManifest,
+} from "../../types/index.js";
 
 /**
- * Map an incoming realtime chunk to our NetworkEvent shape.
+ * Map an incoming realtime chunk to our AgentKitEvent shape.
  * Returns null if the payload is not a valid event-like object.
  */
-export function mapToNetworkEvent(input: unknown): NetworkEvent | null {
+export function mapToNetworkEvent<TManifest extends ToolManifest>(
+  input: unknown
+): AgentKitEvent<TManifest> | null {
   if (!input || typeof input !== "object") return null;
   let obj = input as JsonObject;
   // Unwrap common realtime envelope shapes: { channel, topic, data: { event, ... } }
@@ -40,7 +46,7 @@ export function mapToNetworkEvent(input: unknown): NetworkEvent | null {
         timestamp: obj.timestamp,
         sequenceNumber: obj.sequenceNumber,
         id,
-      } as NetworkEvent;
+      } as AgentKitEvent<TManifest>;
     }
     case "run.completed":
     case "stream.ended": {
@@ -56,7 +62,7 @@ export function mapToNetworkEvent(input: unknown): NetworkEvent | null {
         timestamp: obj.timestamp,
         sequenceNumber: obj.sequenceNumber,
         id,
-      } as NetworkEvent;
+      } as AgentKitEvent<TManifest>;
     }
     case "part.created": {
       const type = data.type;
@@ -79,7 +85,7 @@ export function mapToNetworkEvent(input: unknown): NetworkEvent | null {
             timestamp: obj.timestamp,
             sequenceNumber: obj.sequenceNumber,
             id,
-          } as NetworkEvent;
+          } as AgentKitEvent<TManifest>;
         }
       }
       break;
@@ -106,7 +112,7 @@ export function mapToNetworkEvent(input: unknown): NetworkEvent | null {
           timestamp: obj.timestamp,
           sequenceNumber: obj.sequenceNumber,
           id,
-        } as NetworkEvent;
+        } as AgentKitEvent<TManifest>;
       }
       break;
     }
@@ -122,6 +128,17 @@ export function mapToNetworkEvent(input: unknown): NetworkEvent | null {
         typeof partId === "string" &&
         typeof delta === "string"
       ) {
+        const md =
+          typeof (data as { metadata?: unknown }).metadata === "object" &&
+          (data as { metadata?: unknown }).metadata !== null
+            ? ((data as { metadata?: JsonObject }).metadata as {
+                toolName?: string;
+              })
+            : undefined;
+        const normalizedToolName =
+          typeof (data as { toolName?: unknown }).toolName === "string"
+            ? ((data as { toolName?: string }).toolName as string)
+            : md?.toolName;
         return {
           event: obj.event,
           data: {
@@ -129,7 +146,7 @@ export function mapToNetworkEvent(input: unknown): NetworkEvent | null {
             messageId,
             partId,
             delta,
-            toolName: data.toolName as string | undefined,
+            toolName: normalizedToolName,
             metadata: (typeof data.metadata === "object" &&
             data.metadata !== null
               ? (data.metadata as JsonObject)
@@ -138,7 +155,7 @@ export function mapToNetworkEvent(input: unknown): NetworkEvent | null {
           timestamp: obj.timestamp,
           sequenceNumber: obj.sequenceNumber,
           id,
-        } as NetworkEvent;
+        } as AgentKitEvent<TManifest>;
       }
       break;
     }
@@ -151,6 +168,17 @@ export function mapToNetworkEvent(input: unknown): NetworkEvent | null {
         typeof messageId === "string" &&
         typeof partId === "string"
       ) {
+        const md =
+          typeof (data as { metadata?: unknown }).metadata === "object" &&
+          (data as { metadata?: unknown }).metadata !== null
+            ? ((data as { metadata?: JsonObject }).metadata as {
+                toolName?: string;
+              })
+            : undefined;
+        const normalizedToolName =
+          typeof (data as { toolName?: unknown }).toolName === "string"
+            ? ((data as { toolName?: string }).toolName as string)
+            : md?.toolName;
         return {
           event: obj.event,
           data: {
@@ -159,7 +187,7 @@ export function mapToNetworkEvent(input: unknown): NetworkEvent | null {
             partId,
             type,
             finalContent: (data as { finalContent?: unknown }).finalContent,
-            toolName: data.toolName as string | undefined,
+            toolName: normalizedToolName,
             metadata: (typeof data.metadata === "object" &&
             data.metadata !== null
               ? (data.metadata as JsonObject)
@@ -168,7 +196,7 @@ export function mapToNetworkEvent(input: unknown): NetworkEvent | null {
           timestamp: obj.timestamp,
           sequenceNumber: obj.sequenceNumber,
           id,
-        } as NetworkEvent;
+        } as AgentKitEvent<TManifest>;
       }
       break;
     }
@@ -183,12 +211,12 @@ export function mapToNetworkEvent(input: unknown): NetworkEvent | null {
     timestamp: obj.timestamp,
     sequenceNumber: obj.sequenceNumber,
     id,
-  } as NetworkEvent;
+  } as AgentKitEvent<TManifest>;
 }
 
 /** Lightweight event filter to avoid cross-thread/user noise at the reducer. */
-export function shouldProcessEvent(
-  evt: NetworkEvent,
+export function shouldProcessEvent<TManifest extends ToolManifest>(
+  evt: AgentKitEvent<TManifest>,
   filter: {
     channelKey?: string | null;
     userId?: string | null;
