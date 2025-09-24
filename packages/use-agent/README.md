@@ -1,4 +1,4 @@
-# @inngest/use-agents
+# @inngest/use-agent
 
 React hooks for building AI chat interfaces with AgentKit.
 
@@ -7,11 +7,11 @@ This package provides a comprehensive set of React hooks for integrating with Ag
 ## Installation
 
 ```bash
-npm install @inngest/use-agents
+npm install @inngest/use-agent
 # or
-pnpm add @inngest/use-agents
+pnpm add @inngest/use-agent
 # or
-yarn add @inngest/use-agents
+yarn add @inngest/use-agent
 ```
 
 ## Peer Dependencies
@@ -27,7 +27,7 @@ npm install react @inngest/realtime uuid
 ### Basic Usage
 
 ```typescript
-import { useChat, AgentProvider } from '@inngest/use-agents';
+import { useChat, AgentProvider } from '@inngest/use-agent';
 
 function App() {
   return (
@@ -74,7 +74,7 @@ import {
   AgentProvider,
   useChat,
   createDefaultHttpTransport
-} from '@inngest/use-agents';
+} from '@inngest/use-agent';
 
 const customTransport = createDefaultHttpTransport({
   api: {
@@ -191,7 +191,7 @@ const chat = useChat({
 You can also wire the unified `useAgents` hook for an ephemeral experience backed by browser session storage. This keeps thread lists in the browser while still using the default HTTP transport for sending messages and realtime streaming.
 
 ```tsx
-import { useAgents, useEphemeralThreads } from "@inngest/use-agents";
+import { useAgents, useEphemeralThreads } from "@inngest/use-agent";
 
 function EphemeralChat({
   threadId,
@@ -279,7 +279,7 @@ const sendMessage = useCallback(
 The `AgentProvider` enables shared connections and configuration:
 
 ```typescript
-import { AgentProvider, useChat } from '@inngest/use-agents';
+import { AgentProvider, useChat } from '@inngest/use-agent';
 
 // Wrap your app with AgentProvider
 function App() {
@@ -316,7 +316,7 @@ import type {
   IClientTransport,
   UseAgentReturn,
   UseChatReturn,
-} from "@inngest/use-agents";
+} from "@inngest/use-agent";
 
 // All hooks and components are fully typed
 const chat: UseChatReturn = useChat({

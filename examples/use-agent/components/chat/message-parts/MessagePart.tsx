@@ -1,5 +1,5 @@
 
-import { MessagePart as MessagePartType } from "@inngest/use-agents";
+import { MessagePart as MessagePartType } from "@inngest/use-agent";
 import { TextMessagePart } from "./TextMessagePart";
 import { ToolCallMessagePart } from "./ToolCallMessagePart";
 import { DataMessagePart } from "./DataMessagePart";

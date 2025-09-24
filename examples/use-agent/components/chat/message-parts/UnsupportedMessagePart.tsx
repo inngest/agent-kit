@@ -1,5 +1,5 @@
 
-import { MessagePart } from "@inngest/use-agents";
+import { MessagePart } from "@inngest/use-agent";
 
 interface UnsupportedMessagePartProps {
   part: MessagePart;

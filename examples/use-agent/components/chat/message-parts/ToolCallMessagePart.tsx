@@ -1,5 +1,5 @@
 
-import type { ToolCallUIPart } from "@inngest/use-agents";
+import type { ToolCallUIPart } from "@inngest/use-agent";
 import type { ToolUIPart } from 'ai';
 import { useState } from 'react';
 import {

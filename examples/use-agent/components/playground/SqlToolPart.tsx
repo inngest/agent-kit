@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from 'react';
-import { type ToolCallUIPart } from '@inngest/use-agents';
+import { type ToolCallUIPart } from '@inngest/use-agent';
 
 interface SqlToolPartProps {
   part: ToolCallUIPart;

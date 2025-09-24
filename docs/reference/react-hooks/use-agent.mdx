@@ -15,7 +15,7 @@ The `useAgent` hook provides **advanced, low-level control** over AgentKit's rea
 ## Import
 
 ```typescript
-import { useAgent } from "@inngest/use-agents";
+import { useAgent } from "@inngest/use-agent";
 ```
 
 ## Basic Usage
@@ -138,7 +138,7 @@ useAgent({
 Custom transport instance for API calls. If not provided, uses default transport or inherits from AgentProvider.
 
 ```typescript
-import { createDefaultAgentTransport } from "@inngest/use-agents";
+import { createDefaultAgentTransport } from "@inngest/use-agent";
 
 const customTransport = createDefaultAgentTransport({
   api: { sendMessage: "/api/v2/chat" },

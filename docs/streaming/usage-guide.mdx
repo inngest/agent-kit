@@ -306,7 +306,7 @@ import {
   type AgentKitEvent,
   type UseAgentsConfig,
   type UseAgentsReturn,
-} from "@inngest/use-agents";
+} from "@inngest/use-agent";
 
 import type { ToolManifest } from "@/app/api/inngest/functions/agents/types";
 
@@ -399,7 +399,7 @@ import {
   type AgentMessageChunk,
   type Message,
 } from "@inngest/agent-kit";
-import type { ChatRequestEvent } from "@inngest/use-agents";
+import type { ChatRequestEvent } from "@inngest/use-agent";
 import { v4 as uuidv4 } from "uuid";
 
 import { inngest } from "../client";
@@ -485,7 +485,7 @@ With all that wired up now, you can now render tool calls and messages in your U
 
 import { useState } from "react";
 import { useInsightsAgent, type ClientState } from "@/lib/use-insights-agent";
-import type { ToolCallUIPart } from "@inngest/use-agents";
+import type { ToolCallUIPart } from "@inngest/use-agent";
 import type { ToolManifest } from "@/app/api/inngest/functions/agents/types";
 
 export default function ChatTestPage() {

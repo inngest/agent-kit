@@ -28,7 +28,7 @@ import { cn } from '@/lib/utils';
 import { SearchCommandMenu } from './SearchCommandMenu';
 import { CommandShortcut } from '@/components/ui/command';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import type { Thread } from '@inngest/use-agents';
+import type { Thread } from '@inngest/use-agent';
 
 interface DesktopSidebarProps {
   isMinimized: boolean;

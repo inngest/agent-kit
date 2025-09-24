@@ -14,13 +14,13 @@ The `AgentProvider` is a React context provider that enables **shared WebSocket 
 ## Import
 
 ```typescript
-import { AgentProvider } from "@inngest/use-agents";
+import { AgentProvider } from "@inngest/use-agent";
 ```
 
 ## Basic Usage
 
 ```typescript
-import { AgentProvider } from "@inngest/use-agents";
+import { AgentProvider } from "@inngest/use-agent";
 
 function App() {
   return (
@@ -106,7 +106,7 @@ Transport configuration for API calls. Can be either a complete transport instan
 **Transport Instance** (advanced):
 
 ```typescript
-import { DefaultAgentTransport } from "@inngest/use-agents";
+import { DefaultAgentTransport } from "@inngest/use-agent";
 
 const customTransport = new DefaultAgentTransport({
   // Custom configuration
@@ -381,7 +381,7 @@ import {
   useOptionalGlobalAgent,
   useOptionalGlobalChannelKey,
   useOptionalGlobalResolvedChannelKey
-} from "@inngest/use-agents";
+} from "@inngest/use-agent";
 
 function FlexibleComponent() {
   const globalUserId = useOptionalGlobalUserId();           // string | null
@@ -408,7 +408,7 @@ import {
   useGlobalTransportStrict,
   useGlobalUserId,
   useGlobalChannelKey,
-} from "@inngest/use-agents";
+} from "@inngest/use-agent";
 
 function ProviderRequiredComponent() {
   const agent = useGlobalAgentStrict(); // Throws if no provider

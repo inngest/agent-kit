@@ -13,7 +13,7 @@ The `useChat` hook is the **recommended entry point** for building AI chat appli
 ## Import
 
 ```typescript
-import { useChat } from "@inngest/use-agents";
+import { useChat } from "@inngest/use-agent";
 ```
 
 ## Basic Usage
@@ -537,7 +537,7 @@ Clear the current error state.
 Perfect for `/chat/[threadId]` routes:
 
 ```typescript title="app/chat/[threadId]/page.tsx"
-import { useChat } from "@inngest/use-agents";
+import { useChat } from "@inngest/use-agent";
 
 export default function ChatPage({ params }) {
   const { messages, sendMessage, status, threads, switchToThread } = useChat({
@@ -850,7 +850,7 @@ console.log(`${unreadThreads.length} threads have new messages`);
 ### With Message Actions
 
 ```typescript
-import { useChat, useMessageActions } from "@inngest/use-agents";
+import { useChat, useMessageActions } from "@inngest/use-agent";
 
 function ChatWithActions() {
   const { messages, sendMessage } = useChat();
@@ -879,7 +879,7 @@ function ChatWithActions() {
 ### With Conversation Branching
 
 ```typescript
-import { useChat, useConversationBranching } from "@inngest/use-agents";
+import { useChat, useConversationBranching } from "@inngest/use-agent";
 
 function ChatWithBranching() {
   const {
@@ -971,7 +971,7 @@ function ResponsiveChat({ threadId }) {
 ### Demo/Prototype Mode
 
 ```typescript
-import { useChat, useEphemeralThreads } from "@inngest/use-agents";
+import { useChat, useEphemeralThreads } from "@inngest/use-agent";
 
 function DemoChat() {
   const ephemeralThreads = useEphemeralThreads({

@@ -7,7 +7,7 @@ export type ChatState = {
   timestamp: number;
 };
 
-// Tool output payload helpers mirror @inngest/use-agents ToolResultPayload shape
+// Tool output payload helpers mirror @inngest/use-agent ToolResultPayload shape
 export type RefundResult = { refundId: string; userId: string; amount: number; reason: string; status: string; message: string };
 export type SubscriptionStatus = { userId: string; plan: string; status: string; nextBillingDate: string; amount: string };
 export type InvoiceHistory = { userId: string; invoices: Array<{ id: string; date: string; amount: string; status: string }>; };

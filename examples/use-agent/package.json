@@ -14,7 +14,7 @@
     "@hookform/resolvers": "^5.2.1",
     "@icons-pack/react-simple-icons": "^13.7.0",
     "@inngest/agent-kit": "workspace:*",
-    "@inngest/use-agents": "workspace:*",
+    "@inngest/use-agent": "workspace:*",
     "@inngest/realtime": "^0.4.0",
     "@radix-ui/react-accordion": "^1.2.12",
     "@radix-ui/react-alert-dialog": "^1.1.15",

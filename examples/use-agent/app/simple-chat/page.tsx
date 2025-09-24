@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, useEffect } from "react";
-import { createInMemorySessionTransport } from "@inngest/use-agents";
+import { createInMemorySessionTransport } from "@inngest/use-agent";
 import { useInsightsAgent, type ClientState } from "@/lib/use-insights-agent";
 
 export default function SimpleChatPage() {
@@ -9,7 +9,7 @@ export default function SimpleChatPage() {
   return (
     <div style={{ maxWidth: 740, margin: "0 auto", padding: 16 }}>
       <h1 style={{ fontSize: 22, fontWeight: 600, marginBottom: 12 }}>
-        use-agents: Simple Chat (Ephemeral)
+        use-agent: Simple Chat (Ephemeral)
       </h1>
       <p style={{ color: "#555", marginBottom: 16 }}>
         This demo uses in-memory transport with no thread management or

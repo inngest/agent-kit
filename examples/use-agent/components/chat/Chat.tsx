@@ -6,7 +6,7 @@ import {
   useAgents, // Unified hook consolidating useChat/useAgent/useThreads
   createDebugLogger, // debug logging utility
   type ConversationMessage,
-} from "@inngest/use-agents";
+} from "@inngest/use-agent";
 import type { CustomerSupportAgentConfig } from "@/lib/chat-types";
 type ChatMessage = ConversationMessage<
   CustomerSupportAgentConfig["tools"],

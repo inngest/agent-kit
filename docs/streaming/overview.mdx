@@ -10,7 +10,7 @@ Instead of stitching together events, workflow steps and token streams - your UI
 Here's a simple example of how you would use the hook in your React component:
 
 ```tsx
-import { useAgents } from "@inngest/use-agents";
+import { useAgents } from "@inngest/use-agent";
 
 export function MyAgentUI() {
   const { messages, sendMessage, status } = useAgents();
@@ -93,7 +93,7 @@ import {
   type AgentKitEvent,
   type UseAgentsConfig,
   type UseAgentsReturn,
-} from "@inngest/use-agents";
+} from "@inngest/use-agent";
 
 import type { ToolManifest } from "@/app/api/inngest/functions/agents/types";
 

@@ -1,5 +1,5 @@
 
-import type { SourceUIPart } from "@inngest/use-agents";
+import type { SourceUIPart } from "@inngest/use-agent";
 import { ExternalLink } from "lucide-react";
 
 interface SourceMessagePartProps {

@@ -1,5 +1,5 @@
 
-import type { StatusUIPart } from "@inngest/use-agents";
+import type { StatusUIPart } from "@inngest/use-agent";
 import {
   Zap,
   Brain,

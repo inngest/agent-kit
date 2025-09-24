@@ -29,7 +29,7 @@ Here are some common ways to use the `AgentProvider`.
 For an application with logged-in users, pass the user's unique ID to the `userId` prop. This ensures that the agent's context is tied to the correct user.
 
 ```tsx
-import { AgentProvider } from "@inngest/use-agents";
+import { AgentProvider } from "@inngest/use-agent";
 import { ChatPage } from "./ChatPage";
 import { ThreadsSidebar } from "./ThreadsSidebar";
 
@@ -48,7 +48,7 @@ function App({ userId }) {
 If your application supports guest users, you can omit the `userId` prop. The provider will automatically create a unique anonymous ID and store it in `sessionStorage` to maintain a consistent experience for the user during their session.
 
 ```tsx
-import { AgentProvider } from "@inngest/use-agents";
+import { AgentProvider } from "@inngest/use-agent";
 import { GuestChatInterface } from "./GuestChatInterface";
 
 function App() {
@@ -65,7 +65,7 @@ function App() {
 To create shared, collaborative sessions (e.g., a chat where multiple users interact with the same agent in a shared context), you can use the `channelKey` prop. All users who connect with the same `channelKey` will be subscribed to the same real-time channel.
 
 ```tsx
-import { AgentProvider } from "@inngest/use-agents";
+import { AgentProvider } from "@inngest/use-agent";
 import { CollaborativeChat } from "./CollaborativeChat";
 
 function ProjectChat({ projectId }) {
@@ -82,7 +82,7 @@ function ProjectChat({ projectId }) {
 You can customize the HTTP endpoints and headers used by the transport layer by passing a configuration object to the `transport` prop. This is useful if your API routes don't follow the default conventions.
 
 ```tsx
-import { AgentProvider } from "@inngest/use-agents";
+import { AgentProvider } from "@inngest/use-agent";
 
 function App({ userId, getAuthToken }) {
   return (

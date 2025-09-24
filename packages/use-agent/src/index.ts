@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * @inngest/use-agents - React hooks for building AI chat interfaces with AgentKit
+ * @inngest/use-agent - React hooks for building AI chat interfaces with AgentKit
  *
  * This package provides a comprehensive set of React hooks for integrating with
  * AgentKit networks and building real-time AI chat applications.
@@ -29,7 +29,7 @@
  *   useChat,
  *   AgentProvider,
  *   createDefaultHttpTransport
- * } from '@inngest/use-agents';
+ * } from '@inngest/use-agent';
  *
  * function App() {
  *   return (
@@ -45,14 +45,14 @@
  * }
  * ```
  *
- * @fileoverview Main exports for @inngest/use-agents package
+ * @fileoverview Main exports for @inngest/use-agent package
  */
 
 // Public runtime API
 export {
   useAgents,
   useAgents as useAgent,
-} from "./frameworks/react/hooks/use-agents/index.js";
+} from "./frameworks/react/hooks/use-agent/index.js";
 export { AgentProvider } from "./frameworks/react/components/AgentProvider.js";
 export {
   createDefaultHttpTransport,
@@ -77,7 +77,7 @@ export type {
   UseAgentsReturn,
   UseAgentsConfig,
   OnEventMeta,
-} from "./frameworks/react/hooks/use-agents/types.js";
+} from "./frameworks/react/hooks/use-agent/types.js";
 export type {
   ConversationMessage,
   Thread,

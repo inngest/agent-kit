@@ -1,29 +1,29 @@
 ---
 title: "React Hooks API Reference"
-description: "Complete API documentation for @inngest/use-agents React hooks"
+description: "Complete API documentation for @inngest/use-agent React hooks"
 ---
 
-The `@inngest/use-agents` package provides a comprehensive set of React hooks for building AI chat interfaces with AgentKit networks. This reference section documents every hook, component, and utility in detail.
+The `@inngest/use-agent` package provides a comprehensive set of React hooks for building AI chat interfaces with AgentKit networks. This reference section documents every hook, component, and utility in detail.
 
 ## Package Overview
 
 ```bash
-npm install @inngest/use-agents
+npm install @inngest/use-agent
 # Peer dependencies
 npm install react @inngest/realtime uuid
 ```
 
 <CardGroup>
   <Card
-    title="@inngest/use-agents on npm"
-    href="https://www.npmjs.com/package/@inngest/use-agents"
+    title="@inngest/use-agent on npm"
+    href="https://www.npmjs.com/package/@inngest/use-agent"
     icon="package"
   >
     View package details, versions, and installation stats
   </Card>
   <Card
     title="GitHub Repository"
-    href="https://github.com/inngest/agent-kit/tree/main/packages/use-agents"
+    href="https://github.com/inngest/agent-kit/tree/main/packages/use-agent"
     icon="github"
   >
     Source code, issues, and contributions
@@ -170,7 +170,7 @@ import type {
   // Error handling
   AgentError,
   ErrorClassification,
-} from "@inngest/use-agents";
+} from "@inngest/use-agent";
 ```
 
 ### Hook Return Types
@@ -182,7 +182,7 @@ import type {
   UseAgentReturn,
   UseChatReturn,
   UseThreadsReturn,
-} from "@inngest/use-agents";
+} from "@inngest/use-agent";
 
 // Example: Complete typing for useChat
 const chat: UseChatReturn = useChat({
@@ -195,7 +195,7 @@ const chat: UseChatReturn = useChat({
 ### Basic Chat Application
 
 ```typescript
-import { useChat, AgentProvider } from "@inngest/use-agents";
+import { useChat, AgentProvider } from "@inngest/use-agent";
 
 function App() {
   return (
@@ -227,7 +227,7 @@ import {
   AgentProvider,
   createDefaultAgentTransport,
   type DefaultAgentTransportConfig
-} from "@inngest/use-agents";
+} from "@inngest/use-agent";
 
 const transport: DefaultAgentTransportConfig = {
   api: {
@@ -247,7 +247,7 @@ const transport: DefaultAgentTransportConfig = {
 ### Multi-thread Management
 
 ```typescript
-import { useAgent } from "@inngest/use-agents";
+import { useAgent } from "@inngest/use-agent";
 
 function AdvancedChat() {
   const {
@@ -366,7 +366,7 @@ useEffect(() => {
 Enable comprehensive debug output:
 
 ```typescript
-import { createDebugLogger } from "@inngest/use-agents";
+import { createDebugLogger } from "@inngest/use-agent";
 
 const logger = createDebugLogger("MyComponent", true);
 logger.log("Component initialized");
@@ -395,7 +395,7 @@ import { useChat } from "@/hooks/use-chat";
 import { AgentProvider } from "@/contexts/AgentContext";
 
 // After: Package imports
-import { useChat, AgentProvider } from "@inngest/use-agents";
+import { useChat, AgentProvider } from "@inngest/use-agent";
 ```
 
 **No API changes required** - the package maintains full backward compatibility with local implementations.
@@ -433,4 +433,4 @@ import { useChat, AgentProvider } from "@inngest/use-agents";
   </Card>
 </CardGroup>
 
-This reference section provides the definitive documentation for every aspect of the `@inngest/use-agents` package. Whether you're just getting started or building advanced custom implementations, you'll find the complete API documentation and guidance you need here.
+This reference section provides the definitive documentation for every aspect of the `@inngest/use-agent` package. Whether you're just getting started or building advanced custom implementations, you'll find the complete API documentation and guidance you need here.

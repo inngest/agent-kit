@@ -1,6 +1,6 @@
-## Contributing to @inngest/use-agents
+## Contributing to @inngest/use-agent
 
-This document helps new contributors quickly understand the `@inngest/use-agents` package internals and start making changes confidently.
+This document helps new contributors quickly understand the `@inngest/use-agent` package internals and start making changes confidently.
 
 - Tech stack: TypeScript, React 18+, TanStack Query, Vitest
 - Architectural style: Hexagonal (ports/adapters) with a React framework layer
@@ -9,12 +9,12 @@ This document helps new contributors quickly understand the `@inngest/use-agents
 ### Quickstart for contributors
 
 - Install deps from the monorepo root: `pnpm install`
-- Build the package: `pnpm -w --filter @inngest/use-agents build`
-- Type-check: `pnpm -w --filter @inngest/use-agents type-check`
-- Lint: `pnpm -w --filter @inngest/use-agents lint`
-- Tests: `pnpm -w --filter @inngest/use-agents test`
+- Build the package: `pnpm -w --filter @inngest/use-agent build`
+- Type-check: `pnpm -w --filter @inngest/use-agent type-check`
+- Lint: `pnpm -w --filter @inngest/use-agent lint`
+- Tests: `pnpm -w --filter @inngest/use-agent test`
 
-Note: This package is part of a pnpm workspace; always run workspace-scoped commands via `pnpm -w --filter @inngest/use-agents ...` from the repo root.
+Note: This package is part of a pnpm workspace; always run workspace-scoped commands via `pnpm -w --filter @inngest/use-agent ...` from the repo root.
 
 ---
 
@@ -65,7 +65,7 @@ src/
         use-connection.ts                     - React hook using @inngest/realtime for tokenized subscriptions
         __tests__/use-connection.test.tsx     - Token gating + message/state delivery tests
 
-        use-agents/
+        use-agent/
           index.ts                            - Unified chat hook (threads + realtime + actions)
           types.ts                            - Public hook config/return types
           provider-context.ts                 - Safe access to provider state + identity/transport resolvers
@@ -100,7 +100,7 @@ Key flows:
 
 - Realtime: `use-connection` uses `@inngest/realtime`’s hook with an explicit token refetcher. Messages are mapped with `event-mapper` and applied to the `streaming-reducer` via the `streaming-engine`.
 - Threads: TanStack Query powers server pagination when a `QueryClientProvider` is present; otherwise a local fallback path is used. Thread flags (e.g., hasNewMessages) are overlaid from engine state.
-- Cross-tab sync: `use-agents` broadcasts events and state snapshots via `BroadcastChannel` for multi-tab consistency and resumable streams (needs further testing and refinement).
+- Cross-tab sync: `use-agent` broadcasts events and state snapshots via `BroadcastChannel` for multi-tab consistency and resumable streams (needs further testing and refinement).
 
 ### Notable design decisions
 
@@ -150,7 +150,7 @@ Realtime connection (`InngestConnection` + `ConnectionManager`):
 ### React integration
 
 - `AgentProvider` centralizes transport/connection and provides a `QueryClient` if not supplied. It also resolves a channel key in priority order: `channelKey` > `userId` > generated anonymous ID.
-- `use-agents` is the unified hook exposing:
+- `use-agent` is the unified hook exposing:
   - State: messages, status, connectivity, threads (+ flags), and errors
   - Actions: send/cancel, approve/deny tool calls, thread navigation, and history utilities
   - Works with or without a `QueryClientProvider`; falls back to local thread pagination if absent

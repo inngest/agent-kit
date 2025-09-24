@@ -5,7 +5,7 @@ import { createState, type Message } from "@inngest/agent-kit";
 import type { InsightsAgentState } from "../sql-agents/event-matcher";
 import { PostgresHistoryAdapter } from "../db";
 import type { AgentMessageChunk } from '@inngest/agent-kit';
-import type { ChatRequestEvent } from '@inngest/use-agents';
+import type { ChatRequestEvent } from '@inngest/use-agent';
 import { v4 as uuidv4 } from "uuid";
 
 // Instantiate the history adapter ONCE, in the global scope.

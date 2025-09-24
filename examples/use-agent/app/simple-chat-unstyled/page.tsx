@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useInsightsAgent, type ClientState } from "@/lib/use-insights-agent";
-import type { ToolCallUIPart } from "@inngest/use-agents";
+import type { ToolCallUIPart } from "@inngest/use-agent";
 import type { ToolManifest } from "@/app/api/inngest/functions/agents/types";
 
 export default function ChatTestPage() {
