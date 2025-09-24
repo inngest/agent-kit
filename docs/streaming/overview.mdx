@@ -111,7 +111,7 @@ export type AgentEvent = AgentKitEvent<ToolManifest>;
 export function useInsightsAgent(
   config: UseAgentsConfig<ToolManifest, ClientState>
 ): UseAgentsReturn<ToolManifest, ClientState> {
-  return useAgents<{ tools: ToolManifest; state: ClientState }>(config);
+  return useAgent<{ tools: ToolManifest; state: ClientState }>(config);
 }
 ```
 
@@ -123,4 +123,4 @@ export function useInsightsAgent(
   </Step>
 </Steps>
 
-For a deeper dive into streaming agents, check out our [Usage Guide](/new-streaming/usage-guide).
+For a deeper dive into streaming agents, check out our [Usage Guide](/streaming/usage-guide).

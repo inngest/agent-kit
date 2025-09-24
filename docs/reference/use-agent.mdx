@@ -1,4 +1,5 @@
 ---
+<<<<<<< HEAD
 title: useAgents
 description: 'React hook for building real-time, multi-threaded AI applications'
 ---
@@ -7,6 +8,16 @@ The `useAgents` hook is the core of the `@inngest/use-agent` package. It's a com
 
 ```tsx
 import { useAgents, AgentProvider } from '@inngest/use-agent';
+=======
+title: useAgent
+description: 'React hook for building real-time, multi-threaded AI applications'
+---
+
+The `useAgent` hook is the core of the `@inngest/use-agent` package. It's a comprehensive, client-side hook for React that manages real-time, multi-threaded conversations with an AgentKit network. It encapsulates the entire lifecycle of agent interactions, including sending messages, receiving streaming events, handling out-of-order event sequences, and managing connection state.
+
+```tsx
+import { useAgent, AgentProvider } from '@inngest/use-agent';
+>>>>>>> origin/main
 
 function App() {
   return (
@@ -17,7 +28,11 @@ function App() {
 }
 
 function ChatComponent() {
+<<<<<<< HEAD
   const { messages, sendMessage, status, currentThreadId, switchToThread } = useAgents();
+=======
+  const { messages, sendMessage, status, currentThreadId, switchToThread } = useAgent();
+>>>>>>> origin/main
   
   // UI to switch threads and display messages...
   
@@ -27,7 +42,11 @@ function ChatComponent() {
 
 ## Configuration
 
+<<<<<<< HEAD
 The `useAgents` hook accepts a configuration object with the following properties.
+=======
+The `useAgent` hook accepts a configuration object with the following properties.
+>>>>>>> origin/main
 
 ### Identity & Connection
 
@@ -105,7 +124,11 @@ The `useAgents` hook accepts a configuration object with the following propertie
 
 ## Return Values
 
+<<<<<<< HEAD
 The `useAgents` hook returns an object containing state and actions to manage conversations.
+=======
+The `useAgent` hook returns an object containing state and actions to manage conversations.
+>>>>>>> origin/main
 
 ### Core Agent State
 
