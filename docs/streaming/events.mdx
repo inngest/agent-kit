@@ -114,14 +114,14 @@ These events are specific to the lifecycle of tool calls made by an agent.
 
 ## Consuming Events in Your App
 
-The `useAgents` hook provides callbacks to tap into this event stream.
+The `useAgent` hook provides callbacks to tap into this event stream.
 
 ### `onEvent`
 
 This is the lowest-level callback. It fires for every single valid `AgentKitEvent` that the hook processes, giving you full visibility into the streaming process.
 
 ```jsx
-useAgents({
+useAgent({
   onEvent: (evt, meta) => {
     console.log('Event received:', evt.event, 'for thread:', meta.threadId);
     if (evt.event === 'run.started') {
@@ -136,7 +136,7 @@ useAgents({
 A convenient, strongly-typed callback that fires only when a tool has finished executing and its final output is available (`part.completed` with `type: "tool-output"`).
 
 ```jsx
-useAgents<MyAgentConfig>({
+useAgent<MyAgentConfig>({
   onToolResult: (result) => {
     if (result.toolName === 'getWeather') {
       const weatherData = result.data; // strongly typed!
@@ -151,7 +151,7 @@ useAgents<MyAgentConfig>({
 Fires when the entire sequence of events for a turn is complete (`stream.ended`). Useful for triggering actions after the assistant has fully responded.
 
 ```jsx
-useAgents({
+useAgent({
   onStreamEnded: ({ threadId }) => {
     console.log(`Agent has finished responding in thread ${threadId}.`);
     // Maybe run some analytics or enable the input field

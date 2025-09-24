@@ -10,10 +10,10 @@ Instead of stitching together events, workflow steps and token streams - your UI
 Here's a simple example of how you would use the hook in your React component:
 
 ```tsx
-import { useAgents } from "@inngest/use-agent";
+import { useAgent } from "@inngest/use-agent";
 
 export function MyAgentUI() {
-  const { messages, sendMessage, status } = useAgents();
+  const { messages, sendMessage, status } = useAgent();
 
   const onSubmit = (e) => {
     e.preventDefault();
@@ -89,7 +89,7 @@ Create a `ClientState` type which will type state that your UI will send to your
 
 ```typescript
 import {
-  useAgents,
+  useAgent,
   type AgentKitEvent,
   type UseAgentsConfig,
   type UseAgentsReturn,
@@ -111,7 +111,7 @@ export type AgentEvent = AgentKitEvent<ToolManifest>;
 export function useInsightsAgent(
   config: UseAgentsConfig<ToolManifest, ClientState>
 ): UseAgentsReturn<ToolManifest, ClientState> {
-  return useAgents<{ tools: ToolManifest; state: ClientState }>(config);
+  return useAgent<{ tools: ToolManifest; state: ClientState }>(config);
 }
 ```
 
