@@ -101,6 +101,7 @@ export const requestParser: AgenticModel.RequestParser<Anthropic.AiModel> = (
   };
 
   if (stream) {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     request.stream = true as unknown as any;
   }
 
