@@ -3,11 +3,11 @@
   "theme": "palm",
   "name": "AgentKit by Inngest",
   "colors": {
-    "primary": "#189c70",
-    "light": "#2fe4a8",
-    "dark": "#2fe4a8"
+    "primary": "#2C9B63",
+    "light": "#9ADAB3",
+    "dark": "#016239"
   },
-  "favicon": "/brand/favicon-june-2024-dark.png",
+  "favicon": "/brand/favicon.png",
   "navigation": {
     "tabs": [
       {
@@ -82,7 +82,9 @@
         "groups": [
           {
             "group": "Examples",
-            "pages": ["examples/overview"]
+            "pages": [
+              "examples/overview"
+            ]
           }
         ]
       },
@@ -91,11 +93,16 @@
         "groups": [
           {
             "group": "Introduction",
-            "pages": ["reference/introduction"]
+            "pages": [
+              "reference/introduction"
+            ]
           },
           {
             "group": "Agent",
-            "pages": ["reference/create-agent", "reference/create-tool"]
+            "pages": [
+              "reference/create-agent",
+              "reference/create-tool"
+            ]
           },
           {
             "group": "Network",
@@ -127,7 +134,9 @@
         "groups": [
           {
             "group": "Changelog",
-            "pages": ["changelog/overview"]
+            "pages": [
+              "changelog/overview"
+            ]
           }
         ]
       },
