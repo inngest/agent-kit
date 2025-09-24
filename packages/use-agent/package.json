@@ -19,7 +19,7 @@
     "build": "tsc && tsup",
     "dev": "tsup --watch",
     "lint": "eslint src",
-    "type-check": "tsc --noEmit --project tsconfig.type-check.json",
+    "type-check": "tsc --noEmit",
     "test": "vitest run",
     "prepare": "tsc && tsup"
   },
