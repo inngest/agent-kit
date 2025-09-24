@@ -1,5 +1,5 @@
 import { type Inngest } from "inngest";
-import { InngestFunction } from "inngest/components/InngestFunction";
+import { InngestFunction } from "inngest";
 import { getAsyncCtx, type AsyncContext } from "inngest/experimental";
 import { ZodType, type ZodObject, type ZodTypeAny } from "zod";
 

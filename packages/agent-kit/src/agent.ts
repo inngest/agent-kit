@@ -11,9 +11,8 @@ import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 import { type Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import { ListToolsResultSchema } from "@modelcontextprotocol/sdk/types.js";
 import { EventSource } from "eventsource";
-import { referenceFunction, type Inngest } from "inngest";
-import { type InngestFunction } from "inngest/components/InngestFunction";
-import { serializeError } from "inngest/helpers/errors";
+import { referenceFunction, type Inngest, InngestFunction  } from "inngest";
+import { errors } from "inngest/internals";
 import { type MinimalEventPayload } from "inngest/types";
 import type { ZodType } from "zod";
 import { createAgenticModelFromAiAdapter, type AgenticModel } from "./model";
@@ -401,7 +400,7 @@ export class Agent<T extends StateData> {
             };
           })
           .catch((err) => {
-            return { error: serializeError(err) };
+            return { error: errors.serializeError(err) };
           });
 
         output.push({
