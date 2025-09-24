@@ -26,7 +26,7 @@ Here's a look at the end-to-end flow:
 ```mermaid
 graph TD
   subgraph Client
-    UI[React UI with useAgents]
+    UI[React UI with useAgent]
   end
 
   subgraph Your Backend
@@ -68,7 +68,7 @@ Because of its decoupled design, you can integrate AgentKit with any real-time p
 
 ## Overriding Transport Methods
 
-You can override any of the default transport's methods or properties by passing a configuration object to the `transport` prop on either the `AgentProvider` or the `useAgents` hook. This is useful for customizing API endpoints, adding authentication headers, or modifying the request body.
+You can override any of the default transport's methods or properties by passing a configuration object to the `transport` prop on either the `AgentProvider` or the `useAgent` hook. This is useful for customizing API endpoints, adding authentication headers, or modifying the request body.
 
 If you provide a partial configuration, it will be merged with the default transport configuration.
 

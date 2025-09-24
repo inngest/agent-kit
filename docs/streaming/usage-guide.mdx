@@ -302,7 +302,7 @@ With server-side state and a ToolManifest now defined, you can strongly type you
 
 ```tsx
 import {
-  useAgents,
+  useAgent,
   type AgentKitEvent,
   type UseAgentsConfig,
   type UseAgentsReturn,
@@ -324,7 +324,7 @@ export type AgentEvent = AgentKitEvent<ToolManifest>;
 export function useInsightsAgent(
   config: UseAgentsConfig<ToolManifest, ClientState>
 ): UseAgentsReturn<ToolManifest, ClientState> {
-  return useAgents<{ tools: ToolManifest; state: ClientState }>(config);
+  return useAgent<{ tools: ToolManifest; state: ClientState }>(config);
 }
 ```
 
@@ -598,7 +598,7 @@ function ToolCallRenderer({ part }: { part: ToolCallUIPart<ToolManifest> }) {
 
 With all that done, you should now have a fully functional SQL generation agent network with realtime streaming!
 
-By following this guide and using the `useAgents` hook, you now have:
+By following this guide and using the `useAgent` hook, you now have:
 
 1. **Type Safety**: Tool names, inputs, and outputs are fully typed based on your `ToolManifest`
 2. **Real-time Streaming**: See tools execute in real-time with different states (`input-streaming`, `input-available`, `executing`, `output-available`)
