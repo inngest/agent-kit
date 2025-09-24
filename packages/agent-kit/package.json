@@ -62,14 +62,14 @@
     "zod-to-json-schema": "^3.24.3"
   },
   "peerDependencies": {
-    "inngest": ">=3.39.0"
+    "inngest": ">=3.42.2"
   },
   "packageManager": "pnpm@9.14.2",
   "devDependencies": {
     "@types/express": "^5.0.0",
     "@types/node": "^22.9.1",
     "@types/xxhashjs": "^0.2.4",
-    "inngest": "3.40.4-pr-1078.0",
+    "inngest": "3.42.2",
     "nodemon": "^3.0.2",
     "ts-node": "^10.9.2",
     "tsup": "^8.3.6",
