@@ -1,0 +1,222 @@
+---
+title: useAgents
+description: 'React hook for building real-time, multi-threaded AI applications'
+---
+
+The `useAgents` hook is the core of the `@inngest/use-agents` package. It's a comprehensive, client-side hook for React that manages real-time, multi-threaded conversations with an AgentKit network. It encapsulates the entire lifecycle of agent interactions, including sending messages, receiving streaming events, handling out-of-order event sequences, and managing connection state.
+
+```tsx
+import { useAgents, AgentProvider } from '@inngest/use-agents';
+
+function App() {
+  return (
+    <AgentProvider userId="user-123">
+      <ChatComponent />
+    </AgentProvider>
+  );
+}
+
+function ChatComponent() {
+  const { messages, sendMessage, status, currentThreadId, switchToThread } = useAgents();
+  
+  // UI to switch threads and display messages...
+  
+  return <ChatUI messages={messages} onSend={sendMessage} status={status} />;
+}
+```
+
+## Configuration
+
+The `useAgents` hook accepts a configuration object with the following properties.
+
+### Identity & Connection
+
+<ParamField path="userId" type="string">
+  A unique identifier for the current user. This is used for personalizing agent interactions and routing real-time events. If not provided, it will be inherited from the `AgentProvider`.
+</ParamField>
+
+<ParamField path="channelKey" type="string">
+  A key for targeting subscriptions, enabling collaborative sessions. If not provided, it defaults to the `userId`.
+</ParamField>
+
+<ParamField path="transport" type="IClientTransport">
+  An optional transport instance to override the default HTTP transport provided by `AgentProvider`. This allows you to customize how the hook communicates with your backend.
+</ParamField>
+
+### Initial State
+
+<ParamField path="initialThreadId" type="string">
+  The ID of the conversation thread to load when the hook is first mounted.
+</ParamField>
+
+<ParamField path="state" type="() => TState">
+  A function that returns the current client-side UI state. This state is captured and sent with each user message, allowing agents to have context about what the user is seeing. It can also be used to restore the UI when revisiting a message.
+</ParamField>
+
+### Data Fetching & Caching
+
+<ParamField path="fetchThreads" type="function">
+  A function to fetch a paginated list of conversation threads for the user. If not provided, the hook uses the default transport method.
+</ParamField>
+
+<ParamField path="fetchHistory" type="function">
+  A function to fetch the message history for a specific thread. If not provided, the hook uses the default transport method.
+</ParamField>
+
+<ParamField path="threadsPageSize" type="number" default="20">
+  The number of threads to fetch per page in pagination requests.
+</ParamField>
+
+### Callbacks
+
+<ParamField path="onEvent" type="(event, meta) => void">
+  A low-level callback invoked for every real-time event processed by the hook. This is useful for building custom UI that reacts to specific agent activities, like showing a "thinking" indicator when a `run.started` event is received.
+</ParamField>
+
+<ParamField path="onStreamEnded" type="(args) => void">
+  A callback fired when a terminal stream event (`stream.ended` or `run.completed`) is received for a thread, indicating the agent has finished its turn.
+</ParamField>
+
+<ParamField path="onToolResult" type="(result) => void">
+  A strongly-typed callback that fires when a tool call completes and returns its final output. This is useful for observing or reacting to the data returned by agents' tools.
+</ParamField>
+
+<ParamField path="onStateRehydrate" type="(state, messageId) => void">
+  A callback invoked when `rehydrateMessageState` is called. It receives the client state that was captured when the original message was sent, allowing you to restore the UI to its previous state.
+</ParamField>
+
+<ParamField path="onThreadNotFound" type="(threadId) => void">
+  A callback that is triggered if `switchToThread` is called with a `threadId` that cannot be found.
+</ParamField>
+
+### Behavior
+
+<ParamField path="debug" type="boolean" default="false">
+  Enables detailed logging to the console for debugging the hook's internal state and event flow.
+</ParamField>
+
+<ParamField path="requireProvider" type="boolean" default="false">
+  If `true`, the hook will throw an error if it's not used within an `AgentProvider`. When `false`, it creates a local fallback instance.
+</ParamField>
+
+<ParamField path="enableThreadValidation" type="boolean" default="true">
+  If `true`, the hook will automatically re-fetch a thread's history if it detects a mismatch between the local message count and the server's message count, ensuring data consistency.
+</ParamField>
+
+## Return Values
+
+The `useAgents` hook returns an object containing state and actions to manage conversations.
+
+### Core Agent State
+
+<ParamField path="messages" type="ConversationMessage[]">
+  An array of messages for the currently active thread. Each message contains structured parts that are updated in real-time as events are received.
+</ParamField>
+
+<ParamField path="status" type="AgentStatus">
+  The current activity status of the agent for the active thread. Possible values are: `"ready"`, `"submitted"`, `"streaming"`, or `"error"`.
+</ParamField>
+
+<ParamField path="error" type="AgentError">
+  An object containing details about the last error that occurred. It's `undefined` if there is no error.
+</ParamField>
+
+<ParamField path="clearError" type="() => void">
+  A function to clear the current error state.
+</ParamField>
+
+<ParamField path="isConnected" type="boolean">
+  Returns `true` if the client is currently connected to the real-time event stream.
+</ParamField>
+
+### Core Actions
+
+<ParamField path="sendMessage" type="(message, options) => Promise<void>">
+  Sends a message to the currently active thread.
+</ParamField>
+
+<ParamField path="cancel" type="() => Promise<void>">
+  Sends a request to the backend to cancel the current agent run for the active thread.
+</ParamField>
+
+<ParamField path="approveToolCall" type="(toolCallId, reason) => Promise<void>">
+  Approves a tool call that is awaiting human-in-the-loop (HITL) confirmation.
+</ParamField>
+
+<ParamField path="denyToolCall" type="(toolCallId, reason) => Promise<void>">
+  Denies a tool call that is awaiting human-in-the-loop (HITL) confirmation.
+</ParamField>
+
+### Thread Management State
+
+<ParamField path="threads" type="Thread[]">
+  An array of all conversation threads loaded for the user.
+</ParamField>
+
+<ParamField path="currentThreadId" type="string | null">
+  The ID of the currently active thread.
+</ParamField>
+
+<ParamField path="threadsLoading" type="boolean">
+  `true` while the initial list of threads is being fetched.
+</ParamField>
+
+<ParamField path="threadsHasMore" type="boolean">
+  `true` if there are more pages of threads to be loaded.
+</ParamField>
+
+<ParamField path="threadsError" type="string | null">
+  Contains an error message if fetching threads failed.
+</ParamField>
+
+<ParamField path="isLoadingInitialThread" type="boolean">
+  `true` only while the selected thread's history has not yet been loaded.
+</ParamField>
+
+### Thread Management Actions
+
+<ParamField path="switchToThread" type="(threadId) => Promise<void>">
+  Switches the active conversation to a different thread, loading its history.
+</ParamField>
+
+<ParamField path="setCurrentThreadId" type="(threadId) => void">
+  Immediately changes the `currentThreadId` without fetching history. Useful for optimistic UI updates before `switchToThread` completes.
+</ParamField>
+
+<ParamField path="createNewThread" type="() => string">
+  Creates a new, empty thread locally and returns its generated UUID.
+</ParamField>
+
+<ParamField path="deleteThread" type="(threadId) => Promise<void>">
+  Deletes a thread from the backend and removes it from the local state.
+</ParamField>
+
+<ParamField path="loadMoreThreads" type="() => Promise<void>">
+  Fetches the next page of threads.
+</ParamField>
+
+<ParamField path="refreshThreads" type="() => Promise<void>">
+  Refetches the first page of threads to get the latest list.
+</ParamField>
+
+### Advanced Actions
+
+<ParamField path="sendMessageToThread" type="(threadId, message, options) => Promise<void>">
+  Sends a message to a specific thread, which may not be the currently active one.
+</ParamField>
+
+<ParamField path="loadThreadHistory" type="(threadId) => Promise<ConversationMessage[]>">
+  Manually fetches the message history for a specific thread.
+</ParamField>
+
+<ParamField path="clearThreadMessages" type="(threadId) => void">
+  Clears all messages from a specific thread's local state.
+</ParamField>
+
+<ParamField path="replaceThreadMessages" type="(threadId, messages) => void">
+  Replaces all messages in a specific thread's local state. Useful for manually populating history.
+</ParamField>
+
+<ParamField path="rehydrateMessageState" type="(messageId) => void">
+  Triggers the `onStateRehydrate` callback with the client state associated with a specific message. Useful for UI features like "edit message" where you need to restore the UI to how it was when the message was sent.
+</ParamField>

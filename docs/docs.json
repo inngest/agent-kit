@@ -37,16 +37,13 @@
             ]
           },
           {
-            "group": "UI Streaming",
+            "group": "Streaming",
             "pages": [
-              "ui-streaming/overview",
-              "ui-streaming/use-agents-overview",
-              "ui-streaming/basic-example",
-              "ui-streaming/structured-outputs",
-              "ui-streaming/generative-ui",
-              "ui-streaming/persistence",
-              "ui-streaming/thread-management",
-              "ui-streaming/realtime-events-reference"
+              "streaming/overview",
+              "streaming/usage-guide",
+              "streaming/events",
+              "streaming/transport",
+              "streaming/provider"
             ]
           },
           {
@@ -118,12 +115,9 @@
             ]
           },
           {
-            "group": "React Hooks",
+            "group": "Streaming",
             "pages": [
-              "reference/react-hooks/overview",
-              "reference/react-hooks/use-chat",
-              "reference/react-hooks/use-agent", 
-              "reference/react-hooks/agent-provider"
+              "reference/use-agent"
             ]
           }
         ]

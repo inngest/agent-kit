@@ -1,172 +1,126 @@
 ---
-title: "Real-time AI Streaming with AgentKit"
-description: "Build responsive AI chat interfaces with automatic event streaming and React hooks"
+title: "Overview"
+description: "Realtime event streaming with AgentKit + useAgent"
 ---
 
-AgentKit provides a revolutionary **automatic streaming system** that enables real-time AI chat interfaces without complex setup. Our React hooks package (`@inngest/use-agents`) combines this streaming power with production-ready UI components, making it effortless to build sophisticated AI applications.
+With a useAgent hook you can seamlessly stream a network of agents, a single agent and durable steps within tools used by your agents. You can think of useAgent as the bridge between durable agents and your user interface.
 
-## Why Streaming Matters
+Instead of stitching together events, workflow steps and token streams - your UI receives structured events that describe lifecycles, content parts, tool calls and completions. This hook consumes these events and maintains your UI state for a single conversation or many conversations in parallel.
 
-Traditional AI interfaces require users to wait for complete responses before seeing any output. With AgentKit's streaming system:
+Here's a simple example of how you would use the hook in your React component:
 
-- **Immediate Feedback**: Users see responses as they're generated
-- **Enhanced UX**: Tool calls, reasoning, and results stream in real-time
-- **Perfect Synchronization**: Events arrive in correct order across multiple threads
-- **Transparent Integration**: Zero configuration required - streaming happens automatically
+```tsx
+import { useAgents } from "@inngest/use-agents";
 
-<CardGroup>
-  <Card
-    title="useAgent Hook Demo"
-    href="https://github.com/inngest/agent-kit/tree/main/examples/use-agent"
-    icon="github"
-  >
-    Complete Next.js application demonstrating all streaming features
-  </Card>
-  <Card title="SQL Playground" href="/examples/sql-playground" icon="database">
-    Interactive playground showing streaming with ephemeral threads
-  </Card>
-</CardGroup>
+export function MyAgentUI() {
+  const { messages, sendMessage, status } = useAgents();
 
-## How It Works
-
-AgentKit's streaming system consists of three major components working seamlessly together:
-
-### 🔄 Automatic Streaming Backend
-
-**StreamingContext** automatically captures and publishes events from your AgentKit networks:
-
-```typescript
-// Your existing AgentKit code - no changes needed!
-const result = await network.run(message, {
-  streaming: {
-    publish: async (chunk) => {
-      // Events automatically enriched with context
-      await publish(userChannel(userId).agent_stream(chunk));
-    },
-  },
-});
-```
-
-**15+ Event Types** cover the complete agent lifecycle:
-
-- Lifecycle: `run.started`, `run.completed`, `run.failed`
-- Content: `text.delta`, `reasoning.delta`, `tool_call.arguments.delta`
-- Parts: `part.created`, `part.completed`
-- HITL: `hitl.requested`, `hitl.resolved`
-- Control: `usage.updated`, `metadata.updated`
-
-### 🌐 Real-time Transport
-
-**WebSocket Connection** delivers events to your React app instantly:
-
-- Powered by Inngest Realtime for guaranteed delivery
-- Automatic reconnection and error recovery
-- Channel-based isolation for multi-user scenarios
-- Smart connection sharing across components
-
-### ⚛️ React Hook Integration
-
-**Production-ready hooks** consume streaming events and manage UI state:
-
-```typescript
-import { useChat, AgentProvider } from '@inngest/use-agents';
-
-function ChatApp() {
-  const { messages, sendMessage, status, isConnected } = useChat();
+  const onSubmit = (e) => {
+    e.preventDefault();
+    const value = new FormData(e.currentTarget).get("input");
+    sendMessage(value);
+  };
 
   return (
     <div>
-      <div>Status: {status}</div> {/* Updates in real-time */}
-      {messages.map(msg => (
-        <Message key={msg.id} message={msg} /> {/* Streams as typed */}
-      ))}
-      <input onSubmit={() => sendMessage(text)} />
+      <ul>
+        {messages.map(({ id, role, parts }) => (
+          <li key={id}>
+            <div>{role}</div>
+            {parts.map(({ id, type, content }) =>
+              type === "text" ? <div key={id}>{content}</div> : null
+            )}
+          </li>
+        ))}
+      </ul>
+
+      <form onSubmit={onSubmit}>
+        <input name="input" />
+        <button type="submit" disabled={status !== "ready"}>
+          Send
+        </button>
+      </form>
     </div>
   );
 }
 ```
 
-## Architecture Overview
+Let's take a closer look at what components, endpoints and other files we will need to wire this all up:
 
-```mermaid
-graph TD
-    A[User Types Message] --> B[useChat Hook]
-    B --> C[POST /api/chat]
-    C --> D[Inngest Function]
-    D --> E[AgentKit Network]
-    E --> F[StreamingContext]
-    F --> G[Automatic Event Publishing]
-    G --> H[WebSocket Channel]
-    H --> I[useAgent Hook]
-    I --> J[React State Updates]
-    J --> K[UI Re-renders]
+- **Inngest Client (`/api/inngest/client.ts`)**: Initializes Inngest with the `realtimeMiddleware`.
+- **Realtime Channel (`/api/inngest/realtime.ts`)**: Defines a typed realtime channel and topic.
+- **Chat Route: `/api/chat/route.ts`**: This is a standard Next.js API route. Its only job is to receive a request from the frontend and send an event to Inngest to trigger a function.
+- **Token Route: `/api/realtime/token/route.ts`**: This secure endpoint generates a subscription token that the frontend needs to connect to Inngest realtime.
+- **Inngest Route: `/api/inngest/route.ts`**: The standard handler that serves all your Inngest functions.
 
-    style E fill:#e1f5fe
-    style F fill:#f3e5f5
-    style I fill:#e8f5e8
-```
+Once you've configured all the foundational endpoints needed for streaming, you'll want to create some agents, define types and integrate this into a UI:
 
-## Key Features
+<Steps>
+  <Step title="Define server-side types">
+    Define your server-side state type, import all your tools and pass them into `createToolManifest` to generate a type that you will use in your UI.
+    ```typescript
+    import { createToolManifest, type StateData } from "@inngest/agent-kit";
+    import { selectEventsTool } from "./event-matcher";
+    import { generateSqlTool } from "./query-writer";
 
-### 🔥 Zero Configuration Streaming
+    // server-side state used by networks, routers and agents
+    export type AgentState = StateData & {
+        userId?: string;
+        eventTypes?: string[];
+        schemas?: Record<string, unknown>;
+        selectedEvents?: { event_name: string; reason: string }[];
+        currentQuery?: string;
+        sql?: string;
+    };
 
-- **Automatic**: StreamingContext captures events without code changes
-- **Enriched**: Events auto-include threadId, userId, sequence numbers
-- **Ordered**: Monotonic sequence numbering prevents UI glitches
-- **Resilient**: Best-effort publishing never breaks agent execution
+    // a typed manifest of all available tools
+    const manifest = createToolManifest([
+        generateSqlTool,
+        selectEventsTool,
+    ] as const);
+    
+    export type ToolManifest = typeof manifest;
+    ```
 
-### 🎯 Multi-thread Support
+  </Step>
+  <Step title="Define client-side types">
 
-- **Background Streaming**: Receive updates for inactive conversations
-- **Thread Isolation**: Perfect event routing to correct conversations
-- **Unread Indicators**: Automatic new message tracking
-- **Thread Switching**: Instant navigation with history preservation
-
-### 🛡️ Production-Ready Reliability
-
-- **Error Recovery**: Graceful handling of connection failures
-- **Out-of-order Events**: Intelligent buffering and reordering
-- **Memory Management**: Efficient state management for long conversations
-- **Type Safety**: Full TypeScript support throughout
-
-### 🔧 Developer Experience
-
-- **Provider Pattern**: Share connections across components efficiently
-- **Transport Abstraction**: Customize API endpoints and authentication
-- **Debug Logging**: Comprehensive development-time visibility
-- **Hot Reloading**: Seamless development experience
-
-## Next Steps
-
-<CardGroup>
-  <Card
-    title="Automatic Streaming Deep Dive"
-    href="/streaming/automatic-streaming"
-  >
-    Learn how the StreamingContext system works under the hood
-  </Card>
-  <Card title="React Hooks Quickstart" href="/streaming/react-hooks-quickstart">
-    Build your first streaming chat app in 5 minutes
-  </Card>
-  <Card title="Hook Selection Guide" href="/streaming/hook-selection-guide">
-    Choose the right hook for your use case
-  </Card>
-  <Card title="Provider Pattern Guide" href="/streaming/provider-pattern">
-    Optimize performance with shared connections
-  </Card>
-</CardGroup>
-
-## Migration from Legacy Patterns
-
-If you're using legacy streaming patterns or local hooks from examples:
+Create a `ClientState` type which will type state that your UI will send to your agent backend. This is a great place to pass along important context about the user or what they're doing in your app.
 
 ```typescript
-// Before: Local imports
-import { useChat } from "@/hooks";
-import { AgentProvider } from "@/contexts/AgentContext";
+import {
+  useAgents,
+  type AgentKitEvent,
+  type UseAgentsConfig,
+  type UseAgentsReturn,
+} from "@inngest/use-agents";
 
-// After: Package imports
-import { useChat, AgentProvider } from "@inngest/use-agents";
+import type { ToolManifest } from "@/app/api/inngest/functions/agents/types";
+
+export type ClientState = {
+  sqlQuery: string;
+  eventTypes: string[];
+  schemas: Record<string, unknown> | null;
+  currentQuery: string;
+};
+
+export type AgentConfig = { tools: ToolManifest; state: ClientState };
+
+export type AgentEvent = AgentKitEvent<ToolManifest>;
+
+export function useInsightsAgent(
+  config: UseAgentsConfig<ToolManifest, ClientState>
+): UseAgentsReturn<ToolManifest, ClientState> {
+  return useAgents<{ tools: ToolManifest; state: ClientState }>(config);
+}
 ```
 
-The API is identical - no functional changes required! The new package provides the same functionality with enhanced reliability, performance, and documentation.
+  </Step>
+  <Step title="Create agents and an Inngest function to run them">
+
+  </Step>
+  <Step title="Integrate a useAgent hook into your UI">
+  </Step>
+</Steps>
+
+For a deeper dive into streaming agents, check out our [Usage Guide](/new-streaming/usage-guide).

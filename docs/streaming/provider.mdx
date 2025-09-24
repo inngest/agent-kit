@@ -1,0 +1,105 @@
+---
+title: "Provider"
+description: "A deep dive into the provider for streaming agents"
+---
+
+The `AgentProvider` is a React component that creates a shared context for all `useAgents` hooks in your application. While it's optional, using it is highly recommended as it improves performance and ensures configuration consistency.
+
+## Why Use the Provider?
+
+By wrapping your agent-driven components in `AgentProvider`, you get several key benefits:
+
+-   **Performance**: A single WebSocket connection is established and shared across all components, reducing network overhead.
+-   **Consistency**: A shared transport configuration, user context, and channel key are used by all hooks, preventing inconsistencies.
+-   **Flexibility**: Individual hooks can still override the shared configuration if needed for specific cases.
+-   **Anonymous Users**: The provider automatically generates and persists a unique ID for anonymous users, allowing them to have a consistent experience across page loads.
+
+## How It Works
+
+`AgentProvider` creates a React Context that provides a shared transport instance, connection, and user information to any `useAgents` hook rendered within it. The hooks will automatically detect and use the context if it's available.
+
+If you don't use the provider, each `useAgents` hook will create its own transport and connection, which is less efficient.
+
+## Usage Patterns
+
+Here are some common ways to use the `AgentProvider`.
+
+### Basic Authenticated User
+
+For an application with logged-in users, pass the user's unique ID to the `userId` prop. This ensures that the agent's context is tied to the correct user.
+
+```tsx
+import { AgentProvider } from "@inngest/use-agents";
+import { ChatPage } from "./ChatPage";
+import { ThreadsSidebar } from "./ThreadsSidebar";
+
+function App({ userId }) {
+  return (
+    <AgentProvider userId={userId}>
+      <ChatPage />
+      <ThreadsSidebar />
+    </AgentProvider>
+  );
+}
+```
+
+### Anonymous Users
+
+If your application supports guest users, you can omit the `userId` prop. The provider will automatically create a unique anonymous ID and store it in `sessionStorage` to maintain a consistent experience for the user during their session.
+
+```tsx
+import { AgentProvider } from "@inngest/use-agents";
+import { GuestChatInterface } from "./GuestChatInterface";
+
+function App() {
+  return (
+    <AgentProvider>
+      <GuestChatInterface />
+    </AgentProvider>
+  );
+}
+```
+
+### Collaborative Sessions
+
+To create shared, collaborative sessions (e.g., a chat where multiple users interact with the same agent in a shared context), you can use the `channelKey` prop. All users who connect with the same `channelKey` will be subscribed to the same real-time channel.
+
+```tsx
+import { AgentProvider } from "@inngest/use-agents";
+import { CollaborativeChat } from "./CollaborativeChat";
+
+function ProjectChat({ projectId }) {
+  return (
+    <AgentProvider channelKey={`project-${projectId}`}>
+      <CollaborativeChat />
+    </AgentProvider>
+  );
+}
+```
+
+### Custom Transport Configuration
+
+You can customize the HTTP endpoints and headers used by the transport layer by passing a configuration object to the `transport` prop. This is useful if your API routes don't follow the default conventions.
+
+```tsx
+import { AgentProvider } from "@inngest/use-agents";
+
+function App({ userId, getAuthToken }) {
+  return (
+    <AgentProvider
+      userId={userId}
+      transport={{
+        api: {
+          sendMessage: '/api/v2/chat',
+          fetchThreads: '/api/v2/threads'
+        },
+        headers: () => ({
+          'Authorization': `Bearer ${getAuthToken()}`,
+        })
+      }}
+    >
+      <ChatApp />
+    </AgentProvider>
+  );
+}
+```
