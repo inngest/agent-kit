@@ -43,8 +43,8 @@ importers:
         specifier: ^0.2.4
         version: 0.2.4
       inngest:
-        specifier: 3.42.2
-        version: 3.42.2(express@4.21.2)(typescript@5.7.3)(zod@3.24.1)
+        specifier: 3.42.3
+        version: 3.42.3(express@4.21.2)(typescript@5.7.3)(zod@3.24.1)
       nodemon:
         specifier: ^3.0.2
         version: 3.1.9
@@ -1894,8 +1894,8 @@ packages:
   inherits@2.0.4:
     resolution: {integrity: sha512-k/vGaX4/Yla3WzyMCvTQOXYeIHvqOKtnqBduzTHpzpQZzAskKMhZ2K+EnBiSM9zGSoIFeMpXKxa4dYeZIQqewQ==}
 
-  inngest@3.42.2:
-    resolution: {integrity: sha512-urdDqBIoWUNoUuX0IADKqirP4tdIVf/8hgXs3mIxvA/W1N1V04Q/Qnj9PKUU377JXq8heV3NzLSIjcUEiJnKoQ==}
+  inngest@3.42.3:
+    resolution: {integrity: sha512-jhN0jIKFnzB+zuYElKhzJ0MHVvl0AbhjPo2qcWpwjapT+t6jIV3/wqOCP0sGgMVbeluGqC6YxewJInlBTJ933A==}
     engines: {node: '>=20'}
     peerDependencies:
       '@sveltejs/kit': '>=1.27.3'
@@ -4812,7 +4812,7 @@ snapshots:
 
   inherits@2.0.4: {}
 
-  inngest@3.42.2(express@4.21.2)(typescript@5.7.3)(zod@3.24.1):
+  inngest@3.42.3(express@4.21.2)(typescript@5.7.3)(zod@3.24.1):
     dependencies:
       '@bufbuild/protobuf': 2.2.3
       '@inngest/ai': 0.1.4
