@@ -3,7 +3,7 @@ title: "Provider"
 description: "A deep dive into the provider for streaming agents"
 ---
 
-The `AgentProvider` is a React component that creates a shared context for all `useAgents` hooks in your application. While it's optional, using it is highly recommended as it improves performance and ensures configuration consistency.
+The `AgentProvider` is a React component that creates a shared context for all `useAgent` hooks in your application. While it's optional, using it is highly recommended as it improves performance and ensures configuration consistency.
 
 ## Why Use the Provider?
 
@@ -16,9 +16,9 @@ By wrapping your agent-driven components in `AgentProvider`, you get several key
 
 ## How It Works
 
-`AgentProvider` creates a React Context that provides a shared transport instance, connection, and user information to any `useAgents` hook rendered within it. The hooks will automatically detect and use the context if it's available.
+`AgentProvider` creates a React Context that provides a shared transport instance, connection, and user information to any `useAgent` hook rendered within it. The hooks will automatically detect and use the context if it's available.
 
-If you don't use the provider, each `useAgents` hook will create its own transport and connection, which is less efficient.
+If you don't use the provider, each `useAgent` hook will create its own transport and connection, which is less efficient.
 
 ## Usage Patterns
 
