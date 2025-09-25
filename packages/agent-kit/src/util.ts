@@ -1,5 +1,5 @@
 import { type Inngest } from "inngest";
-import { InngestFunction } from "inngest/components/InngestFunction";
+import { type InngestFunction, isInngestFunction } from "inngest";
 import { getAsyncCtx, type AsyncContext } from "inngest/experimental";
 import { ZodType, type ZodObject, type ZodTypeAny } from "zod";
 
@@ -43,7 +43,7 @@ export const getStepTools = async (): Promise<
 
 export const isInngestFn = (fn: unknown): fn is InngestFunction.Any => {
   // Derivation of `InngestFunction` means it's definitely correct
-  if (fn instanceof InngestFunction) {
+  if (isInngestFunction(fn)) {
     return true;
   }
 
@@ -126,3 +126,143 @@ const helpers = {
     return typeof value === "object" && value !== null && !Array.isArray(value);
   },
 };
+
+// Minimal local copy of the event payload type used when invoking Inngest
+// functions as tools. This avoids importing from non-exported subpaths.
+export type MinimalEventPayload = {
+  // The payload data passed to the invoked function
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  data?: any;
+};
+
+export type SerializedError = {
+  name: string;
+  message: string;
+  stack?: string;
+  cause?: unknown;
+  // Marker to indicate this object has been serialized
+  __serialized?: true;
+  // Preserve common extra fields (eg. error.code) without being overly loose
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  [key: string]: any;
+};
+
+const SERIALIZED_KEY = "__serialized";
+const SERIALIZED_VALUE = true as const;
+
+const safeStringify = (value: unknown): string | undefined => {
+  try {
+    const seen = new WeakSet<object>();
+    return JSON.stringify(
+      value,
+      (_k, v: unknown) => {
+        if (typeof v === "object" && v !== null) {
+          const obj = v;
+          if (seen.has(obj)) return "[Circular]";
+          seen.add(obj);
+        }
+        return v;
+      },
+      2
+    );
+  } catch {
+    try {
+      return String(value);
+    } catch {
+      return undefined;
+    }
+  }
+};
+
+export function serializeError(
+  err: unknown,
+  maxDepth = 5,
+  seen: WeakSet<object> = new WeakSet()
+): SerializedError {
+  const make = (
+    name: string,
+    message: string,
+    stack?: string,
+    cause?: unknown
+  ): SerializedError => {
+    const out: SerializedError = {
+      name,
+      message,
+      ...(stack ? { stack } : {}),
+      [SERIALIZED_KEY]: SERIALIZED_VALUE,
+    };
+    if (cause !== undefined) {
+      try {
+        out.cause =
+          maxDepth > 0
+            ? serializeError(cause, maxDepth - 1, seen)
+            : safeStringify(cause);
+      } catch {
+        out.cause = safeStringify(cause);
+      }
+    }
+    return out;
+  };
+
+  try {
+    if (typeof err === "object" && err !== null) {
+      if (seen.has(err)) {
+        return make("Error", "[Circular]");
+      }
+      seen.add(err);
+
+      if ((err as SerializedError)[SERIALIZED_KEY] === SERIALIZED_VALUE) {
+        // Already serialized; trust the input shape
+        return err as SerializedError;
+      }
+
+      if (err instanceof Error) {
+        // Build base from Error and copy enumerable own props (eg. code)
+        const base = make(
+          err.name || "Error",
+          err.message || safeStringify(err) || "Unknown error",
+          err.stack
+        );
+
+        const extras = err as unknown as Record<string, unknown>;
+        for (const key in extras) {
+          if (
+            key === "name" ||
+            key === "message" ||
+            key === "stack" ||
+            key === "cause"
+          ) {
+            continue;
+          }
+          base[key] = extras[key];
+        }
+
+        // Recursively serialize cause if present
+        const anyErr = err as Error & { cause?: unknown };
+        if (anyErr.cause !== undefined) {
+          try {
+            base.cause = serializeError(anyErr.cause, maxDepth - 1, seen);
+          } catch {
+            base.cause = safeStringify(anyErr.cause);
+          }
+        }
+
+        return base;
+      }
+
+      // Non-Error object: do our best to capture something useful
+      const msg = safeStringify(err) || "Unknown error; could not stringify";
+      return make("Error", msg, "");
+    }
+
+    // Primitive throws (string, number, etc.)
+    return make("Error", String(err));
+  } catch {
+    // Final fallback: produce a generic error
+    return make(
+      "Could not serialize source error",
+      "Serializing the source error failed.",
+      ""
+    );
+  }
+}

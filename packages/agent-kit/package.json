@@ -64,15 +64,15 @@
     "@types/express": "^5.0.0",
     "@types/node": "^22.9.1",
     "@types/xxhashjs": "^0.2.4",
-    "inngest": "3.39.1",
-    "zod": "^3.23.6",
+    "inngest": "3.39.2",
     "nodemon": "^3.0.2",
     "ts-node": "^10.9.2",
     "tsup": "^8.3.6",
     "typescript": "^5.6.3",
     "typescript-eslint": "^8.15.0",
     "vite": "^6.0.0",
-    "vitest": "^2.1.8"
+    "vitest": "^2.1.8",
+    "zod": "^3.23.6"
   },
   "pnpm": {
     "overrides": {
