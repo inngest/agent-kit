@@ -39,10 +39,12 @@ export function createTool<
     name,
     description,
     parameters,
-    handler: handler as <TState extends StateData>(
+    handler<TS extends StateData>(
       input: ZodOutput<TInput>,
-      opts: Tool.Options<TState>
-    ) => MaybePromise<TOutput>,
+      opts: Tool.Options<TS>
+    ): MaybePromise<TOutput> {
+      return handler(input, opts as unknown as Tool.Options<TState>);
+    },
   };
 }
 
@@ -60,10 +62,10 @@ export type Tool<TName extends string, TInput extends Tool.Input, TOutput> = {
 
   strict?: boolean;
 
-  handler: <TState extends StateData>(
+  handler<TState extends StateData>(
     input: ZodOutput<TInput>,
     opts: Tool.Options<TState>
-  ) => MaybePromise<TOutput>;
+  ): MaybePromise<TOutput>;
 };
 
 export namespace Tool {

@@ -227,17 +227,15 @@ export const getDefaultRoutingAgent = () => {
         name: "select_agent",
         description:
           "Select an agent to handle the next step of the conversation",
-        parameters: z
-          .object({
-            name: z
-              .string()
-              .describe("The name of the agent that should handle the request"),
-            reason: z
-              .string()
-              .optional()
-              .describe("Brief explanation of why this agent was chosen"),
-          })
-          .strict(),
+        parameters: z.strictObject({
+          name: z
+            .string()
+            .describe("The name of the agent that should handle the request"),
+          reason: z
+            .string()
+            .optional()
+            .describe("Brief explanation of why this agent was chosen"),
+        }),
         handler: ({ name }, { network }) => {
           if (typeof name !== "string") {
             throw new Error("The routing agent requested an invalid agent");
@@ -260,14 +258,12 @@ export const getDefaultRoutingAgent = () => {
         name: "done",
         description:
           "Signal that the conversation is complete and no more agents need to be called",
-        parameters: z
-          .object({
-            summary: z
-              .string()
-              .optional()
-              .describe("Brief summary of what was accomplished"),
-          })
-          .strict(),
+        parameters: z.strictObject({
+          summary: z
+            .string()
+            .optional()
+            .describe("Brief summary of what was accomplished"),
+        }),
         handler: ({ summary }) => {
           // Return a completion message
           return summary || "Conversation completed successfully";
