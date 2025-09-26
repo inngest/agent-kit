@@ -2,6 +2,7 @@ import { type AiAdapter, type AiAdapters } from "@inngest/ai";
 import { type AgenticModel } from "../model";
 import * as anthropic from "./anthropic";
 import * as openai from "./openai";
+import * as azureOpenai from "./azure-openai";
 import * as gemini from "./gemini";
 import * as grok from "./grok";
 
@@ -16,6 +17,10 @@ export const adapters: Adapters = {
   "openai-chat": {
     request: openai.requestParser,
     response: openai.responseParser,
+  },
+  "azure-openai": {
+    request: azureOpenai.requestParser,
+    response: azureOpenai.responseParser,
   },
   anthropic: {
     request: anthropic.requestParser,

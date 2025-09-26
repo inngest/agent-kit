@@ -1,4 +1,4 @@
-import { createAgent, createTool, openai, type AnyZodType } from '@inngest/agent-kit';
+import { createAgent, createTool, openai, anthropic, grok, type AnyZodType } from '@inngest/agent-kit';
 import { z } from 'zod';
 
 import type { InsightsAgentState as InsightsState, SelectEventsResult } from './types';
@@ -22,7 +22,7 @@ export const selectEventsTool = createTool({
   name: 'select_events',
   description:
     "Select 1-5 event names from the provided list that are most relevant to the user's query.",
-  parameters: SelectEventsParams as unknown as AnyZodType, // xxx: (ted): need to align zod version; version 3.25 does not support same types as 3.22
+  parameters: SelectEventsParams,
   handler: (args: z.infer<typeof SelectEventsParams>, { network }) => {
     const { events } = args;
     if (!Array.isArray(events) || events.length === 0) {
@@ -72,7 +72,7 @@ export const eventMatcherAgent = createAgent<InsightsState>({
         : 'No event list is available. Ask the user to clarify which events they are interested in.',
     ].join('\n');
   },
-  model: openai({ model: 'gpt-5-nano-2025-08-07' }),
+  model: anthropic({ model: "claude-sonnet-4-0", defaultParameters: { max_tokens: 12000 } }),
   tools: [selectEventsTool],
   tool_choice: 'select_events',
 });
