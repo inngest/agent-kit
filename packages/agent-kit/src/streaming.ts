@@ -33,7 +33,7 @@ export interface AgentMessageChunk {
  */
 export const AgentMessageChunkSchema = z.object({
   event: z.string(),
-  data: z.record(z.string(), z.any()),
+  data: z.record(z.any()),
   timestamp: z.number(),
   sequenceNumber: z.number(),
   id: z.string(),

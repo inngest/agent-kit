@@ -9,8 +9,12 @@ import { type Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import { ListToolsResultSchema } from "@modelcontextprotocol/sdk/types.js";
 import { EventSource } from "eventsource";
 import { randomUUID } from "crypto";
-import { referenceFunction, type Inngest, type GetStepTools } from "inngest";
-import { errors } from "inngest/internals";
+import {
+  referenceFunction,
+  type Inngest,
+  type GetStepTools,
+  serializeError,
+} from "inngest";
 import { type InngestFunction } from "inngest";
 import { type MinimalEventPayload } from "inngest/types";
 import type { ZodType } from "zod";
@@ -661,7 +665,7 @@ export class Agent<T extends StateData> {
 
         type ToolHandlerResult =
           | { data: unknown }
-          | { error: ReturnType<typeof errors.serializeError> };
+          | { error: ReturnType<typeof serializeError> };
 
         const result: ToolHandlerResult = await Promise.resolve(
           found.handler(tool.input, {
@@ -679,7 +683,7 @@ export class Agent<T extends StateData> {
             };
           })
           .catch((err: Error) => {
-            return { error: errors.serializeError(err) };
+            return { error: serializeError(err) };
           });
 
         // Stream tool output if context available
@@ -845,10 +849,7 @@ export class Agent<T extends StateData> {
 
         let zschema: undefined | ZodType;
         try {
-          // The converter may return a Zod v3 schema type; coerce to v4 type or fallback
-          zschema = JSONSchemaToZod.convert(
-            t.inputSchema as JSONSchema
-          ) as unknown as ZodType;
+          zschema = JSONSchemaToZod.convert(t.inputSchema as JSONSchema);
           // eslint-disable-next-line @typescript-eslint/no-unused-vars
         } catch (e) {
           // Do nothing here.
