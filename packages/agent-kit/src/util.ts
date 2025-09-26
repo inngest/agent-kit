@@ -1,7 +1,7 @@
 import { type Inngest } from "inngest";
 import { type InngestFunction, isInngestFunction } from "inngest";
 import { getAsyncCtx, type AsyncContext } from "inngest/experimental";
-import { ZodType, type ZodObject, type ZodTypeAny } from "zod";
+import { type ZodType, ZodObject } from "zod";
 
 export type MaybePromise<T> = T | Promise<T>;
 
@@ -15,8 +15,7 @@ export type MaybePromise<T> = T | Promise<T>;
  * (including minor and patch versions). It may be pertinent to maintain a
  * custom type which matches many versions in the future.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type AnyZodType = ZodType<any> | ZodTypeAny;
+export type AnyZodType = ZodType;
 
 /**
  * Given an unknown value, return a string representation of the error if it is
@@ -115,14 +114,11 @@ export const getInngestFnInput = (
 };
 
 const helpers = {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  isZodObject: (value: unknown): value is ZodObject<any> => {
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-    return value instanceof ZodType && value._def.typeName === "ZodObject";
+  isZodObject: (value: unknown): value is ZodObject => {
+    return value instanceof ZodObject;
   },
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  isObject: (value: unknown): value is Record<string, any> => {
+  isObject: (value: unknown): value is Record<string, unknown> => {
     return typeof value === "object" && value !== null && !Array.isArray(value);
   },
 };
