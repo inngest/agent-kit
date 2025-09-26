@@ -106,11 +106,9 @@ export const requestParser: AgenticModel.RequestParser<Anthropic.AiModel> = (
         input_schema: (t.parameters
           ? z.toJSONSchema(t.parameters, {
               target: "draft-2020-12",
-              io: "input",
             })
           : z.toJSONSchema(z.object({}), {
               target: "draft-2020-12",
-              io: "input",
             })) as AnthropicAiAdapter.Tool.InputSchema,
       };
     });
