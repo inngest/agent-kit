@@ -8,7 +8,6 @@ import {
   type Anthropic,
   type AnthropicAiAdapter,
 } from "@inngest/ai";
-import { zodToJsonSchema } from "zod-to-json-schema";
 import { z } from "zod";
 import { type AgenticModel } from "../model";
 import { type Message, type TextMessage } from "../types";
@@ -105,10 +104,14 @@ export const requestParser: AgenticModel.RequestParser<Anthropic.AiModel> = (
         name: t.name,
         description: t.description,
         input_schema: (t.parameters
-          ? zodToJsonSchema(t.parameters)
-          : zodToJsonSchema(
-              z.object({})
-            )) as AnthropicAiAdapter.Tool.InputSchema,
+          ? z.toJSONSchema(t.parameters, {
+              target: "draft-2020-12",
+              io: "input",
+            })
+          : z.toJSONSchema(z.object({}), {
+              target: "draft-2020-12",
+              io: "input",
+            })) as AnthropicAiAdapter.Tool.InputSchema,
       };
     });
     request.tool_choice = toolChoice(tool_choice);
