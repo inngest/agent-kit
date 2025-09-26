@@ -1,5 +1,5 @@
 import { type Inngest } from "inngest";
-import { InngestFunction } from "inngest/components/InngestFunction";
+import { type InngestFunction, isInngestFunction } from "inngest";
 import { getAsyncCtx, type AsyncContext } from "inngest/experimental";
 import { ZodType, type ZodObject, type ZodTypeAny } from "zod";
 
@@ -43,7 +43,7 @@ export const getStepTools = async (): Promise<
 
 export const isInngestFn = (fn: unknown): fn is InngestFunction.Any => {
   // Derivation of `InngestFunction` means it's definitely correct
-  if (fn instanceof InngestFunction) {
+  if (isInngestFunction(fn)) {
     return true;
   }
 
