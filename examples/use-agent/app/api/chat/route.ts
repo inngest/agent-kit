@@ -1,14 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { inngest } from "@/inngest/client";
-import { randomUUID } from "crypto";
 import { z } from "zod";
 
 // Zod schema for UserMessage
 const userMessageSchema = z.object({
-  id: z.string().uuid("Valid message ID is required"),
+  id: z.uuid("Valid message ID is required"),
   content: z.string().min(1, "Message content is required"),
   role: z.literal("user"),
-  state: z.record(z.unknown()).optional(),
+  state: z.record(z.string(), z.any()).optional(),
   clientTimestamp: z.coerce.date().optional(), // ✅ Coerce string to Date object
   systemPrompt: z.string().optional(),
 });
@@ -30,7 +29,7 @@ export async function POST(req: NextRequest) {
     const validationResult = chatRequestSchema.safeParse(body);
     if (!validationResult.success) {
       return NextResponse.json(
-        { error: validationResult.error.errors[0].message },
+        { error: validationResult.error.message },
         { status: 400 }
       );
     }

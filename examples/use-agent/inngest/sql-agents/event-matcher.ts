@@ -27,8 +27,7 @@ const selectEventsTool = createTool({
         .describe(
           "An array of 1-6 event names selected from the list of available events that best match the user's intent."
         ),
-    })
-    .strict() as any,
+    }),
   handler: (args: SelectEventsInput, ctx): SelectEventsResult => {
     const network = ctx?.network as Network<InsightsState>;
     const selected = args.events;

@@ -69,7 +69,7 @@ export const queryWriterAgent = createAgent<InsightsState>({
   description: 'Generates a safe, read-only SQL SELECT statement for ClickHouse.',
   system: async ({ network }): Promise<string> => {
     const selected = Array.isArray(network?.state?.data?.selectedEvents)
-      ? (network!.state.data.selectedEvents as string[])
+      ? (network.state.data.selectedEvents as { event_name: string }[]).map(e => e.event_name)
       : [];
     return [
       'You write ClickHouse-compatible SQL for analytics.',
