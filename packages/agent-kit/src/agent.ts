@@ -9,9 +9,13 @@ import { type Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import { ListToolsResultSchema } from "@modelcontextprotocol/sdk/types.js";
 import { EventSource } from "eventsource";
 import { randomUUID } from "crypto";
-import { referenceFunction, type Inngest, type GetStepTools } from "inngest";
-import { type InngestFunction } from "inngest/components/InngestFunction";
-import { serializeError } from "inngest/helpers/errors";
+import {
+  referenceFunction,
+  type Inngest,
+  type GetStepTools,
+  serializeError,
+} from "inngest";
+import { type InngestFunction } from "inngest";
 import { type MinimalEventPayload } from "inngest/types";
 import type { ZodType } from "zod";
 import { createAgenticModelFromAiAdapter, type AgenticModel } from "./model";
