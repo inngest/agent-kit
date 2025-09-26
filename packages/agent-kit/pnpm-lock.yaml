@@ -37,9 +37,6 @@ importers:
       xxhashjs:
         specifier: ^0.2.2
         version: 0.2.2
-      zod-to-json-schema:
-        specifier: ^3.24.3
-        version: 3.24.6(zod@3.25.76)
     devDependencies:
       '@types/express':
         specifier: ^5.0.0
@@ -52,7 +49,7 @@ importers:
         version: 0.2.4
       inngest:
         specifier: 3.43.1
-        version: 3.43.1(express@4.21.2)(typescript@5.9.2)(zod@3.25.76)
+        version: 3.43.1(express@4.21.2)(typescript@5.9.2)(zod@4.1.11)
       nodemon:
         specifier: ^3.0.2
         version: 3.1.10
@@ -75,8 +72,8 @@ importers:
         specifier: ^2.1.8
         version: 2.1.9(@types/node@22.18.6)
       zod:
-        specifier: ^3.23.6
-        version: 3.25.76
+        specifier: ^4.1.11
+        version: 4.1.11
 
 packages:
 
@@ -2627,6 +2624,9 @@ packages:
   zod@3.25.76:
     resolution: {integrity: sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ==}
 
+  zod@4.1.11:
+    resolution: {integrity: sha512-WPsqwxITS2tzx1bzhIKsEs19ABD5vmCVa4xBo2tq/SrV4RNZtfws1EnCWQXM6yh8bD08a1idvkB5MZSBiZsjwg==}
+
 snapshots:
 
   '@bufbuild/protobuf@2.9.0': {}
@@ -4520,7 +4520,7 @@ snapshots:
 
   inherits@2.0.4: {}
 
-  inngest@3.43.1(express@4.21.2)(typescript@5.9.2)(zod@3.25.76):
+  inngest@3.43.1(express@4.21.2)(typescript@5.9.2)(zod@4.1.11):
     dependencies:
       '@bufbuild/protobuf': 2.9.0
       '@inngest/ai': 0.1.6
@@ -4544,7 +4544,7 @@ snapshots:
       serialize-error-cjs: 0.1.4
       strip-ansi: 5.2.0
       temporal-polyfill: 0.2.5
-      zod: 3.25.76
+      zod: 4.1.11
     optionalDependencies:
       express: 4.21.2
       typescript: 5.9.2
@@ -5411,3 +5411,5 @@ snapshots:
       zod: 3.25.76
 
   zod@3.25.76: {}
+
+  zod@4.1.11: {}
