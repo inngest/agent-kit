@@ -1,6 +1,9 @@
 import { type AiAdapter, type AzureOpenAi, type OpenAi } from "@inngest/ai";
 import { type AgenticModel } from "../model";
-import { requestParser as openaiRequestParser, responseParser as openaiResponseParser } from "./openai";
+import {
+  requestParser as openaiRequestParser,
+  responseParser as openaiResponseParser,
+} from "./openai";
 
 export const requestParser: AgenticModel.RequestParser<AzureOpenAi.AiModel> = (
   model,
@@ -13,11 +16,9 @@ export const requestParser: AgenticModel.RequestParser<AzureOpenAi.AiModel> = (
     messages,
     tools,
     tool_choice
-  ) as AiAdapter.Input<AzureOpenAi.AiModel>;
-
-export const responseParser: AgenticModel.ResponseParser<AzureOpenAi.AiModel> = (
-  output
-) =>
-  openaiResponseParser(
-    output as unknown as AiAdapter.Output<OpenAi.AiModel>
   );
+
+export const responseParser: AgenticModel.ResponseParser<
+  AzureOpenAi.AiModel
+> = (output) =>
+  openaiResponseParser(output as unknown as AiAdapter.Output<OpenAi.AiModel>);
