@@ -8,11 +8,18 @@ import type { StreamableHTTPReconnectionOptions } from "@modelcontextprotocol/sd
 import type { OAuthClientProvider } from "@modelcontextprotocol/sdk/client/auth.js";
 
 /**
+ * ToolResultPayload mirrors the UI package shape for structured tool outputs.
+ */
+export type ToolResultPayload<T> = { data: T };
+
+/**
  * createTool is a helper that properly types the input argument for a handler
- * based off of the Zod parameter types.
+ * based off of the Zod parameter types, and captures the handler output type.
  */
 export function createTool<
+  TName extends string,
   TInput extends Tool.Input,
+  TOutput,
   TState extends StateData,
 >({
   name,
@@ -20,28 +27,29 @@ export function createTool<
   parameters,
   handler,
 }: {
-  name: string;
+  name: TName;
   description?: string;
   parameters?: TInput;
   handler: (
     input: ZodOutput<TInput>,
     opts: Tool.Options<TState>
-  ) => MaybePromise<any>; // eslint-disable-line @typescript-eslint/no-explicit-any
-}): Tool<TInput> {
+  ) => MaybePromise<TOutput>;
+}): Tool<TName, TInput, TOutput> {
   return {
     name,
     description,
     parameters,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    handler: handler as any as <TState extends StateData>(
+    handler<TS extends StateData>(
       input: ZodOutput<TInput>,
-      opts: Tool.Options<TState>
-    ) => MaybePromise<any>, // eslint-disable-line @typescript-eslint/no-explicit-any
+      opts: Tool.Options<TS>
+    ): MaybePromise<TOutput> {
+      return handler(input, opts as unknown as Tool.Options<TState>);
+    },
   };
 }
 
-export type Tool<TInput extends Tool.Input> = {
-  name: string;
+export type Tool<TName extends string, TInput extends Tool.Input, TOutput> = {
+  name: TName;
   description?: string;
   parameters?: TInput;
 
@@ -54,14 +62,14 @@ export type Tool<TInput extends Tool.Input> = {
 
   strict?: boolean;
 
-  handler: <TState extends StateData>(
+  handler<TState extends StateData>(
     input: ZodOutput<TInput>,
     opts: Tool.Options<TState>
-  ) => MaybePromise<any>; // eslint-disable-line @typescript-eslint/no-explicit-any
+  ): MaybePromise<TOutput>;
 };
 
 export namespace Tool {
-  export type Any = Tool<Tool.Input>;
+  export type Any = Tool<string, Tool.Input, unknown>;
 
   export type Options<T extends StateData> = {
     agent: Agent<T>;
@@ -72,6 +80,32 @@ export namespace Tool {
   export type Input = AnyZodType;
 
   export type Choice = "auto" | "any" | (string & {});
+}
+
+/**
+ * Helper to create a strongly-typed tool manifest from a list of tools.
+ *
+ * Returns a simple runtime object keyed by tool name. The primary value is the
+ * compile-time type that captures each tool's input and output types.
+ */
+export function createToolManifest<
+  TTools extends readonly Tool<string, Tool.Input, unknown>[],
+>(tools: TTools) {
+  const manifest: Record<string, { input: unknown; output: unknown }> = {};
+  for (const t of tools) {
+    // runtime structure is intentionally minimal; types carry the value
+    manifest[t.name] = { input: {}, output: {} };
+  }
+  type Result = {
+    [K in TTools[number] as K["name"] & string]: K extends Tool<
+      string,
+      infer In extends AnyZodType,
+      infer Out
+    >
+      ? { input: ZodOutput<In>; output: ToolResultPayload<Out> }
+      : never;
+  };
+  return manifest as Result;
 }
 
 export namespace MCP {

@@ -1,7 +1,4 @@
-import {
-  JSONSchemaToZod,
-  type JSONSchema,
-} from "@dmitryrechkin/json-schema-to-zod";
+import { type JSONSchema } from "@dmitryrechkin/json-schema-to-zod";
 import { type AiAdapter } from "@inngest/ai";
 import { Client as MCPClient } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
@@ -11,16 +8,22 @@ import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 import { type Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import { ListToolsResultSchema } from "@modelcontextprotocol/sdk/types.js";
 import { EventSource } from "eventsource";
-import { referenceFunction, type Inngest } from "inngest";
-import { type InngestFunction } from "inngest/components/InngestFunction";
-import { serializeError } from "inngest/helpers/errors";
+import { randomUUID } from "crypto";
+import { referenceFunction, type Inngest, type GetStepTools } from "inngest";
+import { errors } from "inngest/internals";
+import { type InngestFunction } from "inngest";
 import { type MinimalEventPayload } from "inngest/types";
 import type { ZodType } from "zod";
 import { createAgenticModelFromAiAdapter, type AgenticModel } from "./model";
 import { createNetwork, NetworkRun } from "./network";
 import { State, type StateData } from "./state";
 import { type MCP, type Tool } from "./tool";
-import { AgentResult, type Message, type ToolResultMessage } from "./types";
+import {
+  AgentResult,
+  type Message,
+  type ToolResultMessage,
+  type UserMessage,
+} from "./types";
 import {
   getInngestFnInput,
   getStepTools,
@@ -33,6 +36,13 @@ import {
   loadThreadFromStorage,
   saveThreadToStorage,
 } from "./history";
+// Streaming integration will be handled at the network level for now
+import {
+  StreamingContext,
+  createStepWrapper,
+  generateId,
+  type StreamingConfig,
+} from "./streaming";
 
 /**
  * Agent represents a single agent, responsible for a set of tasks.
@@ -176,8 +186,16 @@ export class Agent<T extends StateData> {
    * the input is an empty string, only the system prompt will execute.
    */
   async run(
-    input: string,
-    { model, network, state, maxIter = 0 }: Agent.RunOptions<T> | undefined = {}
+    input: UserMessage | string,
+    {
+      model,
+      network,
+      state,
+      maxIter = 0,
+      streaming,
+      streamingContext,
+      step,
+    }: Agent.RunOptions<T> | undefined = {}
   ): Promise<AgentResult> {
     // Attempt to resolve the MCP tools, if we haven't yet done so.
     await this.initMCP();
@@ -196,11 +214,80 @@ export class Agent<T extends StateData> {
       s
     );
 
+    // Handle standalone agent streaming (ignored if part of a network)
+    let standaloneStreamingContext: StreamingContext | undefined;
+    let standaloneWrappedStep: GetStepTools<Inngest.Any> | undefined;
+    if (!network && streaming?.publish) {
+      // Generate IDs for this standalone agent run using Inngest steps for deterministic replay
+      const stepTools = await getStepTools();
+      let agentRunId: string;
+      let messageId: string;
+
+      if (stepTools) {
+        // Use Inngest steps for deterministic ID generation
+        const ids = await stepTools.run("generate-standalone-agent-ids", () => {
+          return {
+            agentRunId: generateId(),
+            messageId: randomUUID(),
+          };
+        });
+        agentRunId = ids.agentRunId;
+        messageId = ids.messageId;
+      } else {
+        // Fallback for non-Inngest contexts
+        agentRunId = generateId();
+        messageId = randomUUID();
+      }
+
+      // Create streaming context for this standalone agent
+      standaloneStreamingContext = StreamingContext.fromNetworkState(s, {
+        publish: streaming.publish,
+        runId: agentRunId,
+        messageId,
+        scope: "agent",
+        simulateChunking: streaming.simulateChunking,
+      });
+
+      // Create wrapped step for standalone agent streaming
+      standaloneWrappedStep = createStepWrapper(
+        stepTools,
+        standaloneStreamingContext
+      );
+
+      // Emit agent run.started event
+      await standaloneStreamingContext.publishEvent({
+        event: "run.started",
+        data: {
+          runId: agentRunId,
+          scope: "agent",
+          name: this.name,
+          messageId,
+          threadId: s.threadId,
+        },
+      });
+    }
+
+    // Use standalone streaming context if available, otherwise use network-provided context
+    const effectiveStreamingContext =
+      streamingContext || standaloneStreamingContext;
+    // Use standalone wrapped step if available, otherwise use network-provided step
+    const effectiveStep: GetStepTools<Inngest.Any> | undefined =
+      step || standaloneWrappedStep;
+
+    // Note: Streaming is controlled at the network level when part of a network.
+    // For standalone agents, streaming is controlled by the streaming parameter.
+
+    // Extract string content for history functions that expect string input
+    const inputContent =
+      typeof input === "object" && input !== null && "content" in input
+        ? input.content
+        : input;
+
     // Initialize conversation thread: Creates a new thread or auto-generates if needed
     await initializeThread({
       state: s,
       history: this.history,
-      input,
+      input: inputContent,
       network: run,
     });
 
@@ -208,7 +295,7 @@ export class Agent<T extends StateData> {
     await loadThreadFromStorage({
       state: s,
       history: this.history,
-      input,
+      input: inputContent,
       network: run,
     });
 
@@ -230,60 +317,119 @@ export class Agent<T extends StateData> {
     // Store initial result count to track new results
     const initialResultCount = s.results.length;
 
-    do {
-      // Call lifecycles each time we perform inference.
-      if (this.lifecycles?.onStart) {
-        const modified = await this.lifecycles.onStart({
-          agent: this,
-          network: run,
-          input,
-          prompt,
-          history,
-        });
+    try {
+      do {
+        // Call lifecycles each time we perform inference.
+        if (this.lifecycles?.onStart) {
+          const modified = await this.lifecycles.onStart({
+            agent: this,
+            network: run,
+            input: inputContent,
+            prompt,
+            history,
+          });
 
-        if (modified.stop) {
-          // We allow users to prevent calling the LLM directly here.
-          return result;
+          if (modified.stop) {
+            // We allow users to prevent calling the LLM directly here.
+            return result;
+          }
+
+          prompt = modified.prompt;
+          history = modified.history;
         }
 
-        prompt = modified.prompt;
-        history = modified.history;
+        const inference = await this.performInference(
+          p,
+          prompt,
+          history,
+          run,
+          effectiveStreamingContext,
+          effectiveStep
+        );
+
+        hasMoreActions = Boolean(
+          this.tools.size > 0 &&
+            inference.output.length &&
+            inference.output[inference.output.length - 1]!.stop_reason !==
+              "stop"
+        );
+
+        result = inference;
+        // Set the canonical message ID from streaming context for standalone agents
+        if (standaloneStreamingContext) {
+          result.id = standaloneStreamingContext.messageId;
+        }
+        history = [...inference.output];
+        iter++;
+      } while (hasMoreActions && iter < maxIter);
+
+      if (this.lifecycles?.onFinish) {
+        result = await this.lifecycles.onFinish({
+          agent: this,
+          network: run,
+          result,
+        });
       }
 
-      const inference = await this.performInference(p, prompt, history, run);
+      // Note that the routing lifecycles aren't called by the agent.  They're called
+      // by the network.
 
-      hasMoreActions = Boolean(
-        this.tools.size > 0 &&
-          inference.output.length &&
-          inference.output[inference.output.length - 1]!.stop_reason !== "stop"
-      );
-
-      result = inference;
-      history = [...inference.output];
-      iter++;
-    } while (hasMoreActions && iter < maxIter);
-
-    if (this.lifecycles?.onFinish) {
-      result = await this.lifecycles.onFinish({
-        agent: this,
+      // Save new conversation results to storage: Persists only the new AgentResults
+      // generated during this run (excluding any historical results that were loaded).
+      // This allows the conversation to be continued in future runs with full context.
+      await saveThreadToStorage({
+        state: s,
+        history: this.history,
+        input: inputContent,
+        initialResultCount,
         network: run,
-        result,
       });
+    } catch (error) {
+      // Emit error events for standalone agent streaming
+      if (standaloneStreamingContext) {
+        try {
+          await standaloneStreamingContext.publishEvent({
+            event: "run.failed",
+            data: {
+              runId: standaloneStreamingContext.runId,
+              scope: "agent",
+              name: this.name,
+              error: error instanceof Error ? error.message : String(error),
+              recoverable: false,
+            },
+          });
+        } catch (streamingError) {
+          // Swallow streaming errors to prevent masking the original error
+          console.warn("Failed to publish run.failed event:", streamingError);
+        }
+      }
+      // Re-throw the original error
+      throw error;
+    } finally {
+      // Always emit completion events for standalone agent streaming
+      if (standaloneStreamingContext) {
+        try {
+          await standaloneStreamingContext.publishEvent({
+            event: "run.completed",
+            data: {
+              runId: standaloneStreamingContext.runId,
+              scope: "agent",
+              name: this.name,
+            },
+          });
+          await standaloneStreamingContext.publishEvent({
+            event: "stream.ended",
+            data: {
+              scope: "agent",
+              messageId: standaloneStreamingContext.messageId,
+            },
+          });
+        } catch (streamingError) {
+          // Swallow streaming errors to prevent breaking the application
+          console.warn("Failed to publish completion events:", streamingError);
+        }
+      }
     }
-
-    // Note that the routing lifecycles aren't called by the agent.  They're called
-    // by the network.
-
-    // Save new conversation results to storage: Persists only the new AgentResults
-    // generated during this run (excluding any historical results that were loaded).
-    // This allows the conversation to be continued in future runs with full context.
-    await saveThreadToStorage({
-      state: s,
-      history: this.history,
-      input,
-      initialResultCount,
-      network: run,
-    });
 
     return result;
   }
@@ -292,7 +438,9 @@ export class Agent<T extends StateData> {
     p: AgenticModel.Any,
     prompt: Message[],
     history: Message[],
-    network: NetworkRun<T>
+    network: NetworkRun<T>,
+    streamingContext?: StreamingContext,
+    step?: GetStepTools<Inngest.Any>
   ): Promise<AgentResult> {
     const { output, raw } = await p.infer(
       this.name,
@@ -320,8 +468,91 @@ export class Agent<T extends StateData> {
       });
     }
 
-    // And ensure we invoke any call from the agent
-    const toolCallOutput = await this.invokeTools(result.output, network);
+    // Fallback streaming of assistant text if streaming context exists
+    if (streamingContext) {
+      // Find the last assistant text message
+      const lastTextMsg = [...result.output]
+        .reverse()
+        .find((m) => m.type === "text" && m.role === "assistant");
+      let content = "";
+      if (lastTextMsg && lastTextMsg.type === "text") {
+        const anyMsg = lastTextMsg as unknown as {
+          content: string | Array<{ type: "text"; text: string }>;
+        };
+        if (typeof anyMsg.content === "string") {
+          content = anyMsg.content;
+        } else if (Array.isArray(anyMsg.content)) {
+          content = anyMsg.content.map((c) => c.text).join("");
+        }
+      }
+
+      if (content && content.length > 0) {
+        // Generate partId deterministically within a step to avoid replay issues
+        const stepTools = step || (await getStepTools());
+        const partId = stepTools
+          ? await stepTools.run(
+              `generate-text-part-id-${streamingContext.messageId}`,
+              () => {
+                return streamingContext.generatePartId();
+              }
+            )
+          : streamingContext.generatePartId();
+
+        await streamingContext.publishEvent({
+          event: "part.created",
+          data: {
+            partId,
+            runId: streamingContext.runId,
+            messageId: streamingContext.messageId,
+            type: "text",
+            metadata: { agentName: this.name },
+          },
+        });
+
+        if (streamingContext.isSimulatedChunking()) {
+          const chunkSize = 50;
+          for (let i = 0; i < content.length; i += chunkSize) {
+            await streamingContext.publishEvent({
+              event: "text.delta",
+              data: {
+                partId,
+                messageId: streamingContext.messageId,
+                delta: content.slice(i, i + chunkSize),
+              },
+            });
+          }
+        } else {
+          // Single delta when not simulating chunking
+          await streamingContext.publishEvent({
+            event: "text.delta",
+            data: {
+              partId,
+              messageId: streamingContext.messageId,
+              delta: content,
+            },
+          });
+        }
+
+        await streamingContext.publishEvent({
+          event: "part.completed",
+          data: {
+            partId,
+            runId: streamingContext.runId,
+            messageId: streamingContext.messageId,
+            type: "text",
+            finalContent: content,
+          },
+        });
+      }
+    }
+
+    // And ensure we invoke any call from the agent, streaming tool I/O if possible
+    const toolCallOutput = await this.invokeTools(
+      result.output,
+      network,
+      streamingContext,
+      step
+    );
     if (toolCallOutput.length > 0) {
       result.toolCalls = result.toolCalls.concat(toolCallOutput);
     }
@@ -335,9 +566,13 @@ export class Agent<T extends StateData> {
    */
   private async invokeTools(
     msgs: Message[],
-    network: NetworkRun<T>
+    network: NetworkRun<T>,
+    streamingContext?: StreamingContext,
+    step?: GetStepTools<Inngest.Any>
   ): Promise<ToolResultMessage[]> {
     const output: ToolResultMessage[] = [];
+    // Best-effort streaming for tool execution: emit tool-call and output deltas via network streaming if available
+    // Determine if a StreamingContext exists by checking for a symbol on step wrapper (not exposed); for now rely on model-level streaming additions later
 
     for (const msg of msgs) {
       if (msg.type !== "tool_call") {
@@ -356,6 +591,67 @@ export class Agent<T extends StateData> {
           );
         }
 
+        // Stream tool arguments if context available
+        const toolArgsJson = JSON.stringify(tool.input ?? {});
+        if (streamingContext) {
+          // Generate partId deterministically within a step to avoid replay issues
+          const stepTools = step || (await getStepTools());
+          const toolCallPartId = stepTools
+            ? await stepTools.run(
+                `generate-tool-part-id-${streamingContext.messageId}-${tool.name}`,
+                () => {
+                  return streamingContext.generatePartId();
+                }
+              )
+            : streamingContext.generatePartId();
+
+          await streamingContext.publishEvent({
+            event: "part.created",
+            data: {
+              partId: toolCallPartId,
+              runId: streamingContext.runId,
+              messageId: streamingContext.messageId,
+              type: "tool-call",
+              metadata: { toolName: tool.name, agentName: this.name },
+            },
+          });
+          if (streamingContext.isSimulatedChunking()) {
+            const argChunkSize = 50;
+            for (let i = 0; i < toolArgsJson.length; i += argChunkSize) {
+              await streamingContext.publishEvent({
+                event: "tool_call.arguments.delta",
+                data: {
+                  partId: toolCallPartId,
+                  delta: toolArgsJson.slice(i, i + argChunkSize),
+                  toolName: i === 0 ? tool.name : undefined,
+                  messageId: streamingContext.messageId,
+                },
+              });
+            }
+          } else {
+            await streamingContext.publishEvent({
+              event: "tool_call.arguments.delta",
+              data: {
+                partId: toolCallPartId,
+                delta: toolArgsJson,
+                toolName: tool.name,
+                messageId: streamingContext.messageId,
+              },
+            });
+          }
+          await streamingContext.publishEvent({
+            event: "part.completed",
+            data: {
+              partId: toolCallPartId,
+              runId: streamingContext.runId,
+              messageId: streamingContext.messageId,
+              type: "tool-call",
+              finalContent: tool.input ?? {},
+              metadata: { toolName: tool.name, agentName: this.name },
+            },
+          });
+        }
+
         // Call this tool.
         //
         // XXX: You might expect this to be wrapped in a step, but each tool can
@@ -363,25 +659,89 @@ export class Agent<T extends StateData> {
         // human in the loop tasks.
         //
 
-        const result = await Promise.resolve(
+        type ToolHandlerResult =
+          | { data: unknown }
+          | { error: ReturnType<typeof errors.serializeError> };
+
+        const result: ToolHandlerResult = await Promise.resolve(
           found.handler(tool.input, {
             agent: this,
             network,
-            step: await getStepTools(),
+            step: step as GetStepTools<Inngest.Any>,
           })
         )
           .then((r) => {
             return {
-              // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
               data:
                 typeof r === "undefined"
                   ? `${tool.name} successfully executed`
                   : r,
             };
           })
-          .catch((err) => {
-            return { error: serializeError(err) };
+          .catch((err: Error) => {
+            return { error: errors.serializeError(err) };
           });
+
+        // Stream tool output if context available
+        if (streamingContext) {
+          // Generate partId deterministically within a step to avoid replay issues
+          const stepTools = step || (await getStepTools());
+          const outputPartId = stepTools
+            ? await stepTools.run(
+                `generate-output-part-id-${streamingContext.messageId}-${tool.name}`,
+                () => {
+                  return streamingContext.generatePartId();
+                }
+              )
+            : streamingContext.generatePartId();
+
+          await streamingContext.publishEvent({
+            event: "part.created",
+            data: {
+              partId: outputPartId,
+              runId: streamingContext.runId,
+              messageId: streamingContext.messageId,
+              type: "tool-output",
+              metadata: { toolName: tool.name, agentName: this.name },
+            },
+          });
+
+          const resultJson = JSON.stringify(result);
+          if (streamingContext.isSimulatedChunking()) {
+            const outChunk = 80;
+            for (let i = 0; i < resultJson.length; i += outChunk) {
+              await streamingContext.publishEvent({
+                event: "tool_call.output.delta",
+                data: {
+                  partId: outputPartId,
+                  delta: resultJson.slice(i, i + outChunk),
+                  messageId: streamingContext.messageId,
+                },
+              });
+            }
+          } else {
+            await streamingContext.publishEvent({
+              event: "tool_call.output.delta",
+              data: {
+                partId: outputPartId,
+                delta: resultJson,
+                messageId: streamingContext.messageId,
+              },
+            });
+          }
+
+          await streamingContext.publishEvent({
+            event: "part.completed",
+            data: {
+              partId: outputPartId,
+              runId: streamingContext.runId,
+              messageId: streamingContext.messageId,
+              type: "tool-output",
+              finalContent: result,
+              metadata: { toolName: tool.name, agentName: this.name },
+            },
+          });
+        }
 
         output.push({
           role: "tool_result",
@@ -403,26 +763,41 @@ export class Agent<T extends StateData> {
   }
 
   private async agentPrompt(
-    input: string,
+    input: UserMessage | string,
     network?: NetworkRun<T>
   ): Promise<Message[]> {
     // Prompt returns the full prompt for the current agent.  This does NOT
     // include the existing network's state as part of the prompt.
     //
     // Note that the agent's system message always comes first.
+    const systemContent =
+      typeof this.system === "string"
+        ? this.system
+        : await this.system({ network });
+
+    // Extract content and optional system prompt from input
+    const inputContent =
+      typeof input === "object" && input !== null && "content" in input
+        ? input.content
+        : input;
+
+    const userSystemPrompt =
+      typeof input === "object" && input !== null && "systemPrompt" in input
+        ? input.systemPrompt
+        : undefined;
+
     const messages: Message[] = [
       {
         type: "text",
         role: "system",
-        content:
-          typeof this.system === "string"
-            ? this.system
-            : await this.system({ network }),
+        content: userSystemPrompt
+          ? `${systemContent}\n\n${userSystemPrompt}`
+          : systemContent,
       },
     ];
 
-    if (input.length > 0) {
-      messages.push({ type: "text", role: "user", content: input });
+    if (inputContent.length > 0) {
+      messages.push({ type: "text", role: "user", content: inputContent });
     }
 
     if (this.assistant.length > 0) {
@@ -455,6 +830,9 @@ export class Agent<T extends StateData> {
    * listMCPTools lists all available tools for a given MCP server
    */
   private async listMCPTools(server: MCP.Server) {
+    const { JSONSchemaToZod } = await import(
+      "@dmitryrechkin/json-schema-to-zod"
+    );
     const client = await this.mcpClient(server);
     this._mcpClients.push(client);
     try {
@@ -467,7 +845,10 @@ export class Agent<T extends StateData> {
 
         let zschema: undefined | ZodType;
         try {
-          zschema = JSONSchemaToZod.convert(t.inputSchema as JSONSchema);
+          // The converter may return a Zod v3 schema type; coerce to v4 type or fallback
+          zschema = JSONSchemaToZod.convert(
+            t.inputSchema as JSONSchema
+          ) as unknown as ZodType;
           // eslint-disable-next-line @typescript-eslint/no-unused-vars
         } catch (e) {
           // Do nothing here.
@@ -627,6 +1008,16 @@ export namespace Agent {
      */
     state?: State<T>;
     maxIter?: number;
+    /**
+     * Streaming configuration for standalone agent runs. When provided, the agent will
+     * automatically emit streaming events throughout its execution. Note: this is ignored
+     * when the agent is run within a network, as networks control streaming.
+     */
+    streaming?: StreamingConfig;
+    // Internal: provided by Network to enable runtime streaming from agents
+    streamingContext?: StreamingContext;
+    // Internal: provided by Network to pass wrapped step tools for automatic step events
+    step?: GetStepTools<Inngest.Any>;
   }
 
   export interface Lifecycle<T extends StateData> {

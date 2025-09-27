@@ -1,0 +1,126 @@
+---
+title: "Overview"
+description: "Realtime event streaming with AgentKit + useAgent"
+---
+
+With a useAgent hook you can seamlessly stream a network of agents, a single agent and durable steps within tools used by your agents. You can think of useAgent as the bridge between durable agents and your user interface.
+
+Instead of stitching together events, workflow steps and token streams - your UI receives structured events that describe lifecycles, content parts, tool calls and completions. This hook consumes these events and maintains your UI state for a single conversation or many conversations in parallel.
+
+Here's a simple example of how you would use the hook in your React component:
+
+```tsx
+import { useAgent } from "@inngest/use-agent";
+
+export function MyAgentUI() {
+  const { messages, sendMessage, status } = useAgent();
+
+  const onSubmit = (e) => {
+    e.preventDefault();
+    const value = new FormData(e.currentTarget).get("input");
+    sendMessage(value);
+  };
+
+  return (
+    <div>
+      <ul>
+        {messages.map(({ id, role, parts }) => (
+          <li key={id}>
+            <div>{role}</div>
+            {parts.map(({ id, type, content }) =>
+              type === "text" ? <div key={id}>{content}</div> : null
+            )}
+          </li>
+        ))}
+      </ul>
+
+      <form onSubmit={onSubmit}>
+        <input name="input" />
+        <button type="submit" disabled={status !== "ready"}>
+          Send
+        </button>
+      </form>
+    </div>
+  );
+}
+```
+
+Let's take a closer look at what components, endpoints and other files we will need to wire this all up:
+
+- **Inngest Client (`/api/inngest/client.ts`)**: Initializes Inngest with the `realtimeMiddleware`.
+- **Realtime Channel (`/api/inngest/realtime.ts`)**: Defines a typed realtime channel and topic.
+- **Chat Route: `/api/chat/route.ts`**: This is a standard Next.js API route. Its only job is to receive a request from the frontend and send an event to Inngest to trigger a function.
+- **Token Route: `/api/realtime/token/route.ts`**: This secure endpoint generates a subscription token that the frontend needs to connect to Inngest realtime.
+- **Inngest Route: `/api/inngest/route.ts`**: The standard handler that serves all your Inngest functions.
+
+Once you've configured all the foundational endpoints needed for streaming, you'll want to create some agents, define types and integrate this into a UI:
+
+<Steps>
+  <Step title="Define server-side types">
+    Define your server-side state type, import all your tools and pass them into `createToolManifest` to generate a type that you will use in your UI.
+    ```typescript
+    import { createToolManifest, type StateData } from "@inngest/agent-kit";
+    import { selectEventsTool } from "./event-matcher";
+    import { generateSqlTool } from "./query-writer";
+
+    // server-side state used by networks, routers and agents
+    export type AgentState = StateData & {
+        userId?: string;
+        eventTypes?: string[];
+        schemas?: Record<string, unknown>;
+        selectedEvents?: { event_name: string; reason: string }[];
+        currentQuery?: string;
+        sql?: string;
+    };
+
+    // a typed manifest of all available tools
+    const manifest = createToolManifest([
+        generateSqlTool,
+        selectEventsTool,
+    ] as const);
+    
+    export type ToolManifest = typeof manifest;
+    ```
+
+  </Step>
+  <Step title="Define client-side types">
+
+Create a `ClientState` type which will type state that your UI will send to your agent backend. This is a great place to pass along important context about the user or what they're doing in your app.
+
+```typescript
+import {
+  useAgent,
+  type AgentKitEvent,
+  type UseAgentsConfig,
+  type UseAgentsReturn,
+} from "@inngest/use-agent";
+
+import type { ToolManifest } from "@/app/api/inngest/functions/agents/types";
+
+export type ClientState = {
+  sqlQuery: string;
+  eventTypes: string[];
+  schemas: Record<string, unknown> | null;
+  currentQuery: string;
+};
+
+export type AgentConfig = { tools: ToolManifest; state: ClientState };
+
+export type AgentEvent = AgentKitEvent<ToolManifest>;
+
+export function useInsightsAgent(
+  config: UseAgentsConfig<ToolManifest, ClientState>
+): UseAgentsReturn<ToolManifest, ClientState> {
+  return useAgent<{ tools: ToolManifest; state: ClientState }>(config);
+}
+```
+
+  </Step>
+  <Step title="Create agents and an Inngest function to run them">
+
+  </Step>
+  <Step title="Integrate a useAgent hook into your UI">
+  </Step>
+</Steps>
+
+For a deeper dive into streaming agents, check out our [Usage Guide](/streaming/usage-guide).

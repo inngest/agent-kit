@@ -1,0 +1,436 @@
+---
+title: "React Hooks API Reference"
+description: "Complete API documentation for @inngest/use-agent React hooks"
+---
+
+The `@inngest/use-agent` package provides a comprehensive set of React hooks for building AI chat interfaces with AgentKit networks. This reference section documents every hook, component, and utility in detail.
+
+## Package Overview
+
+```bash
+npm install @inngest/use-agent
+# Peer dependencies
+npm install react @inngest/realtime uuid
+```
+
+<CardGroup>
+  <Card
+    title="@inngest/use-agent on npm"
+    href="https://www.npmjs.com/package/@inngest/use-agent"
+    icon="package"
+  >
+    View package details, versions, and installation stats
+  </Card>
+  <Card
+    title="GitHub Repository"
+    href="https://github.com/inngest/agent-kit/tree/main/packages/use-agent"
+    icon="github"
+  >
+    Source code, issues, and contributions
+  </Card>
+</CardGroup>
+
+## Core Hooks
+
+These hooks provide the primary functionality for building AI chat applications:
+
+<CardGroup>
+  <Card
+    title="useChat"
+    href="/reference/react-hooks/use-chat"
+    icon="message-circle"
+  >
+    **Recommended**: Unified hook for complete chat applications with streaming,
+    threads, and persistence
+  </Card>
+  <Card title="useAgent" href="/reference/react-hooks/use-agent" icon="zap">
+    **Advanced**: Low-level hook for real-time streaming and multi-thread
+    management
+  </Card>
+  <Card
+    title="useThreads"
+    href="/reference/react-hooks/use-threads"
+    icon="list"
+  >
+    **Specialized**: Thread management, pagination, and persistence operations
+  </Card>
+</CardGroup>
+
+## Infrastructure Components
+
+Essential components for connection management and configuration:
+
+<CardGroup>
+  <Card
+    title="AgentProvider"
+    href="/reference/react-hooks/agent-provider"
+    icon="share-2"
+  >
+    Context provider for shared connections, configuration, and performance
+    optimization
+  </Card>
+  <Card
+    title="AgentTransport"
+    href="/reference/react-hooks/transport"
+    icon="globe"
+  >
+    Configurable API layer for customizing endpoints, authentication, and
+    request handling
+  </Card>
+</CardGroup>
+
+## Utility Hooks
+
+Specialized hooks for specific features and UI patterns:
+
+<CardGroup>
+  <Card
+    title="Utility Hooks Reference"
+    href="/reference/react-hooks/utility-hooks"
+    icon="tool"
+  >
+    useMessageActions, useEditMessage, useEphemeralThreads, useSidebar,
+    useIsMobile, and more
+  </Card>
+</CardGroup>
+
+## Package Architecture
+
+### Hook Categories
+
+**Core Streaming Hooks**:
+
+- `useAgent`: Multi-thread real-time streaming
+- `useChat`: Complete chat application functionality
+- `useThreads`: Thread persistence and management
+
+**Specialized Storage**:
+
+- `useEphemeralThreads`: Client-side storage for demos
+- `useConversationBranching`: Message editing workflows
+
+**UI Utilities**:
+
+- `useMessageActions`: Copy, like, share, read aloud
+- `useEditMessage`: Message editing state management
+- `useSidebar`: Responsive sidebar state
+- `useIsMobile`: Mobile device detection
+
+**Infrastructure**:
+
+- `AgentProvider`: Shared context and connections
+- Transport layer: Configurable API communication
+
+### Design Principles
+
+**🎯 Progressive Enhancement**:
+Start simple with `useChat`, add advanced hooks as needed
+
+**🔧 Composable Architecture**:
+Hooks work independently or together based on your needs
+
+**⚡ Performance First**:
+Intelligent connection sharing and efficient state management
+
+**🛡️ Production Ready**:
+Comprehensive error handling, TypeScript support, and testing
+
+**🔄 Backward Compatible**:
+Smooth migration from local implementations to package
+
+## Type System
+
+### Core Types
+
+All hooks use consistent, well-defined TypeScript interfaces:
+
+```typescript
+import type {
+  // Message and content types
+  ConversationMessage,
+  MessagePart,
+  TextUIPart,
+  ToolCallUIPart,
+  HitlUIPart,
+
+  // State and status types
+  AgentStatus,
+  Thread,
+  ThreadState,
+
+  // Event and streaming types
+  NetworkEvent,
+  AgentMessageChunk,
+
+  // Transport and configuration
+  AgentTransport,
+  UseAgentOptions,
+  UseChatConfig,
+
+  // Error handling
+  AgentError,
+  ErrorClassification,
+} from "@inngest/use-agent";
+```
+
+### Hook Return Types
+
+Each hook has a comprehensive return type interface:
+
+```typescript
+import type {
+  UseAgentReturn,
+  UseChatReturn,
+  UseThreadsReturn,
+} from "@inngest/use-agent";
+
+// Example: Complete typing for useChat
+const chat: UseChatReturn = useChat({
+  initialThreadId: "thread-123",
+});
+```
+
+## Common Patterns
+
+### Basic Chat Application
+
+```typescript
+import { useChat, AgentProvider } from "@inngest/use-agent";
+
+function App() {
+  return (
+    <AgentProvider userId="user-123">
+      <ChatInterface />
+    </AgentProvider>
+  );
+}
+
+function ChatInterface() {
+  const {
+    messages,          // ConversationMessage[]
+    sendMessage,       // (message: string) => Promise<void>
+    status,           // AgentStatus
+    isConnected,      // boolean
+    threads,          // Thread[]
+    switchToThread,   // (threadId: string) => Promise<void>
+    createNewThread   // () => string
+  } = useChat();
+
+  return <div>/* Your chat UI */</div>;
+}
+```
+
+### Custom Transport Configuration
+
+```typescript
+import {
+  AgentProvider,
+  createDefaultAgentTransport,
+  type DefaultAgentTransportConfig
+} from "@inngest/use-agent";
+
+const transport: DefaultAgentTransportConfig = {
+  api: {
+    sendMessage: '/api/v2/chat',
+    fetchThreads: '/api/v2/conversations'
+  },
+  headers: {
+    'Authorization': `Bearer ${token}`
+  }
+};
+
+<AgentProvider transport={transport}>
+  <ChatApp />
+</AgentProvider>
+```
+
+### Multi-thread Management
+
+```typescript
+import { useAgent } from "@inngest/use-agent";
+
+function AdvancedChat() {
+  const {
+    threads,              // Record<string, ThreadState>
+    currentThreadId,      // string
+    setCurrentThread,     // (threadId: string) => void
+    sendMessageToThread,  // (threadId: string, message: string) => Promise<void>
+    getThread,           // (threadId: string) => ThreadState | undefined
+    createThread,        // (threadId: string) => void
+    removeThread         // (threadId: string) => void
+  } = useAgent({
+    threadId: 'initial-thread',
+    userId: 'user-123'
+  });
+
+  return <div>/* Custom multi-thread UI */</div>;
+}
+```
+
+## Performance Guidelines
+
+### Memory Management
+
+**✅ Efficient Patterns**:
+
+```typescript
+// Stable configuration objects
+const transportConfig = useMemo(
+  () => ({
+    headers: { Authorization: `Bearer ${token}` },
+  }),
+  [token]
+);
+
+// Reasonable state capture
+state: () => ({
+  currentTab: activeTab,
+  formData: getCurrentForm(),
+});
+```
+
+**❌ Memory Leaks**:
+
+```typescript
+// Don't capture massive objects
+state: () => ({
+  entireAppState: store.getState(), // Too large!
+  allUserHistory: history, // Too large!
+});
+
+// Don't recreate config on every render
+transport: createDefaultAgentTransport({
+  // New instance!
+  headers: { Authorization: `Bearer ${token}` },
+});
+```
+
+### Connection Optimization
+
+**✅ Efficient**:
+
+```typescript
+// Single provider, shared connections
+<AgentProvider userId="user-123">
+  <ChatSidebar />   {/* Shares connection */}
+  <ChatMain />      {/* Shares connection */}
+</AgentProvider>
+```
+
+**❌ Inefficient**:
+
+```typescript
+// Multiple separate connections
+<ChatSidebar />     {/* useThreads creates connection */}
+<ChatMain />        {/* useAgent creates connection */}
+```
+
+## Error Handling
+
+### Rich Error Objects
+
+All hooks provide comprehensive error information:
+
+```typescript
+const { error, connectionError, clearError } = useChat();
+
+if (error) {
+  console.log({
+    message: error.message, // Human-readable error
+    recoverable: error.recoverable, // Can user retry?
+    timestamp: error.timestamp, // When it occurred
+    suggestion: error.suggestion, // How to fix
+  });
+}
+```
+
+### Error Recovery Patterns
+
+```typescript
+// Automatic retry for recoverable errors
+useEffect(() => {
+  if (error?.recoverable) {
+    const timer = setTimeout(() => {
+      clearError();
+      // Optionally retry the failed operation
+    }, 3000);
+    return () => clearTimeout(timer);
+  }
+}, [error]);
+```
+
+## Debug Utilities
+
+### Debug Logging
+
+Enable comprehensive debug output:
+
+```typescript
+import { createDebugLogger } from "@inngest/use-agent";
+
+const logger = createDebugLogger("MyComponent", true);
+logger.log("Component initialized");
+logger.warn("Non-critical issue");
+logger.error("Critical error");
+```
+
+### Development vs Production
+
+```typescript
+<AgentProvider
+  debug={process.env.NODE_ENV === 'development'}
+  transport={isDev ? devTransport : prodTransport}
+>
+  <ChatApp />
+</AgentProvider>
+```
+
+## Migration Guide
+
+### From Local Implementations
+
+```typescript
+// Before: Local imports from examples
+import { useChat } from "@/hooks/use-chat";
+import { AgentProvider } from "@/contexts/AgentContext";
+
+// After: Package imports
+import { useChat, AgentProvider } from "@inngest/use-agent";
+```
+
+**No API changes required** - the package maintains full backward compatibility with local implementations.
+
+### Version Compatibility
+
+| Package Version | AgentKit Version | React Version | Features         |
+| --------------- | ---------------- | ------------- | ---------------- |
+| 1.0.0+          | 0.3.0+           | 18.0.0+       | Full feature set |
+| 0.9.0+          | 0.2.0+           | 18.0.0+       | Beta features    |
+
+## Next Steps
+
+<CardGroup>
+  <Card
+    title="useChat Complete Reference"
+    href="/reference/react-hooks/use-chat"
+  >
+    Full API documentation for the primary chat hook
+  </Card>
+  <Card
+    title="AgentProvider Reference"
+    href="/reference/react-hooks/agent-provider"
+  >
+    Configuration and optimization guide for the provider
+  </Card>
+  <Card
+    title="Transport Layer Reference"
+    href="/reference/react-hooks/transport"
+  >
+    Customize API communication and authentication
+  </Card>
+  <Card title="Streaming Quickstart" href="/streaming/react-hooks-quickstart">
+    Get started building with the hooks in 5 minutes
+  </Card>
+</CardGroup>
+
+This reference section provides the definitive documentation for every aspect of the `@inngest/use-agent` package. Whether you're just getting started or building advanced custom implementations, you'll find the complete API documentation and guidance you need here.

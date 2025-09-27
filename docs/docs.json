@@ -37,15 +37,25 @@
             ]
           },
           {
+            "group": "Streaming",
+            "pages": [
+              "streaming/overview",
+              "streaming/usage-guide",
+              "streaming/events",
+              "streaming/transport",
+              "streaming/provider"
+            ]
+          },
+          {
             "group": "Advanced Patterns",
             "pages": [
               "advanced-patterns/routing",
-              "advanced-patterns/mcp",
+              "advanced-patterns/mcp", 
               "advanced-patterns/human-in-the-loop",
-              "advanced-patterns/ui-streaming",
               "advanced-patterns/multi-steps-tools",
               "advanced-patterns/retries",
-              "advanced-patterns/multitenancy"
+              "advanced-patterns/multitenancy",
+              "advanced-patterns/legacy-ui-streaming"
             ]
           },
           {
@@ -109,6 +119,12 @@
               "reference/model-anthropic",
               "reference/model-gemini",
               "reference/model-grok"
+            ]
+          },
+          {
+            "group": "Streaming",
+            "pages": [
+              "reference/use-agent"
             ]
           }
         ]
