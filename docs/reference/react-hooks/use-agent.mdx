@@ -1,0 +1,1196 @@
+---
+title: "useAgent API Reference"
+description: "Complete API documentation for the useAgent hook - advanced streaming and multi-thread control"
+---
+
+The `useAgent` hook provides **advanced, low-level control** over AgentKit's real-time streaming system. It manages WebSocket connections, processes streaming events, and maintains conversation state across multiple threads simultaneously.
+
+<Card title="When to Use" icon="alert-circle">
+  Use `useAgent` for custom implementations requiring fine control over
+  streaming events. For most applications,
+  [`useChat`](/reference/react-hooks/use-chat) is recommended as it provides the
+  same functionality with automatic coordination.
+</Card>
+
+## Import
+
+```typescript
+import { useAgent } from "@inngest/use-agent";
+```
+
+## Basic Usage
+
+```typescript
+function CustomChatComponent() {
+  const {
+    messages,
+    status,
+    sendMessage,
+    isConnected,
+    threads,
+    setCurrentThread
+  } = useAgent({
+    threadId: 'conversation-123',
+    userId: 'user-456',
+    debug: true
+  });
+
+  return (
+    <div>
+      <div>Status: {status}</div>
+      <div>Connected: {isConnected ? 'Yes' : 'No'}</div>
+
+      {/* Manual thread switching */}
+      {Object.keys(threads).map(threadId => (
+        <button
+          key={threadId}
+          onClick={() => setCurrentThread(threadId)}
+        >
+          Switch to {threadId}
+        </button>
+      ))}
+
+      {messages.map(msg => (
+        <div key={msg.id}>{/* Message rendering */}</div>
+      ))}
+    </div>
+  );
+}
+```
+
+## Configuration: `UseAgentOptions`
+
+### Required Options
+
+<ParamField path="threadId" type="string" required>
+Unique identifier for the conversation thread. This is the primary thread that the hook will manage.
+
+```typescript
+useAgent({ threadId: "conversation-123" });
+```
+
+</ParamField>
+
+### User & Channel Configuration
+
+<ParamField path="userId" type="string">
+User identifier for attribution and data ownership. If not provided, automatically generates an anonymous ID.
+
+```typescript
+// Authenticated user
+useAgent({ threadId: "thread-123", userId: "user-456" });
+
+// Anonymous user (auto-generated ID)
+useAgent({ threadId: "thread-123" });
+```
+
+</ParamField>
+
+<ParamField path="channelKey" type="string">
+Channel key for subscription targeting. Enables collaborative features and flexible connection management.
+
+```typescript
+// Private chat (default)
+useAgent({ threadId: "thread-123", userId: "user-456" });
+
+// Collaborative chat
+useAgent({
+  threadId: "thread-123",
+  userId: "user-456",
+  channelKey: "project-789", // Multiple users can share this channel
+});
+```
+
+</ParamField>
+
+### Advanced Configuration
+
+<ParamField path="debug" type="boolean" default="true in development">
+Enable comprehensive debug logging for event processing, connection management, and state updates.
+
+```typescript
+useAgent({
+  threadId: "thread-123",
+  debug: process.env.NODE_ENV === "development",
+});
+```
+
+</ParamField>
+
+<ParamField path="state" type="() => Record<string, unknown>">
+Function to capture client-side state with each message for debugging and regeneration workflows.
+
+```typescript
+useAgent({
+  threadId: "thread-123",
+  state: () => ({
+    currentPage: window.location.pathname,
+    formData: getActiveFormData(),
+    uiMode: getCurrentMode(),
+    timestamp: Date.now(),
+  }),
+});
+```
+
+</ParamField>
+
+<ParamField path="transport" type="AgentTransport">
+Custom transport instance for API calls. If not provided, uses default transport or inherits from AgentProvider.
+
+```typescript
+import { createDefaultAgentTransport } from "@inngest/use-agent";
+
+const customTransport = createDefaultAgentTransport({
+  api: { sendMessage: "/api/v2/chat" },
+  headers: { Authorization: `Bearer ${token}` },
+});
+
+useAgent({
+  threadId: "thread-123",
+  transport: customTransport,
+});
+```
+
+</ParamField>
+
+<ParamField path="onError" type="(error: Error) => void">
+Callback for handling errors during agent execution.
+
+```typescript
+useAgent({
+  threadId: "thread-123",
+  onError: (error) => {
+    console.error("Agent error:", error);
+    showErrorNotification(error.message);
+    analytics.track("agent_error", { error: error.message });
+  },
+});
+```
+
+</ParamField>
+
+<ParamField path="__disableSubscription" type="boolean" default="false">
+  **Internal**: Disable WebSocket subscription for this instance. Used
+  internally by AgentProvider for connection sharing.
+</ParamField>
+
+## Return Value: `UseAgentReturn`
+
+### Current Thread State (Backward Compatible)
+
+<ParamField path="messages" type="ConversationMessage[]">
+Messages in the currently active thread, updated in real-time as streaming events arrive.
+
+```typescript
+messages.forEach((msg) => {
+  console.log(`${msg.role}: ${msg.parts.length} parts`);
+
+  msg.parts.forEach((part) => {
+    switch (part.type) {
+      case "text":
+        console.log(`Text: ${part.content} (${part.status})`);
+        break;
+      case "tool-call":
+        console.log(`Tool: ${part.toolName} (${part.state})`);
+        break;
+      case "reasoning":
+        console.log(`Reasoning: ${part.content}`);
+        break;
+    }
+  });
+});
+```
+
+</ParamField>
+
+<ParamField path="status" type="AgentStatus">
+Current agent execution status for the active thread: `"idle"`, `"thinking"`, `"calling-tool"`, `"responding"`, or `"error"`.
+
+```typescript
+// UI feedback based on status
+switch (status) {
+  case 'thinking':
+    return <ThinkingIndicator />;
+  case 'calling-tool':
+    return <ToolExecutionIndicator />;
+  case 'responding':
+    return <StreamingIndicator />;
+  case 'error':
+    return <ErrorIndicator />;
+  default:
+    return <IdleState />;
+}
+```
+
+</ParamField>
+
+<ParamField path="currentAgent" type="string | undefined">
+Name of the agent currently processing requests for the active thread.
+
+```typescript
+<div className="agent-indicator">
+  {currentAgent ? `${currentAgent} is responding...` : 'Assistant'}
+</div>
+```
+
+</ParamField>
+
+<ParamField path="error" type="{ message: string; timestamp: Date; recoverable: boolean } | undefined">
+Error information for the active thread, if any.
+
+```typescript
+{error && (
+  <ErrorMessage
+    message={error.message}
+    canRetry={error.recoverable}
+    onRetry={() => {
+      clearError();
+      // Retry logic
+    }}
+  />
+)}
+```
+
+</ParamField>
+
+### Multi-Thread State
+
+<ParamField path="threads" type="Record<string, ThreadState>">
+Complete state for all active threads, indexed by threadId. Enables background streaming and thread management.
+
+```typescript
+// Access any thread's state
+const threadState = threads["thread-789"];
+if (threadState) {
+  console.log({
+    messages: threadState.messages.length,
+    status: threadState.status,
+    hasNewMessages: threadState.hasNewMessages,
+    lastActivity: threadState.lastActivity,
+  });
+}
+
+// List all active threads
+Object.keys(threads).forEach((threadId) => {
+  const thread = threads[threadId];
+  console.log(
+    `Thread ${threadId}: ${thread.messages.length} messages, status: ${thread.status}`
+  );
+});
+```
+
+</ParamField>
+
+<ParamField path="currentThreadId" type="string">
+ID of the currently active/displayed thread.
+
+```typescript
+console.log("Currently viewing thread:", currentThreadId);
+console.log("Total active threads:", Object.keys(threads).length);
+```
+
+</ParamField>
+
+### Connection State
+
+<ParamField path="isConnected" type="boolean">
+WebSocket connection status to the real-time event stream.
+
+```typescript
+// Show connection indicator
+<div className={`connection-status ${isConnected ? 'connected' : 'disconnected'}`}>
+  {isConnected ? '🟢 Connected' : '🔴 Disconnected'}
+</div>
+```
+
+</ParamField>
+
+<ParamField path="connectionError" type="{ message: string; timestamp: Date; recoverable: boolean } | undefined">
+Connection-level error information (distinct from thread-specific errors).
+
+```typescript
+{connectionError && (
+  <ConnectionErrorBanner
+    error={connectionError}
+    onRetry={clearConnectionError}
+  />
+)}
+```
+
+</ParamField>
+
+## Actions
+
+### Message Sending
+
+<ParamField path="sendMessage" type="(message: string, options?: { messageId?: string }) => Promise<void>">
+Send a message to the **current thread** with optimistic updates and error handling.
+
+```typescript
+// Basic message sending
+await sendMessage("Hello!");
+
+// With custom message ID
+await sendMessage("Hello!", { messageId: "custom-msg-123" });
+
+// Automatic optimistic update → backend request → success/failure handling
+```
+
+</ParamField>
+
+<ParamField path="sendMessageToThread" type="(threadId: string, message: string, options?: { messageId?: string; state?: Record<string, unknown> | (() => Record<string, unknown>) }) => Promise<void>">
+Send a message to a **specific thread** (can be different from current thread). Advanced use cases like conversation branching.
+
+```typescript
+// Send to background thread
+await sendMessageToThread("thread-789", "Background message");
+
+// Send with custom client state (conversation branching)
+await sendMessageToThread("thread-123", "Edited message", {
+  state: () => ({
+    mode: "conversation_branching",
+    editFromMessageId: "msg-456",
+    branchHistory: previousMessages,
+  }),
+});
+```
+
+</ParamField>
+
+### Agent Control
+
+<ParamField path="cancel" type="() => Promise<void>">
+Cancel the current agent run if the transport supports cancellation.
+
+```typescript
+const handleCancel = async () => {
+  try {
+    await cancel();
+    console.log("Agent run cancelled successfully");
+  } catch (error) {
+    console.error("Failed to cancel:", error);
+  }
+};
+```
+
+</ParamField>
+
+<ParamField path="regenerate" type="() => void">
+Regenerate the last response in the current thread by resending the most recent user message.
+
+```typescript
+<button onClick={regenerate} disabled={status !== 'idle'}>
+  🔄 Regenerate Response
+</button>
+```
+
+</ParamField>
+
+### Error Management
+
+<ParamField path="clearError" type="() => void">
+  Clear error state for the active thread.
+</ParamField>
+
+<ParamField path="clearConnectionError" type="() => void">
+  Clear connection-level error state.
+</ParamField>
+
+## Thread Management
+
+### Thread Navigation
+
+<ParamField path="setCurrentThread" type="(threadId: string) => void">
+Switch the active thread. Updates which thread's state is exposed via top-level properties (`messages`, `status`, etc.).
+
+```typescript
+const handleThreadSwitch = (threadId: string) => {
+  setCurrentThread(threadId);
+  // Now `messages` and `status` reflect the new thread
+};
+```
+
+</ParamField>
+
+<ParamField path="getThread" type="(threadId: string) => ThreadState | undefined">
+Get a specific thread's complete state without switching to it.
+
+```typescript
+const threadState = getThread("thread-789");
+if (threadState) {
+  console.log({
+    messageCount: threadState.messages.length,
+    agentStatus: threadState.status,
+    hasUnread: threadState.hasNewMessages,
+    lastActivity: threadState.lastActivity,
+  });
+}
+```
+
+</ParamField>
+
+### Thread Operations
+
+<ParamField path="createThread" type="(threadId: string) => void">
+Create a new empty thread in local state (does not persist to backend).
+
+```typescript
+const newThreadId = `thread-${Date.now()}`;
+createThread(newThreadId);
+setCurrentThread(newThreadId);
+```
+
+</ParamField>
+
+<ParamField path="removeThread" type="(threadId: string) => void">
+Remove a thread completely from local state.
+
+```typescript
+removeThread("old-thread-123");
+// Thread and all its messages removed from memory
+```
+
+</ParamField>
+
+### Message Management
+
+<ParamField path="clearMessages" type="() => void">
+Clear all messages from the current thread's local state.
+
+```typescript
+const handleClearChat = () => {
+  clearMessages();
+  // Current thread now has empty messages array
+};
+```
+
+</ParamField>
+
+<ParamField path="clearThreadMessages" type="(threadId: string) => void">
+Clear messages from a specific thread.
+
+```typescript
+clearThreadMessages("thread-789");
+// Specified thread now has empty messages array
+```
+
+</ParamField>
+
+<ParamField path="replaceMessages" type="(messages: ConversationMessage[]) => void">
+Replace all messages in the current thread (used for loading history).
+
+```typescript
+// Load historical messages
+const historyMessages = await fetchHistoryFromAPI(currentThreadId);
+replaceMessages(historyMessages);
+```
+
+</ParamField>
+
+<ParamField path="replaceThreadMessages" type="(threadId: string, messages: ConversationMessage[]) => void">
+Replace messages in a specific thread.
+
+```typescript
+// Load history for background thread
+const backgroundHistory = await fetchHistoryFromAPI("thread-789");
+replaceThreadMessages("thread-789", backgroundHistory);
+```
+
+</ParamField>
+
+<ParamField path="markThreadViewed" type="(threadId: string) => void">
+Mark a thread as viewed (clear `hasNewMessages` flag).
+
+```typescript
+const handleThreadClick = (threadId: string) => {
+  setCurrentThread(threadId);
+  markThreadViewed(threadId); // Clear unread indicator
+};
+```
+
+</ParamField>
+
+## Multi-Thread Management
+
+### Thread State Interface
+
+Each thread in the `threads` object has the following structure:
+
+```typescript
+interface ThreadState {
+  messages: ConversationMessage[]; // Thread's conversation
+  status: AgentStatus; // Agent execution status
+  currentAgent?: string; // Active agent name
+  hasNewMessages: boolean; // Unread indicator
+  lastActivity: Date; // Last update timestamp
+  error?: {
+    // Thread-specific error
+    message: string;
+    timestamp: Date;
+    recoverable: boolean;
+  };
+}
+```
+
+### Background Streaming
+
+useAgent processes events for **all threads simultaneously**:
+
+```typescript
+function MultiThreadChat() {
+  const { threads, currentThreadId, setCurrentThread } = useAgent({
+    threadId: 'primary-thread',
+    userId: 'user-123'
+  });
+
+  // Monitor background thread activity
+  const backgroundThreads = Object.entries(threads).filter(
+    ([threadId, _]) => threadId !== currentThreadId
+  );
+
+  const unreadCount = backgroundThreads.reduce(
+    (count, [_, threadState]) =>
+      count + (threadState.hasNewMessages ? 1 : 0),
+    0
+  );
+
+  return (
+    <div>
+      <div>Active Threads: {Object.keys(threads).length}</div>
+      <div>Unread: {unreadCount}</div>
+
+      {backgroundThreads.map(([threadId, threadState]) => (
+        <div
+          key={threadId}
+          onClick={() => setCurrentThread(threadId)}
+          className={threadState.hasNewMessages ? 'unread' : ''}
+        >
+          {threadId}: {threadState.messages.length} messages
+          {threadState.hasNewMessages && ' 🔴'}
+        </div>
+      ))}
+    </div>
+  );
+}
+```
+
+### Advanced Thread Operations
+
+```typescript
+function AdvancedThreadManager() {
+  const {
+    threads,
+    sendMessageToThread,
+    replaceThreadMessages,
+    clearThreadMessages,
+    removeThread,
+  } = useAgent({ threadId: "main-thread", userId: "user-123" });
+
+  // Send to specific thread without switching
+  const sendToBackground = async (threadId: string, message: string) => {
+    await sendMessageToThread(threadId, message);
+    // Message sent, events processed in background
+  };
+
+  // Batch thread operations
+  const cleanupOldThreads = () => {
+    Object.entries(threads).forEach(([threadId, threadState]) => {
+      const daysSinceActivity =
+        (Date.now() - threadState.lastActivity.getTime()) /
+        (1000 * 60 * 60 * 24);
+
+      if (daysSinceActivity > 30) {
+        removeThread(threadId); // Clean up old threads
+      }
+    });
+  };
+
+  // Archive thread messages
+  const archiveThread = async (threadId: string) => {
+    const threadState = threads[threadId];
+    if (threadState) {
+      // Save to archive API
+      await saveToArchive(threadId, threadState.messages);
+      // Clear from memory
+      clearThreadMessages(threadId);
+    }
+  };
+}
+```
+
+## Event Processing
+
+### Raw Event Access
+
+Unlike `useChat`, `useAgent` gives you access to the underlying streaming system:
+
+```typescript
+function EventDebugger() {
+  const agent = useAgent({
+    threadId: "debug-thread",
+    debug: true, // Enable event logging
+    onError: (error) => {
+      console.error("Streaming error:", error);
+    },
+  });
+
+  // Debug logging shows:
+  // 🔄 [PROCESS-EVENT] seq:4 type:text.delta threadId:debug-thread
+  // 🔍 [TEXT-DELTA] Applied delta "Hello"
+  // 🔍 [SEQUENCE-DEBUG] Thread debug-thread after processing: 5 events
+}
+```
+
+### Event Sequence Management
+
+useAgent handles out-of-order events automatically:
+
+```typescript
+// Events may arrive out of sequence due to network conditions
+// Incoming: seq 5, 3, 4, 6
+// useAgent automatically:
+// 1. Buffers events 5, 6 (waiting for 3, 4)
+// 2. Processes 3, then 4 from buffer
+// 3. Processes 5, 6 in correct order
+// Result: Perfect chronological message updates
+```
+
+## Advanced Patterns
+
+### Custom Event Processing
+
+```typescript
+function CustomEventHandler() {
+  const agent = useAgent({
+    threadId: "custom-thread",
+    userId: "user-123",
+  });
+
+  // Access low-level state for custom processing
+  useEffect(() => {
+    const currentThread = agent.getThread(agent.currentThreadId);
+    if (currentThread) {
+      // Custom logic based on thread state
+      if (currentThread.status === "error") {
+        handleAgentError(currentThread.error);
+      }
+
+      if (
+        currentThread.hasNewMessages &&
+        currentThread.id !== agent.currentThreadId
+      ) {
+        showUnreadNotification(currentThread.id);
+      }
+    }
+  }, [agent.threads, agent.currentThreadId]);
+}
+```
+
+### Multi-Agent Orchestration
+
+```typescript
+function MultiAgentInterface() {
+  const customerSupport = useAgent({
+    threadId: 'support-thread',
+    channelKey: 'customer-support',
+    userId: 'user-123'
+  });
+
+  const technicalSupport = useAgent({
+    threadId: 'technical-thread',
+    channelKey: 'technical-support', // Different channel
+    userId: 'user-123'
+  });
+
+  // Handle escalation between agents
+  const escalateToTechnical = async (message: string) => {
+    // Send context from customer support to technical support
+    const context = customerSupport.messages.map(m =>
+      m.parts.filter(p => p.type === 'text').map(p => p.content).join('')
+    ).join('\n');
+
+    await technicalSupport.sendMessage(
+      `Escalated from customer support:\n${context}\n\nUser question: ${message}`
+    );
+  };
+
+  return (
+    <div className="multi-agent-interface">
+      <div className="customer-support">
+        <ChatArea agent={customerSupport} onEscalate={escalateToTechnical} />
+      </div>
+      <div className="technical-support">
+        <ChatArea agent={technicalSupport} />
+      </div>
+    </div>
+  );
+}
+```
+
+### Client State Management
+
+Advanced client state capture for debugging and message editing:
+
+```typescript
+function StatefulChat() {
+  const [formData, setFormData] = useState({});
+  const [activeTab, setActiveTab] = useState("chat");
+
+  const agent = useAgent({
+    threadId: "stateful-thread",
+    // Capture comprehensive client state
+    state: () => ({
+      formData: formData,
+      activeTab: activeTab,
+      viewport: {
+        width: window.innerWidth,
+        height: window.innerHeight,
+      },
+      userAgent: navigator.userAgent,
+      timestamp: Date.now(),
+      url: window.location.href,
+    }),
+  });
+
+  // Every message sent includes this context for debugging/regeneration
+}
+```
+
+## Provider Integration
+
+### Automatic Inheritance
+
+When used within AgentProvider, useAgent inherits configuration:
+
+```typescript
+<AgentProvider userId="user-123" debug={true}>
+  <ChatComponent />
+</AgentProvider>
+
+function ChatComponent() {
+  // Inherits userId and debug from provider
+  const agent = useAgent({
+    threadId: 'thread-456'
+    // userId and debug inherited automatically
+  });
+}
+```
+
+### Smart Connection Sharing
+
+The provider enables intelligent connection sharing:
+
+```typescript
+<AgentProvider channelKey="shared-project">
+  <ComponentA /> {/* Uses shared connection */}
+  <ComponentB /> {/* Uses shared connection */}
+  <ComponentC channelKey="isolated" /> {/* Separate connection */}
+</AgentProvider>
+
+function ComponentA() {
+  // Uses provider's shared connection for "shared-project"
+  const agent = useAgent({ threadId: 'thread-a' });
+}
+
+function ComponentC() {
+  // Creates separate connection for "isolated" channel
+  const agent = useAgent({
+    threadId: 'thread-c',
+    channelKey: 'isolated'
+  });
+}
+```
+
+## Performance Optimization
+
+### Connection Efficiency
+
+```typescript
+// ✅ Efficient: Use provider for shared connections
+<AgentProvider userId="user-123">
+  <ChatSidebar />    {/* Shares connection */}
+  <ChatMessages />   {/* Shares connection */}
+  <ChatInput />      {/* Shares connection */}
+</AgentProvider>
+
+// ❌ Inefficient: Multiple separate connections
+function App() {
+  const agent1 = useAgent({ threadId: 'thread-1', userId: 'user-123' }); // Connection 1
+  const agent2 = useAgent({ threadId: 'thread-2', userId: 'user-123' }); // Connection 2
+  const agent3 = useAgent({ threadId: 'thread-3', userId: 'user-123' }); // Connection 3
+  // 3 separate WebSocket connections!
+}
+```
+
+### Memory Management
+
+```typescript
+// ✅ Efficient: Reasonable state capture
+state: () => ({
+  currentForm: getCurrentFormData(),
+  activeTab: getActiveTab(),
+});
+
+// ❌ Memory leak: Capturing massive objects
+state: () => ({
+  entireAppState: store.getState(), // Potentially huge!
+  allUserHistory: getUserHistory(), // Potentially huge!
+  globalCache: getGlobalCache(), // Potentially huge!
+});
+```
+
+### Thread Cleanup
+
+```typescript
+function ChatWithCleanup() {
+  const agent = useAgent({ threadId: "main-thread", userId: "user-123" });
+
+  // Clean up inactive threads periodically
+  useEffect(() => {
+    const cleanup = setInterval(
+      () => {
+        const now = Date.now();
+        Object.entries(agent.threads).forEach(([threadId, threadState]) => {
+          const inactiveTime = now - threadState.lastActivity.getTime();
+          const thirtyMinutes = 30 * 60 * 1000;
+
+          if (
+            inactiveTime > thirtyMinutes &&
+            threadId !== agent.currentThreadId
+          ) {
+            agent.removeThread(threadId);
+          }
+        });
+      },
+      5 * 60 * 1000
+    ); // Check every 5 minutes
+
+    return () => clearInterval(cleanup);
+  }, [agent]);
+}
+```
+
+## Error Handling
+
+### Error Types
+
+useAgent provides detailed error information:
+
+```typescript
+const { error, connectionError, onError } = useAgent({
+  threadId: "thread-123",
+  onError: (error) => {
+    // Handle errors from agent execution
+    console.error("Agent error:", {
+      message: error.message,
+      stack: error.stack,
+      timestamp: new Date().toISOString(),
+    });
+  },
+});
+
+// Thread-specific error
+if (error) {
+  console.log("Thread error:", {
+    message: error.message, // "Failed to send message"
+    recoverable: error.recoverable, // true/false
+    timestamp: error.timestamp, // When error occurred
+  });
+}
+
+// Connection-level error
+if (connectionError) {
+  console.log("Connection error:", {
+    message: connectionError.message, // "WebSocket connection failed"
+    recoverable: connectionError.recoverable, // true/false
+    timestamp: connectionError.timestamp, // When error occurred
+  });
+}
+```
+
+### Error Recovery
+
+```typescript
+function ChatWithRecovery() {
+  const {
+    error,
+    connectionError,
+    clearError,
+    clearConnectionError,
+    regenerate,
+  } = useAgent({
+    threadId: "recovery-thread",
+    userId: "user-123",
+  });
+
+  // Auto-recovery for recoverable errors
+  useEffect(() => {
+    if (error?.recoverable) {
+      const timer = setTimeout(() => {
+        clearError();
+        regenerate(); // Retry last message
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [error]);
+
+  // Connection recovery
+  useEffect(() => {
+    if (connectionError?.recoverable) {
+      const timer = setTimeout(() => {
+        clearConnectionError();
+        // Connection will automatically retry
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [connectionError]);
+}
+```
+
+## Debug and Development
+
+### Debug Output
+
+Enable debug mode to see detailed event processing:
+
+```typescript
+useAgent({
+  threadId: "debug-thread",
+  debug: true,
+});
+
+// Console output includes:
+// 🔄 [PROCESS-EVENT] seq:5 type:text.delta threadId:debug-thread
+// 🔍 [TEXT-DELTA] Applied delta seq:5 "Hello" | before:"" after:"Hello"
+// 🔍 [THREAD-SWITCH] debug-thread → new-thread (0 → 0 messages)
+// 🔍 [MESSAGE-SENT] Starting new conversation in thread new-thread
+```
+
+### Event Sequence Debugging
+
+```typescript
+// Monitor event sequence integrity
+const agent = useAgent({
+  threadId: "sequence-debug",
+  debug: true,
+});
+
+// Debug logs show sequence management:
+// 🔍 [SEQUENCE-DEBUG] Thread filtering events: totalEvents=10, lastProcessed=5
+// 🔍 [SEQUENCE-DEBUG] After filtering: unprocessedCount=5, filteredOut=5
+// [Thread thread-123] Processing 5/10 new events: text.delta:6,part.created:7...
+```
+
+### Memory Debugging
+
+```typescript
+// Track memory usage across threads
+function MemoryMonitor() {
+  const agent = useAgent({ threadId: "monitor", userId: "user-123" });
+
+  useEffect(() => {
+    const logMemoryStats = () => {
+      console.log("Thread Memory Stats:", {
+        totalThreads: Object.keys(agent.threads).length,
+        totalMessages: Object.values(agent.threads).reduce(
+          (sum, thread) => sum + thread.messages.length,
+          0
+        ),
+        currentThread: agent.currentThreadId,
+        threadsWithUnread: Object.values(agent.threads).filter(
+          (t) => t.hasNewMessages
+        ).length,
+      });
+    };
+
+    const interval = setInterval(logMemoryStats, 30000); // Every 30s
+    return () => clearInterval(interval);
+  }, [agent]);
+}
+```
+
+## Common Patterns
+
+### Custom Chat Implementation
+
+```typescript
+function CustomChat({ initialThreadId }) {
+  const agent = useAgent({
+    threadId: initialThreadId || `thread-${Date.now()}`,
+    userId: 'user-123',
+    debug: true,
+    state: () => ({
+      chatMode: 'custom',
+      timestamp: Date.now()
+    })
+  });
+
+  // Custom thread switching with animation
+  const switchThread = useCallback(async (threadId: string) => {
+    setIsTransitioning(true);
+    agent.setCurrentThread(threadId);
+    agent.markThreadViewed(threadId);
+
+    // Custom history loading
+    try {
+      const history = await fetchCustomHistory(threadId);
+      agent.replaceThreadMessages(threadId, history);
+    } catch (error) {
+      console.warn('Failed to load history:', error);
+    }
+
+    setIsTransitioning(false);
+  }, [agent]);
+
+  return (
+    <div>
+      <CustomThreadSidebar
+        threads={agent.threads}
+        currentThreadId={agent.currentThreadId}
+        onThreadSelect={switchThread}
+      />
+      <CustomMessageArea
+        messages={agent.messages}
+        status={agent.status}
+        onSendMessage={agent.sendMessage}
+      />
+    </div>
+  );
+}
+```
+
+### Embedded Chat Widget
+
+```typescript
+function EmbeddedChatWidget({ containerId, config }) {
+  const agent = useAgent({
+    threadId: `embedded-${containerId}`,
+    userId: config.userId,
+    channelKey: config.channelKey,
+    transport: createCustomTransport(config.apiEndpoints),
+    debug: false // Production mode
+  });
+
+  // Minimal UI suitable for embedding
+  return (
+    <div className="embedded-chat-widget">
+      <div className="widget-header">
+        <span>AI Assistant</span>
+        <ConnectionIndicator connected={agent.isConnected} />
+      </div>
+
+      <div className="widget-messages">
+        {agent.messages.map(msg => (
+          <EmbeddedMessage key={msg.id} message={msg} />
+        ))}
+      </div>
+
+      <div className="widget-input">
+        <EmbeddedInput onSend={agent.sendMessage} disabled={agent.status !== 'idle'} />
+      </div>
+    </div>
+  );
+}
+```
+
+### Research/Experimental Interface
+
+```typescript
+function ResearchInterface() {
+  const agent = useAgent({
+    threadId: "research-thread",
+    userId: "researcher-123",
+    debug: true,
+    state: () => ({
+      experimentId: getCurrentExperiment(),
+      participantId: getParticipantId(),
+      condition: getExperimentalCondition(),
+      sessionStartTime: getSessionStart(),
+      interactionCount: getInteractionCount(),
+    }),
+  });
+
+  // Log all events for research
+  useEffect(() => {
+    // Custom event logging for research
+    const logInteraction = (type: string, data: any) => {
+      analytics.track("research_interaction", {
+        type,
+        threadId: agent.currentThreadId,
+        messageCount: agent.messages.length,
+        agentStatus: agent.status,
+        timestamp: Date.now(),
+        ...data,
+      });
+    };
+
+    // Log state changes
+    logInteraction("thread_switch", { newThreadId: agent.currentThreadId });
+  }, [agent.currentThreadId]);
+}
+```
+
+## Migration from useChat
+
+If you need to migrate from useChat to useAgent for more control:
+
+```typescript
+// Before: useChat (automatic coordination)
+const { messages, sendMessage, threads, switchToThread } = useChat({
+  initialThreadId: threadId,
+});
+
+// After: useAgent (manual coordination)
+const agent = useAgent({
+  threadId: threadId,
+  userId: "user-123",
+});
+
+// Manual thread management (what useChat did automatically)
+const threads = useThreads({ userId: "user-123" });
+
+useEffect(() => {
+  // Sync thread state manually
+  if (threads.currentThreadId !== agent.currentThreadId) {
+    agent.setCurrentThread(threads.currentThreadId);
+  }
+}, [threads.currentThreadId, agent.currentThreadId]);
+
+const switchToThread = useCallback(
+  async (threadId: string) => {
+    // Manual history loading (what useChat did automatically)
+    threads.setCurrentThreadId(threadId);
+    agent.setCurrentThread(threadId);
+
+    try {
+      const history = await loadThreadHistory(threadId);
+      agent.replaceThreadMessages(threadId, history);
+    } catch (error) {
+      console.warn("Failed to load thread history:", error);
+    }
+  },
+  [agent, threads]
+);
+```
+
+## Next Steps
+
+<CardGroup>
+  <Card title="useChat Reference" href="/reference/react-hooks/use-chat">
+    Higher-level hook with automatic coordination (recommended for most apps)
+  </Card>
+  <Card title="useThreads Reference" href="/reference/react-hooks/use-threads">
+    Specialized hook for thread management and persistence
+  </Card>
+  <Card
+    title="Message Types Reference"
+    href="/reference/react-hooks/message-types"
+  >
+    Complete documentation for ConversationMessage and MessagePart types
+  </Card>
+  <Card title="Streaming Deep Dive" href="/streaming/automatic-streaming">
+    Learn how the underlying streaming system works
+  </Card>
+</CardGroup>
+
+The `useAgent` hook provides the foundation for all AgentKit React integrations. While `useChat` is recommended for most applications, `useAgent` gives you the granular control needed for advanced implementations, custom UI patterns, and specialized use cases.

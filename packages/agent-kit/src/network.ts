@@ -1,9 +1,10 @@
 import { type AiAdapter } from "@inngest/ai";
+import { randomUUID } from "crypto";
 import { z } from "zod";
 import { createRoutingAgent, type Agent, RoutingAgent } from "./agent";
 import { createState, State, type StateData } from "./state";
 import { createTool } from "./tool";
-import type { AgentResult, Message } from "./types";
+import type { AgentResult, Message, UserMessage } from "./types";
 import { type MaybePromise } from "./util";
 import {
   type HistoryConfig,
@@ -11,6 +12,13 @@ import {
   loadThreadFromStorage,
   saveThreadToStorage,
 } from "./history";
+import {
+  StreamingContext,
+  createStepWrapper,
+  generateId,
+  type StreamingConfig,
+} from "./streaming";
+import { getStepTools } from "./util";
 
 /**
  * Network represents a network of agents.
@@ -138,6 +146,14 @@ export class Network<T extends StateData> {
   public run(
     ...[input, overrides]: Network.RunArgs<T>
   ): Promise<NetworkRun<T>> {
+    // Automatically normalize a string clientTimestamp to a Date object.
+    if (
+      typeof input === "object" &&
+      typeof input.clientTimestamp === "string"
+    ) {
+      input.clientTimestamp = new Date(input.clientTimestamp);
+    }
+
     let state: State<T>;
     if (overrides?.state) {
       if (overrides.state instanceof State) {
@@ -184,30 +200,42 @@ export const getDefaultRoutingAgent = () => {
         if (!tool) {
           return;
         }
-        if (
-          typeof tool.content === "object" &&
-          tool.content !== null &&
-          "data" in tool.content &&
-          typeof tool.content.data === "string"
-        ) {
-          return [tool.content.data];
+
+        // Check if the done tool was called
+        if (tool.tool.name === "done") {
+          return undefined; // Signal to exit the agent loop
         }
+
+        // Check if select_agent was called
+        if (tool.tool.name === "select_agent") {
+          if (
+            typeof tool.content === "object" &&
+            tool.content !== null &&
+            "data" in tool.content &&
+            typeof tool.content.data === "string"
+          ) {
+            return [tool.content.data];
+          }
+        }
+
         return;
       },
     },
 
     tools: [
-      // This tool does nothing but ensure that the model responds with the
-      // agent name as valid JSON.
       createTool({
         name: "select_agent",
         description:
-          "select an agent to handle the input, based off of the current conversation",
+          "Select an agent to handle the next step of the conversation",
         parameters: z
           .object({
             name: z
               .string()
               .describe("The name of the agent that should handle the request"),
+            reason: z
+              .string()
+              .optional()
+              .describe("Brief explanation of why this agent was chosen"),
           })
           .strict(),
         handler: ({ name }, { network }) => {
@@ -227,9 +255,27 @@ export const getDefaultRoutingAgent = () => {
           return agent.name;
         },
       }),
+
+      createTool({
+        name: "done",
+        description:
+          "Signal that the conversation is complete and no more agents need to be called",
+        parameters: z
+          .object({
+            summary: z
+              .string()
+              .optional()
+              .describe("Brief summary of what was accomplished"),
+          })
+          .strict(),
+        handler: ({ summary }) => {
+          // Return a completion message
+          return summary || "Conversation completed successfully";
+        },
+      }),
     ],
 
-    tool_choice: "select_agent",
+    tool_choice: "any", // Allow the model to choose between select_agent or done
 
     system: async ({ network }): Promise<string> => {
       if (!network) {
@@ -240,7 +286,7 @@ export const getDefaultRoutingAgent = () => {
 
       const agents = await network?.availableAgents();
 
-      return `You are the orchestrator between a group of agents.  Each agent is suited for a set of specific tasks, and has a name, instructions, and a set of tools.
+      return `You are the orchestrator between a group of agents. Each agent is suited for specific tasks and has a name, description, and tools.
 
 The following agents are available:
 <agents>
@@ -257,14 +303,19 @@ The following agents are available:
     .join("\n")}
 </agents>
 
-Follow the set of instructions:
+Your responsibilities:
+1. Analyze the conversation history and current state
+2. Determine if the request has been completed or if more work is needed
+3. Either:
+   - Call select_agent to route to the appropriate agent for the next step
+   - Call done if the conversation is complete or the user's request has been fulfilled
 
 <instructions>
-  Think about the current history and status.  Determine which agent to use to handle the user's request, based off of the current agents and their tools.
-
-  Your aim is to thoroughly complete the request, thinking step by step, choosing the right agent based off of the context.
-</instructions>
-    `;
+  - If the user's request has been addressed and no further action is needed, call the done tool
+  - If more work is needed, select the most appropriate agent based on their capabilities
+  - Consider the context and history when making routing decisions
+  - Be efficient - don't route to agents unnecessarily if the task is complete
+</instructions>`;
     },
   });
 
@@ -287,12 +338,13 @@ export namespace Network {
   };
 
   export type RunArgs<T extends StateData> = [
-    input: string,
+    input: UserMessage | string,
     overrides?: {
       router?: Router<T>;
       defaultRouter?: Router<T>;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       state?: State<T> | Record<string, any>;
+      streaming?: StreamingConfig;
     },
   ];
 
@@ -324,9 +376,15 @@ export namespace Network {
 
     export interface Args<T extends StateData> {
       /**
-       * input is the input called to the network
+       * input is the input called to the network (always the string content for backwards compatibility)
        */
       input: string;
+
+      /**
+       * userMessage is the rich UserMessage object if provided (new in Phase 1)
+       * Contains client state, timestamps, and optional system prompts
+       */
+      userMessage?: UserMessage;
 
       /**
        * Network is the network that this router is coordinating.  Network state
@@ -388,25 +446,126 @@ export class NetworkRun<T extends StateData> extends Network<T> {
   private async execute(
     ...[input, overrides]: Network.RunArgs<T>
   ): Promise<this> {
+    // Generate network run ID inside Inngest steps to ensure deterministic replay behavior
+    const stepTools = await getStepTools();
+    let networkRunId: string;
+
+    if (stepTools) {
+      // Use Inngest steps for deterministic ID generation
+      networkRunId = await stepTools.run("generate-network-id", () => {
+        return randomUUID();
+      });
+    } else {
+      // Fallback for non-Inngest contexts
+      networkRunId = randomUUID();
+    }
+
+    const streamingPublish = overrides?.streaming?.publish;
+    let streamingContext: StreamingContext | undefined;
+
     // If history.get is configured AND the state is empty, use it to load initial history
     // When passing passing in messages from the client, history.get() is disabled - allowing the client to maintain conversation state and send it with each request
     // Enables a client-authoritative pattern where the UI maintains conversation state and sends it with each request. Allows `history.get()` to serve as a fallback for new threads or recovery
 
+    // Extract string content for history functions that expect string input
+    const inputContent =
+      typeof input === "object" && input !== null && "content" in input
+        ? input.content
+        : input;
+
     // Initialize conversation thread: Creates a new thread or auto-generates if needed
+    // Capture whether the client provided a threadId BEFORE initialization. If absent, this
+    // implies a brand-new thread and we can skip the initial history load (no-op DB read).
+    const hadClientThreadId = Boolean(this.state.threadId);
     await initializeThread({
       state: this.state,
       history: this.history,
-      input,
+      input: inputContent,
       network: this,
     });
 
-    // Load existing conversation history from storage: If threadId exists and history.get() is configured
-    await loadThreadFromStorage({
-      state: this.state,
-      history: this.history,
-      input,
-      network: this,
-    });
+    // Persist the user's message at the beginning of the run for resilience
+    if (this.history?.appendUserMessage) {
+      let userMessage: {
+        id: string;
+        content: string;
+        role: "user";
+        timestamp: Date;
+      };
+
+      if (typeof input === "object" && input !== null && "id" in input) {
+        // Input is a UserMessage object - extract data from it
+        const userInput = input;
+
+        // Ensure clientTimestamp is a Date object before assignment
+        const timestamp =
+          userInput.clientTimestamp instanceof Date
+            ? userInput.clientTimestamp
+            : userInput.clientTimestamp
+              ? new Date(userInput.clientTimestamp)
+              : new Date();
+
+        userMessage = {
+          id: userInput.id,
+          content: userInput.content,
+          role: "user",
+          timestamp,
+        };
+      } else {
+        // Input is a string - generate a new ID
+        userMessage = {
+          id: randomUUID(),
+          content: input,
+          role: "user",
+          timestamp: new Date(),
+        };
+      }
+
+      await this.history.appendUserMessage({
+        state: this.state,
+        network: this,
+        input: inputContent,
+        threadId: this.state.threadId,
+        userMessage,
+        step: stepTools || undefined,
+      });
+    }
+
+    // Load existing conversation history from storage only when the client provided a threadId.
+    // If the threadId was omitted (new thread created this run), skip the initial get().
+    if (hadClientThreadId) {
+      await loadThreadFromStorage({
+        state: this.state,
+        history: this.history,
+        input: inputContent,
+        network: this,
+      });
+    }
+
+    // Prepare streaming context after thread initialization
+    if (streamingPublish) {
+      streamingContext = StreamingContext.fromNetworkState(this.state, {
+        publish: streamingPublish,
+        runId: networkRunId,
+        messageId: networkRunId, // Use networkRunId as messageId for network-level events
+        scope: "network",
+        simulateChunking: overrides?.streaming?.simulateChunking,
+      });
+      await streamingContext.publishEvent({
+        event: "run.started",
+        data: {
+          runId: networkRunId,
+          scope: "network",
+          name: this.name,
+          messageId: networkRunId, // Network events use networkRunId as messageId
+          threadId: this.state.threadId,
+        },
+      });
+    }
+
+    // Wrap step tools for automatic step lifecycle events
+    const step = await getStepTools();
+    const wrappedStep = createStepWrapper(step, streamingContext);
 
     const available = await this.availableAgents();
     if (available.length === 0) {
@@ -417,83 +576,222 @@ export class NetworkRun<T extends StateData> extends Network<T> {
     // Used to track new results in history.appendResults
     const initialResultCount = this.state.results.length;
 
-    // If there's no default agent used to run the request, use our internal
-    // routing agent which attempts to figure out the best agent to choose based
-    // off of the network.
-    const next = await this.getNextAgents(
-      input,
-      overrides?.router || overrides?.defaultRouter || this.router
-    );
-    if (!next?.length) {
-      // TODO: If call count is 0, error.
-      return this;
-    }
-
-    // Schedule the agent to run on our stack, then start popping off the stack.
-    for (const agent of next) {
-      this.schedule(agent.name);
-    }
-
-    while (
-      this._stack.length > 0 &&
-      (this.maxIter === 0 || this._counter < this.maxIter)
-    ) {
-      // XXX: It would be possible to parallel call these agents here by
-      // fetching the entire stack, parallel running, then awaiting the
-      // responses.   However, this confuses history and we'll take our time to
-      // introduce parallelisation after the foundations are set.
-
-      // Fetch the agent we need to call next off of the stack.
-      const agentName = this._stack.shift();
-      // Grab agents from the private map, as this may have been introduced in
-      // the router.
-      const agent = agentName && this._agents.get(agentName);
-      if (!agent) {
-        // We're done.
+    try {
+      // If there's no default agent used to run the request, use our internal
+      // routing agent which attempts to figure out the best agent to choose based
+      // off of the network.
+      const next = await this.getNextAgents(
+        input, // Pass full UserMessage object, not extracted content
+        overrides?.router || overrides?.defaultRouter || this.router
+      );
+      if (!next?.length) {
+        // TODO: If call count is 0, error.
         return this;
       }
 
-      // We force Agent to emit structured output in case of the use of tools by
-      // setting maxIter to 0.
-      const call = await agent.run(input, { network: this, maxIter: 0 });
-      this._counter += 1;
+      // Schedule the agent to run on our stack, then start popping off the stack.
+      for (const agent of next) {
+        this.schedule(agent.name);
+      }
 
-      // Ensure that we store the call network history.
-      this.state.appendResult(call);
+      while (
+        this._stack.length > 0 &&
+        (this.maxIter === 0 || this._counter < this.maxIter)
+      ) {
+        // XXX: It would be possible to parallel call these agents here by
+        // fetching the entire stack, parallel running, then awaiting the
+        // responses.   However, this confuses history and we'll take our time to
+        // introduce parallelisation after the foundations are set.
 
-      // Here we face a problem: what's the definition of done?   An agent may
-      // have just been called with part of the information to solve an input.
-      // We may need to delegate to another agent.
-      //
-      // In this case, we defer to the router provided to give us next steps.
-      // By default, this is an agentic router which takes the current state,
-      // agents, then figures out next steps.  This can, and often should, be
-      // custom code.
-      const next = await this.getNextAgents(
-        input,
-        overrides?.router || overrides?.defaultRouter || this.router
-      );
-      for (const a of next || []) {
-        this.schedule(a.name);
+        // Fetch the agent we need to call next off of the stack.
+        const agentName = this._stack.shift();
+
+        // Grab agents from the private map, as this may have been introduced in
+        // the router.
+        const agent = agentName && this._agents.get(agentName);
+        if (!agent) {
+          // We're done.
+          // Emit run.completed and stream.ended if streaming
+          if (streamingContext) {
+            await streamingContext.publishEvent({
+              event: "run.completed",
+              data: {
+                runId: networkRunId,
+                scope: "network",
+                name: this.name,
+                messageId: networkRunId, // Use networkRunId for network completion
+              },
+            });
+            await streamingContext.publishEvent({
+              event: "stream.ended",
+              data: {
+                scope: "network",
+                messageId: networkRunId,
+              },
+            });
+          }
+          return this;
+        }
+
+        // We force Agent to emit structured output in case of the use of tools by
+        // setting maxIter to 0.
+        // Generate unique IDs for this agent's execution using durable steps
+        let agentRunId: string;
+        let agentMessageId: string;
+
+        if (stepTools) {
+          // Use Inngest steps for deterministic agent ID generation
+          const agentIds = await stepTools.run(
+            `generate-agent-ids-${this._counter}`,
+            () => {
+              return {
+                agentRunId: generateId(),
+                agentMessageId: randomUUID(),
+              };
+            }
+          );
+          agentRunId = agentIds.agentRunId;
+          agentMessageId = agentIds.agentMessageId;
+        } else {
+          // Fallback for non-Inngest contexts
+          agentRunId = generateId();
+          agentMessageId = randomUUID();
+        }
+
+        // Create agent streaming context that shares the sequence counter
+        let agentStreamingContext: StreamingContext | undefined;
+        if (streamingContext) {
+          // Create context with shared sequence counter but agent-specific messageId
+          agentStreamingContext =
+            streamingContext.createContextWithSharedSequence({
+              runId: agentRunId,
+              messageId: agentMessageId,
+              scope: "agent",
+            });
+
+          await streamingContext.publishEvent({
+            event: "run.started",
+            data: {
+              runId: agentRunId,
+              parentRunId: networkRunId,
+              scope: "agent",
+              name: agent.name,
+              messageId: agentMessageId, // Use agent-specific messageId
+            },
+          });
+        }
+
+        const call = await agent.run(inputContent, {
+          network: this,
+          maxIter: 0,
+          // Provide streaming context so the agent can emit part/text/tool events
+          streamingContext: agentStreamingContext,
+          // Provide wrapped step tools for automatic step lifecycle events
+          step: wrappedStep,
+        });
+
+        // CRITICAL FIX: Set the canonical message ID on the AgentResult
+        // This ensures the streaming agentMessageId becomes the persisted message_id
+        call.id = agentMessageId;
+
+        if (agentStreamingContext) {
+          await agentStreamingContext.publishEvent({
+            event: "run.completed",
+            data: {
+              runId: agentRunId,
+              scope: "agent",
+              name: agent.name,
+              messageId: agentMessageId, // Include agent-specific messageId in completion event
+            },
+          });
+        }
+        this._counter += 1;
+
+        // Ensure that we store the call network history.
+        this.state.appendResult(call);
+
+        // Here we face a problem: what's the definition of done?   An agent may
+        // have just been called with part of the information to solve an input.
+        // We may need to delegate to another agent.
+        //
+        // In this case, we defer to the router provided to give us next steps.
+        // By default, this is an agentic router which takes the current state,
+        // agents, then figures out next steps.  This can, and often should, be
+        // custom code.
+        const next = await this.getNextAgents(
+          input, // Pass full UserMessage object, not extracted content
+          overrides?.router || overrides?.defaultRouter || this.router
+        );
+
+        for (const a of next || []) {
+          this.schedule(a.name);
+        }
+      }
+
+      // Save new network results to storage: Persists all new AgentResults generated
+      // during this network run (from all agents that executed). Only saves the new
+      // results, excluding any historical results that were loaded at the start.
+      await saveThreadToStorage({
+        state: this.state,
+        history: this.history,
+        input: inputContent,
+        initialResultCount,
+        network: this,
+      });
+    } catch (error) {
+      // Emit error events for network streaming
+      if (streamingContext) {
+        try {
+          await streamingContext.publishEvent({
+            event: "run.failed",
+            data: {
+              runId: networkRunId,
+              scope: "network",
+              name: this.name,
+              messageId: networkRunId, // Use networkRunId for network error events
+              error: error instanceof Error ? error.message : String(error),
+              recoverable: false,
+            },
+          });
+        } catch (streamingError) {
+          // Swallow streaming errors to prevent masking the original error
+          console.warn("Failed to publish run.failed event:", streamingError);
+        }
+      }
+      // Re-throw the original error
+      throw error;
+    } finally {
+      // Always emit completion events for network streaming
+      if (streamingContext) {
+        try {
+          await streamingContext.publishEvent({
+            event: "run.completed",
+            data: {
+              runId: networkRunId,
+              scope: "network",
+              name: this.name,
+              messageId: networkRunId, // Use networkRunId for network completion in finally block
+            },
+          });
+          await streamingContext.publishEvent({
+            event: "stream.ended",
+            data: {
+              scope: "network",
+              messageId: networkRunId,
+            },
+          });
+        } catch (streamingError) {
+          // Swallow streaming errors to prevent breaking the application
+          console.warn("Failed to publish completion events:", streamingError);
+        }
       }
     }
-
-    // Save new network results to storage: Persists all new AgentResults generated
-    // during this network run (from all agents that executed). Only saves the new
-    // results, excluding any historical results that were loaded at the start.
-    await saveThreadToStorage({
-      state: this.state,
-      history: this.history,
-      input,
-      initialResultCount,
-      network: this,
-    });
 
     return this;
   }
 
   private async getNextAgents(
-    input: string,
+    input: UserMessage | string,
     router?: Network.Router<T>
   ): Promise<Agent<T>[] | undefined> {
     // A router may do one of two things:
@@ -511,7 +809,12 @@ export class NetworkRun<T extends StateData> extends Network<T> {
       router = getDefaultRoutingAgent();
     }
     if (router instanceof RoutingAgent) {
-      return await this.getNextAgentsViaRoutingAgent(router, input);
+      // RoutingAgents expect string input, so extract content from UserMessage
+      const inputContent =
+        typeof input === "object" && input !== null && "content" in input
+          ? input.content
+          : input;
+      return await this.getNextAgentsViaRoutingAgent(router, inputContent);
     }
 
     // This is a function call which determines the next agent to call.  Note that the result
@@ -524,19 +827,34 @@ export class NetworkRun<T extends StateData> extends Network<T> {
       return agent;
     });
 
+    // Extract string content for router (routers always receive string for backwards compatibility)
+    const routerInputContent =
+      typeof input === "object" && input !== null && "content" in input
+        ? input.content
+        : input;
+
     const agent = await router({
-      input,
+      input: routerInputContent, // Always pass string content for backwards compatibility
+      userMessage:
+        typeof input === "object" && input !== null && "content" in input
+          ? input
+          : undefined,
       network: this,
       stack,
-      lastResult: this.state.results.pop(),
+      lastResult: this.state.results[this.state.results.length - 1],
       callCount: this._counter,
     });
+
     if (!agent) {
       return;
     }
     if (agent instanceof RoutingAgent) {
-      // Functions may also return routing agents.
-      return await this.getNextAgentsViaRoutingAgent(agent, input);
+      // Functions may also return routing agents - extract content for RoutingAgent
+      const inputContent =
+        typeof input === "object" && input !== null && "content" in input
+          ? input.content
+          : input;
+      return await this.getNextAgentsViaRoutingAgent(agent, inputContent);
     }
 
     for (const a of Array.isArray(agent) ? agent : [agent]) {
@@ -558,6 +876,7 @@ export class NetworkRun<T extends StateData> extends Network<T> {
       network: this,
       model: routingAgent.model || this.defaultModel,
     });
+
     const agentNames = routingAgent.lifecycles.onRoute({
       result,
       agent: routingAgent,
