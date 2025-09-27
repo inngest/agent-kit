@@ -9,9 +9,13 @@ import { type Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import { ListToolsResultSchema } from "@modelcontextprotocol/sdk/types.js";
 import { EventSource } from "eventsource";
 import { randomUUID } from "crypto";
-import { referenceFunction, type Inngest, type GetStepTools } from "inngest";
+import {
+  referenceFunction,
+  type Inngest,
+  type InngestFunction,
+  type GetStepTools,
+} from "inngest";
 import { errors } from "inngest/internals";
-import { type InngestFunction } from "inngest";
 import { type MinimalEventPayload } from "inngest/types";
 import type { ZodType } from "zod";
 import { createAgenticModelFromAiAdapter, type AgenticModel } from "./model";
@@ -30,13 +34,14 @@ import {
   isInngestFn,
   type MaybePromise,
 } from "./util";
+
 import {
   type HistoryConfig,
   initializeThread,
   loadThreadFromStorage,
   saveThreadToStorage,
 } from "./history";
-// Streaming integration will be handled at the network level for now
+
 import {
   StreamingContext,
   createStepWrapper,
@@ -94,6 +99,25 @@ export class Agent<T extends StateData> {
   tool_choice?: Tool.Choice;
 
   /**
+   * publish allows you to stream the responses on the given chanenl and topic
+   * using Inngest's realtime publishing.
+   *
+   * The agent's responses will be streamed to any listeners token by token,
+   * as fast as possible.
+   */
+  publish?: (state: T) => {
+    /**
+     * channel is the channel to broadcast on.
+     */
+    channel: string;
+
+    /**
+     * topic is the topic to broadcast on, within the current channel.
+     */
+    topic: string;
+  };
+
+  /**
    * lifecycles are programmatic hooks used to manage the agent.
    */
   lifecycles: Agent.Lifecycle<T> | Agent.RoutingLifecycle<T> | undefined;
@@ -132,6 +156,7 @@ export class Agent<T extends StateData> {
     this.setTools(opts.tools);
     this.mcpServers = opts.mcpServers;
     this._mcpClients = [];
+    this.publish = opts.publish;
   }
 
   private setTools(tools: Agent.Constructor<T>["tools"]): void {
@@ -446,7 +471,8 @@ export class Agent<T extends StateData> {
       this.name,
       prompt.concat(history),
       Array.from(this.tools.values()),
-      this.tool_choice || "auto"
+      this.tool_choice || "auto",
+      this.publish && this.publish(network?.state?.data)
     );
 
     // Now that we've made the call, we instantiate a new AgentResult for
@@ -981,6 +1007,10 @@ export namespace Agent {
     model?: AiAdapter.Any;
     mcpServers?: MCP.Server[];
     history?: HistoryConfig<T>;
+    publish?: (state: T) => {
+      channel: string;
+      topic: string;
+    };
   }
 
   export interface RoutingConstructor<T extends StateData>
