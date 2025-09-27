@@ -52,9 +52,6 @@
     "@modelcontextprotocol/sdk": "^1.11.2",
     "eventsource": "^3.0.2",
     "express": "^4.21.1",
-    "xxhashjs": "^0.2.2",
-    "zod": "^3.25.76",
-    "zod-to-json-schema": "^3.24.3"
     "xxhashjs": "^0.2.2"
   },
   "peerDependencies": {
