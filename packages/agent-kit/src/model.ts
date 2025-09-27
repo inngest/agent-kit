@@ -53,6 +53,7 @@ export class AgenticModel<TAiAdapter extends AiAdapter.Any> {
       tool_choice,
       stream
     );
+
     let result: AiAdapter.Input<TAiAdapter>;
 
     const step = await getStepTools();
@@ -80,6 +81,9 @@ export class AgenticModel<TAiAdapter extends AiAdapter.Any> {
       const formatHandlers: Record<AiAdapter.Format, () => void> = {
         "openai-chat": () => {
           headers["Authorization"] = `Bearer ${modelCopy.authKey}`;
+        },
+        "azure-openai": () => {
+          headers["api-key"] = modelCopy.authKey;
         },
         anthropic: () => {
           headers["x-api-key"] = modelCopy.authKey;

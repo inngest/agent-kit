@@ -3,6 +3,31 @@ import xxh from "xxhashjs";
 export type Message = TextMessage | ToolCallMessage | ToolResultMessage;
 
 /**
+ * UserMessage represents a rich message object from a client that can contain
+ * not just the message content but also client-side state, timestamps, and
+ * optional system prompts for a single turn.
+ */
+export interface UserMessage {
+  /** The canonical, client-generated unique identifier for the message. */
+  id: string;
+
+  /** The text content of the user's message. */
+  content: string;
+
+  /** The role is always 'user' to accurately represent the source. */
+  role: "user";
+
+  /** Optional, client-provided state snapshot to be persisted. */
+  state?: Record<string, unknown>;
+
+  /** Optional, client-provided timestamp for optimistic UI ordering. */
+  clientTimestamp?: Date | string;
+
+  /** Optional, one-time system prompt to prepend for this specific turn. */
+  systemPrompt?: string;
+}
+
+/**
  * TextMessage represents plain text messages in the chat history, eg. the user's prompt or
  * an assistant's reply.
  */
@@ -131,7 +156,13 @@ export class AgentResult {
      * raw represents the raw API response from the call.  This is a JSON
      * string, and the format depends on the agent's model.
      */
-    public raw?: string
+    public raw?: string,
+
+    /**
+     * id represents the unique identifier for this agent result.
+     * This is used for persistence and message identification.
+     */
+    public id?: string
   ) {}
 
   // checksum memoizes a checksum so that it doe snot have to be calculated many times.
