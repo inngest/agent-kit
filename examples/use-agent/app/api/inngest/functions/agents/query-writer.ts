@@ -1,4 +1,4 @@
-import { createAgent, createTool, openai, type AnyZodType } from '@inngest/agent-kit';
+import { createAgent, createTool, grok } from '@inngest/agent-kit';
 import { z } from 'zod';
 
 import type { GenerateSqlResult, InsightsAgentState as InsightsState } from './types';
@@ -190,7 +190,7 @@ export const generateSqlTool = createTool({
   name: 'generate_sql',
   description:
     'Provide the final SQL SELECT statement for ClickHouse based on the selected events and schemas.',
-  parameters: GenerateSqlParams as unknown as AnyZodType, // xxx: (ted): need to align zod version; version 3.25 does not support same types as 3.22
+  parameters: GenerateSqlParams,
   handler: ({ sql, title, reasoning }: z.infer<typeof GenerateSqlParams>, { network }) => {
     return {
       sql,
@@ -203,10 +203,12 @@ export const generateSqlTool = createTool({
 export const queryWriterAgent = createAgent<InsightsState>({
   name: 'Insights Query Writer',
   description: 'Generates a safe, read-only SQL SELECT statement for ClickHouse.',
-  system: async ({ network }) => {
-    const selected = network?.state.data.selectedEvents?.map((e) => e.event_name) ?? [];
+  system: async ({ network }): Promise<string> => {
+    const selected =
+      network?.state?.data?.selectedEvents?.map(e => e.event_name) ?? [];
     return [
       'You write ClickHouse-compatible SQL for analytics.',
+      '',
       `You MUST follow these rules ${queryRules}`,
       `You MUST follow this grammar ${queryGrammar}`,
       selected.length
@@ -216,7 +218,7 @@ export const queryWriterAgent = createAgent<InsightsState>({
       'When ready, call the generate_sql tool with the final SQL and a short 20-30 character title.',
     ].join('\n');
   },
-  model: openai({ model: 'gpt-5-nano-2025-08-07' }),
+  model: grok({ model: "grok-3-latest" }),
   tools: [generateSqlTool],
   tool_choice: 'generate_sql',
 });

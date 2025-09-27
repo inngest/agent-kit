@@ -70,6 +70,9 @@ export class AgenticModel<TAiAdapter extends AiAdapter.Any> {
         "openai-chat": () => {
           headers["Authorization"] = `Bearer ${modelCopy.authKey}`;
         },
+        "azure-openai": () => {
+          headers["api-key"] = modelCopy.authKey;
+        },
         anthropic: () => {
           headers["x-api-key"] = modelCopy.authKey;
           headers["anthropic-version"] = "2023-06-01";

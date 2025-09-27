@@ -7,7 +7,6 @@
  */
 import { type AiAdapter, type Gemini } from "@inngest/ai";
 import { z, type ZodSchema } from "zod";
-import { zodToJsonSchema } from "zod-to-json-schema";
 
 import { type AgenticModel } from "../model";
 import type { Message, TextContent } from "../types";
@@ -283,9 +282,8 @@ export const recursiveGeminiZodToJsonSchema = <T>(obj: T): Removed<T> => {
   return newObj as Removed<T>;
 };
 
-const geminiZodToJsonSchema = (zod: ZodSchema) => {
-  let schema = zodToJsonSchema(zod, { target: "openApi3" });
-
+const geminiZodToJsonSchema = (schemaIn: ZodSchema) => {
+  let schema = z.toJSONSchema(schemaIn, { target: "openapi-3.0", io: "input" });
   schema = recursiveGeminiZodToJsonSchema(schema);
   return schema;
 };

@@ -1,5 +1,19 @@
 # @inngest/agent-kit
 
+## 0.13.0
+
+### Minor Changes
+
+- c9b0b16: support for latest version of inngest (3.43.1)
+  integrated azure-openai model from @inngest/ai
+  migrated to zod v4 and removed zod-to-json-schema package in favor of native z.toJSONSchema()
+
+## 0.12.1
+
+### Patch Changes
+
+- 4a81376: replacing the static import of json-schema-to-zod with a dynamic import() inside the function where it's used to resolve crashing when loading agentkit in a cjs project using require()
+
 ## 0.12.0
 
 ### Minor Changes

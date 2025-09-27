@@ -5,7 +5,7 @@
  */
 
 import { type AiAdapter, type OpenAi } from "@inngest/ai";
-import { zodToJsonSchema } from "zod-to-json-schema";
+import { z } from "zod";
 import { type AgenticModel } from "../model";
 import {
   type Message,
@@ -82,7 +82,7 @@ export const requestParser: AgenticModel.RequestParser<OpenAi.AiModel> = (
           name: t.name,
           description: t.description,
           parameters:
-            t.parameters && zodToJsonSchema(t.parameters, { target: "openAi" }),
+            t.parameters && z.toJSONSchema(t.parameters, { target: "draft-7" }),
           strict:
             typeof t.strict !== "undefined" ? t.strict : Boolean(t.parameters), // strict mode is only supported with parameters
         },
