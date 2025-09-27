@@ -706,8 +706,6 @@ export class Agent<T extends StateData> {
           })
           .catch((err: Error) => {
             return { error: errors.serializeError(err) };
-          .catch((err) => {
-            return { error: errors.serializeError(err) };
           });
 
         // Stream tool output if context available
