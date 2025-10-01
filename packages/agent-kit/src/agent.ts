@@ -112,6 +112,12 @@ export class Agent<T extends StateData> {
   mcpServers?: MCP.Server[];
 
   /**
+   * mcpConfig provides global configuration for filtering MCP tools
+   * across all connected MCP servers.
+   */
+  mcpConfig?: MCP.Config;
+
+  /**
    * history configuration for managing conversation history
    */
   private history?: HistoryConfig<T>;
@@ -131,6 +137,7 @@ export class Agent<T extends StateData> {
     this.history = opts.history;
     this.setTools(opts.tools);
     this.mcpServers = opts.mcpServers;
+    this.mcpConfig = opts.mcpConfig;
     this._mcpClients = [];
   }
 
@@ -827,6 +834,79 @@ export class Agent<T extends StateData> {
   }
 
   /**
+   * Helper to check if a tool name matches a filter pattern.
+   * Supports both exact string matches and regular expressions.
+   */
+  private matchesFilter(
+    toolName: string,
+    filter: (string | RegExp)[]
+  ): boolean {
+    return filter.some((f) => {
+      if (typeof f === "string") {
+        return f === toolName;
+      } else {
+        return f.test(toolName);
+      }
+    });
+  }
+
+  /**
+   * Determines if a tool should be included based on filtering rules.
+   *
+   * Filter precedence (both server-specific and global):
+   * 1. Start with all tools
+   * 2. Apply include filters (if any) - keep only matching items
+   * 3. Apply exclude filters (if any) - remove matching items
+   *
+   * This ensures excludes always override includes for safety.
+   * If a tool matches both include and exclude patterns, it will be excluded.
+   */
+  private shouldIncludeTool(toolName: string, server: MCP.Server): boolean {
+    let allowTool = true;
+
+    // Step 1: Apply include filters (allowlist behavior)
+    // If includeTools is specified, the tool MUST match to proceed
+
+    // Check server-specific include filter
+    if (server.includeTools && server.includeTools.length > 0) {
+      allowTool = this.matchesFilter(toolName, server.includeTools);
+      if (!allowTool) return false; // Not in server's include list
+    }
+
+    // Check global include filter
+    if (
+      this.mcpConfig?.includeTools &&
+      this.mcpConfig.includeTools.length > 0
+    ) {
+      allowTool = this.matchesFilter(toolName, this.mcpConfig.includeTools);
+      if (!allowTool) return false; // Not in global include list
+    }
+
+    // Step 2: Apply exclude filters (blocklist behavior)
+    // Any match here results in exclusion, overriding includes
+
+    // Check server-specific exclude filter
+    if (server.excludeTools && server.excludeTools.length > 0) {
+      const isExcluded = this.matchesFilter(toolName, server.excludeTools);
+      if (isExcluded) return false; // In server's exclude list
+    }
+
+    // Check global exclude filter
+    if (
+      this.mcpConfig?.excludeTools &&
+      this.mcpConfig.excludeTools.length > 0
+    ) {
+      const isExcluded = this.matchesFilter(
+        toolName,
+        this.mcpConfig.excludeTools
+      );
+      if (isExcluded) return false; // In global exclude list
+    }
+
+    return allowTool; // Tool passes all filters
+  }
+
+  /**
    * listMCPTools lists all available tools for a given MCP server
    */
   private async listMCPTools(server: MCP.Server) {
@@ -840,7 +920,13 @@ export class Agent<T extends StateData> {
         { method: "tools/list" },
         ListToolsResultSchema
       );
+
       results.tools.forEach((t) => {
+        // Check if this tool should be included based on filters
+        if (!this.shouldIncludeTool(t.name, server)) {
+          return; // Skip this tool
+        }
+
         const name = `${server.name}-${t.name}`;
 
         let zschema: undefined | ZodType;
@@ -980,6 +1066,7 @@ export namespace Agent {
     lifecycle?: Lifecycle<T>;
     model?: AiAdapter.Any;
     mcpServers?: MCP.Server[];
+    mcpConfig?: MCP.Config;
     history?: HistoryConfig<T>;
   }
 
