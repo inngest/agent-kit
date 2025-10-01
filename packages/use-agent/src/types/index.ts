@@ -264,6 +264,41 @@ export type ToolResultPayload<T> = { data: T };
 // =============================================================================
 
 /**
+ * AgentKit Message format union type used for history payloads.
+ * Structurally compatible with @inngest/agent-kit Message union.
+ */
+export type AgentKitMessage =
+  | {
+      role: "user" | "assistant";
+      type: "text";
+      content: string;
+      stop_reason?: "tool" | "stop";
+    }
+  | {
+      role: "user" | "assistant";
+      type: "tool_call";
+      tools: Array<{
+        type: "tool";
+        id: string;
+        name: string;
+        input: Record<string, unknown>;
+      }>;
+      stop_reason: "tool";
+    }
+  | {
+      role: "tool_result";
+      type: "tool_result";
+      tool: {
+        type: "tool";
+        id: string;
+        name: string;
+        input: Record<string, unknown>;
+      };
+      content: unknown;
+      stop_reason: "tool";
+    };
+
+/**
  * ChatRequestPayload is the request body shape sent from the frontend to your
  * API route responsible for triggering the chat. clientTimestamp may be a
  * Date on the client, but will serialize to a string on the wire.
@@ -278,7 +313,7 @@ export interface ChatRequestPayload {
     systemPrompt?: string;
   };
   threadId?: string;
-  history?: unknown[];
+  history?: AgentKitMessage[];
   userId?: string;
   channelKey?: string;
 }

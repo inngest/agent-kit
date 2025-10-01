@@ -13,6 +13,7 @@ import {
   type ConversationMessage,
   type TextUIPart,
   type ToolManifest,
+  type AgentKitMessage,
 } from "../types/index.js";
 
 /**
@@ -32,36 +33,7 @@ import {
  * ];
  * ```
  */
-export type AgentKitMessage =
-  | {
-      role: "user" | "assistant";
-      type: "text";
-      content: string;
-      stop_reason?: "tool" | "stop";
-    }
-  | {
-      role: "user" | "assistant";
-      type: "tool_call";
-      tools: Array<{
-        type: "tool";
-        id: string;
-        name: string;
-        input: Record<string, unknown>;
-      }>;
-      stop_reason: "tool";
-    }
-  | {
-      role: "tool_result";
-      type: "tool_result";
-      tool: {
-        type: "tool";
-        id: string;
-        name: string;
-        input: Record<string, unknown>;
-      };
-      content: unknown;
-      stop_reason: "tool";
-    };
+// AgentKitMessage now lives in ../types; import and reuse to avoid duplication
 
 /**
  * A pure function that transforms the UI's rich `ConversationMessage` array
