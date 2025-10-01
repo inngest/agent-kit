@@ -1,5 +1,11 @@
 # @inngest/use-agent
 
+## 0.4.0
+
+### Minor Changes
+
+- 2ffb890: made history strongly typed with AgentKitMessage
+
 ## 0.3.0
 
 ### Minor Changes
