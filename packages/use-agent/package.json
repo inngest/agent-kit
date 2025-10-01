@@ -1,6 +1,6 @@
 {
   "name": "@inngest/use-agent",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "React hooks for building AI chat interfaces with AgentKit",
   "type": "module",
   "main": "./dist/index.js",

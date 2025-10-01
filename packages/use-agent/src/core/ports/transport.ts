@@ -2,7 +2,11 @@
 // This provides a stable hexagonal port surface which we can evolve independently
 
 // Port interface surface for transports
-import type { RealtimeToken, ThreadsPage } from "../../types/index.js";
+import type {
+  RealtimeToken,
+  ThreadsPage,
+  AgentKitMessage,
+} from "../../types/index.js";
 export interface RequestOptions {
   headers?: Record<string, string>;
   body?: Record<string, unknown>;
@@ -19,7 +23,7 @@ export interface SendMessageParams {
     systemPrompt?: string;
   };
   threadId: string;
-  history: unknown[];
+  history: AgentKitMessage[];
   userId?: string;
   channelKey?: string;
 }
