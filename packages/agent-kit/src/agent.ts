@@ -1,4 +1,4 @@
-import { type JSONSchema } from "@dmitryrechkin/json-schema-to-zod";
+import type { JSONSchema } from "@dmitryrechkin/json-schema-to-zod";
 import { type AiAdapter } from "@inngest/ai";
 import { Client as MCPClient } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
