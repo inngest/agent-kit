@@ -22,7 +22,7 @@ The adapter is passed to `createAgent()` or `createNetwork()` and AgentKit autom
 
 ### HistoryConfig Interface
 
-The `HistoryConfig` interface has three optional methods. Below is an expanded view of the interface showing the context and parameters passed to each method.
+The `HistoryConfig` interface has four optional methods. Below is an expanded view of the interface showing the context and parameters passed to each method.
 
 ```typescript
 import type {
@@ -35,8 +35,8 @@ import type {
 
 interface HistoryConfig<T extends StateData> {
   /**
-   * Creates a new conversation thread.
-   * Invoked at the start of a run if no `threadId` exists in the state.
+   * Creates a new conversation thread or ensures it exists.
+   * Invoked at the start of a run to initialize the thread.
    */
   createThread?: (ctx: {
     state: State<T>; // The current state, including your custom data
@@ -50,7 +50,7 @@ interface HistoryConfig<T extends StateData> {
    * Invoked after thread initialization if no history is provided by the client.
    */
   get?: (ctx: {
-    threadId: string; // The ID of the conversation thread
+    threadId?: string; // The ID of the conversation thread
     state: State<T>;
     input: string;
     network: NetworkRun<T>;
@@ -58,13 +58,30 @@ interface HistoryConfig<T extends StateData> {
   }) => Promise<AgentResult[]>;
 
   /**
-   * Saves new messages to your database after a run.
+   * Saves the user's message at the beginning of a run.
+   * Invoked immediately after thread initialization, before any agents run.
+   */
+  appendUserMessage?: (ctx: {
+    threadId?: string;
+    userMessage: {
+      id: string; // Canonical, client-generated message ID
+      content: string;
+      role: "user";
+      timestamp: Date;
+    };
+    state: State<T>;
+    input: string;
+    network: NetworkRun<T>;
+    step?: GetStepTools;
+  }) => Promise<void>;
+
+  /**
+   * Saves new agent results to your database after a run.
    * Invoked at the end of a successful agent or network run.
    */
   appendResults?: (ctx: {
-    threadId: string;
+    threadId?: string;
     newResults: AgentResult[]; // The new results generated during this run
-    userMessage?: { content: string; role: "user"; timestamp: Date }; // The user's message
     state: State<T>;
     input: string;
     network: NetworkRun<T>;
@@ -75,21 +92,33 @@ interface HistoryConfig<T extends StateData> {
 
 #### `createThread`
 
-- Creates a new conversation thread in your database
-- Invoked at the start of a run if no `threadId` exists in the state
-- Returns an object with the new `threadId`
+- Creates a new conversation thread in your database or ensures an existing thread is present
+- Invoked at the start of a run to initialize the thread
+- **Important**: If a `threadId` already exists in the state, your adapter should upsert (insert or update) to ensure the thread exists in storage
+- Returns an object with the `threadId`
 
 #### `get`
 
 - Retrieves conversation history from your database
-- Invoked after thread initialization, but only if the client didn't provide `results` or `messages`
+- Invoked after thread initialization, but **only if**:
+  - A `threadId` is present in the state
+  - The client didn't provide `results` or `messages`
+  - The thread was not just created in this run (client provided the threadId)
 - Returns an array of `AgentResult[]` representing the conversation history
+- **Recommended**: Include both user messages and agent results by converting user messages to `AgentResult` objects with `agentName: "user"` to preserve conversation order
+
+#### `appendUserMessage`
+
+- Saves the user's message immediately at the beginning of a run
+- Invoked after thread initialization but before any agents execute
+- Ensures user intent is captured even if the agent run fails (enables "regenerate" workflows)
+- Receives the user's message with a canonical, client-generated ID for idempotency
 
 #### `appendResults`
 
-- Saves new messages to your database after a network or agent run
+- Saves new agent results to your database after a network or agent run
 - Invoked at the end of a successful agent or network run
-- Receives only the _new_ results generated during this run (prevents duplicates)
+- Receives only the _new_ results generated during this run (AgentKit automatically filters out historical results to prevent duplicates)
 
 ---
 
@@ -106,10 +135,26 @@ import {
 } from "@inngest/agent-kit";
 import { db } from "./db"; // Your database client
 
-// Define your history adapter with all three methods
+// Define your history adapter with all four methods
 const conversationHistoryAdapter: HistoryConfig<any> = {
-  // 1. Create new conversation threads
+  // 1. Create new conversation threads (or ensure they exist)
   createThread: async ({ state, input }) => {
+    // If a threadId already exists, upsert to ensure it's in the database
+    if (state.threadId) {
+      await db.thread.upsert({
+        where: { id: state.threadId },
+        update: { updatedAt: new Date() },
+        create: {
+          id: state.threadId,
+          userId: state.data.userId,
+          title: input.slice(0, 50),
+          createdAt: new Date(),
+        },
+      });
+      return { threadId: state.threadId };
+    }
+
+    // Otherwise, create a new thread
     const thread = await db.thread.create({
       data: {
         userId: state.data.userId,
@@ -120,7 +165,7 @@ const conversationHistoryAdapter: HistoryConfig<any> = {
     return { threadId: thread.id };
   },
 
-  // 2. Load conversation history
+  // 2. Load conversation history (including user messages)
   get: async ({ threadId }) => {
     if (!threadId) return [];
 
@@ -129,40 +174,62 @@ const conversationHistoryAdapter: HistoryConfig<any> = {
       orderBy: { createdAt: "asc" },
     });
 
-    // Transform database records to AgentResult format
-    return messages
-      .filter((msg) => msg.role === "assistant")
-      .map((msg) => ({
-        agentName: msg.agentName,
-        output: [
-          {
-            type: "text" as const,
-            role: "assistant" as const,
-            content: msg.content,
-          },
-        ],
-        toolCalls: [],
-        createdAt: new Date(msg.createdAt),
-      }));
+    // Transform ALL messages (user + agent) to AgentResult format
+    // This preserves the complete conversation order
+    return messages.map((msg) => {
+      if (msg.role === "user") {
+        // Convert user messages to AgentResult with agentName: "user"
+        return new AgentResult(
+          "user",
+          [
+            {
+              type: "text" as const,
+              role: "user" as const,
+              content: msg.content,
+              stop_reason: "stop",
+            },
+          ],
+          [],
+          new Date(msg.createdAt)
+        );
+      } else {
+        // Return agent results
+        return new AgentResult(
+          msg.agentName,
+          [
+            {
+              type: "text" as const,
+              role: "assistant" as const,
+              content: msg.content,
+            },
+          ],
+          [],
+          new Date(msg.createdAt)
+        );
+      }
+    });
   },
 
-  // 3. Save new messages
-  appendResults: async ({ threadId, newResults, userMessage }) => {
+  // 3. Save user message immediately (before agents run)
+  appendUserMessage: async ({ threadId, userMessage }) => {
     if (!threadId) return;
 
-    // Save user message
-    if (userMessage) {
-      await db.message.create({
-        data: {
-          threadId,
-          role: "user",
-          content: userMessage.content,
-          createdAt: userMessage.timestamp,
-        },
-      });
-    }
+    await db.message.create({
+      data: {
+        messageId: userMessage.id, // Use canonical client-generated ID
+        threadId,
+        role: "user",
+        content: userMessage.content,
+        createdAt: userMessage.timestamp,
+      },
+    });
+  },
 
-    // Save agent responses
+  // 4. Save agent results after the run
+  appendResults: async ({ threadId, newResults }) => {
+    if (!threadId) return;
+
+    // Save only agent responses (user message already saved)
     for (const result of newResults) {
       const content = result.output
         .filter((msg) => msg.type === "text")
@@ -171,45 +238,18 @@ const conversationHistoryAdapter: HistoryConfig<any> = {
 
       await db.message.create({
         data: {
+          messageId: result.id || crypto.randomUUID(), // Use result.id if available
           threadId,
           role: "assistant",
           agentName: result.agentName,
           content,
+          checksum: result.checksum, // For idempotency
           createdAt: result.createdAt,
         },
       });
     }
   },
 };
-
-// Create agents
-const researcher = createAgent({
-  name: "researcher",
-  description: "Searches for information",
-  model: openai({ model: "gpt-4" }),
-});
-
-const writer = createAgent({
-  name: "writer",
-  description: "Writes comprehensive responses",
-  model: openai({ model: "gpt-4" }),
-});
-
-// Create network with history configuration
-const assistantNetwork = createNetwork({
-  name: "Research Assistant",
-  agents: [researcher, writer],
-  defaultModel: openai({ model: "gpt-4" }),
-  history: conversationHistoryAdapter, // Add history adapter here
-});
-
-// Use the network - conversations will be automatically persisted
-const state = createState(
-  { userId: "user-123" },
-  { threadId: "existing-thread-id" } // Optional: continue existing conversation
-);
-
-await assistantNetwork.run("Tell me about quantum computing", { state });
 ```
 
 ---
@@ -294,10 +334,12 @@ const state = createState(
 
 await chatNetwork.run("New message", { state });
 // AgentKit skips history.get() call - faster performance!
-// Still calls history.appendResults() to save new messages
+// Still calls appendUserMessage() and appendResults() to save new messages
 ```
 
-**Use case**: Ideal for interactive chat applications where the frontend maintains conversation state and fetches messages from an existing/seperate API
+**Use case**: Ideal for interactive chat applications where the frontend maintains conversation state and fetches messages from an existing/separate API
+
+**Note**: Providing either `results` or `messages` to `createState` will disable the `history.get()` call, enabling this client-authoritative pattern.
 
 ### Server/Client Hybrid Pattern
 
@@ -310,9 +352,18 @@ You can combine the Server-Authoritative and Client-Authoritative patterns for a
 
 ## How Thread IDs Are Managed
 
-AgentKit offers a flexible system for managing conversation thread IDs, ensuring that history is handled correctly whether you're starting a new conversation or continuing an existing one. Here's how AgentKit determines which `threadId` to use, in order of precedence:
+AgentKit offers a flexible system for managing conversation thread IDs, ensuring that history is handled correctly whether you're starting a new conversation or continuing an existing one. Here's how AgentKit determines which `threadId` to use:
 
-1.  **Explicit `threadId` (Highest Priority):** The most direct method is to provide a `threadId` when you create your state. This is the standard way to resume a specific, existing conversation. AgentKit will use this ID to load the relevant history via the `history.get()` method.
+### Thread Initialization Flow
+
+| Scenario | `threadId` provided? | `createThread` exists? | Behavior |
+|----------|---------------------|----------------------|----------|
+| **Resume existing thread** | ✅ Yes | ✅ Yes | Calls `createThread` to upsert/ensure thread exists in DB |
+| **Resume existing thread** | ✅ Yes | ❌ No | Uses provided `threadId` directly |
+| **New conversation** | ❌ No | ✅ Yes | Calls `createThread` to create new thread and get `threadId` |
+| **New conversation (fallback)** | ❌ No | ❌ No (but `get` exists) | Auto-generates UUID as `threadId` |
+
+1.  **Explicit `threadId` with `createThread`:** When you provide a `threadId` and your adapter has a `createThread` method, AgentKit calls `createThread` to ensure the thread exists in your database. Your adapter should implement an **upsert** pattern (insert if new, update if exists) to handle both new and existing threads gracefully.
 
     ```typescript
     // Continue a specific, existing conversation
@@ -321,23 +372,90 @@ AgentKit offers a flexible system for managing conversation thread IDs, ensuring
       { threadId: "existing-thread-id-123" }
     );
     await network.run("Let's pick up where we left off.", { state });
+    // createThread is called to ensure thread exists in DB
+    // Then history.get() loads the conversation history
     ```
 
 2.  **Automatic Creation via `createThread`:** If you don't provide a `threadId`, AgentKit checks if your history adapter has a `createThread` method. If so, AgentKit calls it to create a new conversation thread in your database. Your `createThread` function is responsible for generating and returning the new unique `threadId`. This is the recommended approach for starting new conversations, as it ensures a record is created in your backend from the very beginning.
 
+    ```typescript
+    // Start a new conversation
+    const state = createState({ userId: "user-123" });
+    await network.run("Hello!", { state });
+    // createThread is called to create a new thread
+    // state.threadId is set to the new thread ID
+    ```
+
 3.  **Automatic Generation (Fallback):** In cases where you don't provide a `threadId` and your history adapter does _not_ have a `createThread` method but _does_ have a `get` method, AgentKit provides a fallback. It will automatically generate a standard UUID and assign it as the `threadId` for the current run. This convenience ensures the conversation can proceed with a unique identifier for saving and loading history, even without an explicit creation step.
+
+    ```typescript
+    // Fallback: UUID is generated automatically
+    const state = createState({ userId: "user-123" });
+    await network.run("Hello!", { state });
+    // state.threadId is set to a new UUID
+    // appendUserMessage and appendResults can use this ID
+    ```
 
 ## Best Practices
 
 <AccordionGroup>
 
+  <Accordion title="Implement Idempotency with Message IDs and Checksums">
+    Use unique constraints on `message_id` and `checksum` to prevent duplicate messages during retries or streaming scenarios.
+    
+    ```sql
+    CREATE TABLE messages (
+      id SERIAL PRIMARY KEY,
+      message_id UUID NOT NULL,
+      thread_id UUID NOT NULL,
+      message_type TEXT NOT NULL, -- 'user' or 'agent'
+      content TEXT,
+      checksum TEXT NOT NULL,
+      created_at TIMESTAMP DEFAULT NOW(),
+      UNIQUE(thread_id, message_id), -- Prevent duplicate message IDs
+      UNIQUE(thread_id, checksum)    -- Prevent duplicate content
+    );
+    ```
+    
+    ```typescript
+    appendUserMessage: async ({ threadId, userMessage }) => {
+      await db.message.create({
+        data: {
+          messageId: userMessage.id, // Use canonical client ID
+          threadId,
+          content: userMessage.content,
+          checksum: generateChecksum(userMessage),
+        },
+      });
+    },
+    
+    appendResults: async ({ threadId, newResults }) => {
+      for (const result of newResults) {
+        await db.message.create({
+          data: {
+            messageId: result.id || crypto.randomUUID(),
+            threadId,
+            checksum: result.checksum, // Built-in checksum
+            // ... other fields
+          },
+        });
+      }
+    }
+    ```
+  </Accordion>
+
   <Accordion title="Leverage Inngest's Durable Steps">
     Wrap database operations in `step.run()` for automatic retries and durability.
     
     ```typescript
-    await step.run("database-operation", async () => {
-      return await db.someOperation();
-    });
+    appendUserMessage: async ({ threadId, userMessage, step }) => {
+      if (step) {
+        return await step.run("save-user-message", async () => {
+          return await db.saveMessage(threadId, userMessage);
+        });
+      }
+      return await db.saveMessage(threadId, userMessage);
+    }
     ```
   </Accordion>
 
@@ -355,11 +473,63 @@ AgentKit offers a flexible system for managing conversation thread IDs, ensuring
   </Accordion>
 
   <Accordion title="Index Your Database Properly">
-    Ensure you have indexes on `thread_id` and `created_at` columns for fast queries.
+    Ensure you have indexes on key columns for fast queries.
     
     ```sql
     CREATE INDEX idx_messages_thread_id ON messages(thread_id);
     CREATE INDEX idx_messages_created_at ON messages(created_at);
+    CREATE INDEX idx_messages_type ON messages(message_type);
+    CREATE INDEX idx_messages_message_id ON messages(message_id);
+    ```
+  </Accordion>
+
+  <Accordion title="Return Complete Conversation History">
+    Include both user messages and agent results in your `get()` method to preserve conversation order.
+    
+    ```typescript
+    get: async ({ threadId }) => {
+      const messages = await db.message.findMany({
+        where: { threadId },
+        orderBy: { createdAt: "asc" },
+      });
+      
+      // Convert ALL messages (user + agent) to AgentResult format
+      return messages.map((msg) => {
+        if (msg.role === "user") {
+          return new AgentResult("user", [
+            { type: "text", role: "user", content: msg.content }
+          ], [], new Date(msg.createdAt));
+        } else {
+          return new AgentResult(msg.agentName, [
+            { type: "text", role: "assistant", content: msg.content }
+          ], [], new Date(msg.createdAt));
+        }
+      });
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Implement Upsert in createThread">
+    Handle both new and existing threads gracefully by implementing an upsert pattern.
+    
+    ```typescript
+    createThread: async ({ state }) => {
+      if (state.threadId) {
+        // Upsert: ensure existing thread is in DB
+        await db.thread.upsert({
+          where: { id: state.threadId },
+          update: { updatedAt: new Date() },
+          create: { id: state.threadId, userId: state.data.userId },
+        });
+        return { threadId: state.threadId };
+      }
+      
+      // Create new thread
+      const thread = await db.thread.create({
+        data: { userId: state.data.userId },
+      });
+      return { threadId: thread.id };
+    }
     ```
   </Accordion>
 </AccordionGroup>
