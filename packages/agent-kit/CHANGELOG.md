@@ -1,5 +1,11 @@
 # @inngest/agent-kit
 
+## 0.13.1
+
+### Patch Changes
+
+- 07ae4dd: Remove unused json-schema-to-zod require from bundled cjs
+
 ## 0.13.0
 
 ### Minor Changes
