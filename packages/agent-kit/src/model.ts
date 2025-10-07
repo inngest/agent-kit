@@ -39,21 +39,33 @@ export class AgenticModel<TAiAdapter extends AiAdapter.Any> {
     stepID: string,
     input: Message[],
     tools: Tool.Any[],
-    tool_choice: Tool.Choice
+    tool_choice: Tool.Choice,
+    publish?: { channel: string; topic: string }
   ): Promise<AgenticModel.InferenceResponse> {
-    // TODO: Implement true token-by-token streaming from LLM providers
-    // Currently using completed response chunking for streaming simulation
-    // Future enhancement: Process real-time token streams from OpenAI/Anthropic/etc.
-    const body = this.requestParser(this.#model, input, tools, tool_choice);
+    const stream = publish
+      ? publish.channel !== "" && publish.topic !== ""
+      : false;
+
+    const body = this.requestParser(
+      this.#model,
+      input,
+      tools,
+      tool_choice,
+      stream
+    );
+
     let result: AiAdapter.Input<TAiAdapter>;
 
     const step = await getStepTools();
 
     if (step) {
+      // eslint-disable-next-line
       result = (await step.ai.infer(stepID, {
         model: this.#model,
         body,
-      })) as AiAdapter.Input<TAiAdapter>;
+        publish,
+        // eslint-disable-next-line
+      } as unknown as any)) as AiAdapter.Input<TAiAdapter>;
     } else {
       // Allow the model to mutate options and body for this call
       const modelCopy = { ...this.#model };
@@ -120,7 +132,8 @@ export namespace AgenticModel {
     model: TAiAdapter,
     state: Message[],
     tools: Tool.Any[],
-    tool_choice: Tool.Choice
+    tool_choice: Tool.Choice,
+    stream?: boolean
   ) => AiAdapter.Input<TAiAdapter>;
 
   export type ResponseParser<TAiAdapter extends AiAdapter.Any> = (

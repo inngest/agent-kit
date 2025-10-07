@@ -23,7 +23,8 @@ export const requestParser: AgenticModel.RequestParser<OpenAi.AiModel> = (
   model,
   messages,
   tools,
-  tool_choice = "auto"
+  tool_choice = "auto",
+  stream = false
 ) => {
   const request: AiAdapter.Input<OpenAi.AiModel> = {
     messages: messages.map((m: Message) => {
@@ -90,7 +91,7 @@ export const requestParser: AgenticModel.RequestParser<OpenAi.AiModel> = (
     });
   }
 
-  return request;
+  return { ...request, stream };
 };
 
 /**
