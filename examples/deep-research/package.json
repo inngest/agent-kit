@@ -44,7 +44,7 @@
     "@smithery/sdk": "^1.2.3",
     "@tailwindcss/typography": "^0.5.16",
     "@types/uuid": "^10.0.0",
-    "ai": "^4.3.13",
+    "ai": "^5.0.52",
     "axios": "^1.12.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
