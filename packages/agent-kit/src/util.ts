@@ -1,6 +1,5 @@
-import { type Inngest } from "inngest";
-import { type InngestFunction, isInngestFunction } from "inngest";
-import { getAsyncCtx, type AsyncContext } from "inngest/experimental";
+import { type Inngest, type InngestFunction, isInngestFunction } from "inngest";
+import { type AsyncContext, getAsyncCtx } from "inngest/experimental";
 import { type ZodType, ZodObject } from "zod";
 
 export type MaybePromise<T> = T | Promise<T>;
@@ -35,9 +34,15 @@ export const stringifyError = (e: unknown): string => {
 export const getStepTools = async (): Promise<
   AsyncContext["ctx"]["step"] | undefined
 > => {
+  // The shape of the experimental async context changed across versions.
+  // This is now stable, but we support both shapes here for compatibility.
   const asyncCtx = await getAsyncCtx();
 
-  return asyncCtx?.ctx.step;
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access
+  const ctx = asyncCtx?.ctx || (asyncCtx as any)?.execution?.ctx;
+
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-member-access
+  return ctx?.step;
 };
 
 export const isInngestFn = (fn: unknown): fn is InngestFunction.Any => {
