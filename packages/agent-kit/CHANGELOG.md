@@ -1,5 +1,11 @@
 # @inngest/agent-kit
 
+## 0.13.2
+
+### Patch Changes
+
+- 3818d37: Support multiple `AsyncContext` shapes following an update in `inngest@3.45.0`
+
 ## 0.13.1
 
 ### Patch Changes
