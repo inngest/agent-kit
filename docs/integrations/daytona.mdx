@@ -1,0 +1,284 @@
+---
+title: Using AgentKit with Daytona
+description: "Build Coding Agents with Daytona's secure and elastic infrastructure for executing AI-generated code"
+sidebarTitle: "Daytona - AI sandboxes"
+---
+
+[Daytona](https://www.daytona.io/) provides secure, high-performance infrastructure for running AI-generated code. It's designed for any use case requiring secure sandbox environments and lightning-fast execution: running code, spinning up applications, data analysis, automated testing, CI/CD pipelines and more. 
+
+Daytona is the perfect foundation for building autonomous Coding Agents that can scaffold projects, execute scripts, and deliver production-ready solutions.
+
+
+## Setup
+
+<Steps>
+  <Step title="Install AgentKit and Daytona">
+    Within an existing project, Install AgentKit and Daytona:
+
+    <CodeGroup>
+
+    ```shell npm
+    npm install @inngest/agent-kit inngest @daytonaio/sdk
+    ```
+
+    ```shell pnpm
+    pnpm install @inngest/agent-kit inngest @daytonaio/sdk
+    ```
+
+    ```shell yarn
+    yarn add @inngest/agent-kit inngest @daytonaio/sdk
+    ```
+
+    </CodeGroup>
+
+    <br />
+
+    <Accordion title="Don't have an existing project?">
+      To create a new project, create a new directory then initialize using your package manager:
+
+    <CodeGroup>
+
+    ```shell npm
+    mkdir my-agent-kit-project && npm init
+    ```
+
+    ```shell pnpm
+    mkdir my-agent-kit-project && pnpm init
+    ```
+
+    ```shell yarn
+    mkdir my-agent-kit-project && yarn init
+    ```
+
+    </CodeGroup>
+    </Accordion>
+
+  </Step>
+
+  <Step title="Setup the Coding Agent">
+    Create a Coding Agent with a system prompt that defines its behavior and select a model with appropriate parameters. In this example, we use Anthropic's Claude model:
+
+    ```typescript
+import {
+      createAgent,
+      anthropic,
+} from "@inngest/agent-kit";
+
+const codingAgent = createAgent({
+      name: "Coding Agent",
+      description:
+        "An autonomous coding agent for building software in a Daytona sandbox",
+      system: `You are a coding agent designed to help the user achieve software development tasks. You have access to a Daytona sandbox environment.
+
+  Capabilities:
+  - You can execute code snippets or scripts.
+  - You can run shell commands to install dependencies, manipulate files, and set up environments.
+  - You can create, upload, and organize files and directories to build basic applications and project structures.
+
+  Workspace Instructions:
+  - You do not need to define, set up, or specify the workspace directory. Assume you are already inside a default workspace directory that is ready for app creation.
+  - All file and folder operations (create, upload, organize) should use paths relative to this default workspace.
+  - Do not attempt to create or configure the workspace itself; focus only on the requested development tasks.
+
+  Guidelines:
+  - Always analyze the user's request and plan your steps before taking action.
+  - Prefer automation and scripting over manual or interactive steps.
+  - When installing packages or running commands that may prompt for input, use flags (e.g., '-y') to avoid blocking.
+  - If you are developing an app that is served with a development server (e.g. Next.js, React):
+      1. Return the port information in the form: DEV_SERVER_PORT=$PORT (replace $PORT with the actual port number).
+      2. Start the development server.
+      3. After starting the dev server, always check its health in the next iteration. Only mark the task as complete if the health check passes: there must be no stderr output, no errors thrown, and the stdout content must not indicate a problem (such as error messages, stack traces, or failed startup). If any of these are present, diagnose and fix the issue before completing the task.
+  - When you have completed the requested task, set the "TASK_COMPLETED" string in your output to signal that the app is finished.
+  `,
+      model: anthropic({
+        model: "claude-3-5-haiku-20241022",
+        defaultParameters: {
+          max_tokens: 1024,
+        },
+      }),
+  });
+    ```
+
+  </Step>
+
+  <Step title="Create the Daytona Tools">
+    To fulfill the objectives specified in its system prompt, the Coding Agent needs access to sandbox environments; this is where Daytona steps in. 
+    
+    The Daytona sandbox environment is exposed to the Coding Agent via tools. Our goal is to define a set of tools that enable the Coding Agent to achieve virtually any coding task. 
+    
+    In this example, we'll show implementations of ```codeRunTool``` and ```readFileTool```. Note that the code also uses ```getSandbox``` and ```logDebug``` utility functions for sandbox management and logging. You can find complete implementations of all coding agent tools and utility functions in the [Daytona Coding Agent example](https://github.com/inngest/agent-kit/tree/main/examples/daytona-coding-agent#readme).
+
+    ```typescript {4, 6-8, 42 - 101}
+import {
+      createAgent,
+      anthropic,
+      createTool,
+} from "@inngest/agent-kit";
+import { z } from "zod";
+import { CodeRunParams, DaytonaError } from "@daytonaio/sdk";
+import { getSandbox, logDebug } from "./utils.js";
+
+const codingAgent = createAgent({
+      name: "Coding Agent",
+      description:
+        "An autonomous coding agent for building software in a Daytona sandbox",
+  system: `You are a coding agent designed to help the user achieve software development tasks. You have access to a Daytona sandbox environment.
+
+  Capabilities:
+  - You can execute code snippets or scripts.
+  - You can run shell commands to install dependencies, manipulate files, and set up environments.
+  - You can create, upload, and organize files and directories to build basic applications and project structures.
+
+  Workspace Instructions:
+  - You do not need to define, set up, or specify the workspace directory. Assume you are already inside a default workspace directory that is ready for app creation.
+  - All file and folder operations (create, upload, organize) should use paths relative to this default workspace.
+  - Do not attempt to create or configure the workspace itself; focus only on the requested development tasks.
+
+  Guidelines:
+  - Always analyze the user's request and plan your steps before taking action.
+  - Prefer automation and scripting over manual or interactive steps.
+  - When installing packages or running commands that may prompt for input, use flags (e.g., '-y') to avoid blocking.
+  - If you are developing an app that is served with a development server (e.g. Next.js, React):
+      1. Return the port information in the form: DEV_SERVER_PORT=$PORT (replace $PORT with the actual port number).
+      2. Start the development server.
+      3. After starting the dev server, always check its health in the next iteration. Only mark the task as complete if the health check passes: there must be no stderr output, no errors thrown, and the stdout content must not indicate a problem (such as error messages, stack traces, or failed startup). If any of these are present, diagnose and fix the issue before completing the task.
+  - When you have completed the requested task, set the "TASK_COMPLETED" string in your output to signal that the app is finished.
+    `,
+      model: anthropic({
+        model: "claude-3-5-haiku-20241022",
+        defaultParameters: {
+          max_tokens: 1024,
+        },
+      }),
+      tools: [
+        createTool({
+          name: "codeRunTool",
+          description: `Executes code in the Daytona sandbox. Use this tool to run code snippets, scripts, or application entry points.
+      Parameters:
+          - code: Code to execute.
+          - argv: Command line arguments to pass to the code.
+          - env: Environment variables for the code execution, as key-value pairs.`,
+          parameters: z.object({
+            code: z.string(),
+            argv: z.array(z.string()).nullable(),
+            env: z.record(z.string(), z.string()).nullable(),
+          }),
+          handler: async ({ code, argv, env }, { network }) => {
+            try {
+              const sandbox = await getSandbox(network);
+              const codeRunParams = new CodeRunParams();
+              codeRunParams.argv = argv ?? [];
+              codeRunParams.env = env ?? {};
+              console.log(`[TOOL: codeRunTool]\nParams: ${codeRunParams}\n${code}`);
+              const response = await sandbox.process.codeRun(code, codeRunParams);
+              const responseMessage = `Code run result: ${response.result}${
+                response.artifacts?.stdout
+                  ? `\nStdout: ${response.artifacts.stdout}`
+                  : ""
+              }`;
+              logDebug(responseMessage);
+              return responseMessage;
+            } catch (error) {
+              console.error("Error executing code:", error);
+              if (error instanceof DaytonaError)
+                return `Code execution Daytona error: ${error.message}`;
+              else return "Error executing code";
+            }
+          },
+        }),
+        createTool({
+          name: "readFileTool",
+          description: `Reads the contents of a file from the Daytona sandbox. Use this tool to retrieve source code, configuration files, or other assets for analysis or processing.`,
+          parameters: z.object({
+            filePath: z.string(),
+          }),
+          handler: async ({ filePath }, { network }) => {
+            try {
+              const sandbox = await getSandbox(network);
+              console.log(`[TOOL: readFileTool]\nFile path: ${filePath}`);
+              const fileBuffer = await sandbox.fs.downloadFile(filePath);
+              const fileContent = fileBuffer.toString("utf-8");
+              const readFileMessage = `Successfully read file: ${filePath}\nContent:\n${fileContent}`;
+              logDebug(readFileMessage);
+              return fileContent;
+            } catch (error) {
+              console.error("Error reading file:", error);
+              if (error instanceof DaytonaError)
+                return `File reading Daytona error: ${error.message}`;
+              else return "Error reading file";
+            }
+          },
+        }),
+      ],
+  });
+    ```
+
+  </Step>
+
+  <Step title="Create agent network">
+    Create a network with a code-based router that determines when the agent has completed its task and checks if a development server was started to set the data needed for preview generation.
+
+  ```typescript
+  import {
+    createNetwork,
+  } from "@inngest/agent-kit";
+  import { extractTextMessageContent, logDebug } from "./utils.js";
+
+    const network = createNetwork({
+      name: "coding-agent-network",
+      agents: [codingAgent], // Using codingAgent from previous step
+      maxIter: 30,
+      defaultRouter: ({ network, callCount }) => {
+        const previousIterationMessageContent = extractTextMessageContent(
+          network.state.results.at(-1)
+        );
+        if (previousIterationMessageContent)
+          logDebug(`Iteration message:\n${previousIterationMessageContent}\n`);
+        console.log(`\n ===== Iteration #${callCount + 1} =====\n`);
+        if (callCount > 0) {
+          if (previousIterationMessageContent.includes("TASK_COMPLETED")) {
+            const isDevServerAppMessage = network.state.results.map((result) => extractTextMessageContent(result)).find((messageContent) =>
+              messageContent.includes("DEV_SERVER_PORT")
+            );
+            if (isDevServerAppMessage) {
+              const portMatch = isDevServerAppMessage.match(
+                /DEV_SERVER_PORT=([0-9]+)/
+              );
+              const port =
+                portMatch && portMatch[1]
+                  ? parseInt(portMatch[1], 10)
+                  : undefined;
+              if (port) network.state.data.devServerPort = port;
+            }
+            return;
+          }
+        }
+        return codingAgent;
+      },
+  });
+  ```
+  </Step>
+
+</Steps>
+
+<Tip>
+  For a more comprehensive guide on using this coding agent, check out the [Daytona documentation](https://www.daytona.io/docs/en/inngest-agentkit-coding-agent/)
+</Tip>
+
+## Examples
+
+<CardGroup cols={1}>
+
+  <Card title="Coding Agent powered by Daytona infrastructure" href="https://github.com/inngest/agent-kit/tree/main/examples/daytona-coding-agent#readme" icon="github">
+    This AgentKit example uses Daytona to build a fully autonomous coding agent that performs software development tasks
+
+    <span className="mr-2 border-primary dark:border-primary-light bg-primary/10 text-primary text-xs dark:text-primary-light dark:bg-primary-light/10 rounded-xl px-2 py-1">Agents</span>
+    <span className="mr-2 border-primary dark:border-primary-light bg-primary/10 text-primary text-xs dark:text-primary-light dark:bg-primary-light/10 rounded-xl px-2 py-1">Tools</span>
+    <span className="mr-2 border-primary dark:border-primary-light bg-primary/10 text-primary text-xs dark:text-primary-light dark:bg-primary-light/10 rounded-xl px-2 py-1">Network</span>
+    <span className="mr-2 border-primary dark:border-primary-light bg-primary/10 text-primary text-xs dark:text-primary-light dark:bg-primary-light/10 rounded-xl px-2 py-1">State</span>
+    <span className="mr-2 border-primary dark:border-primary-light bg-primary/10 text-primary text-xs dark:text-primary-light dark:bg-primary-light/10 rounded-xl px-2 py-1">Integrations</span>
+    <span className="mr-2 border-primary dark:border-primary-light bg-primary/10 text-primary text-xs dark:text-primary-light dark:bg-primary-light/10 rounded-xl px-2 py-1">Code-based Router</span>
+
+  </Card>
+
+</CardGroup>
