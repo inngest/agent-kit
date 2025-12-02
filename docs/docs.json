@@ -72,7 +72,8 @@
             "pages": [
               "integrations/e2b",
               "integrations/browserbase",
-              "integrations/smithery"
+              "integrations/smithery",
+              "integrations/daytona"
             ]
           }
         ]
