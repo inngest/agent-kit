@@ -1,0 +1,192 @@
+---
+title: Using AgentKit with Tzafon
+description: "Develop AI Agents that can browse the web using Tzafon"
+sidebarTitle: "Tzafon - AI Browsers"
+---
+
+[Tzafon](https://www.tzafon.ai/computer) provides managed cloud browsers and computers to enable Agents to browse the web autonomously.
+
+## Building AgentKit tools using Tzafon
+
+Creating AgentKit [tools](/concepts/tools) using the Tzafon SDK is straightforward.
+
+<Steps>
+  <Step title="Install AgentKit">
+    Within an existing project, install AgentKit, Tzafon and Playwright core:
+
+    <CodeGroup>
+
+    ```shell npm
+    npm install @inngest/agent-kit inngest tzafon playwright-core
+    ```
+
+    ```shell pnpm
+    pnpm install @inngest/agent-kit inngest tzafon playwright-core
+    ```
+
+    ```shell yarn
+    yarn add @inngest/agent-kit inngest tzafon playwright-core
+    ```
+
+    </CodeGroup>
+
+    <Accordion title="Don't have an existing project?">
+      To create a new project, create a new directory then initialize using your package manager:
+
+    <CodeGroup>
+
+    ```shell npm
+    mkdir my-agent-kit-project && npm init
+    ```
+
+    ```shell pnpm
+    mkdir my-agent-kit-project && pnpm init
+    ```
+
+    ```shell yarn
+    mkdir my-agent-kit-project && yarn init
+    ```
+
+    </CodeGroup>
+    </Accordion>
+
+  </Step>
+
+  <Step title="2. Setup an AgentKit Network with an Agent">
+    Create an Agent and its associated Network, for example a Wikipedia Search Agent:
+
+```typescript
+import {
+  openai,
+  createAgent,
+  createNetwork,
+} from "@inngest/agent-kit";
+
+const searchAgent = createAgent({
+  name: "wikipedia_searcher",
+  description: "An agent that searches Wikipedia for relevant information",
+  system:
+  "You are a helpful assistant that searches Wikipedia for relevant information.",
+});
+
+// Create the network
+const wikipediaSearchNetwork = createNetwork({
+  name: "wikipedia_search_network",
+  description: "A network that searches Wikipedia using Tzafon",
+  agents: [searchAgent],
+  maxIter: 2,
+  defaultModel: openai({
+  model: "gpt-4o-mini",
+  apiKey: process.env.OPENAI_API_KEY,
+});
+
+```
+
+  </Step>
+
+  <Step title="Create a Tzafon tool">
+    Let's configure the Tzafon SDK and create a tool that can search Wikipedia:
+
+```typescript {5, 8-9, 11-13}
+import {
+  openai,
+  createAgent,
+  createNetwork,
+  createTool,
+} from "@inngest/agent-kit";
+import { z } from "zod";
+import { chromium } from "playwright-core";
+import Computer from "tzafon";
+
+const client = new Computer({
+  apiKey: process.env.TZAFON_API_KEY as string,
+});
+
+const BASE_URL = "https://api.tzafon.ai";
+
+// Create a tool to search Wikipedia using Tzafon
+const searchWikipedia = createTool({
+  name: "search_wikipedia",
+  description: "Search Wikipedia for relevant information",
+  parameters: z.object({
+    query: z.string().describe("The search query for Wikipedia"),
+  }),
+  handler: async ({ query }, { step }) => {
+    return await step?.run("search-on-wikipedia", async () => {
+      // Create a new session
+      const session = await client.create({ kind: "browser" });
+      const cdpUrl = `${BASE_URL}/computers/${session.id}/cdp?token=${process.env.TZAFON_API_KEY}`;
+
+      // Connect to the session
+      const browser = await chromium.connectOverCDP(cdpUrl);
+      try {
+        const context = await browser.newContext();
+        const page = await context.newPage();
+
+        await page.goto("https://en.wikipedia.org/wiki/Special:Search");
+        const searchBox = await page.$("#ooui-php-1");
+        await searchBox?.click();
+        await searchBox?.fill(query);
+        await page
+          .getByLabel("Search", { exact: true })
+          .getByRole("button", { name: "Search", exact: true })
+          .click();
+        await page.waitForLoadState("networkidle");
+
+        const firstResultLink = await page
+          .locator("div.mw-search-results-container")
+          .locator("ul.mw-search-results")
+          .locator("li")
+          .first()
+          .locator("div.mw-search-result-heading")
+          .locator("a");
+        await firstResultLink.click();
+        await page.waitForLoadState("networkidle");
+        const pageContent = await page.innerHTML("body");
+        return pageContent;
+      } finally {
+        await browser.close();
+      }
+    });
+  },
+});
+```
+
+<Info>
+  Configure your `TZAFON_API_KEY` in the `.env` file. You can find your API key
+  from the [Tzafon dashboard](https://tzafon.ai/dashboard).
+</Info>
+
+<Tip>
+  We recommend building tools using Tzafon using Inngest's `step.run()` function. This ensures that the tool will only run once across multiple runs.
+
+More information about using `step.run()` can be found in the [Multi steps tools](/advanced-patterns/multi-steps-tools) page.
+
+</Tip>
+
+  </Step>
+
+</Steps>
+
+### Example: Wikipedia Search Agent using Tzafon
+
+You will find a complete example of a Wikipedia search agent using Tzafon in the Wikipedia Search Agent using Tzafon example:
+
+<Card title="Wikipedia Search Agent using Tzafon" href="https://github.com/inngest/agent-kit/tree/main/examples/wikipedia-search-tzafon#readme" icon="github">
+  This examples shows how to build tools using Tzafon to power a Wikipedia search agent.
+
+<br />
+<span className="mr-2 border-primary dark:border-primary-light bg-primary/10 text-primary text-xs dark:text-primary-light dark:bg-primary-light/10 rounded-xl px-2 py-1">
+  Agents
+</span>
+<span className="mr-2 border-primary dark:border-primary-light bg-primary/10 text-primary text-xs dark:text-primary-light dark:bg-primary-light/10 rounded-xl px-2 py-1">
+  Tools
+</span>
+<span className="mr-2 border-primary dark:border-primary-light bg-primary/10 text-primary text-xs dark:text-primary-light dark:bg-primary-light/10 rounded-xl px-2 py-1">
+  Network
+</span>
+<span className="mr-2 border-primary dark:border-primary-light bg-primary/10 text-primary text-xs dark:text-primary-light dark:bg-primary-light/10 rounded-xl px-2 py-1">
+  Integrations
+</span>
+
+</Card>
