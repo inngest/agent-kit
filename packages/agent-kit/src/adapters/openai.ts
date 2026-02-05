@@ -9,6 +9,7 @@ import { z } from "zod";
 import { type AgenticModel } from "../model";
 import {
   type Message,
+  type ReasoningMessage,
   type TextMessage,
   type ToolCallMessage,
   type ToolMessage,
@@ -26,50 +27,51 @@ export const requestParser: AgenticModel.RequestParser<OpenAi.AiModel> = (
   tool_choice = "auto"
 ) => {
   const request: AiAdapter.Input<OpenAi.AiModel> = {
-    messages: messages.map((m: Message) => {
-      switch (m.type) {
-        case "text":
-          return {
-            role: m.role,
-            content: m.content,
-          };
-        case "tool_call":
-          return {
-            role: "assistant",
-            content: null,
-            tool_calls: m.tools
-              ? m.tools?.map((tool) => ({
-                  id: tool.id,
-                  type: "function",
-                  function: {
-                    name: tool.name,
-                    arguments: JSON.stringify(tool.input),
-                  },
-                }))
-              : undefined,
-          };
-        case "tool_result":
-          return {
-            role: "tool",
-            tool_call_id: m.tool.id,
-            content:
-              typeof m.content === "string"
-                ? m.content
-                : JSON.stringify(m.content),
-          };
-      }
-    }) as AiAdapter.Input<OpenAi.AiModel>["messages"],
+    messages: messages
+      .map((m: Message) => {
+        switch (m.type) {
+          case "reasoning":
+            return null;
+          case "text":
+            return {
+              role: m.role,
+              content: m.content,
+            };
+          case "tool_call":
+            return {
+              role: "assistant",
+              content: null,
+              tool_calls: m.tools
+                ? m.tools?.map((tool) => ({
+                    id: tool.id,
+                    type: "function",
+                    function: {
+                      name: tool.name,
+                      arguments: JSON.stringify(tool.input),
+                    },
+                  }))
+                : undefined,
+            };
+          case "tool_result":
+            return {
+              role: "tool",
+              tool_call_id: m.tool.id,
+              content:
+                typeof m.content === "string"
+                  ? m.content
+                  : JSON.stringify(m.content),
+            };
+        }
+      })
+      .filter(Boolean) as AiAdapter.Input<OpenAi.AiModel>["messages"],
   };
 
   if (tools?.length) {
     request.tool_choice = toolChoice(tool_choice);
-    // OpenAI o3 models have several issues with tool calling.
-    //  one of them is not supporting the `parallel_tool_calls` parameter
-    //  https://community.openai.com/t/o3-mini-api-with-tools-only-ever-returns-1-tool-no-matter-prompt/1112390/6
-    if (
-      !model.options.model?.includes("o3") &&
-      !model.options.model?.includes("o1")
-    ) {
+    // Reasoning models (o-series, gpt-*-pro/codex) have issues with tool calling,
+    // including not supporting the `parallel_tool_calls` parameter.
+    // https://community.openai.com/t/o3-mini-api-with-tools-only-ever-returns-1-tool-no-matter-prompt/1112390/6
+    if (!isReasoningModel(model.options.model)) {
       // it is recommended to disable parallel tool calls with structured output
       // https://platform.openai.com/docs/guides/function-calling#parallel-function-calling-and-structured-outputs
       request.parallel_tool_calls = false;
@@ -119,6 +121,22 @@ export const responseParser: AgenticModel.ResponseParser<OpenAi.AiModel> = (
     // Skip empty messages - can happen in some edge cases
     if (!message) {
       return acc;
+    }
+
+    // Extract reasoning_content from reasoning models (o-series, gpt-*-pro/codex)
+    // This field isn't in the base OpenAI type definitions yet
+    const messageWithReasoning = message as typeof message & {
+      reasoning_content?: string;
+    };
+    if (
+      messageWithReasoning.reasoning_content &&
+      messageWithReasoning.reasoning_content.trim() !== ""
+    ) {
+      acc.push({
+        type: "reasoning",
+        role: "assistant",
+        content: messageWithReasoning.reasoning_content,
+      } as ReasoningMessage);
     }
 
     // Create base message properties shared by all message types
@@ -192,6 +210,20 @@ const safeParseOpenAIJson = (str: string): unknown => {
       );
     }
   }
+};
+
+/**
+ * Detect whether a model name refers to a reasoning model that requires
+ * special handling (e.g. no parallel_tool_calls).
+ */
+export const isReasoningModel = (modelName: string | undefined): boolean => {
+  if (!modelName) return false;
+  const name = modelName.toLowerCase();
+  // o-series: o1, o1-mini, o3, o3-mini, o4-mini, etc.
+  if (/\bo\d/.test(name)) return true;
+  // gpt reasoning variants: gpt-5.x-pro, gpt-5.x-codex
+  if (/gpt-\d.*-(pro|codex)/.test(name)) return true;
+  return false;
 };
 
 const openAiStopReasonToStateStopReason: Record<string, string> = {

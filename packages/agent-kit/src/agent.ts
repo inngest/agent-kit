@@ -347,11 +347,16 @@ export class Agent<T extends StateData> {
           effectiveStep
         );
 
+        // Filter out reasoning messages before checking stop_reason,
+        // as ReasoningMessage has no stop_reason and would cause an infinite loop.
+        const lastActionableMessage = inference.output
+          .filter((m) => m.type !== "reasoning")
+          .pop();
+
         hasMoreActions = Boolean(
           this.tools.size > 0 &&
-            inference.output.length &&
-            inference.output[inference.output.length - 1]!.stop_reason !==
-              "stop"
+            lastActionableMessage &&
+            lastActionableMessage.stop_reason !== "stop"
         );
 
         result = inference;
@@ -466,6 +471,71 @@ export class Agent<T extends StateData> {
         network,
         result,
       });
+    }
+
+    // Stream reasoning content if streaming context exists
+    if (streamingContext) {
+      const reasoningMsgs = result.output.filter(
+        (m) => m.type === "reasoning"
+      );
+      for (const msg of reasoningMsgs) {
+        if (msg.type !== "reasoning") continue;
+
+        const stepTools = step || (await getStepTools());
+        const partId = stepTools
+          ? await stepTools.run(
+              `generate-reasoning-part-id-${streamingContext.messageId}`,
+              () => {
+                return streamingContext.generatePartId();
+              }
+            )
+          : streamingContext.generatePartId();
+
+        await streamingContext.publishEvent({
+          event: "part.created",
+          data: {
+            partId,
+            runId: streamingContext.runId,
+            messageId: streamingContext.messageId,
+            type: "reasoning",
+            metadata: { agentName: this.name },
+          },
+        });
+
+        if (streamingContext.isSimulatedChunking()) {
+          const chunkSize = 50;
+          for (let i = 0; i < msg.content.length; i += chunkSize) {
+            await streamingContext.publishEvent({
+              event: "reasoning.delta",
+              data: {
+                partId,
+                messageId: streamingContext.messageId,
+                delta: msg.content.slice(i, i + chunkSize),
+              },
+            });
+          }
+        } else {
+          await streamingContext.publishEvent({
+            event: "reasoning.delta",
+            data: {
+              partId,
+              messageId: streamingContext.messageId,
+              delta: msg.content,
+            },
+          });
+        }
+
+        await streamingContext.publishEvent({
+          event: "part.completed",
+          data: {
+            partId,
+            runId: streamingContext.runId,
+            messageId: streamingContext.messageId,
+            type: "reasoning",
+            finalContent: msg.content,
+          },
+        });
+      }
     }
 
     // Fallback streaming of assistant text if streaming context exists
