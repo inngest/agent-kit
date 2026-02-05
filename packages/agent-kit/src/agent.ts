@@ -475,9 +475,7 @@ export class Agent<T extends StateData> {
 
     // Stream reasoning content if streaming context exists
     if (streamingContext) {
-      const reasoningMsgs = result.output.filter(
-        (m) => m.type === "reasoning"
-      );
+      const reasoningMsgs = result.output.filter((m) => m.type === "reasoning");
       for (const msg of reasoningMsgs) {
         if (msg.type !== "reasoning") continue;
 

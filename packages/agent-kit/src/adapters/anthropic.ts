@@ -10,7 +10,11 @@ import {
 } from "@inngest/ai";
 import { z } from "zod";
 import { type AgenticModel } from "../model";
-import { type Message, type ReasoningMessage, type TextMessage } from "../types";
+import {
+  type Message,
+  type ReasoningMessage,
+  type TextMessage,
+} from "../types";
 import { type Tool } from "../tool";
 
 /**

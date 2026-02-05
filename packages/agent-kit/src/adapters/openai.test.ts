@@ -149,7 +149,10 @@ describe("openai requestParser", () => {
     ];
 
     const result = requestParser(mockModel, messages, [], "auto");
-    const outMessages = result.messages as Array<{ role: string; content: string }>;
+    const outMessages = result.messages as Array<{
+      role: string;
+      content: string;
+    }>;
 
     expect(outMessages).toHaveLength(3);
     expect(outMessages[0]!.role).toBe("system");
