@@ -170,7 +170,7 @@ describe("openai requestParser", () => {
       {
         name: "test_tool",
         description: "A test tool",
-        handler: async () => "result",
+        handler: () => "result",
       },
     ];
 
@@ -187,7 +187,7 @@ describe("openai requestParser", () => {
       {
         name: "test_tool",
         description: "A test tool",
-        handler: async () => "result",
+        handler: () => "result",
       },
     ];
 
