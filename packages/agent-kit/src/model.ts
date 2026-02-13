@@ -79,6 +79,9 @@ export class AgenticModel<TAiAdapter extends AiAdapter.Any> {
         },
         gemini: () => {},
         grok: () => {},
+        tzafon: () => {
+          headers["Authorization"] = `Bearer ${modelCopy.authKey}`;
+        },
       };
 
       formatHandlers[modelCopy.format as AiAdapter.Format]();

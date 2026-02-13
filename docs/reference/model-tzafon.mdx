@@ -1,0 +1,71 @@
+---
+title: Tzafon Model
+description: "Configure Tzafon as your model provider"
+---
+
+The `tzafon` function configures Tzafon as your model provider.
+
+```ts
+import { createAgent, tzafon } from "@inngest/agent-kit";
+
+const agent = createAgent({
+  name: "Code writer",
+  system: "You are an expert TypeScript programmer.",
+  model: tzafon({ model: "tzafon.sm-1" }),
+});
+```
+
+
+## Configuration
+
+The `tzafon` function accepts a configuration object:
+
+```ts
+const agent = createAgent({
+  model: tzafon({
+    model: "tzafon.sm-1",
+    apiKey: process.env.TZAFON_API_KEY,
+    baseUrl: "https://api.tzafon.ai/v1/",
+    defaultParameters: { temperature: 0.7, max_tokens: 2048 },
+  }),
+});
+```
+
+### Options
+
+<ParamField path="model" type="string" required>
+  ID of the model to use.
+
+  See the [Tzafon models list](https://docs.tzafon.ai/api-reference/completions/models).
+</ParamField>
+
+<ParamField path="apiKey" type="string">
+  The Tzafon API key to use for authenticating your request. By default we'll
+  search for and use the `TZAFON_API_KEY` environment variable.
+</ParamField>
+
+<ParamField
+  path="baseUrl"
+  type="string"
+  default="https://api.tzafon.ai/v1/"
+>
+  The base URL for the Tzafon API.
+</ParamField>
+
+<ParamField path="defaultParameters" type="object">
+  The default parameters to use for the model (ex: `temperature`, `max_tokens`,
+  etc).
+</ParamField>
+
+### Available Models
+
+```plaintext Tzafon
+"tzafon.sm-1"
+"tzafon.northstar-cua-fast"
+```
+
+For the latest list of available models, see the [Tzafon API reference](https://docs.tzafon.ai/api-reference/completions/models).
+
+## Limitations
+
+Tzafon models do not currently support tool or function calling. Agents using Tzafon will produce text-only responses and cannot invoke AgentKit tools. The adapter automatically strips `tools` and `tool_choice` from requests to avoid API errors.

@@ -119,7 +119,8 @@
               "reference/model-openai",
               "reference/model-anthropic",
               "reference/model-gemini",
-              "reference/model-grok"
+              "reference/model-grok",
+              "reference/model-tzafon"
             ]
           },
           {
