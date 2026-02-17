@@ -642,7 +642,7 @@ export class NetworkRun<T extends StateData> extends Network<T> {
         if (stepTools) {
           // Use Inngest steps for deterministic agent ID generation
           const agentIds = await stepTools.run(
-            `generate-agent-ids-${this._counter}`,
+            `generate-agent-ids-${this._counter}-${Date.now()}`,
             () => {
               return {
                 agentRunId: generateId(),
