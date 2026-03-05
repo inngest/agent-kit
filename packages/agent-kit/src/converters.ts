@@ -138,11 +138,25 @@ export function toolsToAiTools(
   const result: Record<string, CoreTool> = {};
 
   for (const tool of tools) {
+    let parameters: CoreTool["parameters"];
+    if (tool.parameters) {
+      try {
+        parameters = jsonSchema(
+          z.toJSONSchema(tool.parameters, { target: "draft-7" }) as Parameters<typeof jsonSchema>[0]
+        );
+      } catch {
+        // Fallback for schemas that z.toJSONSchema() cannot handle (e.g. Zod v3
+        // schemas from MCP's JSON-Schema-to-Zod converter). Use an open object
+        // schema so the tool is still callable.
+        parameters = jsonSchema({ type: "object", properties: {} });
+      }
+    } else {
+      parameters = jsonSchema({ type: "object", properties: {} });
+    }
+
     result[tool.name] = {
       description: tool.description,
-      parameters: tool.parameters
-        ? jsonSchema(z.toJSONSchema(tool.parameters, { target: "draft-7" }) as Parameters<typeof jsonSchema>[0])
-        : jsonSchema({ type: "object", properties: {} }),
+      parameters,
     };
   }
 

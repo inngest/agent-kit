@@ -3,36 +3,7 @@ import { createNetwork } from "./network";
 import { createAgent } from "./agent";
 import { createState } from "./state";
 import { AgentResult, type Message } from "./types";
-import type { LanguageModelV1 } from "ai";
-
-/**
- * Create a mock LanguageModelV1 that returns a simple text response.
- */
-function createMockModel(
-  response: { text?: string; toolCalls?: Array<{ toolCallId: string; toolName: string; args: unknown }> } = { text: "Mock AI response" }
-): LanguageModelV1 {
-  return {
-    specificationVersion: "v1",
-    provider: "mock",
-    modelId: "mock-model",
-    defaultObjectGenerationMode: "json",
-    doGenerate: async () => ({
-      text: response.text ?? "",
-      toolCalls: (response.toolCalls ?? []).map((tc) => ({
-        toolCallType: "function" as const,
-        toolCallId: tc.toolCallId,
-        toolName: tc.toolName,
-        args: JSON.stringify(tc.args),
-      })),
-      finishReason: (response.toolCalls?.length ?? 0) > 0 ? "tool-calls" as const : "stop" as const,
-      usage: { promptTokens: 0, completionTokens: 0 },
-      rawCall: { rawPrompt: null, rawSettings: {} },
-    }),
-    doStream: async () => {
-      throw new Error("Not implemented");
-    },
-  };
-}
+import { createMockModel } from "./__tests__/test-helpers";
 
 describe("Network", () => {
   test("run should preserve results from a deserialized state", async () => {

@@ -3,50 +3,7 @@ import { z } from "zod";
 import type { LanguageModelV1 } from "ai";
 import { AgenticModel, createAgenticModelFromLanguageModel } from "./model";
 import type { Tool } from "./tool";
-
-/**
- * Create a mock LanguageModelV1 for testing.
- */
-function createMockModel(opts?: {
-  text?: string;
-  toolCalls?: Array<{
-    toolCallId: string;
-    toolName: string;
-    args: unknown;
-  }>;
-  error?: Error;
-}): LanguageModelV1 {
-  return {
-    specificationVersion: "v1",
-    provider: "mock",
-    modelId: "mock-model",
-    defaultObjectGenerationMode: "json",
-    doGenerate: async () => {
-      if (opts?.error) {
-        throw opts.error;
-      }
-      const toolCalls = (opts?.toolCalls ?? []).map((tc) => ({
-        toolCallType: "function" as const,
-        toolCallId: tc.toolCallId,
-        toolName: tc.toolName,
-        args: JSON.stringify(tc.args),
-      }));
-      return {
-        text: opts?.text ?? (toolCalls.length === 0 ? "Mock response" : ""),
-        toolCalls,
-        finishReason:
-          toolCalls.length > 0
-            ? ("tool-calls" as const)
-            : ("stop" as const),
-        usage: { promptTokens: 0, completionTokens: 0 },
-        rawCall: { rawPrompt: null, rawSettings: {} },
-      };
-    },
-    doStream: async () => {
-      throw new Error("Not implemented");
-    },
-  };
-}
+import { createMockModel } from "./__tests__/test-helpers";
 
 describe("AgenticModel", () => {
   it("infers a text response", async () => {

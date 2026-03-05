@@ -6,71 +6,7 @@ import {
   createTool,
 } from "../index";
 import { z } from "zod";
-import type { LanguageModelV1 } from "ai";
-
-/**
- * Create a mock LanguageModelV1 for testing.
- * By default returns a text response. Can return tool calls.
- */
-function createMockModel(opts?: {
-  text?: string;
-  toolCalls?: Array<{
-    toolCallId: string;
-    toolName: string;
-    args: unknown;
-  }>;
-  /** If provided, this function is called with the prompt to decide the response dynamically. */
-  handler?: (prompt: unknown) => {
-    text?: string;
-    toolCalls?: Array<{
-      toolCallType: "function";
-      toolCallId: string;
-      toolName: string;
-      args: string;
-    }>;
-    finishReason: "stop" | "tool-calls";
-  };
-}): LanguageModelV1 {
-  return {
-    specificationVersion: "v1",
-    provider: "mock",
-    modelId: "mock-model",
-    defaultObjectGenerationMode: "json",
-    doGenerate: async (options) => {
-      if (opts?.handler) {
-        const result = opts.handler(options.prompt);
-        return {
-          text: result.text ?? "",
-          toolCalls: result.toolCalls ?? [],
-          finishReason: result.finishReason,
-          usage: { promptTokens: 0, completionTokens: 0 },
-          rawCall: { rawPrompt: null, rawSettings: {} },
-        };
-      }
-
-      const toolCalls = (opts?.toolCalls ?? []).map((tc) => ({
-        toolCallType: "function" as const,
-        toolCallId: tc.toolCallId,
-        toolName: tc.toolName,
-        args: JSON.stringify(tc.args),
-      }));
-
-      return {
-        text: opts?.text ?? (toolCalls.length === 0 ? "Mocked response" : ""),
-        toolCalls,
-        finishReason:
-          toolCalls.length > 0
-            ? ("tool-calls" as const)
-            : ("stop" as const),
-        usage: { promptTokens: 0, completionTokens: 0 },
-        rawCall: { rawPrompt: null, rawSettings: {} },
-      };
-    },
-    doStream: async () => {
-      throw new Error("Not implemented");
-    },
-  };
-}
+import { createMockModel } from "./test-helpers";
 
 describe("Routing with Done Tool", () => {
   it("should exit network when done tool is called", async () => {
