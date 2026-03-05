@@ -22,22 +22,10 @@ export function messagesToCoreMessages(messages: Message[]): CoreMessage[] {
   for (const msg of messages) {
     switch (msg.type) {
       case "text": {
-        if (msg.role === "system") {
-          const content = typeof msg.content === "string"
-            ? msg.content
-            : msg.content.map((c) => c.text).join("");
-          result.push({ role: "system", content });
-        } else if (msg.role === "user") {
-          const content = typeof msg.content === "string"
-            ? msg.content
-            : msg.content.map((c) => c.text).join("");
-          result.push({ role: "user", content });
-        } else if (msg.role === "assistant") {
-          const content = typeof msg.content === "string"
-            ? msg.content
-            : msg.content.map((c) => c.text).join("");
-          result.push({ role: "assistant", content });
-        }
+        const content = typeof msg.content === "string"
+          ? msg.content
+          : msg.content.map((c) => c.text).join("");
+        result.push({ role: msg.role, content });
         break;
       }
       case "tool_call": {
@@ -93,20 +81,22 @@ export interface SerializableResult {
 export function resultToMessages(result: SerializableResult): Message[] {
   const messages: Message[] = [];
 
+  const hasToolCalls = result.toolCalls && result.toolCalls.length > 0;
+
   // Add text message if present
   if (result.text && result.text.trim() !== "") {
-    const hasToolCalls = result.toolCalls && result.toolCalls.length > 0;
-    messages.push({
+    const msg: TextMessage = {
       type: "text",
       role: "assistant",
       content: result.text,
       stop_reason: hasToolCalls ? "tool" : "stop",
-    } as TextMessage);
+    };
+    messages.push(msg);
   }
 
   // Add tool call message if present
-  if (result.toolCalls && result.toolCalls.length > 0) {
-    messages.push({
+  if (hasToolCalls) {
+    const msg: ToolCallMessage = {
       type: "tool_call",
       role: "assistant",
       stop_reason: "tool",
@@ -118,17 +108,19 @@ export function resultToMessages(result: SerializableResult): Message[] {
           input: tc.args as Record<string, unknown>,
         })
       ),
-    } as ToolCallMessage);
+    };
+    messages.push(msg);
   }
 
   // If no text and no tool calls, add empty text message
   if (messages.length === 0) {
-    messages.push({
+    const msg: TextMessage = {
       type: "text",
       role: "assistant",
       content: "",
       stop_reason: "stop",
-    } as TextMessage);
+    };
+    messages.push(msg);
   }
 
   return messages;
@@ -162,7 +154,7 @@ export function toolsToAiTools(
  */
 export function mapToolChoice(
   choice: Tool.Choice
-): "auto" | "required" | "none" | { type: "tool"; toolName: string } {
+): "auto" | "required" | { type: "tool"; toolName: string } {
   switch (choice) {
     case "auto":
       return "auto";

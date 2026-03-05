@@ -988,16 +988,6 @@ export namespace Agent {
     lifecycle: RoutingLifecycle<T>;
   }
 
-  export interface RoutingConstructor<T extends StateData>
-    extends Omit<Constructor<T>, "lifecycle"> {
-    lifecycle: RoutingLifecycle<T>;
-  }
-
-  export interface RoutingConstructor<T extends StateData>
-    extends Omit<Constructor<T>, "lifecycle"> {
-    lifecycle: RoutingLifecycle<T>;
-  }
-
   export interface RunOptions<T extends StateData> {
     model?: LanguageModelV1;
     network?: NetworkRun<T>;
