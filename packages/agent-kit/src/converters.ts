@@ -22,9 +22,10 @@ export function messagesToCoreMessages(messages: Message[]): CoreMessage[] {
   for (const msg of messages) {
     switch (msg.type) {
       case "text": {
-        const content = typeof msg.content === "string"
-          ? msg.content
-          : msg.content.map((c) => c.text).join("");
+        const content =
+          typeof msg.content === "string"
+            ? msg.content
+            : msg.content.map((c) => c.text).join("");
         result.push({ role: msg.role, content });
         break;
       }
@@ -132,9 +133,7 @@ export function resultToMessages(result: SerializableResult): Message[] {
  * Note: We do NOT pass `execute` here — tool execution is handled by the
  * agent's own invokeTools method after inference.
  */
-export function toolsToAiTools(
-  tools: Tool.Any[]
-): Record<string, CoreTool> {
+export function toolsToAiTools(tools: Tool.Any[]): Record<string, CoreTool> {
   const result: Record<string, CoreTool> = {};
 
   for (const tool of tools) {
@@ -142,7 +141,9 @@ export function toolsToAiTools(
     if (tool.parameters) {
       try {
         parameters = jsonSchema(
-          z.toJSONSchema(tool.parameters, { target: "draft-7" }) as Parameters<typeof jsonSchema>[0]
+          z.toJSONSchema(tool.parameters, { target: "draft-7" }) as Parameters<
+            typeof jsonSchema
+          >[0]
         );
       } catch {
         // Fallback for schemas that z.toJSONSchema() cannot handle (e.g. Zod v3

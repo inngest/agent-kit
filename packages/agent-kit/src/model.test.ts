@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/require-await */
 import { describe, it, expect } from "vitest";
 import { z } from "zod";
 import type { LanguageModelV1 } from "ai";
@@ -110,19 +111,17 @@ describe("AgenticModel", () => {
     ).rejects.toThrow("Rate limit exceeded");
   });
 
-  it("propagates non-Error exceptions from the model", async () => {
-    const model: LanguageModelV1 = {
-      specificationVersion: "v1",
-      provider: "mock",
-      modelId: "mock-model",
-      defaultObjectGenerationMode: "json",
-      doGenerate: async () => {
-        throw "string error";
-      },
-      doStream: async () => {
-        throw new Error("Not implemented");
-      },
-    };
+  it("propagates specific error types from the model", async () => {
+    class RateLimitError extends Error {
+      constructor(public retryAfter: number) {
+        super("Rate limited");
+        this.name = "RateLimitError";
+      }
+    }
+
+    const model = createMockModel({
+      error: new RateLimitError(30),
+    });
     const agentic = new AgenticModel(model);
 
     await expect(
@@ -132,7 +131,7 @@ describe("AgenticModel", () => {
         [],
         "auto"
       )
-    ).rejects.toBe("string error");
+    ).rejects.toBeInstanceOf(RateLimitError);
   });
 
   it("does not pass toolChoice when no tools are provided", async () => {

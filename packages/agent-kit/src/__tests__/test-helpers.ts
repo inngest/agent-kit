@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/require-await */
 import type { LanguageModelV1 } from "ai";
 
 export interface MockModelOptions {
@@ -58,9 +59,7 @@ export function createMockModel(opts?: MockModelOptions): LanguageModelV1 {
         text: opts?.text ?? (toolCalls.length === 0 ? "Mock response" : ""),
         toolCalls,
         finishReason:
-          toolCalls.length > 0
-            ? ("tool-calls" as const)
-            : ("stop" as const),
+          toolCalls.length > 0 ? ("tool-calls" as const) : ("stop" as const),
         usage: { promptTokens: 0, completionTokens: 0 },
         rawCall: { rawPrompt: null, rawSettings: {} },
       };

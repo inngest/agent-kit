@@ -97,9 +97,7 @@ describe("Agent.withModel", () => {
 
   it("preserves tools when cloning", async () => {
     const model = createMockModel({
-      toolCalls: [
-        { toolCallId: "c1", toolName: "ping", args: {} },
-      ],
+      toolCalls: [{ toolCallId: "c1", toolName: "ping", args: {} }],
     });
 
     const agent = createAgent({
