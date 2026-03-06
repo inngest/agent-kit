@@ -19,9 +19,6 @@ importers:
 
   .:
     dependencies:
-      '@dmitryrechkin/json-schema-to-zod':
-        specifier: ^1.0.0
-        version: 1.0.1
       '@inngest/ai':
         specifier: 0.1.6
         version: 0.1.6
@@ -83,9 +80,6 @@ packages:
   '@cspotcode/source-map-support@0.8.1':
     resolution: {integrity: sha512-IchNf6dN4tHoMFIn/7OE8LWZ19Y6q/67Bmf6vnGREv8RSbBVb9LPJxEcnwrcwX6ixSvaiGoomAUvu4YSxXrVgw==}
     engines: {node: '>=12'}
-
-  '@dmitryrechkin/json-schema-to-zod@1.0.1':
-    resolution: {integrity: sha512-cG9gC4NMu/7JZqmRZy6uIb+l+kxek2GFQ0/qrhw7xeFK2l5B9yF9FVuujoqFPLRGDHNFYqtBWht7hY4KB0ngrA==}
 
   '@esbuild/aix-ppc64@0.25.10':
     resolution: {integrity: sha512-0NFWnA+7l41irNuaSVlLfgNT12caWJVLzp5eAVhZ0z1qpxbockccEt3s+149rE64VUI3Ml2zt8Nv5JVc4QXTsw==}
@@ -2634,10 +2628,6 @@ snapshots:
   '@cspotcode/source-map-support@0.8.1':
     dependencies:
       '@jridgewell/trace-mapping': 0.3.9
-
-  '@dmitryrechkin/json-schema-to-zod@1.0.1':
-    dependencies:
-      zod: 3.25.76
 
   '@esbuild/aix-ppc64@0.25.10':
     optional: true
