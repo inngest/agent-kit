@@ -1,5 +1,5 @@
 import type { JSONSchema } from "@dmitryrechkin/json-schema-to-zod";
-import { type AiAdapter } from "@inngest/ai";
+import { type LanguageModelV1 } from "ai";
 import { Client as MCPClient } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
@@ -14,7 +14,10 @@ import { errors } from "inngest/internals";
 import { type InngestFunction } from "inngest";
 import { type MinimalEventPayload } from "inngest/types";
 import type { ZodType } from "zod";
-import { createAgenticModelFromAiAdapter, type AgenticModel } from "./model";
+import {
+  createAgenticModelFromLanguageModel,
+  type AgenticModel,
+} from "./model";
 import { createNetwork, NetworkRun } from "./network";
 import { State, type StateData } from "./state";
 import { type MCP, type Tool } from "./tool";
@@ -103,7 +106,7 @@ export class Agent<T extends StateData> {
    * to use a specific model which may be different to other agents in the
    * system
    */
-  model: AiAdapter.Any | undefined;
+  model: LanguageModelV1 | undefined;
 
   /**
    * mcpServers is a list of MCP (model-context-protocol) servers which can
@@ -169,7 +172,7 @@ export class Agent<T extends StateData> {
     }
   }
 
-  withModel(model: AiAdapter.Any): Agent<T> {
+  withModel(model: LanguageModelV1): Agent<T> {
     return new Agent({
       name: this.name,
       description: this.description,
@@ -205,7 +208,7 @@ export class Agent<T extends StateData> {
       throw new Error("No model provided to agent");
     }
 
-    const p = createAgenticModelFromAiAdapter(rawModel);
+    const p = createAgenticModelFromLanguageModel(rawModel);
 
     // input state always overrides the network state.
     const s = state || network?.state || new State();
@@ -954,7 +957,7 @@ export class RoutingAgent<T extends StateData> extends Agent<T> {
     this.lifecycles = opts.lifecycle;
   }
 
-  override withModel(model: AiAdapter.Any): RoutingAgent<T> {
+  override withModel(model: LanguageModelV1): RoutingAgent<T> {
     return new RoutingAgent({
       name: this.name,
       description: this.description,
@@ -978,7 +981,7 @@ export namespace Agent {
     tools?: (Tool.Any | InngestFunction.Any)[];
     tool_choice?: Tool.Choice;
     lifecycle?: Lifecycle<T>;
-    model?: AiAdapter.Any;
+    model?: LanguageModelV1;
     mcpServers?: MCP.Server[];
     history?: HistoryConfig<T>;
   }
@@ -988,18 +991,8 @@ export namespace Agent {
     lifecycle: RoutingLifecycle<T>;
   }
 
-  export interface RoutingConstructor<T extends StateData>
-    extends Omit<Constructor<T>, "lifecycle"> {
-    lifecycle: RoutingLifecycle<T>;
-  }
-
-  export interface RoutingConstructor<T extends StateData>
-    extends Omit<Constructor<T>, "lifecycle"> {
-    lifecycle: RoutingLifecycle<T>;
-  }
-
   export interface RunOptions<T extends StateData> {
-    model?: AiAdapter.Any;
+    model?: LanguageModelV1;
     network?: NetworkRun<T>;
     /**
      * State allows you to pass custom state into a single agent run call.  This should only
