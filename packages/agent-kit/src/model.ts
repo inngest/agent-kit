@@ -45,7 +45,7 @@ export class AgenticModel {
         toolCalls: result.toolCalls.map((tc) => ({
           toolCallId: tc.toolCallId,
           toolName: tc.toolName,
-          args: tc.args,
+          args: tc.args as Record<string, unknown>,
         })),
         finishReason: result.finishReason,
       };

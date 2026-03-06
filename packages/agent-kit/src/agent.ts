@@ -14,7 +14,10 @@ import { errors } from "inngest/internals";
 import { type InngestFunction } from "inngest";
 import { type MinimalEventPayload } from "inngest/types";
 import type { ZodType } from "zod";
-import { createAgenticModelFromLanguageModel, type AgenticModel } from "./model";
+import {
+  createAgenticModelFromLanguageModel,
+  type AgenticModel,
+} from "./model";
 import { createNetwork, NetworkRun } from "./network";
 import { State, type StateData } from "./state";
 import { type MCP, type Tool } from "./tool";

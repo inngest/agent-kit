@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/require-await */
 import { describe, it, expect } from "vitest";
 import { z } from "zod";
 import {
@@ -51,9 +52,7 @@ describe("messagesToCoreMessages", () => {
   });
 
   it("handles empty array content", () => {
-    const messages: Message[] = [
-      { type: "text", role: "user", content: [] },
-    ];
+    const messages: Message[] = [{ type: "text", role: "user", content: [] }];
     const result = messagesToCoreMessages(messages);
     expect(result).toEqual([{ role: "user", content: "" }]);
   });
@@ -155,11 +154,20 @@ describe("messagesToCoreMessages", () => {
       {
         type: "tool_result",
         role: "tool_result",
-        tool: { type: "tool", id: "c1", name: "weather", input: { city: "NYC" } },
+        tool: {
+          type: "tool",
+          id: "c1",
+          name: "weather",
+          input: { city: "NYC" },
+        },
         content: "Sunny, 75F",
         stop_reason: "tool",
       },
-      { type: "text", role: "assistant", content: "It's sunny and 75F in NYC." },
+      {
+        type: "text",
+        role: "assistant",
+        content: "It's sunny and 75F in NYC.",
+      },
     ];
     const result = messagesToCoreMessages(messages);
     expect(result).toHaveLength(5);
