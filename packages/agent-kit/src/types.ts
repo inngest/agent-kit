@@ -1,6 +1,10 @@
 import xxh from "xxhashjs";
 
-export type Message = TextMessage | ToolCallMessage | ToolResultMessage;
+export type Message =
+  | TextMessage
+  | ToolCallMessage
+  | ToolResultMessage
+  | ReasoningMessage;
 
 /**
  * UserMessage represents a rich message object from a client that can contain
@@ -62,6 +66,17 @@ export interface ToolResultMessage {
   tool: ToolMessage;
   content: unknown;
   stop_reason: "tool";
+}
+
+/**
+ * ReasoningMessage represents reasoning or thinking content from a model,
+ * such as OpenAI's reasoning_content or Anthropic's thinking blocks.
+ */
+export interface ReasoningMessage {
+  type: "reasoning";
+  role: "assistant";
+  content: string;
+  signature?: string; // Anthropic thinking block signature
 }
 
 // Message content.
