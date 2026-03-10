@@ -1,4 +1,4 @@
-import { generateText, type LanguageModelV1 } from "ai";
+import { generateText, type LanguageModel } from "ai";
 import {
   messagesToCoreMessages,
   resultToMessages,
@@ -11,15 +11,15 @@ import { type Tool } from "./tool";
 import { getStepTools } from "./util";
 
 export const createAgenticModelFromLanguageModel = (
-  model: LanguageModelV1
+  model: LanguageModel
 ): AgenticModel => {
   return new AgenticModel(model);
 };
 
 export class AgenticModel {
-  #model: LanguageModelV1;
+  #model: LanguageModel;
 
-  constructor(model: LanguageModelV1) {
+  constructor(model: LanguageModel) {
     this.#model = model;
   }
 
@@ -45,7 +45,7 @@ export class AgenticModel {
         toolCalls: result.toolCalls.map((tc) => ({
           toolCallId: tc.toolCallId,
           toolName: tc.toolName,
-          args: tc.args as Record<string, unknown>,
+          args: tc.input as Record<string, unknown>,
         })),
         finishReason: result.finishReason,
       };

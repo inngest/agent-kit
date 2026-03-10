@@ -3,7 +3,7 @@
  *
  * @module
  */
-import { jsonSchema, type CoreMessage, type CoreTool } from "ai";
+import { jsonSchema, type ModelMessage, type Tool, type ToolResultPart } from "ai";
 import { z } from "zod";
 import {
   type Message,
@@ -11,13 +11,13 @@ import {
   type ToolCallMessage,
   type ToolMessage,
 } from "./types";
-import { type Tool } from "./tool";
+import { type Tool as AgentTool } from "./tool";
 
 /**
- * Convert internal Message[] to AI SDK CoreMessage[].
+ * Convert internal Message[] to AI SDK ModelMessage[].
  */
-export function messagesToCoreMessages(messages: Message[]): CoreMessage[] {
-  const result: CoreMessage[] = [];
+export function messagesToCoreMessages(messages: Message[]): ModelMessage[] {
+  const result: ModelMessage[] = [];
 
   for (const msg of messages) {
     switch (msg.type) {
@@ -37,7 +37,7 @@ export function messagesToCoreMessages(messages: Message[]): CoreMessage[] {
             type: "tool-call" as const,
             toolCallId: tool.id,
             toolName: tool.name,
-            args: tool.input,
+            input: tool.input,
           })),
         });
         break;
@@ -51,8 +51,8 @@ export function messagesToCoreMessages(messages: Message[]): CoreMessage[] {
               type: "tool-result" as const,
               toolCallId: msg.tool.id,
               toolName: msg.tool.name,
-              result: msg.content,
-            },
+              output: { type: "json" as const, value: msg.content as ToolResultPart["output"]["value"] },
+            } satisfies ToolResultPart,
           ],
         });
         break;
@@ -133,14 +133,14 @@ export function resultToMessages(result: SerializableResult): Message[] {
  * Note: We do NOT pass `execute` here — tool execution is handled by the
  * agent's own invokeTools method after inference.
  */
-export function toolsToAiTools(tools: Tool.Any[]): Record<string, CoreTool> {
-  const result: Record<string, CoreTool> = {};
+export function toolsToAiTools(tools: AgentTool.Any[]): Record<string, Tool> {
+  const result: Record<string, Tool> = {};
 
   for (const tool of tools) {
-    let parameters: CoreTool["parameters"];
+    let inputSchema: Tool["inputSchema"];
     if (tool.parameters) {
       try {
-        parameters = jsonSchema(
+        inputSchema = jsonSchema(
           z.toJSONSchema(tool.parameters, { target: "draft-7" }) as Parameters<
             typeof jsonSchema
           >[0]
@@ -149,15 +149,15 @@ export function toolsToAiTools(tools: Tool.Any[]): Record<string, CoreTool> {
         // Fallback for schemas that z.toJSONSchema() cannot handle (e.g. Zod v3
         // schemas from MCP's JSON-Schema-to-Zod converter). Use an open object
         // schema so the tool is still callable.
-        parameters = jsonSchema({ type: "object", properties: {} });
+        inputSchema = jsonSchema({ type: "object", properties: {} });
       }
     } else {
-      parameters = jsonSchema({ type: "object", properties: {} });
+      inputSchema = jsonSchema({ type: "object", properties: {} });
     }
 
     result[tool.name] = {
       description: tool.description,
-      parameters,
+      inputSchema,
     };
   }
 
@@ -168,7 +168,7 @@ export function toolsToAiTools(tools: Tool.Any[]): Record<string, CoreTool> {
  * Map internal Tool.Choice to AI SDK toolChoice format.
  */
 export function mapToolChoice(
-  choice: Tool.Choice
+  choice: AgentTool.Choice
 ): "auto" | "required" | { type: "tool"; toolName: string } {
   switch (choice) {
     case "auto":

@@ -299,7 +299,7 @@ describe("toolsToAiTools", () => {
     expect(result).toHaveProperty("get_weather");
     expect(result["get_weather"]!.description).toBe("Get weather for a city");
     // The parameters should be a JSON schema wrapper
-    expect(result["get_weather"]!.parameters).toBeDefined();
+    expect(result["get_weather"]!.inputSchema).toBeDefined();
   });
 
   it("converts a tool without parameters to empty object schema", () => {
@@ -312,7 +312,7 @@ describe("toolsToAiTools", () => {
     ];
     const result = toolsToAiTools(tools);
     expect(result).toHaveProperty("ping");
-    expect(result["ping"]!.parameters).toBeDefined();
+    expect(result["ping"]!.inputSchema).toBeDefined();
   });
 
   it("converts multiple tools", () => {

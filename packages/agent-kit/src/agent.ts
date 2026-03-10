@@ -1,5 +1,5 @@
 import type { JSONSchema } from "@dmitryrechkin/json-schema-to-zod";
-import { type LanguageModelV1 } from "ai";
+import { type LanguageModel } from "ai";
 import { Client as MCPClient } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
@@ -106,7 +106,7 @@ export class Agent<T extends StateData> {
    * to use a specific model which may be different to other agents in the
    * system
    */
-  model: LanguageModelV1 | undefined;
+  model: LanguageModel | undefined;
 
   /**
    * mcpServers is a list of MCP (model-context-protocol) servers which can
@@ -172,7 +172,7 @@ export class Agent<T extends StateData> {
     }
   }
 
-  withModel(model: LanguageModelV1): Agent<T> {
+  withModel(model: LanguageModel): Agent<T> {
     return new Agent({
       name: this.name,
       description: this.description,
@@ -957,7 +957,7 @@ export class RoutingAgent<T extends StateData> extends Agent<T> {
     this.lifecycles = opts.lifecycle;
   }
 
-  override withModel(model: LanguageModelV1): RoutingAgent<T> {
+  override withModel(model: LanguageModel): RoutingAgent<T> {
     return new RoutingAgent({
       name: this.name,
       description: this.description,
@@ -981,7 +981,7 @@ export namespace Agent {
     tools?: (Tool.Any | InngestFunction.Any)[];
     tool_choice?: Tool.Choice;
     lifecycle?: Lifecycle<T>;
-    model?: LanguageModelV1;
+    model?: LanguageModel;
     mcpServers?: MCP.Server[];
     history?: HistoryConfig<T>;
   }
@@ -992,7 +992,7 @@ export namespace Agent {
   }
 
   export interface RunOptions<T extends StateData> {
-    model?: LanguageModelV1;
+    model?: LanguageModel;
     network?: NetworkRun<T>;
     /**
      * State allows you to pass custom state into a single agent run call.  This should only

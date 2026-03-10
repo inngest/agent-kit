@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/require-await */
-import type { LanguageModelV1 } from "ai";
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import type { LanguageModel } from "ai";
 
 export interface MockModelOptions {
   text?: string;
@@ -13,59 +14,74 @@ export interface MockModelOptions {
   handler?: (prompt: unknown) => {
     text?: string;
     toolCalls?: Array<{
-      toolCallType: "function";
       toolCallId: string;
       toolName: string;
-      args: string;
+      input: unknown;
     }>;
     finishReason: "stop" | "tool-calls";
   };
 }
 
 /**
- * Create a mock LanguageModelV1 for testing.
+ * Create a mock LanguageModel for testing.
  * By default returns a text response. Can return tool calls or throw errors.
  */
-export function createMockModel(opts?: MockModelOptions): LanguageModelV1 {
+export function createMockModel(opts?: MockModelOptions): LanguageModel {
   return {
-    specificationVersion: "v1",
+    specificationVersion: "v2",
     provider: "mock",
     modelId: "mock-model",
-    defaultObjectGenerationMode: "json",
-    doGenerate: async (options) => {
+    supportedUrls: {},
+    doGenerate: async (options: any) => {
       if (opts?.error) {
         throw opts.error;
       }
 
       if (opts?.handler) {
         const result = opts.handler(options.prompt);
+        const content: any[] = [];
+        if (result.text) {
+          content.push({ type: "text", text: result.text });
+        }
+        for (const tc of result.toolCalls ?? []) {
+          content.push({
+            type: "tool-call",
+            toolCallId: tc.toolCallId,
+            toolName: tc.toolName,
+            input: tc.input,
+          });
+        }
         return {
-          text: result.text ?? "",
-          toolCalls: result.toolCalls ?? [],
+          content,
           finishReason: result.finishReason,
-          usage: { promptTokens: 0, completionTokens: 0 },
-          rawCall: { rawPrompt: null, rawSettings: {} },
+          usage: { inputTokens: 0, outputTokens: 0 },
         };
       }
 
-      const toolCalls = (opts?.toolCalls ?? []).map((tc) => ({
-        toolCallType: "function" as const,
+      const toolCallContent = (opts?.toolCalls ?? []).map((tc) => ({
+        type: "tool-call" as const,
         toolCallId: tc.toolCallId,
         toolName: tc.toolName,
-        args: JSON.stringify(tc.args),
+        input: tc.args,
       }));
 
+      const textContent =
+        opts?.text ?? (toolCallContent.length === 0 ? "Mock response" : "");
+
+      const content: any[] = [];
+      if (textContent) {
+        content.push({ type: "text", text: textContent });
+      }
+      content.push(...toolCallContent);
+
       return {
-        text: opts?.text ?? (toolCalls.length === 0 ? "Mock response" : ""),
-        toolCalls,
-        finishReason:
-          toolCalls.length > 0 ? ("tool-calls" as const) : ("stop" as const),
-        usage: { promptTokens: 0, completionTokens: 0 },
-        rawCall: { rawPrompt: null, rawSettings: {} },
+        content,
+        finishReason: toolCallContent.length > 0 ? "tool-calls" : "stop",
+        usage: { inputTokens: 0, outputTokens: 0 },
       };
     },
     doStream: async () => {
       throw new Error("Not implemented");
     },
-  };
+  } as unknown as LanguageModel;
 }

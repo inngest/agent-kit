@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/require-await */
 import { describe, it, expect } from "vitest";
 import { z } from "zod";
-import type { LanguageModelV1 } from "ai";
+import type { LanguageModel } from "ai";
 import { AgenticModel, createAgenticModelFromLanguageModel } from "./model";
 import type { Tool } from "./tool";
 import { createMockModel } from "./__tests__/test-helpers";
@@ -136,25 +136,24 @@ describe("AgenticModel", () => {
 
   it("does not pass toolChoice when no tools are provided", async () => {
     let capturedOptions: Record<string, unknown> | undefined;
-    const model: LanguageModelV1 = {
-      specificationVersion: "v1",
+    const model = {
+      specificationVersion: "v2",
       provider: "mock",
       modelId: "mock-model",
-      defaultObjectGenerationMode: "json",
-      doGenerate: async (options) => {
-        capturedOptions = options as unknown as Record<string, unknown>;
+      supportedUrls: {},
+      // eslint-disable-next-line @typescript-eslint/require-await
+      doGenerate: async (options: unknown) => {
+        capturedOptions = options as Record<string, unknown>;
         return {
-          text: "response",
-          toolCalls: [],
+          content: [{ type: "text" as const, text: "response" }],
           finishReason: "stop" as const,
-          usage: { promptTokens: 0, completionTokens: 0 },
-          rawCall: { rawPrompt: null, rawSettings: {} },
+          usage: { inputTokens: 0, outputTokens: 0 },
         };
       },
       doStream: async () => {
         throw new Error("Not implemented");
       },
-    };
+    } as unknown as LanguageModel;
     const agentic = new AgenticModel(model);
 
     await agentic.infer(
