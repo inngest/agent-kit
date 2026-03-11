@@ -1,0 +1,23 @@
+{
+  "name": "agentkit",
+  "version": "1.0.0",
+  "description": "Tzafon AgentKit integration",
+  "scripts": {
+    "dev": "tsx watch src/main.ts"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "MIT",
+  "packageManager": "pnpm@10.26.2",
+  "dependencies": {
+    "@inngest/agent-kit": "^0.13.2",
+    "dotenv": "^17.2.3",
+    "playwright-core": "^1.57.0",
+    "tzafon": "^1.14.0",
+    "zod": "^4.2.1"
+  },
+  "devDependencies": {
+    "@types/node": "^25.0.3",
+    "tsx": "^4.21.0"
+  }
+}
