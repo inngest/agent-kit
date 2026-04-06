@@ -1,0 +1,22 @@
+---
+interface Props {
+  path: string;
+  type?: string;
+  required?: boolean;
+  default?: string;
+}
+
+const { path, type, required, default: defaultVal } = Astro.props;
+---
+
+<div class="param-field">
+  <div class="param-header">
+    <code class="param-name">{path}</code>
+    {type && <span class="param-type">{type}</span>}
+    {required && <span class="param-required">required</span>}
+    {defaultVal && <span class="param-default">default: {defaultVal}</span>}
+  </div>
+  <div class="param-description">
+    <slot />
+  </div>
+</div>
