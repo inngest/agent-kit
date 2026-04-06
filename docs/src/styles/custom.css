@@ -12,6 +12,8 @@
   --sl-text-h2: 1.5rem;
   --sl-text-h3: 1.25rem;
   --sl-text-h4: 1.125rem;
+
+  --sl-border-radius: 0.5rem;
 }
 
 :root[data-theme="dark"] {
@@ -24,6 +26,87 @@
 
 .site-title img {
   max-width: 220px;
+}
+
+/* ── Rounded corners & softer feel (Mintlify-inspired) ── */
+
+/* Code blocks */
+.expressive-code .frame {
+  border-radius: 0.5rem !important;
+  overflow: hidden;
+}
+.expressive-code pre {
+  border-radius: 0.5rem !important;
+}
+.expressive-code .frame .header {
+  border-radius: 0.5rem 0.5rem 0 0 !important;
+}
+.expressive-code .frame .header + pre {
+  border-radius: 0 0 0.5rem 0.5rem !important;
+}
+
+/* Inline code */
+:not(pre) > code {
+  border-radius: 0.25rem;
+  padding: 0.15em 0.35em;
+}
+
+/* Aside / callout / admonition boxes */
+.starlight-aside {
+  border-radius: 0.5rem;
+  overflow: hidden;
+}
+
+/* Link cards */
+.sl-link-card {
+  border-radius: 0.75rem;
+  overflow: hidden;
+}
+.sl-link-card > a {
+  border-radius: 0.75rem;
+}
+
+/* Card grid items */
+.card-grid > .card {
+  border-radius: 0.75rem;
+  overflow: hidden;
+}
+
+/* Tabs */
+starlight-tabs .tablist-wrapper {
+  border-radius: 0.5rem 0.5rem 0 0;
+}
+starlight-tabs [role="tabpanel"] {
+  border-radius: 0 0 0.5rem 0.5rem;
+}
+
+/* Table styling */
+table {
+  border-radius: 0.5rem;
+  overflow: hidden;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+/* Search modal */
+dialog {
+  border-radius: 0.75rem;
+  overflow: hidden;
+}
+.dialog-frame {
+  border-radius: 0.75rem;
+  overflow: hidden;
+}
+
+/* Pagination links */
+.pagination-links a {
+  border-radius: 0.5rem;
+  box-shadow: none;
+}
+
+/* Badges */
+.sl-badge {
+  border-radius: 1rem;
 }
 
 /* ParamField component */
