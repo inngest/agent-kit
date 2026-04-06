@@ -7,6 +7,11 @@
   --sl-color-bg-nav: #fefefe;
   --sl-font: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
     Oxygen, Ubuntu, Cantarell, sans-serif;
+
+  --sl-text-h1: 1.875rem;
+  --sl-text-h2: 1.5rem;
+  --sl-text-h3: 1.25rem;
+  --sl-text-h4: 1.125rem;
 }
 
 :root[data-theme="dark"] {
