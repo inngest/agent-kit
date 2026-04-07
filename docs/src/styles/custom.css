@@ -4,7 +4,7 @@
   --sl-color-accent: #2C9B63;
   --sl-color-accent-high: #016239;
   --sl-color-bg: #fefefe;
-  --sl-color-bg-nav: #fefefe;
+  --sl-color-bg-nav: #f6f6f6;
   --sl-font: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
     Oxygen, Ubuntu, Cantarell, sans-serif;
 
@@ -22,10 +22,15 @@
   --sl-color-accent-high: #9ADAB3;
   --sl-color-bg: #020202;
   --sl-color-bg-nav: #020202;
+  --sl-color-bg-sidebar: #020202;
 }
 
 .site-title img {
   max-width: 220px;
+}
+
+header.header {
+  background-color: ;
 }
 
 /* ── Rounded corners & softer feel (Mintlify-inspired) ── */

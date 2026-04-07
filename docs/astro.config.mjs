@@ -47,6 +47,9 @@ export default defineConfig({
             "window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag('js',new Date());gtag('config','G-PPJW3MPTNX');",
         },
       ],
+      components: {
+        SocialIcons: "./src/components/SocialIcons.astro",
+      },
       sidebar: [
         {
           label: "Get Started",
