@@ -1,6 +1,7 @@
 import { defineConfig } from "astro/config";
 import starlight from "@astrojs/starlight";
 import starlightLlmsTxt from "starlight-llms-txt";
+import starlightCopyButton from "starlight-copy-button";
 
 export default defineConfig({
   site: "https://agentkit.inngest.com",
@@ -8,7 +9,12 @@ export default defineConfig({
   integrations: [
     starlight({
       title: "AgentKit by Inngest",
-      plugins: [starlightLlmsTxt()],
+      plugins: [
+        starlightLlmsTxt(),
+        starlightCopyButton({
+          label: "Copy as markdown",
+        }),
+      ],
       logo: {
         light: "./public/brand/logo-light.svg",
         dark: "./public/brand/logo-dark.svg",
@@ -181,6 +187,7 @@ export default defineConfig({
     }),
   ],
   redirects: {
+    "/overview": "/",
     "/reference/create-typed-tool": "/reference/create-tool",
     "/ai-agents-in-practice/overview": "/guided-tour/overview",
     "/ai-agents-in-practice/ai-agents": "/guided-tour/ai-agents",
