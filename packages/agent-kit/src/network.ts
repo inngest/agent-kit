@@ -1,4 +1,4 @@
-import { type AiAdapter } from "@inngest/ai";
+import { type LanguageModelV1 } from "ai";
 import { randomUUID } from "crypto";
 import { z } from "zod";
 import { createRoutingAgent, type Agent, RoutingAgent } from "./agent";
@@ -53,7 +53,7 @@ export class Network<T extends StateData> {
    * override an agent's specific model if the agent already has a model defined
    * (eg. via withModel or via its constructor).
    */
-  defaultModel?: AiAdapter.Any;
+  defaultModel?: LanguageModelV1;
 
   router?: Network.Router<T>;
 
@@ -327,7 +327,7 @@ export namespace Network {
     name: string;
     description?: string;
     agents: Agent<T>[];
-    defaultModel?: AiAdapter.Any;
+    defaultModel?: LanguageModelV1;
     maxIter?: number;
     // state is any pre-existing network state to use in this Network instance.  By
     // default, new state is created without any history for every Network.
