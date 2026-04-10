@@ -13,6 +13,7 @@ export default tseslint.config(
       "packages/use-agent/src/**/__tests__/**",
       "packages/use-agent/src/**/*.test.ts",
       "packages/use-agent/src/**/*.test.tsx",
+      "docs",
     ],
   },
   eslint.configs.recommended,

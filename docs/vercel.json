@@ -1,0 +1,30 @@
+{
+  "redirects": [
+    { "source": "/overview", "destination": "/", "permanent": true },
+    {
+      "source": "/reference/create-typed-tool",
+      "destination": "/reference/create-tool",
+      "permanent": true
+    },
+    {
+      "source": "/ai-agents-in-practice/overview",
+      "destination": "/guided-tour/overview",
+      "permanent": true
+    },
+    {
+      "source": "/ai-agents-in-practice/ai-agents",
+      "destination": "/guided-tour/ai-agents",
+      "permanent": true
+    },
+    {
+      "source": "/ai-agents-in-practice/ai-workflows",
+      "destination": "/guided-tour/ai-workflows",
+      "permanent": true
+    },
+    {
+      "source": "/ai-agents-in-practice/agentic-workflows",
+      "destination": "/guided-tour/agentic-workflows",
+      "permanent": true
+    }
+  ]
+}
