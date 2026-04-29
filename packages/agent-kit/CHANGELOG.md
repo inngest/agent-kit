@@ -1,5 +1,11 @@
 # @inngest/agent-kit
 
+## 0.13.3
+
+### Patch Changes
+
+- 6c9802f: Add support for reasoning models: extract reasoning/thinking content from OpenAI o-series and Anthropic extended thinking responses into a new `ReasoningMessage` type, stream reasoning deltas, and skip reasoning messages in outbound requests across all adapters.
+
 ## 0.13.2
 
 ### Patch Changes
