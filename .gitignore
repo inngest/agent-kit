@@ -12,3 +12,4 @@ node_modules
 /.direnv/
 .DS_Store
 .cursor
+runledger_out/

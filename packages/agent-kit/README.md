@@ -535,3 +535,14 @@ pnpm test
 **License**
 
 [Apache 2.0](https://github.com/inngest/agent-kit/blob/main/LICENSE.md)
+
+## RunLedger CI gate
+
+This repo includes a deterministic CI gate for tool-using agents:
+
+```bash
+runledger run evals/runledger --mode replay --baseline baselines/runledger-demo.json
+```
+
+It replays recorded tool calls and fails the PR on schema/tool/budget regressions.
+
