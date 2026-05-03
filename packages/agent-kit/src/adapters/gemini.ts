@@ -144,6 +144,11 @@ export const responseParser: AgenticModel.ResponseParser<Gemini.AiModel> = (
 const messageToContent = (
   m: Message
 ): AiAdapter.Input<Gemini.AiModel>["contents"][0] => {
+  // Skip reasoning messages - return empty parts which Gemini will ignore
+  if (m.type === "reasoning") {
+    return { role: "model", parts: [] };
+  }
+
   switch (m.role) {
     case "system":
       return {

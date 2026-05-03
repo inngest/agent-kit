@@ -10,7 +10,11 @@ import {
 } from "@inngest/ai";
 import { z } from "zod";
 import { type AgenticModel } from "../model";
-import { type Message, type TextMessage } from "../types";
+import {
+  type Message,
+  type ReasoningMessage,
+  type TextMessage,
+} from "../types";
 import { type Tool } from "../tool";
 
 /**
@@ -39,6 +43,8 @@ export const requestParser: AgenticModel.RequestParser<Anthropic.AiModel> = (
           m: Message
         ): AiAdapter.Input<Anthropic.AiModel>["messages"] => {
           switch (m.type) {
+            case "reasoning":
+              return acc; // Skip reasoning in outbound requests
             case "text":
               return [
                 ...acc,
@@ -134,6 +140,19 @@ export const responseParser: AgenticModel.ResponseParser<Anthropic.AiModel> = (
   return (input?.content ?? []).reduce<Message[]>((acc, item) => {
     if (!item.type) {
       return acc;
+    }
+
+    // Handle thinking blocks which aren't in @inngest/ai types yet
+    if ((item.type as string) === "thinking") {
+      return [
+        ...acc,
+        {
+          type: "reasoning",
+          role: "assistant",
+          content: (item as unknown as { thinking: string }).thinking,
+          signature: (item as unknown as { signature?: string }).signature,
+        } as ReasoningMessage,
+      ];
     }
 
     switch (item.type) {
