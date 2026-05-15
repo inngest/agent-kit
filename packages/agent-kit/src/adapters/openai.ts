@@ -26,19 +26,32 @@ export const requestParser: AgenticModel.RequestParser<OpenAi.AiModel> = (
   tools,
   tool_choice = "auto"
 ) => {
+  // Track pending reasoning content to attach to the next assistant message
+  // This is required for DeepSeek and other reasoning models in multi-turn conversations
+  let pendingReasoning: string | undefined;
+
   const request: AiAdapter.Input<OpenAi.AiModel> = {
     messages: messages
       .map((m: Message) => {
         switch (m.type) {
           case "reasoning":
+            pendingReasoning = m.content;
             return null;
-          case "text":
-            return {
+          case "text": {
+            const textMsg = {
               role: m.role,
               content: m.content,
             };
-          case "tool_call":
-            return {
+            if (m.role === "assistant" && pendingReasoning) {
+              Object.assign(textMsg, {
+                reasoning_content: pendingReasoning,
+              });
+              pendingReasoning = undefined;
+            }
+            return textMsg;
+          }
+          case "tool_call": {
+            const toolCallMsg = {
               role: "assistant",
               content: null,
               tool_calls: m.tools
@@ -52,6 +65,14 @@ export const requestParser: AgenticModel.RequestParser<OpenAi.AiModel> = (
                   }))
                 : undefined,
             };
+            if (pendingReasoning) {
+              Object.assign(toolCallMsg, {
+                reasoning_content: pendingReasoning,
+              });
+              pendingReasoning = undefined;
+            }
+            return toolCallMsg;
+          }
           case "tool_result":
             return {
               role: "tool",
