@@ -140,7 +140,7 @@ describe("openai requestParser", () => {
     options: { model: "gpt-4" },
   } as never;
 
-  test("should filter out reasoning messages from request", () => {
+  test("should include reasoning_content in assistant message for DeepSeek compatibility", () => {
     const messages: Message[] = [
       { type: "text", role: "system", content: "You are helpful." },
       { type: "text", role: "user", content: "What is 2+2?" },
@@ -152,6 +152,7 @@ describe("openai requestParser", () => {
     const outMessages = result.messages as Array<{
       role: string;
       content: string;
+      reasoning_content?: string;
     }>;
 
     expect(outMessages).toHaveLength(3);
@@ -159,6 +160,57 @@ describe("openai requestParser", () => {
     expect(outMessages[1]!.role).toBe("user");
     expect(outMessages[2]!.role).toBe("assistant");
     expect(outMessages[2]!.content).toBe("4");
+    expect(outMessages[2]!.reasoning_content).toBe("Let me think...");
+  });
+
+  test("should include reasoning_content in tool_call message", () => {
+    const messages: Message[] = [
+      { type: "text", role: "user", content: "Get me data" },
+      { type: "reasoning", role: "assistant", content: "I should call a tool" },
+      {
+        type: "tool_call",
+        role: "assistant",
+        stop_reason: "tool",
+        tools: [
+          {
+            type: "tool",
+            id: "call_123",
+            name: "get_data",
+            input: { query: "test" },
+          },
+        ],
+      },
+    ];
+
+    const result = requestParser(mockModel, messages, [], "auto");
+    const outMessages = result.messages as Array<{
+      role: string;
+      content: string | null;
+      reasoning_content?: string;
+      tool_calls?: unknown[];
+    }>;
+
+    expect(outMessages).toHaveLength(2);
+    expect(outMessages[1]!.role).toBe("assistant");
+    expect(outMessages[1]!.reasoning_content).toBe("I should call a tool");
+    expect(outMessages[1]!.tool_calls).toBeDefined();
+  });
+
+  test("should handle reasoning without following text message", () => {
+    const messages: Message[] = [
+      { type: "text", role: "user", content: "Hello" },
+      { type: "reasoning", role: "assistant", content: "Thinking..." },
+    ];
+
+    const result = requestParser(mockModel, messages, [], "auto");
+    const outMessages = result.messages as Array<{
+      role: string;
+      content: string;
+    }>;
+
+    // Reasoning without a following assistant message should be dropped
+    expect(outMessages).toHaveLength(1);
+    expect(outMessages[0]!.role).toBe("user");
   });
 
   test("should not set parallel_tool_calls for reasoning models", () => {
