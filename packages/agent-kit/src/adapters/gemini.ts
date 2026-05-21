@@ -28,8 +28,13 @@ export const requestParser: AgenticModel.RequestParser<Gemini.AiModel> = (
     description: t.description,
     parameters: t.parameters
       ? geminiZodToJsonSchema(t.parameters)
-      : // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (geminiZodToJsonSchema(z.object({})) as any),
+      : t.mcp?.tool?.inputSchema
+        ? // MCP tools already expose a JSON Schema; strip the fields Gemini
+          // does not accept and pass it through directly.
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (recursiveGeminiZodToJsonSchema(t.mcp.tool.inputSchema) as any)
+        : // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (geminiZodToJsonSchema(z.object({})) as any),
   }));
 
   return {

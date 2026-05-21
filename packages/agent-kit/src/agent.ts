@@ -1,4 +1,3 @@
-import type { JSONSchema } from "@dmitryrechkin/json-schema-to-zod";
 import { type AiAdapter } from "@inngest/ai";
 import { Client as MCPClient } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
@@ -13,7 +12,6 @@ import { referenceFunction, type Inngest, type GetStepTools } from "inngest";
 import { errors } from "inngest/internals";
 import { type InngestFunction } from "inngest";
 import { type MinimalEventPayload } from "inngest/types";
-import type { ZodType } from "zod";
 import { createAgenticModelFromAiAdapter, type AgenticModel } from "./model";
 import { createNetwork, NetworkRun } from "./network";
 import { State, type StateData } from "./state";
@@ -898,9 +896,6 @@ export class Agent<T extends StateData> {
    * listMCPTools lists all available tools for a given MCP server
    */
   private async listMCPTools(server: MCP.Server) {
-    const { JSONSchemaToZod } = await import(
-      "@dmitryrechkin/json-schema-to-zod"
-    );
     const client = await this.mcpClient(server);
     this._mcpClients.push(client);
     try {
@@ -911,23 +906,14 @@ export class Agent<T extends StateData> {
       results.tools.forEach((t) => {
         const name = `${server.name}-${t.name}`;
 
-        let zschema: undefined | ZodType;
-        try {
-          // The converter may return a Zod v3 schema type; coerce to v4 type or fallback
-          zschema = JSONSchemaToZod.convert(
-            t.inputSchema as JSONSchema
-          ) as unknown as ZodType;
-          // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        } catch (e) {
-          // Do nothing here.
-          zschema = undefined;
-        }
-
-        // Add the MCP tools directly to the tool set.
+        // MCP tools already provide a JSON Schema for their input. The raw
+        // schema is kept on `mcp.tool.inputSchema` and passed through to the
+        // model adapters as-is, avoiding a lossy JSON Schema -> Zod -> JSON
+        // Schema round-trip that previously produced a schema incompatible
+        // with the agent-kit Zod version.
         this.tools.set(name, {
           name: name,
           description: t.description,
-          parameters: zschema,
           mcp: {
             server,
             tool: t,
