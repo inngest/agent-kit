@@ -83,8 +83,9 @@ export const requestParser: AgenticModel.RequestParser<OpenAi.AiModel> = (
         function: {
           name: t.name,
           description: t.description,
-          parameters:
-            t.parameters && z.toJSONSchema(t.parameters, { target: "draft-7" }),
+          parameters: t.parameters
+            ? z.toJSONSchema(t.parameters, { target: "draft-7" })
+            : t.mcp?.tool?.inputSchema,
           strict:
             typeof t.strict !== "undefined" ? t.strict : Boolean(t.parameters), // strict mode is only supported with parameters
         },

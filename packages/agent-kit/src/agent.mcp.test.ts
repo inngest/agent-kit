@@ -1,6 +1,9 @@
 /* eslint-disable @typescript-eslint/require-await */
 import { describe, expect, test } from "vitest";
 import { Agent } from "./agent";
+import { requestParser as anthropicRequestParser } from "./adapters/anthropic";
+import { requestParser as openaiRequestParser } from "./adapters/openai";
+import { requestParser as geminiRequestParser } from "./adapters/gemini";
 // MCP server tests
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
@@ -73,6 +76,58 @@ describe("mcp", () => {
     expect(agent.tools.size).toEqual(0);
     await agent["initMCP"]();
     expect(agent.tools.size).toEqual(1);
+  });
+
+  test("MCP tool schema flows through model adapters without crashing", async () => {
+    await newMCPServer(3002, createStreamableHTTPTransport);
+
+    const agent = new Agent({
+      name: "test",
+      system: "noop",
+      mcpServers: [
+        {
+          name: "test",
+          transport: {
+            type: "streamable-http",
+            url: "http://localhost:3002/mcp",
+          },
+        },
+      ],
+    });
+
+    await agent["initMCP"]();
+    const tools = Array.from(agent.tools.values());
+    expect(tools).toHaveLength(1);
+
+    const mockModel = {
+      options: {
+        model: "test-model",
+        defaultParameters: { max_tokens: 1024 },
+      },
+    } as never;
+
+    // Each adapter builds the LLM request from the tool's schema. This used to
+    // throw "Cannot read properties of undefined (reading 'def')" because the
+    // MCP schema was produced by a Zod v3 converter incompatible with Zod v4's
+    // toJSONSchema().
+    expect(() =>
+      anthropicRequestParser(mockModel, [], tools, "auto")
+    ).not.toThrow();
+    expect(() =>
+      openaiRequestParser(mockModel, [], tools, "auto")
+    ).not.toThrow();
+    expect(() =>
+      geminiRequestParser(mockModel, [], tools, "auto")
+    ).not.toThrow();
+
+    const anthropicReq = anthropicRequestParser(mockModel, [], tools, "auto");
+    const inputSchema = (
+      anthropicReq.tools as Array<{
+        input_schema: { type: string; properties?: Record<string, unknown> };
+      }>
+    )[0]!.input_schema;
+    expect(inputSchema.type).toBe("object");
+    expect(inputSchema.properties).toHaveProperty("format");
   });
 
   // });
