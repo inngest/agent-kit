@@ -1,0 +1,98 @@
+---
+title: OrcaRouter Model
+description: "Configure OrcaRouter as your model provider"
+---
+
+import ParamField from '../../../components/ParamField.astro';
+
+The `orcarouter` function configures [OrcaRouter](https://www.orcarouter.ai) as your model provider.
+
+OrcaRouter is an OpenAI-compatible LLM router that exposes 150+ upstream models
+behind a single endpoint, plus an adaptive `orcarouter/auto` router that picks
+an upstream per request. Because the API is OpenAI-compatible, `orcarouter`
+reuses the OpenAI adapter and only changes the default base URL and API key
+environment variable.
+
+```ts
+import { createAgent, orcarouter } from "@inngest/agent-kit";
+
+const agent = createAgent({
+  name: "Code writer",
+  system: "You are an expert TypeScript programmer.",
+  // `orcarouter/auto` lets OrcaRouter pick the best upstream per request.
+  model: orcarouter({ model: "orcarouter/auto" }),
+});
+```
+
+## Configuration
+
+The `orcarouter` function accepts a configuration object:
+
+```ts
+const agent = createAgent({
+  model: orcarouter({
+    model: "openai/gpt-5.5",
+    apiKey: process.env.ORCAROUTER_API_KEY,
+    baseUrl: "https://api.orcarouter.ai/v1",
+    defaultParameters: { temperature: 0.5 },
+  }),
+});
+```
+
+### Options
+
+<ParamField path="model" type="string" required>
+  ID of the model to use, e.g. `orcarouter/auto` or an upstream model such as
+  `openai/gpt-5.5`.
+
+  See the [OrcaRouter models list](https://www.orcarouter.ai/models).
+</ParamField>
+
+<ParamField path="apiKey" type="string">
+  The OrcaRouter API key to use for authenticating your request. By default
+  we'll search for and use the `ORCAROUTER_API_KEY` environment variable.
+</ParamField>
+
+<ParamField
+  path="baseUrl"
+  type="string"
+  default="https://api.orcarouter.ai/v1"
+>
+  The base URL for the OrcaRouter API.
+</ParamField>
+
+<ParamField path="defaultParameters" type="object">
+  The default parameters to use for the model (ex: `temperature`, `max_tokens`,
+  etc).
+</ParamField>
+
+### Adaptive routing
+
+Passing `orcarouter/auto` as the model uses OrcaRouter's adaptive router, which
+selects an upstream model per request based on the routing strategy configured
+in your [routing console](https://www.orcarouter.ai/console/routing). This lets
+a single endpoint route cheap requests to cheap models and demanding requests to
+premium models without any client-side logic.
+
+### Available models
+
+```plaintext OrcaRouter
+"orcarouter/auto"
+"openai/gpt-5.5"
+"google/gemini-3-flash-preview"
+"anthropic/claude-opus-4.7"
+"grok/grok-4.3"
+"deepseek/deepseek-v4-pro"
+"minimax/minimax-m2.7"
+"qwen/qwen3.6-flash"
+```
+
+Any of OrcaRouter's 150+ model IDs can also be passed as a free-form string. For
+the latest list, see the [OrcaRouter models catalog](https://www.orcarouter.ai/models).
+
+## Notes
+
+When using `orcarouter/auto` with tool-calling agents, make sure the router's
+upstream pool only contains tool-capable models (configurable in the
+[routing console](https://www.orcarouter.ai/console/routing)), or pin a specific
+tool-capable model such as `openai/gpt-5.5`.

@@ -156,6 +156,7 @@ export default defineConfig({
             { label: "Anthropic", slug: "reference/model-anthropic" },
             { label: "Gemini", slug: "reference/model-gemini" },
             { label: "Grok", slug: "reference/model-grok" },
+            { label: "OrcaRouter", slug: "reference/model-orcarouter" },
           ],
         },
         {
