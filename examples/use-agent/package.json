@@ -13,7 +13,7 @@
     "@ai-sdk/react": "^2.0.12",
     "@hookform/resolvers": "^5.2.1",
     "@icons-pack/react-simple-icons": "^13.7.0",
-    "@inngest/agent-kit": "file:/Users/tedwerbel/Documents/code/agent-kit/packages/agent-kit/inngest-agent-kit-0.13.2.tgz",
+    "@inngest/agent-kit": "latest",
     "@inngest/realtime": "^0.4.0",
     "@inngest/use-agent": "workspace:*",
     "@radix-ui/react-accordion": "^1.2.12",

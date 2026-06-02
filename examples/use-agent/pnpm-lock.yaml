@@ -18,7 +18,7 @@ importers:
         specifier: ^13.7.0
         version: 13.7.0(react@19.1.0)
       '@inngest/agent-kit':
-        specifier: file:/Users/tedwerbel/Documents/code/agent-kit/packages/agent-kit/inngest-agent-kit-0.13.2.tgz
+        specifier: latest
         version: file:../../packages/agent-kit/inngest-agent-kit-0.13.2.tgz(inngest@3.43.1(express@5.1.0)(next@15.4.4(@opentelemetry/api@1.9.0)(react-dom@19.1.0(react@19.1.0))(react@19.1.0))(typescript@5.8.3)(zod@4.1.11))(zod@4.1.11)
       '@inngest/realtime':
         specifier: ^0.4.0
