@@ -1,0 +1,16 @@
+---
+interface Props {
+  label: string;
+  description: string;
+}
+
+const { label, description } = Astro.props;
+---
+
+<div class="changelog-entry">
+  <div class="changelog-header">
+    <span class="changelog-version">{description}</span>
+    <span class="changelog-date">{label}</span>
+  </div>
+  <slot />
+</div>

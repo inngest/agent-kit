@@ -1,0 +1,29 @@
+---
+import config from "virtual:starlight/user-config";
+// import Icon from "@astrojs/starlight/user-components/Icon.astro";
+import Default from "@astrojs/starlight/components/SocialIcons.astro";
+
+const links = config.social || [];
+---
+
+<>
+  <a href="https://www.inngest.com/" class="sl-flex inngest-link">inngest.com</a
+  >
+  <Default />
+</>
+
+<style>
+  @layer starlight.core {
+    a {
+      color: var(--sl-color-text-accent);
+      padding: 0.5em;
+      margin: -0.5em;
+    }
+    a:hover {
+      color: var(--sl-color-white);
+    }
+  }
+  .inngest-link {
+    text-decoration: none;
+  }
+</style>
