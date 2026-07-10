@@ -1,0 +1,181 @@
+---
+title: Using AgentKit with Lightcone
+description: "Develop AI Agents that can browse the web using Lightcone"
+---
+
+import { Steps, Tabs, TabItem, LinkCard } from '@astrojs/starlight/components';
+
+[Lightcone](https://docs.lightcone.ai) (by [Tzafon](https://www.tzafon.ai)) provides managed cloud browsers and computers to enable Agents to browse the web autonomously.
+
+## Building AgentKit tools using Lightcone
+
+Creating AgentKit [tools](/concepts/tools) using the Lightcone TypeScript SDK is straightforward.
+
+<Steps>
+
+1. **Install AgentKit**
+
+    Within an existing project, install AgentKit, Lightcone and Playwright core:
+
+    <Tabs>
+      <TabItem label="npm">
+      ```shell
+      npm install @inngest/agent-kit inngest @tzafon/lightcone playwright-core
+      ```
+      </TabItem>
+      <TabItem label="pnpm">
+      ```shell
+      pnpm install @inngest/agent-kit inngest @tzafon/lightcone playwright-core
+      ```
+      </TabItem>
+      <TabItem label="yarn">
+      ```shell
+      yarn add @inngest/agent-kit inngest @tzafon/lightcone playwright-core
+      ```
+      </TabItem>
+    </Tabs>
+
+   <details>
+   <summary>Don't have an existing project?</summary>
+
+   To create a new project, create a new directory then initialize using your package manager:
+
+   <Tabs>
+     <TabItem label="npm">
+     ```shell
+     mkdir my-agent-kit-project && npm init
+     ```
+     </TabItem>
+     <TabItem label="pnpm">
+     ```shell
+     mkdir my-agent-kit-project && pnpm init
+     ```
+     </TabItem>
+     <TabItem label="yarn">
+     ```shell
+     mkdir my-agent-kit-project && yarn init
+     ```
+     </TabItem>
+   </Tabs>
+
+   </details>
+
+2. **Setup an AgentKit Network with an Agent**
+
+    Create an Agent and its associated Network, for example a Wikipedia Search Agent:
+
+    ```typescript
+    import {
+      openai,
+      createAgent,
+      createNetwork,
+    } from "@inngest/agent-kit";
+
+    const searchAgent = createAgent({
+      name: "wikipedia_searcher",
+      description: "An agent that searches Wikipedia for relevant information",
+      system:
+        "You are a helpful assistant that searches Wikipedia for relevant information.",
+    });
+
+    // Create the network
+    const wikipediaSearchNetwork = createNetwork({
+      name: "wikipedia_search_network",
+      description: "A network that searches Wikipedia using Lightcone",
+      agents: [searchAgent],
+      maxIter: 2,
+      defaultModel: openai({
+        model: "gpt-4o-mini",
+        apiKey: process.env.OPENAI_API_KEY,
+      }),
+    });
+    ```
+
+3. **Create a Lightcone tool**
+
+    Let's configure the Lightcone SDK and create a tool that can search Wikipedia:
+
+    ```typescript {5, 8-9, 11-13}
+    import {
+      openai,
+      createAgent,
+      createNetwork,
+      createTool,
+    } from "@inngest/agent-kit";
+    import { z } from "zod";
+    import { chromium } from "playwright-core";
+    import Lightcone from "@tzafon/lightcone";
+
+    const client = new Lightcone({
+      apiKey: process.env.LIGHTCONE_API_KEY as string,
+    });
+
+    const BASE_URL = "https://api.tzafon.ai";
+
+    // Create a tool to search Wikipedia using Lightcone
+    const searchWikipedia = createTool({
+      name: "search_wikipedia",
+      description: "Search Wikipedia for relevant information",
+      parameters: z.object({
+        query: z.string().describe("The search query for Wikipedia"),
+      }),
+      handler: async ({ query }, { step }) => {
+        return await step?.run("search-on-wikipedia", async () => {
+          // Spin up a cloud browser
+          const session = await client.computers.create({ kind: "browser" });
+
+          // Build the CDP URL from the session endpoint and connect
+          const cdpUrl = `${BASE_URL}${session.endpoints?.cdp}`;
+          const browser = await chromium.connectOverCDP(cdpUrl, {
+            headers: {
+              Authorization: `Bearer ${process.env.LIGHTCONE_API_KEY}`,
+            },
+          });
+
+          try {
+            const page = browser.contexts()[0].pages()[0];
+
+            await page.goto(
+              `https://en.wikipedia.org/w/index.php?search=${encodeURIComponent(query)}`,
+              { waitUntil: "domcontentloaded" },
+            );
+
+            // If we landed on a results page, open the first result
+            const firstResult = page
+              .locator("ul.mw-search-results li div.mw-search-result-heading a")
+              .first();
+            if (await firstResult.count()) {
+              await firstResult.click();
+              await page.waitForLoadState("domcontentloaded");
+            }
+
+            const title = await page.title();
+            const content = await page.innerText("#mw-content-text");
+            return `${title}\n\n${content.slice(0, 4000)}`;
+          } finally {
+            await browser.close();
+            await client.computers.delete(session.id!);
+          }
+        });
+      },
+    });
+    ```
+
+    :::note
+    Configure your `LIGHTCONE_API_KEY` in the `.env` file. You can find your API
+    key and setup instructions in the [Lightcone docs](https://docs.lightcone.ai).
+    :::
+
+    :::tip
+    We recommend building tools using Lightcone with Inngest's `step.run()` function. This ensures that the tool will only run once across multiple runs.
+
+    More information about using `step.run()` can be found in the [Multi steps tools](/advanced-patterns/multi-steps-tools) page.
+    :::
+
+</Steps>
+
+### Example: Wikipedia Search Agent using Lightcone
+
+You will find a complete example of a Wikipedia search agent using Lightcone in the Wikipedia Search Agent example:
+
+<LinkCard title="Wikipedia Search Agent using Lightcone" href="https://github.com/inngest/agent-kit/tree/main/examples/wikipedia-search-tzafon#readme" description="This example shows how to build tools using Lightcone to power a Wikipedia search agent." />
