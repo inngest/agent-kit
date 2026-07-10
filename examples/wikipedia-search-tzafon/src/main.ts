@@ -7,18 +7,18 @@ import {
   openai,
 } from "@inngest/agent-kit";
 import { chromium } from "playwright-core";
-import Computer from "tzafon";
+import Lightcone from "@tzafon/lightcone";
 import { z } from "zod";
 
 import dotenv from "dotenv";
 dotenv.config();
 
-const TZAFON_API_KEY = process.env.TZAFON_API_KEY;
+const LIGHTCONE_API_KEY = process.env.LIGHTCONE_API_KEY;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const BASE_URL = "https://api.tzafon.ai";
 
-const client = new Computer({
-  apiKey: TZAFON_API_KEY,
+const client = new Lightcone({
+  apiKey: LIGHTCONE_API_KEY,
 });
 
 const model = openai({
@@ -26,7 +26,7 @@ const model = openai({
   apiKey: OPENAI_API_KEY,
 });
 
-// Create a tool to search Wikipedia using Tzafon
+// Create a tool that searches Wikipedia inside a managed Lightcone browser.
 export const searchWikipedia = createTool({
   name: "search_wikipedia",
   description: "Search Wikipedia for relevant information",
@@ -35,37 +35,43 @@ export const searchWikipedia = createTool({
   }),
   handler: async ({ query }, { step }) => {
     return await step?.run("search-on-wikipedia", async () => {
-      // Create a new session
-      const session = await client.create({ kind: "browser" });
-      const cdpUrl = `${BASE_URL}/computers/${session.id}/cdp?token=${TZAFON_API_KEY}`;
-      // Connect to the session
-      const browser = await chromium.connectOverCDP(cdpUrl);
-      try {
-        const context = await browser.newContext();
-        const page = await context.newPage();
+      // Spin up a cloud browser.
+      const session = await client.computers.create({ kind: "browser" });
 
-        await page.goto("https://en.wikipedia.org/wiki/Special:Search");
-        const searchBox = await page.$("#ooui-php-1");
-        await searchBox?.click();
-        await searchBox?.fill(query);
-        await page
-          .getByLabel("Search", { exact: true })
-          .getByRole("button", { name: "Search", exact: true })
-          .click();
-        await page.waitForLoadState("networkidle");
-        const firstResultLink = await page
-          .locator("div.mw-search-results-container")
-          .locator("ul.mw-search-results")
-          .locator("li")
-          .first()
-          .locator("div.mw-search-result-heading")
-          .locator("a");
-        await firstResultLink.click();
-        await page.waitForLoadState("networkidle");
-        const pageContent = await page.innerHTML("body");
-        return pageContent;
+      // Build the CDP URL from the session's endpoint path and connect,
+      // authenticating with a Bearer token.
+      const cdpUrl = `${BASE_URL}${session.endpoints?.cdp}`;
+      const browser = await chromium.connectOverCDP(cdpUrl, {
+        headers: {
+          Authorization: `Bearer ${LIGHTCONE_API_KEY}`,
+        },
+      });
+
+      try {
+        const page = browser.contexts()[0].pages()[0];
+
+        // Navigating to the search endpoint redirects to the matching article
+        // (or a results page), which avoids brittle search-box selectors.
+        await page.goto(
+          `https://en.wikipedia.org/w/index.php?search=${encodeURIComponent(query)}`,
+          { waitUntil: "domcontentloaded" },
+        );
+
+        // If we landed on a results page, open the first result.
+        const firstResult = page
+          .locator("ul.mw-search-results li div.mw-search-result-heading a")
+          .first();
+        if (await firstResult.count()) {
+          await firstResult.click();
+          await page.waitForLoadState("domcontentloaded");
+        }
+
+        const title = await page.title();
+        const content = await page.innerText("#mw-content-text");
+        return `${title}\n\n${content.slice(0, 4000)}`;
       } finally {
         await browser.close();
+        await client.computers.delete(session.id!);
       }
     });
   },
@@ -82,7 +88,7 @@ export const searchAgent = createAgent({
 // Create the network
 export const wikipediaSearchNetwork = createNetwork({
   name: "wikipedia_search_network",
-  description: "A network that searches Wikipedia using Tzafon",
+  description: "A network that searches Wikipedia using Lightcone",
   agents: [searchAgent],
   maxIter: 2,
   defaultModel: model,

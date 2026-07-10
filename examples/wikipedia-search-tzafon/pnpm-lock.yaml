@@ -11,15 +11,15 @@ importers:
       '@inngest/agent-kit':
         specifier: ^0.13.2
         version: 0.13.2(hono@4.11.3)(inngest@3.48.1(@opentelemetry/core@2.2.0(@opentelemetry/api@1.9.0))(express@5.2.1)(hono@4.11.3)(typescript@5.9.3)(zod@4.2.1))(zod@4.2.1)
+      '@tzafon/lightcone':
+        specifier: ^0.19.0
+        version: 0.19.0
       dotenv:
         specifier: ^17.2.3
         version: 17.2.3
       playwright-core:
         specifier: ^1.57.0
         version: 1.57.0
-      tzafon:
-        specifier: ^1.14.0
-        version: 1.14.0
       zod:
         specifier: ^4.2.1
         version: 4.2.1
@@ -765,6 +765,9 @@ packages:
   '@types/tedious@4.0.14':
     resolution: {integrity: sha512-KHPsfX/FoVbUGbyYvk1q9MMQHLPeRZhRJZdO45Q4YjvFkv4hMNghCWTvy7rdKessBsmtz4euWCWAB6/tVpI1Iw==}
 
+  '@tzafon/lightcone@0.19.0':
+    resolution: {integrity: sha512-dlPsg/u/1AdrTz0fEDGIg3W6TQsDyMrex1A/vFyPsl5kgt94fLEbYSKV3qaMW1cpPbvJvT7NJaAy2CLyOc7tKQ==}
+
   accepts@1.3.8:
     resolution: {integrity: sha512-PYAthTa2m2VKxuvSD3DPC/Gy+U+sOA1LAuT8mkmRuvw+NACSaeXEQ+NHcVF7rONl6qcaxV3Uuemwawk+7+SJLw==}
     engines: {node: '>= 0.6'}
@@ -1102,6 +1105,7 @@ packages:
   inngest@3.48.1:
     resolution: {integrity: sha512-Taz1ft9zHln/w9Skvmq7VO6UUuFnCDNvXGiz5VPWurlboWvtLrHQ9R6+Zmln8FNzvp6wlhS1FMmpW513NmB2kQ==}
     engines: {node: '>=20'}
+    deprecated: 'CRITICAL SECURITY: upgrade to >=3.54.0'
     peerDependencies:
       '@sveltejs/kit': '>=1.27.3'
       '@vercel/node': '>=2.15.9'
@@ -1460,9 +1464,6 @@ packages:
     engines: {node: '>=14.17'}
     hasBin: true
 
-  tzafon@1.14.0:
-    resolution: {integrity: sha512-0d9x45flf9nMUggrVrwKKLnfUQdFyCDKk8G9oQ33kxldv7/zkvSdVeGTZEDm1uUljhrZ28DFcu3uFdTXo0pmWg==}
-
   ulid@2.4.0:
     resolution: {integrity: sha512-fIRiVTJNcSRmXKPZtGzFQv9WRrZ3M9eoptl/teFJvjOzmpU+/K/JH6HZ8deBfb5vMEpicJcLn7JmvdknlMq7Zg==}
     hasBin: true
@@ -1483,6 +1484,7 @@ packages:
 
   uuid@9.0.1:
     resolution: {integrity: sha512-b+1eJOlsR9K8HJpow9Ok3fiWOWSIcIzXodvv0rQjVoOVNpWMpxf1wZNpt4y9h10odCNrqnYp1OBzRktckBe3sA==}
+    deprecated: uuid@10 and below is no longer supported.  For ESM codebases, update to uuid@latest.  For CommonJS codebases, use uuid@11 (but be aware this version will likely be deprecated in 2028).
     hasBin: true
 
   vary@1.1.2:
@@ -2438,6 +2440,8 @@ snapshots:
     dependencies:
       '@types/node': 25.0.3
 
+  '@tzafon/lightcone@0.19.0': {}
+
   accepts@1.3.8:
     dependencies:
       mime-types: 2.1.35
@@ -3217,8 +3221,6 @@ snapshots:
       mime-types: 3.0.2
 
   typescript@5.9.3: {}
-
-  tzafon@1.14.0: {}
 
   ulid@2.4.0: {}
 

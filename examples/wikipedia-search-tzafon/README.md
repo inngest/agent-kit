@@ -1,18 +1,18 @@
-# Wikipedia Search Agent with Tzafon and Agent Kit
+# Wikipedia Search Agent with Lightcone and Agent Kit
 
-This example demonstrates how to build an AI-powered Wikipedia search agent using AgentKit and [Tzafon](https://www.tzafon.ai/computer). The agent can search Wikipedia for information using natural language queries and return relevant results.
+This example demonstrates how to build an AI-powered Wikipedia search agent using AgentKit and [Lightcone](https://docs.lightcone.ai) (by Tzafon). The agent can search Wikipedia for information using natural language queries and return relevant results.
 
 ## Features
 
 - 🤖 AI-powered Wikipedia search using GPT-4o mini
-- 🌐 Browser automation with Tzafon for reliable web interaction
+- 🌐 Browser automation with Lightcone's managed cloud browsers
 - 🔍 Semantic search capabilities
 - ⚡️ Built with Inngest Agent Kit for robust agent orchestration
 
 ## Prerequisites
 
 - Node.js (v20 or later)
-- A [Tzafon](https://www.tzafon.ai/dashboard) account and API key. You can find more information in the [docs](https://docs.tzafon.ai/overview).
+- A [Lightcone](https://docs.lightcone.ai) account and API key. You can find more information in the [docs](https://docs.lightcone.ai).
 - An OpenAI API key
 
 ## Setup
@@ -26,7 +26,7 @@ pnpm install
 2. Create a `.env` file in the project root with the following variables:
 
 ```env
-TZAFON_API_KEY=your_tzafon_api_key
+LIGHTCONE_API_KEY=your_lightcone_api_key
 OPENAI_API_KEY=your_openai_api_key
 ```
 
@@ -34,13 +34,13 @@ OPENAI_API_KEY=your_openai_api_key
 
 The example consists of several key components:
 
-1. **Wikipedia Search Tool**: A custom tool built with Tzafon that searches Wikipedia using browser automation.
+1. **Wikipedia Search Tool**: A custom tool built with Lightcone that searches Wikipedia using browser automation.
 
 2. **Search Agent**: An AI agent powered by GPT-4o mini that understands natural language queries and uses the Wikipedia search tool.
 
 3. **Agent Network**: A network configuration that orchestrates the agent's behavior and manages the conversation flow.
 
-The agent uses Tzafon to:
+The agent uses Lightcone to:
 
 - Create browser sessions
 - Navigate to Wikipedia's search interface
