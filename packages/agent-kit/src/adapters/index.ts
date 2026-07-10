@@ -5,6 +5,7 @@ import * as openai from "./openai";
 import * as azureOpenai from "./azure-openai";
 import * as gemini from "./gemini";
 import * as grok from "./grok";
+import * as tzafon from "./tzafon";
 
 export type Adapters = {
   [Format in AiAdapter.Format]: {
@@ -33,5 +34,9 @@ export const adapters: Adapters = {
   grok: {
     request: grok.requestParser,
     response: grok.responseParser,
+  },
+  tzafon: {
+    request: tzafon.requestParser,
+    response: tzafon.responseParser,
   },
 };

@@ -10,7 +10,7 @@ Within AgentKit, models are adapters that wrap a given provider (ex. OpenAI, Ant
 Each [Agent](/concepts/agents) can each select their own model to use and a [Network](/concepts/networks) can select a default model.
 
 ```ts
-import { openai, anthropic, gemini } from "@inngest/agent-kit";
+import { openai, anthropic, gemini, tzafon } from "@inngest/agent-kit";
 ```
 
 ## How to use a model
@@ -69,6 +69,16 @@ const model = gemini({ model: "gemini-1.5-flash" });
 ```
 
 </TabItem>
+<TabItem label="Tzafon">
+
+```ts
+import { tzafon, createAgent } from "@inngest/agent-kit";
+
+const model = tzafon({ model: "tzafon.sm-1" });
+const modelWithApiKey = tzafon({ model: "tzafon.sm-1", apiKey: "sk_..." });
+```
+
+</TabItem>
 </Tabs>
 
 ### Configure model hyper parameters (temperature, etc.)
@@ -110,6 +120,18 @@ import { gemini, createAgent } from "@inngest/agent-kit";
 const model = gemini({
   model: "gemini-1.5-flash",
   defaultParameters: { temperature: 0.5 },
+});
+```
+
+</TabItem>
+<TabItem label="Tzafon">
+
+```ts
+import { tzafon, createAgent } from "@inngest/agent-kit";
+
+const model = tzafon({
+  model: "tzafon.sm-1",
+  defaultParameters: { temperature: 0.7, max_tokens: 2048 },
 });
 ```
 
@@ -222,6 +244,14 @@ For a full list of supported models, you can always check [the models directory 
 ```
 
 </TabItem>
+<TabItem label="Tzafon">
+
+```plaintext
+"tzafon.sm-1"
+"tzafon.northstar-cua-fast"
+```
+
+</TabItem>
 </Tabs>
 
 ### Environment variable used for each model provider
@@ -230,6 +260,7 @@ For a full list of supported models, you can always check [the models directory 
 - Anthropic: `ANTHROPIC_API_KEY`
 - Gemini: `GEMINI_API_KEY`
 - Grok: `XAI_API_KEY`
+- Tzafon: `TZAFON_API_KEY`
 
 ## Contribution
 
