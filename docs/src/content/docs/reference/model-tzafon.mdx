@@ -68,6 +68,9 @@ const agent = createAgent({
 
 For the latest list of available models, see the [Tzafon API reference](https://docs.tzafon.ai/api-reference/completions/models).
 
-## Limitations
+## Tool calling
 
-Tzafon models do not currently support tool or function calling. Agents using Tzafon will produce text-only responses and cannot invoke AgentKit tools. The adapter automatically strips `tools` and `tool_choice` from requests to avoid API errors.
+Tool/function calling support is model-dependent:
+
+- **`northstar-*` models** (e.g. `tzafon.northstar-cua-fast`) support tool calling and can invoke AgentKit tools.
+- **`sm-*` models** (e.g. `tzafon.sm-1`) are deployed without a tool-call parser and reject requests containing `tools` or `tool_choice` with a `400`. For these models the adapter automatically strips `tools` and `tool_choice`, so agents produce text-only responses.
