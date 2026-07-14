@@ -106,6 +106,55 @@ describe("anthropic responseParser", () => {
       stop_reason: "stop",
     });
   });
+
+  test("should skip redacted_thinking blocks and still parse later blocks", () => {
+    const input = {
+      role: "assistant",
+      content: [
+        {
+          type: "redacted_thinking",
+          data: "EvQB... (encrypted)",
+        },
+        {
+          type: "text",
+          text: "Final answer.",
+        },
+      ],
+    };
+
+    // Before the default case this threw "Spread syntax requires ...iterable"
+    // because the unmapped block made the reducer return undefined.
+    const result = responseParser(input as never);
+    expect(result).toHaveLength(1);
+    expect(result[0]).toEqual({
+      type: "text",
+      role: "assistant",
+      content: "Final answer.",
+      stop_reason: "stop",
+    });
+  });
+
+  test("should skip unknown block types without throwing", () => {
+    const input = {
+      role: "assistant",
+      content: [
+        {
+          type: "some_future_block_type",
+          foo: "bar",
+        },
+        {
+          type: "tool_use",
+          id: "tool_1",
+          name: "search",
+          input: { query: "test" },
+        },
+      ],
+    };
+
+    const result = responseParser(input as never);
+    expect(result).toHaveLength(1);
+    expect(result[0]!.type).toBe("tool_call");
+  });
 });
 
 describe("anthropic requestParser", () => {

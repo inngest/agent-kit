@@ -197,6 +197,14 @@ export const responseParser: AgenticModel.ResponseParser<Anthropic.AiModel> = (
           },
         ];
       }
+      default:
+        // Anthropic can return content blocks we don't map to a network
+        // message (for example `redacted_thinking`, or block types added in
+        // future API versions). Skip them instead of falling through: without
+        // this case the callback returns `undefined`, and the next iteration's
+        // `...acc` spread throws "Spread syntax requires ...iterable not be
+        // null or undefined", crashing the whole response parse.
+        return acc;
     }
   }, []);
 };
