@@ -505,6 +505,7 @@ Try this agent network locally: [https://github.com/inngest/agent-kit/tree/main/
 - [**The Support Agent**](https://github.com/inngest/agent-kit/tree/main/examples/support-agent-human-in-the-loop#readme) demonstrates how Inngest’s `waitForEvent()` enables the Agent to ask a human for help.
 - [**E2B Coding Agent**](https://github.com/inngest/agent-kit/tree/main/examples/e2b-coding-agent#readme) replicates the Cursor’s Agent mode, creating a complete project from a simple prompt.
 - [**Daytona Coding Agent**](https://github.com/inngest/agent-kit/tree/main/examples/daytona-coding-agent#readme) creates web apps, runs tests, executes scripts, and more; accompanied with automated dev server detection and preview generation.
+- [**Tenki Coding Agent**](https://github.com/inngest/agent-kit/tree/main/examples/tenki-coding-agent#readme) creates web apps, runs tests, executes scripts, and more inside a Tenki sandbox; accompanied with automated dev server detection and preview URL generation.
 
 ## Contributing
 

@@ -136,6 +136,7 @@ export default defineConfig({
             { label: "Browserbase", slug: "integrations/browserbase" },
             { label: "Smithery", slug: "integrations/smithery" },
             { label: "Daytona", slug: "integrations/daytona" },
+            { label: "Tenki", slug: "integrations/tenki" },
           ],
         },
         {
