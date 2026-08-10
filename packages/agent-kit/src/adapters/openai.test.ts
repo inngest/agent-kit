@@ -1,5 +1,10 @@
 import { describe, expect, test } from "vitest";
-import { responseParser, requestParser, isReasoningModel } from "./openai";
+import {
+  responseParser,
+  requestParser,
+  isDeepSeekModel,
+  isReasoningModel,
+} from "./openai";
 import type { Message, ReasoningMessage } from "../types";
 
 describe("openai responseParser", () => {
@@ -140,6 +145,10 @@ describe("openai requestParser", () => {
     options: { model: "gpt-4" },
   } as never;
 
+  const deepSeekModel = {
+    options: { model: "deepseek-v4-flash" },
+  } as never;
+
   test("should filter out reasoning messages from request", () => {
     const messages: Message[] = [
       { type: "text", role: "system", content: "You are helpful." },
@@ -152,6 +161,7 @@ describe("openai requestParser", () => {
     const outMessages = result.messages as Array<{
       role: string;
       content: string;
+      reasoning_content?: string;
     }>;
 
     expect(outMessages).toHaveLength(3);
@@ -159,6 +169,104 @@ describe("openai requestParser", () => {
     expect(outMessages[1]!.role).toBe("user");
     expect(outMessages[2]!.role).toBe("assistant");
     expect(outMessages[2]!.content).toBe("4");
+    expect(outMessages[2]!.reasoning_content).toBeUndefined();
+  });
+
+  test("should include reasoning_content in DeepSeek assistant text", () => {
+    const messages: Message[] = [
+      { type: "text", role: "user", content: "What is 2+2?" },
+      { type: "reasoning", role: "assistant", content: "Let me think..." },
+      { type: "text", role: "assistant", content: "4" },
+    ];
+
+    const result = requestParser(deepSeekModel, messages, [], "auto");
+    const outMessages = result.messages as Array<{
+      role: string;
+      content: string;
+      reasoning_content?: string;
+    }>;
+
+    expect(outMessages).toHaveLength(2);
+    expect(outMessages[1]).toEqual({
+      role: "assistant",
+      content: "4",
+      reasoning_content: "Let me think...",
+    });
+  });
+
+  test("should round-trip DeepSeek reasoning_content with a tool call", () => {
+    const response = {
+      choices: [
+        {
+          message: {
+            role: "assistant",
+            content: null,
+            reasoning_content: "I should fetch the data.",
+            tool_calls: [
+              {
+                id: "call_123",
+                type: "function",
+                function: {
+                  name: "get_data",
+                  arguments: '{"query":"test"}',
+                },
+              },
+            ],
+          },
+          finish_reason: "tool_calls",
+        },
+      ],
+    };
+    const parsedResponse = responseParser(response as never);
+    const messages: Message[] = [
+      { type: "text", role: "user", content: "Get me data" },
+      ...parsedResponse,
+      {
+        type: "tool_result",
+        role: "tool_result",
+        tool: {
+          type: "tool",
+          id: "call_123",
+          name: "get_data",
+          input: { query: "test" },
+        },
+        content: "result",
+        stop_reason: "tool",
+      },
+    ];
+
+    const request = requestParser(deepSeekModel, messages, [], "auto");
+    const outMessages = request.messages as Array<{
+      role: string;
+      content: string | null;
+      reasoning_content?: string;
+      tool_calls?: unknown[];
+      tool_call_id?: string;
+    }>;
+
+    expect(outMessages).toHaveLength(3);
+    expect(outMessages[1]).toMatchObject({
+      role: "assistant",
+      content: null,
+      reasoning_content: "I should fetch the data.",
+    });
+    expect(outMessages[1]!.tool_calls).toHaveLength(1);
+    expect(outMessages[2]).toEqual({
+      role: "tool",
+      tool_call_id: "call_123",
+      content: "result",
+    });
+  });
+
+  test("should drop orphaned DeepSeek reasoning without an assistant message", () => {
+    const messages: Message[] = [
+      { type: "text", role: "user", content: "Hello" },
+      { type: "reasoning", role: "assistant", content: "Thinking..." },
+    ];
+
+    const result = requestParser(deepSeekModel, messages, [], "auto");
+
+    expect(result.messages).toEqual([{ role: "user", content: "Hello" }]);
   });
 
   test("should not set parallel_tool_calls for reasoning models", () => {
@@ -227,5 +335,20 @@ describe("isReasoningModel", () => {
   test("should be case insensitive", () => {
     expect(isReasoningModel("O3-Mini")).toBe(true);
     expect(isReasoningModel("GPT-5-PRO")).toBe(true);
+  });
+});
+
+describe("isDeepSeekModel", () => {
+  test("should detect DeepSeek model names", () => {
+    expect(isDeepSeekModel("deepseek-v4-flash")).toBe(true);
+    expect(isDeepSeekModel("deepseek-v4-pro")).toBe(true);
+    expect(isDeepSeekModel("provider/deepseek-reasoner")).toBe(true);
+    expect(isDeepSeekModel("DEEPSEEK-V4-FLASH")).toBe(true);
+  });
+
+  test("should not detect OpenAI models", () => {
+    expect(isDeepSeekModel("gpt-4o")).toBe(false);
+    expect(isDeepSeekModel("o3-mini")).toBe(false);
+    expect(isDeepSeekModel(undefined)).toBe(false);
   });
 });

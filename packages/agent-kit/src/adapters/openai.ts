@@ -26,19 +26,39 @@ export const requestParser: AgenticModel.RequestParser<OpenAi.AiModel> = (
   tools,
   tool_choice = "auto"
 ) => {
+  // DeepSeek thinking models require reasoning_content from an assistant
+  // response to be sent back with the corresponding assistant message in
+  // subsequent tool-calling requests. Keep this provider-specific because
+  // reasoning messages for native OpenAI models are intentionally omitted.
+  const preserveReasoningContent = isDeepSeekModel(model.options.model);
+  let pendingReasoning: string | undefined;
+
   const request: AiAdapter.Input<OpenAi.AiModel> = {
     messages: messages
       .map((m: Message) => {
         switch (m.type) {
           case "reasoning":
+            if (preserveReasoningContent) {
+              pendingReasoning = m.content;
+            }
             return null;
-          case "text":
-            return {
+          case "text": {
+            const textMessage = {
               role: m.role,
               content: m.content,
             };
-          case "tool_call":
-            return {
+
+            if (m.role === "assistant" && pendingReasoning) {
+              Object.assign(textMessage, {
+                reasoning_content: pendingReasoning,
+              });
+              pendingReasoning = undefined;
+            }
+
+            return textMessage;
+          }
+          case "tool_call": {
+            const toolCallMessage = {
               role: "assistant",
               content: null,
               tool_calls: m.tools
@@ -52,6 +72,16 @@ export const requestParser: AgenticModel.RequestParser<OpenAi.AiModel> = (
                   }))
                 : undefined,
             };
+
+            if (pendingReasoning) {
+              Object.assign(toolCallMessage, {
+                reasoning_content: pendingReasoning,
+              });
+              pendingReasoning = undefined;
+            }
+
+            return toolCallMessage;
+          }
           case "tool_result":
             return {
               role: "tool",
@@ -224,6 +254,14 @@ export const isReasoningModel = (modelName: string | undefined): boolean => {
   // gpt reasoning variants: gpt-5.x-pro, gpt-5.x-codex
   if (/gpt-\d.*-(pro|codex)/.test(name)) return true;
   return false;
+};
+
+/**
+ * Detect DeepSeek models that use the OpenAI-compatible API but require
+ * provider-specific reasoning_content round-tripping for tool calls.
+ */
+export const isDeepSeekModel = (modelName: string | undefined): boolean => {
+  return modelName?.toLowerCase().includes("deepseek") ?? false;
 };
 
 const openAiStopReasonToStateStopReason: Record<string, string> = {
