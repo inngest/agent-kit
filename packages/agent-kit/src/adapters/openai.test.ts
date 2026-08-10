@@ -133,6 +133,261 @@ describe("openai responseParser", () => {
 
     expect(result[1]!.type).toBe("tool_call");
   });
+
+  test("should parse backtick-delimited tool arguments containing template literals", () => {
+    const source = [
+      "export const Greeting = ({ name }: { name: string }) => {",
+      "  const greeting = `Hello, ${name}`;",
+      "  return <div>{`Message: ${greeting}`}</div>;",
+      "};",
+    ].join("\n");
+    const input = {
+      choices: [
+        {
+          message: {
+            role: "assistant",
+            content: null,
+            tool_calls: [
+              {
+                id: "call_write",
+                type: "function",
+                function: {
+                  name: "write",
+                  arguments: `{"files":[{"path":"app.tsx","content":\`${source}\`}]}`,
+                },
+              },
+            ],
+          },
+          finish_reason: "tool_calls",
+        },
+      ],
+    };
+
+    const result = responseParser(input as never);
+    expect(result[0]).toMatchObject({
+      type: "tool_call",
+      tools: [
+        {
+          input: {
+            files: [{ path: "app.tsx", content: source }],
+          },
+        },
+      ],
+    });
+  });
+
+  test("should parse multiple backtick-delimited tool arguments", () => {
+    const input = {
+      choices: [
+        {
+          message: {
+            role: "assistant",
+            content: null,
+            tool_calls: [
+              {
+                id: "call_write",
+                type: "function",
+                function: {
+                  name: "write",
+                  arguments:
+                    '{"files":[{"path":"a.ts","content":`export const a = 1;`},{"path":"b.ts","content":`export const b = `two`;`}]}',
+                },
+              },
+            ],
+          },
+          finish_reason: "tool_calls",
+        },
+      ],
+    };
+
+    const result = responseParser(input as never);
+    expect(result[0]).toMatchObject({
+      type: "tool_call",
+      tools: [
+        {
+          input: {
+            files: [
+              { path: "a.ts", content: "export const a = 1;" },
+              { path: "b.ts", content: "export const b = `two`;" },
+            ],
+          },
+        },
+      ],
+    });
+  });
+
+  test("should preserve raw control characters inside JSON strings", () => {
+    const content = "first line\n\tindented\u0000value\u001fend\r\n";
+    const argumentsText = `{"files":[{"path":"app.tsx","content":"${content}"}]}`;
+    const input = {
+      choices: [
+        {
+          message: {
+            role: "assistant",
+            content: null,
+            tool_calls: [
+              {
+                id: "call_write",
+                type: "function",
+                function: {
+                  name: "write",
+                  arguments: argumentsText,
+                },
+              },
+            ],
+          },
+          finish_reason: "tool_calls",
+        },
+      ],
+    };
+
+    const result = responseParser(input as never);
+    expect(result[0]).toMatchObject({
+      type: "tool_call",
+      tools: [
+        {
+          input: {
+            files: [{ path: "app.tsx", content }],
+          },
+        },
+      ],
+    });
+  });
+
+  test("should not change valid JSON strings containing escaped controls", () => {
+    const argumentsText =
+      '{"files":[{"path":"app.tsx","content":"line one\\n\\tline two\\u0000"}]}';
+    const input = {
+      choices: [
+        {
+          message: {
+            role: "assistant",
+            content: null,
+            tool_calls: [
+              {
+                id: "call_write",
+                type: "function",
+                function: { name: "write", arguments: argumentsText },
+              },
+            ],
+          },
+          finish_reason: "tool_calls",
+        },
+      ],
+    };
+
+    const result = responseParser(input as never);
+    expect(result[0]).toMatchObject({
+      type: "tool_call",
+      tools: [
+        {
+          input: {
+            files: [{ path: "app.tsx", content: "line one\n\tline two\u0000" }],
+          },
+        },
+      ],
+    });
+  });
+
+  test("should preserve invalid JSON escapes as literal string content", () => {
+    const content = [
+      "const surname = 'Liam O\\'Brien';",
+      "const digits = /\\d+/g;",
+      "const hex = '\\x41';",
+    ].join("\n");
+    const argumentsText = `{"files":[{"path":"app.ts","content":"${content}"}]}`;
+    const input = {
+      choices: [
+        {
+          message: {
+            role: "assistant",
+            content: null,
+            tool_calls: [
+              {
+                id: "call_write",
+                type: "function",
+                function: { name: "write", arguments: argumentsText },
+              },
+            ],
+          },
+          finish_reason: "tool_calls",
+        },
+      ],
+    };
+
+    const result = responseParser(input as never);
+    expect(result[0]).toMatchObject({
+      type: "tool_call",
+      tools: [
+        {
+          input: {
+            files: [{ path: "app.ts", content }],
+          },
+        },
+      ],
+    });
+  });
+
+  test("should reject ambiguous malformed JSON with sanitized diagnostics", () => {
+    const argumentsText = '{"command":"node -e "console.log(\\"unsafe\\")""}';
+    const input = {
+      choices: [
+        {
+          message: {
+            role: "assistant",
+            content: null,
+            tool_calls: [
+              {
+                id: "call_bash",
+                type: "function",
+                function: { name: "bash", arguments: argumentsText },
+              },
+            ],
+          },
+          finish_reason: "tool_calls",
+        },
+      ],
+    };
+
+    expect(() => responseParser(input as never)).toThrow(
+      `Failed to parse tool arguments for bash (finish_reason: tool_calls, arguments_length: ${argumentsText.length})`
+    );
+    expect(() => responseParser(input as never)).toThrow(
+      "Invalid JSON separator"
+    );
+
+    try {
+      responseParser(input as never);
+    } catch (error) {
+      expect(String(error)).not.toContain("console.log");
+    }
+  });
+
+  test("should reject an escaped raw control character as ambiguous", () => {
+    const argumentsText = '{"command":"echo \\\nnext"}';
+    const input = {
+      choices: [
+        {
+          message: {
+            role: "assistant",
+            content: null,
+            tool_calls: [
+              {
+                id: "call_bash",
+                type: "function",
+                function: { name: "bash", arguments: argumentsText },
+              },
+            ],
+          },
+          finish_reason: "tool_calls",
+        },
+      ],
+    };
+
+    expect(() => responseParser(input as never)).toThrow(
+      "Failed to parse tool arguments for bash"
+    );
+  });
 });
 
 describe("openai requestParser", () => {

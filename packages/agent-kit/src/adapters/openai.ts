@@ -164,13 +164,17 @@ export const responseParser: AgenticModel.ResponseParser<OpenAi.AiModel> = (
         ...base,
         type: "tool_call",
         tools: message.tool_calls.map((tool) => {
+          const argumentsText = tool.function.arguments || "{}";
           return {
             type: "tool",
             id: tool.id,
             name: tool.function.name,
             function: tool.function.name, // Duplicate for backward compatibility
             // Use safe parser to handle OpenAI's JSON quirks (like backticks in strings)
-            input: safeParseOpenAIJson(tool.function.arguments || "{}"),
+            input: safeParseOpenAIJson(argumentsText, {
+              toolName: tool.function.name,
+              finishReason: finish_reason,
+            }),
           } as ToolMessage;
         }),
       } as ToolCallMessage);
@@ -189,27 +193,275 @@ export const responseParser: AgenticModel.ResponseParser<OpenAi.AiModel> = (
  * "{\n  \"files\": [\n    {\n      \"filename\": \"fibo.ts\",\n      \"content\": `\nfunction fibonacci(n: number): number {\n  if (n < 2) {\n    return n;\n  } else {\n    return fibonacci(n - 1) + fibonacci(n - 2);\n  }\n}\n\nexport default fibonacci;\n`\n    }\n  ]\n}"
  * ```
  */
-const safeParseOpenAIJson = (str: string): unknown => {
+const safeParseOpenAIJson = (
+  str: string,
+  diagnostics: {
+    toolName: string;
+    finishReason: string | null | undefined;
+  }
+): unknown => {
   // Remove any leading/trailing quotes if present
   const trimmed = str.replace(/^["']|["']$/g, "");
 
   try {
     // First try direct JSON parse
     return JSON.parse(trimmed);
-  } catch {
+  } catch (directParseError) {
+    const withEscapedControlCharacters =
+      escapeUnescapedControlCharactersInJsonStrings(trimmed);
+    const withSafeStringRepairs = escapeInvalidJsonStringBackslashes(
+      withEscapedControlCharacters
+    );
+
     try {
-      // Replace backtick strings with regular JSON strings
-      // Match content between backticks, preserving newlines
-      const withQuotes = trimmed.replace(/`([\s\S]*?)`/g, (_, content) =>
-        JSON.stringify(content)
-      );
-      return JSON.parse(withQuotes);
-    } catch (e) {
+      // Generated source sometimes contains literal control characters inside
+      // a JSON string. Escaping only those characters preserves the decoded
+      // string value without guessing about quotes or JSON structure.
+      if (withSafeStringRepairs !== trimmed) {
+        try {
+          return JSON.parse(withSafeStringRepairs);
+        } catch {
+          // It may also contain backtick-delimited strings; handle those below.
+        }
+      }
+
+      return parseJsonWithBacktickStrings(withSafeStringRepairs);
+    } catch (fallbackError) {
+      const diagnosticError =
+        fallbackError instanceof SyntaxError ||
+        !(directParseError instanceof SyntaxError)
+          ? fallbackError
+          : directParseError;
       throw new Error(
-        `Failed to parse JSON with backticks: ${stringifyError(e)}`
+        `Failed to parse tool arguments for ${diagnostics.toolName} ` +
+          `(finish_reason: ${diagnostics.finishReason ?? "unknown"}, ` +
+          `arguments_length: ${str.length}): ${sanitizeJsonParseError(diagnosticError)}`
       );
     }
   }
+};
+
+const sanitizeJsonParseError = (error: unknown): string => {
+  if (!(error instanceof SyntaxError)) {
+    return stringifyError(error);
+  }
+
+  const message = error.message;
+  const position = message.match(/\bposition\s+(\d+)\b/i)?.[1];
+  const location = position ? ` at position ${position}` : "";
+
+  if (/control character/i.test(message)) {
+    return `Bad control character in JSON string${location}`;
+  }
+  if (/unexpected end|unterminated string/i.test(message)) {
+    return `Unexpected end of JSON input${location}`;
+  }
+  if (/property name/i.test(message)) {
+    return `Invalid JSON property name${location}`;
+  }
+  if (/after property value|expected.*[,}\]]/i.test(message)) {
+    return `Invalid JSON separator${location}`;
+  }
+
+  return `Invalid JSON${location}`;
+};
+
+/**
+ * Escape raw JSON control characters only while inside a double-quoted string.
+ * A control character following an unmatched backslash is left untouched so
+ * ambiguous input continues to fail instead of being guessed at.
+ */
+const escapeUnescapedControlCharactersInJsonStrings = (
+  input: string
+): string => {
+  let output = "";
+  let inString = false;
+  let escaped = false;
+
+  for (const character of input) {
+    const codePoint = character.charCodeAt(0);
+    if (inString && !escaped && codePoint <= 0x1f) {
+      output += escapeJsonControlCharacter(character, codePoint);
+      continue;
+    }
+
+    output += character;
+
+    if (escaped) {
+      escaped = false;
+    } else if (inString && character === "\\") {
+      escaped = true;
+    } else if (character === '"') {
+      inString = !inString;
+    }
+  }
+
+  return output;
+};
+
+const escapeJsonControlCharacter = (
+  character: string,
+  codePoint: number
+): string => {
+  switch (character) {
+    case "\b":
+      return "\\b";
+    case "\t":
+      return "\\t";
+    case "\n":
+      return "\\n";
+    case "\f":
+      return "\\f";
+    case "\r":
+      return "\\r";
+    default:
+      return `\\u${codePoint.toString(16).padStart(4, "0")}`;
+  }
+};
+
+/**
+ * Preserve invalid JSON escape sequences as literal string content by escaping
+ * their backslash. For example, `\d` becomes `\\d` in the JSON source and
+ * decodes back to the original two characters. Valid JSON escapes and a
+ * backslash followed by a raw control character are left unchanged.
+ */
+const escapeInvalidJsonStringBackslashes = (input: string): string => {
+  let output = "";
+  let inString = false;
+
+  for (let i = 0; i < input.length; i++) {
+    const character = input[i]!;
+    if (character === '"') {
+      inString = !inString;
+      output += character;
+      continue;
+    }
+
+    if (!inString || character !== "\\") {
+      output += character;
+      continue;
+    }
+
+    const nextCharacter = input[i + 1];
+    if (nextCharacter === undefined || nextCharacter.charCodeAt(0) <= 0x1f) {
+      output += character;
+      continue;
+    }
+
+    if ('"\\/bfnrt'.includes(nextCharacter)) {
+      output += character + nextCharacter;
+      i++;
+      continue;
+    }
+
+    if (
+      nextCharacter === "u" &&
+      /^[0-9a-fA-F]{4}$/.test(input.slice(i + 2, i + 6))
+    ) {
+      output += input.slice(i, i + 6);
+      i += 5;
+      continue;
+    }
+
+    output += "\\\\";
+  }
+
+  return output;
+};
+
+/**
+ * Parses JSON-like tool arguments whose string values are delimited with
+ * backticks. Generated source code can itself contain template literals, so a
+ * regular expression cannot reliably identify the closing delimiter. Try only
+ * structurally plausible delimiters and accept a repair once the entire value
+ * parses as JSON.
+ */
+const parseJsonWithBacktickStrings = (input: string): unknown => {
+  const maxAttempts = 1_000;
+  let attempts = 0;
+
+  const parse = (value: string, searchFrom = 0): unknown => {
+    if (++attempts > maxAttempts) {
+      throw new Error("Too many possible backtick delimiters");
+    }
+
+    const openingIndex = findBacktickOutsideJsonString(value, searchFrom);
+    if (openingIndex === -1) {
+      return JSON.parse(value);
+    }
+
+    let lastError: unknown;
+    for (
+      let closingIndex = openingIndex + 1;
+      closingIndex < value.length;
+      closingIndex++
+    ) {
+      if (
+        value[closingIndex] !== "`" ||
+        isEscaped(value, closingIndex) ||
+        !isPossibleBacktickDelimiter(value, closingIndex)
+      ) {
+        continue;
+      }
+
+      const content = value.slice(openingIndex + 1, closingIndex);
+      const quotedContent = JSON.stringify(content);
+      const repaired =
+        value.slice(0, openingIndex) +
+        quotedContent +
+        value.slice(closingIndex + 1);
+
+      try {
+        return parse(repaired, openingIndex + quotedContent.length);
+      } catch (e) {
+        lastError = e;
+      }
+    }
+
+    if (lastError instanceof Error) {
+      throw lastError;
+    }
+    throw new Error(
+      lastError === undefined
+        ? "Unterminated backtick-delimited string"
+        : stringifyError(lastError)
+    );
+  };
+
+  return parse(input);
+};
+
+const findBacktickOutsideJsonString = (
+  input: string,
+  searchFrom: number
+): number => {
+  let inString = false;
+
+  for (let i = searchFrom; i < input.length; i++) {
+    if (input[i] === '"' && !isEscaped(input, i)) {
+      inString = !inString;
+      continue;
+    }
+
+    if (!inString && input[i] === "`" && !isEscaped(input, i)) {
+      return i;
+    }
+  }
+
+  return -1;
+};
+
+const isEscaped = (input: string, index: number): boolean => {
+  let precedingBackslashes = 0;
+  for (let i = index - 1; i >= 0 && input[i] === "\\"; i--) {
+    precedingBackslashes++;
+  }
+  return precedingBackslashes % 2 === 1;
+};
+
+const isPossibleBacktickDelimiter = (input: string, index: number): boolean => {
+  const nextToken = input.slice(index + 1).match(/^\s*(.)/)?.[1];
+  return nextToken === undefined || [",", "}", "]"].includes(nextToken);
 };
 
 /**
