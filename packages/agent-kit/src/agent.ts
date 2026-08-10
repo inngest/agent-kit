@@ -731,13 +731,18 @@ export class Agent<T extends StateData> {
           | { data: unknown }
           | { error: ReturnType<typeof errors.serializeError> };
 
-        const result: ToolHandlerResult = await Promise.resolve(
-          found.handler(tool.input, {
-            agent: this,
-            network,
-            step: step as GetStepTools<Inngest.Any>,
+        const result: ToolHandlerResult = await Promise.resolve()
+          .then(async () => {
+            const input = found.parameters
+              ? await found.parameters.parseAsync(tool.input)
+              : tool.input;
+
+            return found.handler(input, {
+              agent: this,
+              network,
+              step: step as GetStepTools<Inngest.Any>,
+            });
           })
-        )
           .then((r) => {
             return {
               data:
