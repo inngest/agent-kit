@@ -1,9 +1,9 @@
 import { type GetStepTools, type Inngest } from "inngest";
-import { type output as ZodOutput } from "zod";
+import type { StandardSchemaV1 } from "@standard-schema/spec";
 import { type Agent } from "./agent";
 import { type StateData } from "./state";
 import { type NetworkRun } from "./network";
-import { type AnyZodType, type MaybePromise } from "./util";
+import { type MaybePromise } from "./util";
 import type { StreamableHTTPReconnectionOptions } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import type { OAuthClientProvider } from "@modelcontextprotocol/sdk/client/auth.js";
 
@@ -31,7 +31,7 @@ export function createTool<
   description?: string;
   parameters?: TInput;
   handler: (
-    input: ZodOutput<TInput>,
+    input: StandardSchemaV1.InferOutput<TInput>,
     opts: Tool.Options<TState>
   ) => MaybePromise<TOutput>;
 }): Tool<TName, TInput, TOutput> {
@@ -40,7 +40,7 @@ export function createTool<
     description,
     parameters,
     handler<TS extends StateData>(
-      input: ZodOutput<TInput>,
+      input: StandardSchemaV1.InferOutput<TInput>,
       opts: Tool.Options<TS>
     ): MaybePromise<TOutput> {
       return handler(input, opts as unknown as Tool.Options<TState>);
@@ -63,7 +63,7 @@ export type Tool<TName extends string, TInput extends Tool.Input, TOutput> = {
   strict?: boolean;
 
   handler<TState extends StateData>(
-    input: ZodOutput<TInput>,
+    input: StandardSchemaV1.InferOutput<TInput>,
     opts: Tool.Options<TState>
   ): MaybePromise<TOutput>;
 };
@@ -77,7 +77,7 @@ export namespace Tool {
     step?: GetStepTools<Inngest.Any>;
   };
 
-  export type Input = AnyZodType;
+  export type Input = StandardSchemaV1;
 
   export type Choice = "auto" | "any" | (string & {});
 }
@@ -99,10 +99,10 @@ export function createToolManifest<
   type Result = {
     [K in TTools[number] as K["name"] & string]: K extends Tool<
       string,
-      infer In extends AnyZodType,
+      infer In extends StandardSchemaV1,
       infer Out
     >
-      ? { input: ZodOutput<In>; output: ToolResultPayload<Out> }
+      ? { input: StandardSchemaV1.InferOutput<In>; output: ToolResultPayload<Out> }
       : never;
   };
   return manifest as Result;

@@ -7,10 +7,12 @@
  */
 import { type AiAdapter, type Gemini } from "@inngest/ai";
 import { z, type ZodSchema } from "zod";
+import type { StandardSchemaV1 } from "@standard-schema/spec";
 
 import { type AgenticModel } from "../model";
 import type { Message, TextContent } from "../types";
 import { type Tool } from "../tool";
+import { toolParametersToJSONSchema } from "../util";
 
 /**
  * Parse a request from internal network messages to an Gemini input.
@@ -287,8 +289,8 @@ export const recursiveGeminiZodToJsonSchema = <T>(obj: T): Removed<T> => {
   return newObj as Removed<T>;
 };
 
-const geminiZodToJsonSchema = (schemaIn: ZodSchema) => {
-  let schema = z.toJSONSchema(schemaIn, { target: "openapi-3.0", io: "input" });
+const geminiZodToJsonSchema = (schemaIn: StandardSchemaV1 | ZodSchema) => {
+  let schema = toolParametersToJSONSchema(schemaIn, "openapi-3.0");
   schema = recursiveGeminiZodToJsonSchema(schema);
   return schema;
 };

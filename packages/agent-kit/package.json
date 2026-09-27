@@ -50,6 +50,7 @@
     "@dmitryrechkin/json-schema-to-zod": "^1.0.0",
     "@inngest/ai": "0.1.6",
     "@modelcontextprotocol/sdk": "^1.11.2",
+    "@standard-schema/spec": "^1.1.0",
     "eventsource": "^3.0.2",
     "express": "^4.21.1",
     "xxhashjs": "^0.2.2"
@@ -63,15 +64,18 @@
     "@types/express": "^5.0.0",
     "@types/node": "^22.9.1",
     "@types/xxhashjs": "^0.2.4",
+    "@valibot/to-json-schema": "^1.5.0",
     "inngest": "3.43.1",
     "nodemon": "^3.0.2",
     "ts-node": "^10.9.2",
+    "supertest": "^7.1.1",
     "tsup": "^8.3.6",
     "typescript": "^5.6.3",
     "typescript-eslint": "^8.15.0",
+    "valibot": "^1.2.0",
     "vite": "^6.0.0",
     "vitest": "^2.1.8",
-    "zod": "^4.1.11"
+    "zod": "^4.2.0"
   },
   "pnpm": {
     "overrides": {

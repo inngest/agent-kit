@@ -5,7 +5,6 @@
  */
 
 import { type AiAdapter, type OpenAi } from "@inngest/ai";
-import { z } from "zod";
 import { type AgenticModel } from "../model";
 import {
   type Message,
@@ -15,7 +14,7 @@ import {
   type ToolMessage,
 } from "../types";
 import { type Tool } from "../tool";
-import { stringifyError } from "../util";
+import { stringifyError, toolParametersToJSONSchema } from "../util";
 
 /**
  * Parse a request from internal network messages to an OpenAI input.
@@ -84,7 +83,7 @@ export const requestParser: AgenticModel.RequestParser<OpenAi.AiModel> = (
           name: t.name,
           description: t.description,
           parameters:
-            t.parameters && z.toJSONSchema(t.parameters, { target: "draft-7" }),
+            t.parameters && toolParametersToJSONSchema(t.parameters, "draft-7"),
           strict:
             typeof t.strict !== "undefined" ? t.strict : Boolean(t.parameters), // strict mode is only supported with parameters
         },

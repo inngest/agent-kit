@@ -1,6 +1,7 @@
 import { type Inngest, type InngestFunction, isInngestFunction } from "inngest";
 import { type AsyncContext, getAsyncCtx } from "inngest/experimental";
-import { type ZodType, ZodObject } from "zod";
+import { type ZodType, ZodObject, ZodType as ZodTypeValue, z } from "zod";
+import type { StandardSchemaV1 } from "@standard-schema/spec";
 
 export type MaybePromise<T> = T | Promise<T>;
 
@@ -126,4 +127,31 @@ const helpers = {
   isObject: (value: unknown): value is Record<string, unknown> => {
     return typeof value === "object" && value !== null && !Array.isArray(value);
   },
+};
+
+export const toolParametersToJSONSchema = (
+  schema: StandardSchemaV1 | ZodType,
+  target: "draft-7" | "draft-2020-12" | "openapi-3.0"
+): Record<string, unknown> => {
+  const mappedTarget = target === "draft-7" ? "draft-07" : target;
+
+  if (typeof schema === "object" && schema !== null && "~standard" in schema) {
+    const standardSchema = schema as StandardSchemaV1;
+    const props = standardSchema["~standard"] as unknown as Record<string, unknown>;
+    if ("jsonSchema" in props && props.jsonSchema) {
+      const converter = props.jsonSchema as { input: (opts: { target: string }) => Record<string, unknown> };
+      return converter.input({ target: mappedTarget });
+    }
+  }
+
+  if (schema instanceof ZodTypeValue) {
+    return z.toJSONSchema(schema, { target });
+  }
+
+  throw new Error(
+    `Schema of type "${schema?.constructor?.name ?? typeof schema}" does not implement ` +
+    `Standard Schema with JSON Schema support ("~standard.jsonSchema"). ` +
+    `If you're using Valibot, wrap it with toStandardJsonSchema() from @valibot/to-json-schema. ` +
+    `If you're using another library, check whether it exposes a similar Standard JSON Schema adapter.`
+  );
 };

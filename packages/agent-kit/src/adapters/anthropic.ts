@@ -16,6 +16,7 @@ import {
   type TextMessage,
 } from "../types";
 import { type Tool } from "../tool";
+import { toolParametersToJSONSchema } from "../util";
 
 /**
  * Parse a request from internal network messages to an Anthropic input.
@@ -110,12 +111,8 @@ export const requestParser: AgenticModel.RequestParser<Anthropic.AiModel> = (
         name: t.name,
         description: t.description,
         input_schema: (t.parameters
-          ? z.toJSONSchema(t.parameters, {
-              target: "draft-2020-12",
-            })
-          : z.toJSONSchema(z.object({}), {
-              target: "draft-2020-12",
-            })) as AnthropicAiAdapter.Tool.InputSchema,
+          ? toolParametersToJSONSchema(t.parameters, "draft-2020-12")
+          : toolParametersToJSONSchema(z.object({}), "draft-2020-12")) as AnthropicAiAdapter.Tool.InputSchema,
       };
     });
     request.tool_choice = toolChoice(tool_choice);
