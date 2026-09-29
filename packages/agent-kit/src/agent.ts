@@ -114,7 +114,7 @@ export class Agent<T extends StateData> {
   /**
    * history configuration for managing conversation history
    */
-  private history?: HistoryConfig<T>;
+  protected history?: HistoryConfig<T>;
 
   // _mcpInit records whether the MCP tool list has been initialized.
   private _mcpClients: MCPClient[];
@@ -176,8 +176,11 @@ export class Agent<T extends StateData> {
       system: this.system,
       assistant: this.assistant,
       tools: Array.from(this.tools.values()),
+      tool_choice: this.tool_choice,
       lifecycle: this.lifecycles,
       model,
+      mcpServers: this.mcpServers,
+      history: this.history,
     });
   }
 
@@ -1029,8 +1032,11 @@ export class RoutingAgent<T extends StateData> extends Agent<T> {
       system: this.system,
       assistant: this.assistant,
       tools: Array.from(this.tools.values()),
+      tool_choice: this.tool_choice,
       lifecycle: this.lifecycles,
       model,
+      mcpServers: this.mcpServers,
+      history: this.history,
     });
   }
 }
