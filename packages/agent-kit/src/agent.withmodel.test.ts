@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import {
   createAgent,
@@ -64,5 +64,36 @@ describe("withModel", () => {
     expect(copy.tool_choice).toBe("any");
     expect(copy.mcpServers).toBe(mcpServers);
     expect(copy["history"]).toBe(history);
+  });
+
+  it("reuses the MCP clients of an agent that already initialized them", async () => {
+    const agent = createAgent({ name: "agent", system: "system", mcpServers });
+    const client = {} as never;
+    agent["_mcpClients"] = [client];
+
+    const copy = agent.withModel(otherModel);
+    const connect = vi.spyOn(copy as never, "mcpClient" as never);
+    await copy["initMCP"]();
+
+    expect(copy["_mcpClients"]).toEqual([client]);
+    expect(connect).not.toHaveBeenCalled();
+  });
+
+  it("reuses the MCP clients of a routing agent", async () => {
+    const router = createRoutingAgent({
+      name: "router",
+      system: "system",
+      mcpServers,
+      lifecycle: { onRoute: () => undefined },
+    });
+    const client = {} as never;
+    router["_mcpClients"] = [client];
+
+    const copy = router.withModel(otherModel);
+    const connect = vi.spyOn(copy as never, "mcpClient" as never);
+    await copy["initMCP"]();
+
+    expect(copy["_mcpClients"]).toEqual([client]);
+    expect(connect).not.toHaveBeenCalled();
   });
 });

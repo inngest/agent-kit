@@ -117,7 +117,7 @@ export class Agent<T extends StateData> {
   protected history?: HistoryConfig<T>;
 
   // _mcpInit records whether the MCP tool list has been initialized.
-  private _mcpClients: MCPClient[];
+  protected _mcpClients: MCPClient[];
 
   constructor(opts: Agent.Constructor<T> | Agent.RoutingConstructor<T>) {
     this.name = opts.name;
@@ -170,7 +170,7 @@ export class Agent<T extends StateData> {
   }
 
   withModel(model: AiAdapter.Any): Agent<T> {
-    return new Agent({
+    const copy = new Agent({
       name: this.name,
       description: this.description,
       system: this.system,
@@ -182,6 +182,10 @@ export class Agent<T extends StateData> {
       mcpServers: this.mcpServers,
       history: this.history,
     });
+    // The copied tools already use these clients, so the copy reuses them
+    // instead of opening a second connection to each MCP server.
+    copy._mcpClients = [...this._mcpClients];
+    return copy;
   }
 
   /**
@@ -1026,7 +1030,7 @@ export class RoutingAgent<T extends StateData> extends Agent<T> {
   }
 
   override withModel(model: AiAdapter.Any): RoutingAgent<T> {
-    return new RoutingAgent({
+    const copy = new RoutingAgent({
       name: this.name,
       description: this.description,
       system: this.system,
@@ -1038,6 +1042,8 @@ export class RoutingAgent<T extends StateData> extends Agent<T> {
       mcpServers: this.mcpServers,
       history: this.history,
     });
+    copy._mcpClients = [...this._mcpClients];
+    return copy;
   }
 }
 
