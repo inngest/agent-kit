@@ -94,6 +94,7 @@ describe("Agent.run with maxIter", () => {
     expect(followUp[callIndex + 1]).toMatchObject({
       role: "tool",
       tool_call_id: "call_1",
+      content: JSON.stringify({ data: { result: 8 } }),
     });
 
     expect(result.output).toMatchObject([
