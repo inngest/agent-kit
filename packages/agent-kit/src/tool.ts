@@ -25,11 +25,13 @@ export function createTool<
   name,
   description,
   parameters,
+  strict,
   handler,
 }: {
   name: TName;
   description?: string;
   parameters?: TInput;
+  strict?: boolean;
   handler: (
     input: ZodOutput<TInput>,
     opts: Tool.Options<TState>
@@ -39,6 +41,7 @@ export function createTool<
     name,
     description,
     parameters,
+    strict,
     handler<TS extends StateData>(
       input: ZodOutput<TInput>,
       opts: Tool.Options<TS>
