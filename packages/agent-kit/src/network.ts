@@ -567,16 +567,16 @@ export class NetworkRun<T extends StateData> extends Network<T> {
     const step = await getStepTools();
     const wrappedStep = createStepWrapper(step, streamingContext);
 
-    const available = await this.availableAgents();
-    if (available.length === 0) {
-      throw new Error("no agents enabled in network");
-    }
-
     // Store initial result count to track new results
     // Used to track new results in history.appendResults
     const initialResultCount = this.state.results.length;
 
     try {
+      const available = await this.availableAgents();
+      if (available.length === 0) {
+        throw new Error("no agents enabled in network");
+      }
+
       // If there's no default agent used to run the request, use our internal
       // routing agent which attempts to figure out the best agent to choose based
       // off of the network.
