@@ -364,7 +364,9 @@ export class Agent<T extends StateData> {
         if (standaloneStreamingContext) {
           result.id = standaloneStreamingContext.messageId;
         }
-        history = [...inference.output];
+        // Carry the conversation forward so the next inference sees the prior
+        // history, this turn's output, and the results of any tools it called.
+        history = [...history, ...inference.output, ...inference.toolCalls];
         iter++;
       } while (hasMoreActions && iter < maxIter);
 
