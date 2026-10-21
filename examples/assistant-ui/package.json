@@ -1,0 +1,33 @@
+{
+  "name": "assistant-ui-example",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --port 3102",
+    "build": "next build",
+    "start": "next start --port 3102",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@assistant-ui/react": "^0.15.30",
+    "@assistant-ui/react-markdown": "^0.14.23",
+    "@inngest/agent-kit": "^0.13.2",
+    "@inngest/realtime": "^0.4.7",
+    "@inngest/use-agent": "^0.4.0",
+    "inngest": "^3.54.2",
+    "lucide-react": "^1.61.0",
+    "next": "^16.4.2",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.3.3",
+    "@tailwindcss/typography": "^0.5.20",
+    "@types/node": "^22.20.5",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^5.9.3"
+  }
+}
