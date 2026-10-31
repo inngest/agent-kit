@@ -121,5 +121,9 @@ export function createEventTools({
     },
   });
 
+  // OpenAI strict schemas cannot express optional fields or dynamic filter maps.
+  // Both handlers still validate inputs against the application schemas above.
+  describe.strict = false;
+  wait.strict = false;
   return [describe, wait] as [typeof describe, typeof wait];
 }

@@ -1,10 +1,12 @@
 import { describe, expect, test, vi } from "vitest";
 import { z } from "zod";
+import { requestParser } from "./adapters/openai";
 import { createAgent } from "./agent";
 import { createEventTools } from "./event-tools";
+import { openai } from "./models";
 import { createNetwork, NetworkRun } from "./network";
 import { createState } from "./state";
-import { type Tool } from "./tool";
+import { createTool, type Tool } from "./tool";
 
 const options: Tool.Options<Record<string, unknown>> = {
   agent: createAgent({ name: "observer", system: "Observe events" }),
@@ -43,6 +45,51 @@ function setup() {
 }
 
 describe("createEventTools", () => {
+  test("opts event tools out of OpenAI strict mode without changing other tools", () => {
+    const { describe, wait } = setup();
+    const ordinary = createTool({
+      name: "ordinary",
+      parameters: z.object({ value: z.string() }).strict(),
+      handler: ({ value }) => value,
+    });
+    const request = requestParser(
+      openai({ model: "gpt-4.1", apiKey: "test-key" }),
+      [],
+      [describe, wait, ordinary],
+      "auto"
+    );
+    expect(request.tools).toMatchObject([
+      {
+        function: {
+          name: "describe_events",
+          strict: false,
+          parameters: { properties: { event: { type: "string" } } },
+        },
+      },
+      {
+        function: {
+          name: "wait_for_event",
+          strict: false,
+          parameters: {
+            properties: {
+              where: {
+                type: "object",
+                additionalProperties: {
+                  anyOf: [
+                    { type: "string" },
+                    { type: "number" },
+                    { type: "boolean" },
+                  ],
+                },
+              },
+            },
+          },
+        },
+      },
+      { function: { name: "ordinary", strict: true } },
+    ]);
+  });
+
   test("discovers source-specific filter schemas and limits", async () => {
     const { describe } = setup();
     const catalog = await describe.handler({}, options);

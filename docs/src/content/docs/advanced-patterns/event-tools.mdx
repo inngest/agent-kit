@@ -74,6 +74,10 @@ in `where` become filters. Unknown fields, invalid values, and excessive timeout
 are rejected before registering a wait. Values are encoded as CEL literals;
 arbitrary model-authored CEL is not accepted.
 
+These tools disable OpenAI strict generation because discovery has an optional
+parameter and filter keys vary by source. Both handlers still validate arguments
+against the application schemas before returning a catalog or registering a wait.
+
 The result is `{ status: "matched", event }` with the original event, or
 `{ status: "timed_out", event: null }`. Registration errors remain errors.
 Outside an Inngest function context, waiting fails explicitly. The handler calls
