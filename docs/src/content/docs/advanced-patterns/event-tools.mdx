@@ -1,0 +1,85 @@
+---
+title: Agent-selected event waits
+description: Let an agent discover event fields and choose what to wait for.
+---
+
+`createEventTools()` adds two tools to an agent: `describe_events` lists the
+application's event sources and filter schemas, and `wait_for_event` waits for
+one matching event using Inngest's `step.waitForEvent()`.
+
+The application supplies the available sources, fixed scope, and maximum wait
+duration. The agent chooses a source, equality filters, and a duration within
+that limit. Adding another source does not require another tool handler.
+
+```ts
+import { createAgent, createEventTools, openai } from "@inngest/agent-kit";
+import { Inngest } from "inngest";
+import { z } from "zod";
+
+const inngest = new Inngest({ id: "event-observer" });
+const deploymentData = z.object({
+  tenantId: z.string(),
+  service: z.string().describe("Deployed service name"),
+  status: z.enum(["running", "succeeded", "failed"]),
+});
+const requestData = z.object({ tenantId: z.string(), goal: z.string() });
+
+export const observe = inngest.createFunction(
+  { id: "observe-events" },
+  { event: "agent/observe.requested" },
+  async ({ event, step }) => {
+    // The application authenticates the sender before emitting this event.
+    const request = requestData.parse(event.data);
+    const agent = createAgent({
+      name: "Observer",
+      system:
+        "Discover the available events, choose filters for the user's goal, " +
+        "and explain the event you receive or the timeout. A timeout does " +
+        "not prove the external operation failed.",
+      model: openai({ model: "gpt-4.1" }),
+      tools: createEventTools({
+        maxTimeoutSeconds: 3600,
+        events: {
+          "deployment/updated": {
+            description: "Deployment progress for the current tenant",
+            filters: deploymentData.pick({ service: true, status: true }),
+            scope: { tenantId: request.tenantId },
+          },
+        },
+      }),
+    });
+    return agent.run(request.goal, { maxIter: 5, step });
+  }
+);
+```
+
+For a goal such as "Wait for the API deployment to succeed", the agent can
+discover the fields and call:
+
+```json
+{
+  "event": "deployment/updated",
+  "where": { "service": "api", "status": "succeeded" },
+  "timeoutSeconds": 600
+}
+```
+
+All filters must match. The fixed `tenantId` constraint is added by the
+application and cannot be overridden by the agent. Use a catalog and scope
+authorized for the current caller; the tool does not authenticate event producers.
+
+Filter schemas describe selectable, top-level `event.data` fields. Values are
+strings, finite numbers, or booleans. Fields may be omitted; only fields selected
+in `where` become filters. Unknown fields, invalid values, and excessive timeouts
+are rejected before registering a wait. Values are encoded as CEL literals;
+arbitrary model-authored CEL is not accepted.
+
+The result is `{ status: "matched", event }` with the original event, or
+`{ status: "timed_out", event: null }`. Registration errors remain errors.
+Outside an Inngest function context, waiting fails explicitly. The handler calls
+the existing durable wait directly; do not wrap it in another `step.run()`.
+
+These are single-event waits, not continuous subscriptions. Events arriving
+before registration or between successive waits are not buffered for the agent.
+When every event matters, use an event-triggered function or an application inbox
+that persists events and tracks consumption.
