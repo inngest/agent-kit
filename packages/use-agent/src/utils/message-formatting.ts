@@ -76,64 +76,61 @@ export const formatMessagesToAgentKitHistory = <
         });
       }
     } else if (msg.role === "assistant") {
-      // For assistant messages, extract text parts first
-      const textParts = msg.parts.filter((p) => p.type === "text");
-      if (textParts.length > 0) {
-        const textContent = textParts.map((p) => p.content).join("\n");
-        if (textContent.trim()) {
-          result.push({
-            type: "text",
-            role: "assistant",
-            content: textContent,
-          });
+      for (let index = 0; index < msg.parts.length; ) {
+        const part = msg.parts[index];
+        if (part.type === "text") {
+          const text: string[] = [];
+          while (msg.parts[index]?.type === "text") {
+            text.push((msg.parts[index] as TextUIPart).content);
+            index++;
+          }
+          const content = text.join("\n");
+          if (content.trim())
+            result.push({ type: "text", role: "assistant", content });
+          continue;
         }
-      }
+        if (part.type !== "tool-call") {
+          index++;
+          continue;
+        }
 
-      // Then extract tool call parts
-      const toolCallParts = msg.parts.filter((p) => p.type === "tool-call");
-      if (toolCallParts.length > 0) {
-        // Group tool calls that are completed (have both input and output)
-        const completedToolCalls = toolCallParts.filter(
-          (p) =>
-            p.state === "output-available" && p.input && p.output !== undefined
-        );
-
-        if (completedToolCalls.length > 0) {
-          // Create ToolCallMessage for the tool calls
+        const toolParts = [];
+        while (msg.parts[index]?.type === "tool-call") {
+          const toolPart = msg.parts[index++];
+          if (
+            toolPart.type === "tool-call" &&
+            toolPart.state === "output-available" &&
+            toolPart.input &&
+            toolPart.output !== undefined
+          )
+            toolParts.push(toolPart);
+        }
+        if (toolParts.length === 0) continue;
+        const tools = toolParts.map((toolPart) => ({
+          type: "tool" as const,
+          id: toolPart.toolCallId,
+          name: toolPart.toolName,
+          input:
+            typeof toolPart.input === "object" && toolPart.input !== null
+              ? (toolPart.input as Record<string, unknown>)
+              : { args: toolPart.input },
+        }));
+        result.push({
+          type: "tool_call",
+          role: "assistant",
+          stop_reason: "tool",
+          tools,
+        });
+        toolParts.forEach((toolPart, toolIndex) => {
           result.push({
-            type: "tool_call",
-            role: "assistant",
+            type: "tool_result",
+            role: "tool_result",
             stop_reason: "tool",
-            tools: completedToolCalls.map((toolPart) => ({
-              type: "tool",
-              id: toolPart.toolCallId,
-              name: toolPart.toolName,
-              input:
-                typeof toolPart.input === "object" && toolPart.input !== null
-                  ? (toolPart.input as Record<string, unknown>)
-                  : { args: toolPart.input },
-            })),
+            tool: tools[toolIndex],
+            content:
+              "rawOutput" in toolPart ? toolPart.rawOutput : toolPart.output,
           });
-
-          // Create ToolResultMessage for each tool's output
-          completedToolCalls.forEach((toolPart) => {
-            result.push({
-              type: "tool_result",
-              role: "tool_result",
-              stop_reason: "tool",
-              tool: {
-                type: "tool",
-                id: toolPart.toolCallId,
-                name: toolPart.toolName,
-                input:
-                  typeof toolPart.input === "object" && toolPart.input !== null
-                    ? (toolPart.input as Record<string, unknown>)
-                    : { args: toolPart.input },
-              },
-              content: toolPart.output,
-            });
-          });
-        }
+        });
       }
     }
   }

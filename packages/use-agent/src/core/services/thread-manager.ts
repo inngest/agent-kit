@@ -1,4 +1,8 @@
-import type { ConversationMessage, Thread } from "../../types/index.js";
+import type {
+  ConversationMessage,
+  MessagePart,
+  Thread,
+} from "../../types/index.js";
 
 /**
  * Framework-agnostic thread utilities and manager.
@@ -152,20 +156,75 @@ export class ThreadManager {
         } as ConversationMessage;
       }
 
-      // assistant: extract first text output if present
-      let assistantText = "";
+      const parts: MessagePart[] = [];
       const data = msg["data"];
-      if (isRecord(data)) {
-        const output = data["output"];
-        if (Array.isArray(output)) {
-          for (const item of output as unknown[]) {
+      if (isRecord(data) && Array.isArray(data.output)) {
+        const results = new Map<string, Record<string, unknown>>();
+        if (Array.isArray(data.toolCalls)) {
+          for (const result of data.toolCalls as unknown[]) {
             if (
-              isRecord(item) &&
-              item["type"] === "text" &&
-              typeof item["content"] === "string"
+              isRecord(result) &&
+              result.type === "tool_result" &&
+              "content" in result &&
+              isRecord(result.tool) &&
+              typeof result.tool.id === "string"
             ) {
-              assistantText = item["content"];
-              break;
+              results.set(result.tool.id, result);
+            }
+          }
+        }
+        for (const item of data.output as unknown[]) {
+          if (!isRecord(item)) continue;
+          if (item.type === "text") {
+            const content =
+              typeof item.content === "string"
+                ? item.content
+                : Array.isArray(item.content)
+                  ? (item.content as unknown[])
+                      .filter(isRecord)
+                      .filter(
+                        (block) =>
+                          block.type === "text" &&
+                          typeof block.text === "string"
+                      )
+                      .map((block) => block.text)
+                      .join("\n")
+                  : "";
+            parts.push({
+              type: "text",
+              id: `text-${id}-${parts.length}`,
+              content,
+              status: "complete",
+            });
+          } else if (item.type === "tool_call" && Array.isArray(item.tools)) {
+            for (const tool of item.tools as unknown[]) {
+              if (
+                !isRecord(tool) ||
+                tool.type !== "tool" ||
+                typeof tool.id !== "string" ||
+                typeof tool.name !== "string" ||
+                !isRecord(tool.input)
+              )
+                continue;
+              const result = results.get(tool.id);
+              const output = result?.content;
+              parts.push({
+                type: "tool-call",
+                toolCallId: tool.id,
+                toolName: tool.name,
+                input: tool.input,
+                ...(result
+                  ? {
+                      state: "output-available",
+                      output:
+                        isRecord(output) && "data" in output
+                          ? output
+                          : { data: output },
+                      // UI consumers expect a data wrapper; replay needs the stored value.
+                      rawOutput: output,
+                    }
+                  : { state: "input-available" }),
+              });
             }
           }
         }
@@ -174,14 +233,7 @@ export class ThreadManager {
       return {
         id,
         role: "assistant",
-        parts: [
-          {
-            type: "text",
-            id: `text-${id}`,
-            content: assistantText,
-            status: "complete",
-          },
-        ],
+        parts,
         timestamp,
         status: "sent",
       } as ConversationMessage;
