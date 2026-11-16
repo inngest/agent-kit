@@ -762,6 +762,8 @@ function applyPartCompleted<
       tool = findFallbackToolPartForCompletion(msg);
     }
     if (tool) {
+      // Persisted replay metadata is stale once live output replaces it.
+      delete tool.rawOutput;
       // Finalize output
       tool.output = normalizeToolResultPayload(
         tool.toolName,
@@ -904,6 +906,7 @@ function applyToolOutputDelta<
 
   const nextData = `${previousString}${delta}`;
 
+  delete tool.rawOutput;
   tool.output = {
     data: nextData,
   } as ToolCallUIPart<TManifest>["output"];

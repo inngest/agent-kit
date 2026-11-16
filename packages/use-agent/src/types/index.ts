@@ -406,15 +406,17 @@ type ToolCallUIPartForTool<
       error?: unknown;
     };
 
-export type ToolCallUIPart<TManifest extends ToolManifest = ToolManifest> =
-  keyof TManifest extends never
-    ? never
-    : {
-        [TName in keyof TManifest & string]: ToolCallUIPartForTool<
-          TManifest,
-          TName
-        >;
-      }[keyof TManifest & string];
+export type ToolCallUIPart<TManifest extends ToolManifest = ToolManifest> = {
+  /** Original persisted result before UI normalization; cleared on live output updates. */
+  rawOutput?: unknown;
+} & (keyof TManifest extends never
+  ? never
+  : {
+      [TName in keyof TManifest & string]: ToolCallUIPartForTool<
+        TManifest,
+        TName
+      >;
+    }[keyof TManifest & string]);
 
 /**
  * Represents structured data with optional custom UI rendering.
