@@ -644,7 +644,10 @@ function applyPartCreated<
   );
   if (type === "text") {
     ensureTextPart<TManifest, TState>(msg, partId);
-  } else if (type === "tool-call") {
+  } else if (
+    type === "tool-call" &&
+    !msg.parts.some((p) => p.type === "tool-call" && p.toolCallId === partId)
+  ) {
     const tool: ToolCallUIPart<TManifest> = {
       type: "tool-call",
       toolCallId: partId,
