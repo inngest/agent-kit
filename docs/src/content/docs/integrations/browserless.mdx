@@ -45,64 +45,29 @@ Browserless exposes a WebSocket endpoint that Playwright can connect to via `con
    <Tabs>
      <TabItem label="npm">
      ```shell
-     mkdir my-agent-kit-project && npm init
+     mkdir my-agent-kit-project && cd my-agent-kit-project && npm init
      ```
      </TabItem>
      <TabItem label="pnpm">
      ```shell
-     mkdir my-agent-kit-project && pnpm init
+     mkdir my-agent-kit-project && cd my-agent-kit-project && pnpm init
      ```
      </TabItem>
      <TabItem label="yarn">
      ```shell
-     mkdir my-agent-kit-project && yarn init
+     mkdir my-agent-kit-project && cd my-agent-kit-project && yarn init
      ```
      </TabItem>
    </Tabs>
 
    </details>
 
-2. **Setup an AgentKit Network with an Agent**
-
-    Create an Agent and its associated Network:
-
-    ```typescript
-    import {
-      anthropic,
-      createAgent,
-      createNetwork,
-    } from "@inngest/agent-kit";
-
-    const newsAgent = createAgent({
-      name: "hackernews_agent",
-      description: "An agent that fetches and summarizes Hacker News stories",
-      system:
-        "You are a helpful assistant that fetches top stories from Hacker News and provides summaries.",
-    });
-
-    const network = createNetwork({
-      name: "news_network",
-      description: "A network that scrapes Hacker News using Browserless",
-      agents: [newsAgent],
-      maxIter: 3,
-      defaultModel: anthropic({
-        model: "claude-sonnet-4-20250514",
-        max_tokens: 4096,
-      }),
-    });
-    ```
-
-3. **Create a Browserless tool**
+2. **Create a Browserless tool**
 
     Create a tool that connects to Browserless via Playwright's CDP connection:
 
-    ```typescript {5, 8-9}
-    import {
-      anthropic,
-      createAgent,
-      createNetwork,
-      createTool,
-    } from "@inngest/agent-kit";
+    ```typescript
+    import { createTool } from "@inngest/agent-kit";
     import { z } from "zod";
     import { chromium } from "playwright-core";
 
@@ -150,7 +115,7 @@ Browserless exposes a WebSocket endpoint that Playwright can connect to via `con
 
     :::note
     Configure your `BROWSERLESS_API_KEY` in your `.env` file. You can find your API token in the
-    [Browserless account dashboard](https://www.browserless.io/).
+    [Browserless account dashboard](https://account.browserless.io/).
     :::
 
     :::tip
@@ -158,6 +123,39 @@ Browserless exposes a WebSocket endpoint that Playwright can connect to via `con
 
     More information about using `step.run()` can be found in the [Multi steps tools](/advanced-patterns/multi-steps-tools) page.
     :::
+
+3. **Setup an AgentKit Network with an Agent**
+
+    Create an Agent that uses the tool, and its associated Network:
+
+    ```typescript {12, 22-24}
+    import {
+      anthropic,
+      createAgent,
+      createNetwork,
+    } from "@inngest/agent-kit";
+
+    const newsAgent = createAgent({
+      name: "hackernews_agent",
+      description: "An agent that fetches and summarizes Hacker News stories",
+      system:
+        "You are a helpful assistant that fetches top stories from Hacker News and provides summaries.",
+      tools: [scrapeHackerNews],
+    });
+
+    const network = createNetwork({
+      name: "news_network",
+      description: "A network that scrapes Hacker News using Browserless",
+      agents: [newsAgent],
+      maxIter: 3,
+      defaultModel: anthropic({
+        model: "claude-sonnet-4-20250514",
+        defaultParameters: {
+          max_tokens: 4096,
+        },
+      }),
+    });
+    ```
 
 </Steps>
 
