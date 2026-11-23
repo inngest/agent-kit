@@ -134,6 +134,7 @@ export default defineConfig({
           items: [
             { label: "E2B", slug: "integrations/e2b" },
             { label: "Browserbase", slug: "integrations/browserbase" },
+            { label: "Browserless", slug: "integrations/browserless" },
             { label: "Smithery", slug: "integrations/smithery" },
             { label: "Daytona", slug: "integrations/daytona" },
           ],

@@ -1,0 +1,192 @@
+---
+title: Using AgentKit with Browserless
+description: "Develop AI Agents that can browse the web with Browserless"
+---
+
+import { Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+
+[Browserless](https://www.browserless.io/) provides headless browser infrastructure with built-in bot detection avoidance,
+residential proxies, and multiple regional endpoints, enabling Agents to browse the web autonomously.
+
+## Building AgentKit tools using Browserless
+
+Creating AgentKit [tools](/concepts/tools) using Browserless with Playwright is straightforward.
+Browserless exposes a WebSocket endpoint that Playwright can connect to via `connectOverCDP`.
+
+<Steps>
+
+1. **Install AgentKit**
+
+    Within an existing project, install AgentKit, Playwright core, and Zod:
+
+    <Tabs>
+      <TabItem label="npm">
+      ```shell
+      npm install @inngest/agent-kit inngest playwright-core zod
+      ```
+      </TabItem>
+      <TabItem label="pnpm">
+      ```shell
+      pnpm install @inngest/agent-kit inngest playwright-core zod
+      ```
+      </TabItem>
+      <TabItem label="yarn">
+      ```shell
+      yarn add @inngest/agent-kit inngest playwright-core zod
+      ```
+      </TabItem>
+    </Tabs>
+
+   <details>
+   <summary>Don't have an existing project?</summary>
+
+   To create a new project, create a new directory then initialize using your package manager:
+
+   <Tabs>
+     <TabItem label="npm">
+     ```shell
+     mkdir my-agent-kit-project && cd my-agent-kit-project && npm init
+     ```
+     </TabItem>
+     <TabItem label="pnpm">
+     ```shell
+     mkdir my-agent-kit-project && cd my-agent-kit-project && pnpm init
+     ```
+     </TabItem>
+     <TabItem label="yarn">
+     ```shell
+     mkdir my-agent-kit-project && cd my-agent-kit-project && yarn init
+     ```
+     </TabItem>
+   </Tabs>
+
+   </details>
+
+2. **Create a Browserless tool**
+
+    Create a tool that connects to Browserless via Playwright's CDP connection:
+
+    ```typescript
+    import { createTool } from "@inngest/agent-kit";
+    import { z } from "zod";
+    import { chromium } from "playwright-core";
+
+    const scrapeHackerNews = createTool({
+      name: "scrape_hackernews",
+      description: "Get the top stories from Hacker News",
+      parameters: z.object({
+        limit: z.number().describe("Number of stories to fetch").default(5),
+      }),
+      handler: async ({ limit }, { step }) => {
+        const scrape = async () => {
+          const browser = await chromium.connectOverCDP(
+            `wss://production-sfo.browserless.io?token=${process.env.BROWSERLESS_API_KEY}`
+          );
+          try {
+            const page = await browser.newPage();
+            await page.goto("https://news.ycombinator.com");
+
+            const stories = await page.evaluate((limit) => {
+              const items = document.querySelectorAll(".athing");
+              return Array.from(items)
+                .slice(0, limit)
+                .map((item) => {
+                  const titleEl = item.querySelector(".titleline > a");
+                  const subtext = item.nextElementSibling;
+                  const scoreEl = subtext?.querySelector(".score");
+                  return {
+                    title: titleEl?.textContent,
+                    url: titleEl?.getAttribute("href"),
+                    points: scoreEl?.textContent || "0 points",
+                  };
+                });
+            }, limit);
+
+            return stories;
+          } finally {
+            await browser.close();
+          }
+        };
+
+        return await step?.run("scrape-hn", scrape) ?? await scrape();
+      },
+    });
+    ```
+
+    :::note
+    Configure your `BROWSERLESS_API_KEY` in your `.env` file. You can find your API token in the
+    [Browserless account dashboard](https://account.browserless.io/).
+    :::
+
+    :::tip
+    We recommend building tools using Browserless with Inngest's `step.run()` function. This ensures that the tool will only run once across multiple runs.
+
+    More information about using `step.run()` can be found in the [Multi steps tools](/advanced-patterns/multi-steps-tools) page.
+    :::
+
+3. **Setup an AgentKit Network with an Agent**
+
+    Create an Agent that uses the tool, and its associated Network:
+
+    ```typescript {12, 22-24}
+    import {
+      anthropic,
+      createAgent,
+      createNetwork,
+    } from "@inngest/agent-kit";
+
+    const newsAgent = createAgent({
+      name: "hackernews_agent",
+      description: "An agent that fetches and summarizes Hacker News stories",
+      system:
+        "You are a helpful assistant that fetches top stories from Hacker News and provides summaries.",
+      tools: [scrapeHackerNews],
+    });
+
+    const network = createNetwork({
+      name: "news_network",
+      description: "A network that scrapes Hacker News using Browserless",
+      agents: [newsAgent],
+      maxIter: 3,
+      defaultModel: anthropic({
+        model: "claude-sonnet-4-20250514",
+        defaultParameters: {
+          max_tokens: 4096,
+        },
+      }),
+    });
+    ```
+
+</Steps>
+
+## Advanced Features
+
+Browserless offers several features to help agents browse the web more effectively:
+
+### Stealth Mode
+
+Use the `/stealth` endpoint for pages with bot detection:
+
+```typescript
+const browser = await chromium.connectOverCDP(
+  `wss://production-sfo.browserless.io/stealth?token=${process.env.BROWSERLESS_API_KEY}`
+);
+```
+
+### Residential Proxies
+
+Route traffic through residential proxies to avoid IP-based blocking:
+
+```typescript
+const browser = await chromium.connectOverCDP(
+  `wss://production-sfo.browserless.io?token=${process.env.BROWSERLESS_API_KEY}&proxy=residential&proxyCountry=us`
+);
+```
+
+### Regional Endpoints
+
+Browserless provides multiple regional endpoints for lower latency:
+
+- **US West (San Francisco)**: `wss://production-sfo.browserless.io`
+- **Europe (London)**: `wss://production-lon.browserless.io`
+- **Europe (Amsterdam)**: `wss://production-ams.browserless.io`
